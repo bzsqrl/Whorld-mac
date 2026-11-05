@@ -1,0 +1,346 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		322FC43E14B472C793C7C588 /* WhorldApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB79CE023AD8CB0A2563E7CB /* WhorldApp.swift */; };
+		35821651C530768F9F52354C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A99C51A509F02C86E66128F /* ContentView.swift */; };
+		031C794DDED1BC1890B78647 /* Commands.swift in Sources */ = {isa = PBXBuildFile; fileRef = C33528911E3CFEFF12BAD665 /* Commands.swift */; };
+		E400806317F157D60866149F /* WHEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */; };
+		4C6344BF85C28FB3A76A2C9D /* ByteIO.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9AD330ED67D25720CAF715FE /* ByteIO.cpp */; };
+		41FFB717DC4AE9B25DBAA195 /* DPoint.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A25943A1CB3686F094AC5B3E /* DPoint.cpp */; };
+		B51B3234CF919DF8114A7793 /* FormatIO.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E099C647CD3D8FBAA11F7828 /* FormatIO.cpp */; };
+		5C8E7DCF2FE02331F4299392 /* HLS.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52C386BFB5939679B4357CC9 /* HLS.cpp */; };
+		81F3AE572CE7659290FE084F /* Oscillator.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EEBE8AEA3278B5C90BEB2179 /* Oscillator.cpp */; };
+		8C9859399AC78FCB78FB3453 /* Patch.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3DF57E86533CB766F1F15A16 /* Patch.cpp */; };
+		2E2C550ABA91A18E1FCB0181 /* RandList.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1E71565B7500AE4C1D425636 /* RandList.cpp */; };
+		FA4F25B10B8D5F0F3C7822B1 /* Snapshot.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 767758B821E3B5577758599C /* Snapshot.cpp */; };
+		7F1EAB27F342C655730F7812 /* SnapshotV1.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4D59ADCBB6884B426EB05BB2 /* SnapshotV1.cpp */; };
+		85ABB2394770A9FD8B8DBA56 /* Version.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BE3BAAE5B7560CADB1137050 /* Version.cpp */; };
+		AAB618AE907BBA4A9059C0FE /* WhorldBase.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FAF8EB4D8501BA25F6DC307E /* WhorldBase.cpp */; };
+		AB24DD7E38B368A205F65B6F /* WhorldEngine.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 73C37FDF9DECAB5DB772722E /* WhorldEngine.cpp */; };
+		AA09D273D9A9F1E73DF7DFCA /* CGRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 4984649519BAE4D772D49843 /* CGRenderer.mm */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		F5BF48AA40CAD7891EB709FC /* Whorld.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Whorld.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DB79CE023AD8CB0A2563E7CB /* WhorldApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WhorldApp.swift"; sourceTree = "<group>"; };
+		4A99C51A509F02C86E66128F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView.swift"; sourceTree = "<group>"; };
+		C33528911E3CFEFF12BAD665 /* Commands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Commands.swift"; sourceTree = "<group>"; };
+		34488F6B7AD3E8B693BF38A2 /* WHEngine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "WHEngine.h"; sourceTree = "<group>"; };
+		CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "WHEngine.mm"; sourceTree = "<group>"; };
+		895315CF8C9F41F1630E1694 /* Whorld-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Whorld-Bridging-Header.h"; sourceTree = "<group>"; };
+		4A43C53A319CA8E90772E131 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info.plist"; sourceTree = "<group>"; };
+		9AD330ED67D25720CAF715FE /* ByteIO.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "ByteIO.cpp"; sourceTree = "<group>"; };
+		A25943A1CB3686F094AC5B3E /* DPoint.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "DPoint.cpp"; sourceTree = "<group>"; };
+		E099C647CD3D8FBAA11F7828 /* FormatIO.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "FormatIO.cpp"; sourceTree = "<group>"; };
+		52C386BFB5939679B4357CC9 /* HLS.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "HLS.cpp"; sourceTree = "<group>"; };
+		EEBE8AEA3278B5C90BEB2179 /* Oscillator.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Oscillator.cpp"; sourceTree = "<group>"; };
+		3DF57E86533CB766F1F15A16 /* Patch.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Patch.cpp"; sourceTree = "<group>"; };
+		1E71565B7500AE4C1D425636 /* RandList.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "RandList.cpp"; sourceTree = "<group>"; };
+		767758B821E3B5577758599C /* Snapshot.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Snapshot.cpp"; sourceTree = "<group>"; };
+		4D59ADCBB6884B426EB05BB2 /* SnapshotV1.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "SnapshotV1.cpp"; sourceTree = "<group>"; };
+		BE3BAAE5B7560CADB1137050 /* Version.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Version.cpp"; sourceTree = "<group>"; };
+		FAF8EB4D8501BA25F6DC307E /* WhorldBase.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "WhorldBase.cpp"; sourceTree = "<group>"; };
+		73C37FDF9DECAB5DB772722E /* WhorldEngine.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "WhorldEngine.cpp"; sourceTree = "<group>"; };
+		4984649519BAE4D772D49843 /* CGRenderer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "CGRenderer.mm"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4F6F5CC3FCCF73F75AE9CCF4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2B731CEFC6751AAE0EC69B98 = {
+			isa = PBXGroup;
+			children = (
+				C7D587FEFB448E5039229ABD /* Whorld */,
+				521F6E4D992FBF08A1ACDF93 /* Engine */,
+				3432345385F56B1A8B106DD0 /* Renderer */,
+				86024CAD1E83101D97359D73 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		86024CAD1E83101D97359D73 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F5BF48AA40CAD7891EB709FC /* Whorld.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C7D587FEFB448E5039229ABD /* Whorld */ = {
+			isa = PBXGroup;
+			children = (
+				DB79CE023AD8CB0A2563E7CB /* WhorldApp.swift */,
+				4A99C51A509F02C86E66128F /* ContentView.swift */,
+				C33528911E3CFEFF12BAD665 /* Commands.swift */,
+				34488F6B7AD3E8B693BF38A2 /* WHEngine.h */,
+				CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */,
+				895315CF8C9F41F1630E1694 /* Whorld-Bridging-Header.h */,
+				4A43C53A319CA8E90772E131 /* Info.plist */,
+			);
+			name = Whorld;
+			path = "Whorld";
+			sourceTree = "<group>";
+		};
+		521F6E4D992FBF08A1ACDF93 /* Engine */ = {
+			isa = PBXGroup;
+			children = (
+				9AD330ED67D25720CAF715FE /* ByteIO.cpp */,
+				A25943A1CB3686F094AC5B3E /* DPoint.cpp */,
+				E099C647CD3D8FBAA11F7828 /* FormatIO.cpp */,
+				52C386BFB5939679B4357CC9 /* HLS.cpp */,
+				EEBE8AEA3278B5C90BEB2179 /* Oscillator.cpp */,
+				3DF57E86533CB766F1F15A16 /* Patch.cpp */,
+				1E71565B7500AE4C1D425636 /* RandList.cpp */,
+				767758B821E3B5577758599C /* Snapshot.cpp */,
+				4D59ADCBB6884B426EB05BB2 /* SnapshotV1.cpp */,
+				BE3BAAE5B7560CADB1137050 /* Version.cpp */,
+				FAF8EB4D8501BA25F6DC307E /* WhorldBase.cpp */,
+				73C37FDF9DECAB5DB772722E /* WhorldEngine.cpp */,
+			);
+			name = Engine;
+			path = "../engine/src";
+			sourceTree = "<group>";
+		};
+		3432345385F56B1A8B106DD0 /* Renderer */ = {
+			isa = PBXGroup;
+			children = (
+				4984649519BAE4D772D49843 /* CGRenderer.mm */,
+			);
+			name = Renderer;
+			path = "../renderer";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		42AEFBAE01D2DFD981F7DA7D /* Whorld */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7CFCAAA280ADA50A774EA8B7 /* Build configuration list for PBXNativeTarget "Whorld" */;
+			buildPhases = (
+				F2AB5FB218DA8B84623F4557 /* Sources */,
+				4F6F5CC3FCCF73F75AE9CCF4 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Whorld;
+			productName = Whorld;
+			productReference = F5BF48AA40CAD7891EB709FC /* Whorld.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		46F86FAA6BBF9AC94A7E4595 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1620;
+				LastUpgradeCheck = 1620;
+			};
+			buildConfigurationList = D60AB4BCFA2DE420FB18CE1F /* Build configuration list for PBXProject "Whorld" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 2B731CEFC6751AAE0EC69B98;
+			productRefGroup = 86024CAD1E83101D97359D73 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				42AEFBAE01D2DFD981F7DA7D /* Whorld */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F2AB5FB218DA8B84623F4557 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				322FC43E14B472C793C7C588 /* WhorldApp.swift in Sources */,
+				35821651C530768F9F52354C /* ContentView.swift in Sources */,
+				031C794DDED1BC1890B78647 /* Commands.swift in Sources */,
+				E400806317F157D60866149F /* WHEngine.mm in Sources */,
+				4C6344BF85C28FB3A76A2C9D /* ByteIO.cpp in Sources */,
+				41FFB717DC4AE9B25DBAA195 /* DPoint.cpp in Sources */,
+				B51B3234CF919DF8114A7793 /* FormatIO.cpp in Sources */,
+				5C8E7DCF2FE02331F4299392 /* HLS.cpp in Sources */,
+				81F3AE572CE7659290FE084F /* Oscillator.cpp in Sources */,
+				8C9859399AC78FCB78FB3453 /* Patch.cpp in Sources */,
+				2E2C550ABA91A18E1FCB0181 /* RandList.cpp in Sources */,
+				FA4F25B10B8D5F0F3C7822B1 /* Snapshot.cpp in Sources */,
+				7F1EAB27F342C655730F7812 /* SnapshotV1.cpp in Sources */,
+				85ABB2394770A9FD8B8DBA56 /* Version.cpp in Sources */,
+				AAB618AE907BBA4A9059C0FE /* WhorldBase.cpp in Sources */,
+				AB24DD7E38B368A205F65B6F /* WhorldEngine.cpp in Sources */,
+				AA09D273D9A9F1E73DF7DFCA /* CGRenderer.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		9F92596D2ACB03E6970814CB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = NO;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		B8BBA4EBA303474FDD62EA0C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = NO;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"NDEBUG=1",
+					"$(inherited)",
+				);
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		AA397EA46A8B5D6A458E3C52 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = NO;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../engine/include",
+					"$(SRCROOT)/../engine/src",
+					"$(SRCROOT)/../renderer",
+				);
+				INFOPLIST_FILE = Whorld/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				OTHER_LDFLAGS = (
+					"-framework",
+					CoreGraphics,
+					"-framework",
+					ImageIO,
+					"-framework",
+					QuartzCore,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "io.github.bzsqrl.Whorld";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "Whorld/Whorld-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		CA6BAF119D1E0AB19449A626 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = NO;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../engine/include",
+					"$(SRCROOT)/../engine/src",
+					"$(SRCROOT)/../renderer",
+				);
+				INFOPLIST_FILE = Whorld/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				OTHER_LDFLAGS = (
+					"-framework",
+					CoreGraphics,
+					"-framework",
+					ImageIO,
+					"-framework",
+					QuartzCore,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "io.github.bzsqrl.Whorld";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "Whorld/Whorld-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		D60AB4BCFA2DE420FB18CE1F /* Build configuration list for PBXProject "Whorld" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9F92596D2ACB03E6970814CB /* Debug */,
+				B8BBA4EBA303474FDD62EA0C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7CFCAAA280ADA50A774EA8B7 /* Build configuration list for PBXNativeTarget "Whorld" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA397EA46A8B5D6A458E3C52 /* Debug */,
+				CA6BAF119D1E0AB19449A626 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+}

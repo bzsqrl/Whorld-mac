@@ -1,6 +1,6 @@
 # Whorld macOS Port Plan
 
-Status: **Phase 2 done; Phase 3 next** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
+Status: **Phase 3 done except the Metal decision (see Performance results)** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
 
 ## Goal
 
@@ -92,12 +92,36 @@ Each phase ends with something that runs. Check items off as they're done.
 **Done when:** snapshots render visibly identical to Windows output and the golden tests pass.
 
 ### Phase 3 — Minimum viable app
-- [ ] Xcode project, SwiftUI app shell, Objective-C++ bridge.
-- [ ] Render view driven by the display link, with the engine on a render thread.
-- [ ] Open a `.whp` patch (menu and drag-and-drop), play/pause, full screen, the main keyboard shortcuts from the Windows version.
-- [ ] Measure frame rate at high ring counts on Apple Silicon. Record results here. If below 60 fps, raise the Metal backend decision with the user.
+- [x] Xcode project, SwiftUI app shell, Objective-C++ bridge. (`mac/app`: `WHEngine.{h,mm}` bridge, SwiftUI menus and window.)
+- [x] Render view driven by the display link, with the engine on a render thread. (`WHRenderView`: the display link requests frames; the render thread drains the command queue, draws into an IOSurface pool, and the layer shows the surface without copying. The engine's frame rate is the display's refresh rate, as on Windows.)
+- [x] Open a `.whp` patch (menu and drag-and-drop), play/pause, full screen, the main keyboard shortcuts from the Windows version. (Shortcut table in `mac/app/README.md`. Checked in the running app: opening patches, Mirror, Fill, check marks, Pause, Step, full screen. Drag-and-drop is untested because it can't be scripted.)
+- [x] Measure frame rate at high ring counts on Apple Silicon. Record results here. If below 60 fps, raise the Metal backend decision with the user. (Results below; decision raised with the user.)
 
 **Done when:** a user can open a demo patch and watch it full screen at a steady frame rate. **Good moment to show upstream.**
+
+#### Performance results (2026-11-05, M1 Max, 120 Hz ProMotion display, Release build)
+
+The renderer went through three steps, all measured with `bloom_cvx` (100 filled, curved, thickly outlined rings) in the app:
+
+| Renderer | bloom, window (about 1890×1380 px) |
+|---|---|
+| Core Graphics, direct | 26 fps (37 ms draw) |
+| + deferred: stroke outlines built in parallel, rasterized in 32 parallel bands | 55 fps (13 ms) |
+| + IOSurface delivery, no copy per frame | 95 fps (10.5 ms) |
+
+Full screen (3024×1964 px): `saturn_cvx` holds 120 fps (3.9 ms draw); `bloom_cvx` runs at about 75 fps (13 ms).
+
+All 86 sample patches timed with `whorld-render --deferred` at 3024×1964, 400 frames each; the tool runs about 1.8× faster than the app, which also delivers frames to the display:
+- mean 3.15 ms per frame; 71 of 86 patches under 4.6 ms (about 120 fps in the app);
+- the slowest are `boomer_cvx` 27.6 ms, `typhoon_cvx` 9.3 ms, then `bloom`, `gallop`, `fish eye`, `fireworks` at about 7.5 ms;
+- drawing at 1× instead of 2× (View > Full Resolution off) saves little (`boomer` 22.5 → 16.6 ms), because the cost is stroke geometry and rasterizing, not pixels.
+
+So on this machine nearly every sample holds 60 fps full screen and most hold 120. The exceptions are `boomer_cvx` (about 20 fps; its even curve is modulated with amplitude 20, giving huge self-overlapping rings) and `typhoon_cvx` (borderline at 60). Two things tried and rejected: flattening curves into lines (faster only at tolerances that fail the golden test) and plain render-thread QoS (no change).
+
+Two notes on accuracy:
+- When drawing falls behind the display, the engine ticks less often than its configured rate, so animation slows down, exactly as on Windows when a frame misses vsync.
+- At 120 Hz each tick is 1/120 s, so ring growth per second is twice that of a 60 Hz display, again as on Windows.
+
 
 ### Phase 4 — Controls
 - [ ] Parameters panel: value, waveform, amplitude, frequency, pulse width, global for each parameter (spec: `ParamsBar`, `ParamsRowDlg`).
@@ -148,7 +172,7 @@ Record here anything worth telling the upstream author: suspected bugs found whi
 - **`SnapshotV1.cpp` `CSnapshotV1::CvtRing`:** `ptShiftDelta` is copied from the V1 ring's `Shift` rather than its `ShiftDelta`. This might be intentional. The port keeps it.
 - **Patch loading ignores waveforms and pulse widths (visible).** `CWhorldThread::OnSetPatch` copies the patch into the render thread but never calls `COscillator::SetWaveform` or `SetPulseWidth`; only `OnSetWaveform` and `OnSetPulseWidth` (from editing a parameter) do. Opening a patch sends only `RC_SET_PATCH` (`CWhorldView::OnUpdate`, `HINT_NONE`), so each oscillator keeps its previous waveform (`TRIANGLE` at startup) and pulse width (0.5). A loaded patch with sine or square modulation therefore animates with the previous waveform until that row is edited. The port keeps this behavior, and `test_engine` documents it. This is worth reporting upstream; the fix would be to set each oscillator's waveform and pulse width in `OnSetPatch`. The user decided (2026-11-05) to keep the bug in the port for now. It's hard to see on their patches.
 - **`WhorldThread.cpp` `OnRenderCommand` `RC_MOVIE_SEEK`:** passes `cmd.m_prop.intVal`, so frame indices above 2^31 are truncated, even though `MovieSeek` takes a `LONGLONG`. Harmless in practice. Noted for the Phase 6 port.
-- **Exporting while mirroring uses a stale mirror bitmap (visible in exports).** `CWhorldDraw::InitMirroring` creates `m_pMirrorBitmap` lazily at the live window's quadrant size, and only `OnResize` releases it. `CaptureBitmap` recomputes `m_szMirQuad` for the export bitmap but reuses the window-sized bitmap. `FinishMirroring` then copies only the export's quadrant into the bitmap's corner, and `DrawBitmap` with no source rectangle squeezes the whole bitmap, stale content included, into each mirrored quadrant. Confirmed with `pinwheel_cvx-mirrored`: a 528×617 stale bitmap (half the 1056×1234 view) reproduces the Windows output with 99.7% of pixels matching. Live mirroring in the window is unaffected. The port mirrors exports correctly; the golden test compares only the upper-left quadrant. The fix upstream would be to release `m_pMirrorBitmap` when the capture target is set, or to pass a source rectangle to `DrawBitmap`.
+- **Exporting while mirroring uses a stale mirror bitmap (visible in exports).** `CWhorldDraw::InitMirroring` creates `m_pMirrorBitmap` lazily at the live window's quadrant size, and only `OnResize` releases it. `CaptureBitmap` recomputes `m_szMirQuad` for the export bitmap but reuses the window-sized bitmap. `FinishMirroring` then copies only the export's quadrant into the bitmap's corner, and `DrawBitmap` with no source rectangle squeezes the whole bitmap, stale content included, into each mirrored quadrant. Confirmed with `pinwheel_cvx-mirrored`: a 528×617 stale bitmap (half the 1056×1234 view) reproduces the Windows output with 99.7% of pixels matching. Live mirroring in the window is unaffected. The port mirrors exports correctly, by the user's decision (2026-11-05); the golden test compares only the upper-left quadrant. The fix upstream would be to release `m_pMirrorBitmap` when the capture target is set, or to pass a source rectangle to `DrawBitmap`.
 
 ## Port notes
 
@@ -171,6 +195,7 @@ Decisions made while porting that preserve Windows behavior in non-obvious ways.
   - A zero-width stroke is skipped. Core Graphics would draw a hairline; Direct2D's behavior at exactly zero is unverified.
 - **Renderer: color.** The bitmap and every fill color use the same sRGB color space, so values are written without conversion, as Direct2D does. PNG export writes the premultiplied bytes labeled as straight alpha, as `WriteCapturedBitmap` does through WIC; this only differs for translucent backgrounds.
 - **Export scale.** Windows captures into a bitmap at 96 DPI, so exports are 1 DIP = 1 pixel whatever the display scaling. The 125% scaling the goldens were exported at doesn't affect them. `RenderSnapshotExport` reproduces Export All: snapshot mode, then `DrawCapture`.
+- **Deferred, banded rendering.** The app uses `CGBitmapRenderer::SetDeferred(true)`: calls are recorded, stroke outlines are built in parallel (`CGPathCreateCopyByStrokingPath`), and the frame is replayed into 32 horizontal bands in parallel. Strokes thinner than 2 device pixels are stroked directly in each band, because Core Graphics renders thin lines differently from their prebuilt outlines, and its direct rendering is closer to Direct2D (fish eye: 0.95% → 0.37% of pixels off). The golden test checks both modes.
 - **Performance (early measurement, Phase 2).** Release build, M1 Max, CPU only, 3024×1964 pixels (full-screen Retina): `saturn_cvx` about 6 ms per frame; `bloom_cvx` (100 filled curved rings with thick outlines) about 41 ms per frame, roughly 24 fps. Phase 3 should measure in the app and raise the Metal decision if heavy patches can't hold 60 fps. Rendering at 1× and scaling up is a cheaper fallback to evaluate first.
 - **Display names.** These come from the `Whorld.rc` string table and are compiled in (`src/WhorldStrings.h`), replacing `LoadString` and `InitWhorldBase`.
 - **Anonymous structs in unions.** `PARAM_VALS` and `MASTER_PROPS` keep the original's union of named members and an array. This is a compiler extension that MSVC, clang and gcc all support. The warning is silenced only around those declarations, and `static_assert`s check that the members overlay the array exactly.
