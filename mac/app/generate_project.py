@@ -11,6 +11,8 @@
 # the source lists below. Run after adding or removing app, engine or
 # renderer sources:  python3 mac/app/generate_project.py
 # Object IDs are hashes of names, so regenerating is stable.
+import hashlib, os, sys
+root = os.path.dirname(os.path.abspath(__file__))  # mac/app
 def gid(name):
     return hashlib.md5(name.encode()).hexdigest()[:24].upper()
 
