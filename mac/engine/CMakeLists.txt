@@ -8,7 +8,10 @@
 
 # Portable engine: plain C++17, no Windows, MFC or Apple headers.
 add_library(whorld_engine STATIC
+  src/DPoint.cpp
+  src/FormatIO.cpp
   src/Version.cpp
+  src/WhorldBase.cpp
 )
 target_include_directories(whorld_engine PUBLIC include)
 target_compile_options(whorld_engine PRIVATE -Wall -Wextra -Wpedantic)

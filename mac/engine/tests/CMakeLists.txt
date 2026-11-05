@@ -18,3 +18,5 @@ function(whorld_add_test name)
 endfunction()
 
 whorld_add_test(test_version)
+whorld_add_test(test_basics)
+whorld_add_test(test_whorldbase)
