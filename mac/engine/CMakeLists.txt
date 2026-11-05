@@ -13,8 +13,12 @@ add_library(whorld_engine STATIC
   src/DPoint.cpp
   src/FormatIO.cpp
   src/HLS.cpp
+  src/IniFile.cpp
+  src/Mapping.cpp
+  src/MidiManager.cpp
   src/Oscillator.cpp
   src/Patch.cpp
+  src/Playlist.cpp
   src/WhorldEngine.cpp
   src/RandList.cpp
   src/Snapshot.cpp
