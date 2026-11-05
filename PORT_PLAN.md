@@ -1,6 +1,6 @@
 # Whorld macOS Port Plan
 
-Status: **Phase 1 in progress** (Phase 0 done) · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
+Status: **Phase 1 done; Phase 2 next** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
 
 ## Goal
 
@@ -77,10 +77,10 @@ Each phase ends with something that runs. Check items off as they're done.
 - [x] Port the definition headers and core types (`WhorldDef.h` X-macros, `PARAM_VALS`, `RING`, `DRAW_STATE`, `GLOB_RING`) with engine-native point/color/size structs. (`include/whorld/{WhorldDef,WhorldBase,RenderCmd,Types,Round,Random}.h`)
 - [x] Port `Oscillator`, `hls`, `DPoint`, `RandList`, `FormatIO`.
 - [x] Port `Patch` read/write; test round-trip against the sample `.whp` files. (All 86 samples parse. In the 14 version-4 files, 616 lines are reproduced byte for byte; 19 hand-edited lines, with empty fields or typos, are only required to parse.)
-- [ ] Define `IRenderer` (begin/end frame, clear, set antialiasing, build path, fill path, stroke path with width, fill rect, offscreen bitmap create/draw for mirroring).
-- [ ] Port `CWhorldDraw` as `WhorldEngine`: `TimerHook` → `Tick()`, `AddRing`, `DrawRing`, `DrawOutline`, origin/zoom/hue/globals updates, quad mirroring — drawing only through `IRenderer`. Separate it from the thread and device classes it inherits from on Windows.
+- [x] Define `IRenderer` (begin/end frame, clear, set antialiasing, build path, fill path, stroke path with width, fill rect, offscreen bitmap create/draw for mirroring). (`include/whorld/IRenderer.h`. The host brackets frames itself, as the Windows render thread does. Mirroring is `BeginQuadMirror` / `EndQuadMirror`, since it's a pixel operation the backend does. The contract records the Direct2D defaults a backend must match: even-odd fill and miter joins with limit 10.)
+- [x] Port `CWhorldDraw` as `WhorldEngine`: `TimerHook` → `Tick()`, `AddRing`, `DrawRing`, `DrawOutline`, origin/zoom/hue/globals updates, quad mirroring — drawing only through `IRenderer`. Separate it from the thread and device classes it inherits from on Windows. (`WhorldEngine::Draw` is `OnDraw` and calls `TimerHook` unless paused, as the original does. The `CWhorldThread` command handlers and `OnRenderCommand` are ported too. Movie commands wait for Phase 6. Bitmap capture is split: the engine draws (`DrawCapture`), and the host owns the offscreen target and the image file.)
 - [x] Port `Snapshot` (including `SnapshotV1`) with explicit binary decoding. (All 8 sample snapshots decode and re-encode byte for byte. The V1 reader is tested only with synthetic files, because no real V1 snapshot is available.)
-- [ ] Unit tests: oscillator waveforms, patch round-trip, snapshot parsing, a recording `IRenderer` that checks the draw calls for a fixed seed.
+- [x] Unit tests: oscillator waveforms, patch round-trip, snapshot parsing, a recording `IRenderer` that checks the draw calls for a fixed seed. (8 test executables. They also pass under AddressSanitizer and UndefinedBehaviorSanitizer. The draw-call tests check structure and hand-computed geometry within tolerances rather than a hash, because `sin` and `cos` differ in the last bit between macOS and glibc.)
 
 **Done when:** the engine builds with no Windows or Apple headers and tests pass.
 
@@ -146,6 +146,8 @@ Record here anything worth telling the upstream author: suspected bugs found whi
 - **`Oscillator.cpp` `COscillator::SetPhaseFromVal`:** for `TRIANGLE`, `r = (fVal + 1) / 2 + 10.5` lands on the phase where `GetVal()` returns `-fVal`, not `fVal`. The other waveforms invert correctly. Nothing calls `SetPhaseFromVal`, so there's no visible effect. The port keeps this behavior.
 - **`Oscillator.h` `CTriggerOscillator()`:** the default constructor leaves `m_bIsHigh` uninitialized. The port initializes it to `false`. This is latent only: the one user, `CWhorldDraw::m_oscOrigin`, uses the two-argument constructor.
 - **`SnapshotV1.cpp` `CSnapshotV1::CvtRing`:** `ptShiftDelta` is copied from the V1 ring's `Shift` rather than its `ShiftDelta`. This might be intentional. The port keeps it.
+- **Patch loading ignores waveforms and pulse widths (visible).** `CWhorldThread::OnSetPatch` copies the patch into the render thread but never calls `COscillator::SetWaveform` or `SetPulseWidth`; only `OnSetWaveform` and `OnSetPulseWidth` (from editing a parameter) do. Opening a patch sends only `RC_SET_PATCH` (`CWhorldView::OnUpdate`, `HINT_NONE`), so each oscillator keeps its previous waveform (`TRIANGLE` at startup) and pulse width (0.5). A loaded patch with sine or square modulation therefore animates with the previous waveform until that row is edited. The port keeps this behavior, and `test_engine` documents it. This is worth reporting upstream; the fix would be to set each oscillator's waveform and pulse width in `OnSetPatch`.
+- **`WhorldThread.cpp` `OnRenderCommand` `RC_MOVIE_SEEK`:** passes `cmd.m_prop.intVal`, so frame indices above 2^31 are truncated, even though `MovieSeek` takes a `LONGLONG`. Harmless in practice. Noted for the Phase 6 port.
 
 ## Port notes
 
@@ -158,5 +160,9 @@ Decisions made while porting that preserve Windows behavior in non-obvious ways.
 - **Errors.** The engine reports errors with `bool` results and an optional `std::string*` message, in place of MFC exceptions and message boxes. Use this everywhere in the engine.
 - **Binary layouts.** `.whs` structs are decoded at the MSVC x64 offsets listed in `Snapshot.cpp`: `DRAW_STATE` 40 bytes, `GLOB_RING` 104, `RING` 192, none with padding. V1 snapshots use the 32-bit MSVC offsets listed in `SnapshotV1.cpp`. Each struct is copied into a zeroed image of its full size before decoding, which reproduces the original's behavior of reading `min(size, sizeof)` bytes into a zeroed struct for files with older, smaller structs.
 - **Legacy snapshot size.** `CSnapshotV1` gets the frame size from the options (`GetLegacySnapshotSize`); the port takes it as a parameter, defaulting to 800×600 like the Windows option.
+- **Argument evaluation order.** `DPoint ptRand(RandDouble(), RandDouble())` (random origin) evaluates its arguments in an unspecified order. MSVC typically goes right to left and clang left to right. The port draws y first, then x, assuming MSVC's order; it isn't verified against Windows yet. A Windows check: with origin motion set to Random, record the first random origin after launch and compare.
+- **Overlapping copy.** `CWhorldDraw::OnDraw` copies the previous ring's points with `memcpy` into a range that overlaps when the current ring has fewer points. MSVC's `memcpy` handles overlap like `memmove`, so the port uses `memmove`.
+- **Frame timing.** As on Windows, the engine advances one tick per displayed frame, and the oscillators use the display rate as their clock (`SetFrameRate`). Ring growth is per tick, so a 120 Hz display grows rings twice as fast as 60 Hz, exactly as a 120 Hz monitor does on Windows. Phase 3 should pass the real display rate.
+- **Cursor and options.** `OM_DRAG` reads the cursor through `SetCursorPosition` (normalized) instead of `GetCursorPos`. The snapshot letterbox option is `SetSnapshotLetterbox`.
 - **Display names.** These come from the `Whorld.rc` string table and are compiled in (`src/WhorldStrings.h`), replacing `LoadString` and `InitWhorldBase`.
 - **Anonymous structs in unions.** `PARAM_VALS` and `MASTER_PROPS` keep the original's union of named members and an array. This is a compiler extension that MSVC, clang and gcc all support. The warning is silenced only around those declarations, and `static_assert`s check that the members overlay the array exactly.

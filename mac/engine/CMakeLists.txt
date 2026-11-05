@@ -14,6 +14,7 @@ add_library(whorld_engine STATIC
   src/HLS.cpp
   src/Oscillator.cpp
   src/Patch.cpp
+  src/WhorldEngine.cpp
   src/RandList.cpp
   src/Snapshot.cpp
   src/SnapshotV1.cpp
