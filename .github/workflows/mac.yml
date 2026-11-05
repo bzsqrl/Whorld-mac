@@ -1,0 +1,43 @@
+# This file is part of Whorld for macOS. GPLv3; see LICENSE.
+name: mac
+
+on:
+  push:
+    branches: [mac-port]
+  pull_request:
+    branches: [mac-port]
+
+jobs:
+  engine-macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S mac -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # The engine must stay portable; building on Linux catches stray Apple or
+  # Windows headers.
+  engine-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S mac -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  app:
+    runs-on: macos-14
+    needs: engine-macos
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build app
+        # The Xcode project arrives in Phase 3; skip until it exists.
+        if: hashFiles('mac/app/Whorld.xcodeproj/project.pbxproj') != ''
+        run: xcodebuild -project mac/app/Whorld.xcodeproj -scheme Whorld -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
