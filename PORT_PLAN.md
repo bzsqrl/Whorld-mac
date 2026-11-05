@@ -1,6 +1,6 @@
 # Whorld macOS Port Plan
 
-Status: **Phase 0 in progress** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
+Status: **Phase 1 in progress** (Phase 0 done except test data, which the user is exporting from Windows) · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
 
 ## Goal
 
@@ -74,8 +74,8 @@ Each phase ends with something that runs. Check items off as they're done.
 **Done when:** an empty engine library and test target build locally and in CI.
 
 ### Phase 1 — Portable engine
-- [ ] Port the definition headers and core types (`WhorldDef.h` X-macros, `PARAM_VALS`, `RING`, `DRAW_STATE`, `GLOB_RING`) with engine-native point/color/size structs.
-- [ ] Port `Oscillator`, `hls`, `DPoint`, `RandList`, `FormatIO`.
+- [x] Port the definition headers and core types (`WhorldDef.h` X-macros, `PARAM_VALS`, `RING`, `DRAW_STATE`, `GLOB_RING`) with engine-native point/color/size structs. (`include/whorld/{WhorldDef,WhorldBase,RenderCmd,Types,Round,Random}.h`)
+- [x] Port `Oscillator`, `hls`, `DPoint`, `RandList`, `FormatIO`.
 - [ ] Port `Patch` read/write; test round-trip against the sample `.whp` files.
 - [ ] Define `IRenderer` (begin/end frame, clear, set antialiasing, build path, fill path, stroke path with width, fill rect, offscreen bitmap create/draw for mirroring).
 - [ ] Port `CWhorldDraw` as `WhorldEngine`: `TimerHook` → `Tick()`, `AddRing`, `DrawRing`, `DrawOutline`, origin/zoom/hue/globals updates, quad mirroring — drawing only through `IRenderer`. Separate it from the thread and device classes it inherits from on Windows.
@@ -141,3 +141,16 @@ Each phase ends with something that runs. Check items off as they're done.
 ## Upstream notes
 
 Record here anything worth telling the upstream author: suspected bugs found while porting, small changes that would make the shared code easier to keep portable, and the overall port once Phase 3 works.
+
+- **`FormatIO.cpp` `CFormatIO::StrToVal`:** the `FIO_BYTE` case (also used for `bool`) has no `break`, so it falls through to `default` and returns `FALSE` even though the value was stored. Harmless today because `CPatch::Read` ignores the return value. The port keeps this behavior.
+- **`Oscillator.cpp` `COscillator::SetPhaseFromVal`:** for `TRIANGLE`, `r = (fVal + 1) / 2 + 10.5` lands on the phase where `GetVal()` returns `-fVal`, not `fVal`. The other waveforms invert correctly. Nothing calls `SetPhaseFromVal`, so there's no visible effect. The port keeps this behavior.
+- **`Oscillator.h` `CTriggerOscillator()`:** the default constructor leaves `m_bIsHigh` uninitialized. The port initializes it to `false`. This is latent only: the one user, `CWhorldDraw::m_oscOrigin`, uses the two-argument constructor.
+
+## Port notes
+
+Decisions made while porting that preserve Windows behavior in non-obvious ways.
+
+- **Rounding.** On x64, `Round()` and `Trunc()` (`Round.h`) use SSE `cvtsd2si` / `cvttsd2si`. Halves round to even (`Round(2.5) == 2`), and NaN or out-of-range input returns `INT_MIN`. `whorld::Round` and `whorld::Trunc` reproduce both, so don't replace them with `std::round` or `lround`.
+- **Random numbers.** MSVC's `rand()` is a per-thread LCG (`RAND_MAX` 32767) seeded with 1 on each thread, and Whorld never calls `srand`, so Windows Whorld produces the same random sequence on every run. `whorld::rand()` (`Random.h`) reproduces that generator exactly, so random waveforms and random origins match Windows and are the same on macOS and Linux. Ported code uses `whorld::rand()` and `whorld::kRandMax` instead of `rand()` and `RAND_MAX`.
+- **Display names.** These come from the `Whorld.rc` string table and are compiled in (`src/WhorldStrings.h`), replacing `LoadString` and `InitWhorldBase`.
+- **Anonymous structs in unions.** `PARAM_VALS` and `MASTER_PROPS` keep the original's union of named members and an array. This is a compiler extension that MSVC, clang and gcc all support. The warning is silenced only around those declarations, and `static_assert`s check that the members overlay the array exactly.

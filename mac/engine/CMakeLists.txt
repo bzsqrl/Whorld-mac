@@ -10,6 +10,9 @@
 add_library(whorld_engine STATIC
   src/DPoint.cpp
   src/FormatIO.cpp
+  src/HLS.cpp
+  src/Oscillator.cpp
+  src/RandList.cpp
   src/Version.cpp
   src/WhorldBase.cpp
 )
