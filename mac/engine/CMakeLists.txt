@@ -9,6 +9,7 @@
 # Portable engine: plain C++17, no Windows, MFC or Apple headers.
 add_library(whorld_engine STATIC
   src/ByteIO.cpp
+  src/Controls.cpp
   src/DPoint.cpp
   src/FormatIO.cpp
   src/HLS.cpp
