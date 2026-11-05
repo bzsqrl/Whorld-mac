@@ -9,6 +9,7 @@
 
 #include "whorld/IniFile.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <fstream>
 #include <sstream>

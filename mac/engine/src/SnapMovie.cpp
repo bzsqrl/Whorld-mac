@@ -10,6 +10,7 @@
 #include "whorld/SnapMovie.h"
 #include "ByteIO.h"
 
+#include <algorithm>
 #include <cerrno>
 #include <cstring>
 
