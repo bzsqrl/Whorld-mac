@@ -323,7 +323,7 @@ extension AppModel {
 		panel.directoryURL = exportFolder
 		guard panel.runModal() == .OK, let folder = panel.url else { return }
 		// options (CMovieExportDlg)
-		var opts = MovieExportOptions(frameCount: ms.frameCount, frameRate: ms.frameRate)
+		var opts = MovieExportOptions(frameCount: ms.frameCount, frameRate: ms.frameRate, movieSize: ms.frameSize)
 		let host = NSHostingView(rootView: MovieExportOptionsView(options: Binding(get: { opts }, set: { opts = $0 }),
 			viewSize: engine.viewSize))
 		host.frame = NSRect(x: 0, y: 0, width: 360, height: 210)
@@ -355,11 +355,43 @@ extension AppModel {
 		let total = end - start + 1
 		movieExportProgress = (0, total)
 		engine.exportMovie(toFolder: folder.path, start: start, end: end, flags: opts.flags,
-			width: Int32(opts.width), height: Int32(opts.height),
+			width: Int32(opts.size.width), height: Int32(opts.size.height),
 			progress: { [weak self] done in self?.movieExportProgress = (done, total) },
 			completion: { [weak self] error in
 				self?.movieExportProgress = nil
 				if let error { self?.alert("The movie export stopped.", error) }
+			})
+	}
+
+	// Video export (new in the Mac port): the playing movie to a .mov
+	func exportMovieVideo() {
+		let ms = movieState
+		guard ms.io == .reading, ms.frameCount > 0 else { return }
+		let name = "Untitled.mov"
+		guard let url = savePanel(.quickTimeMovie, title: "Export Video", name: name) else { return }
+		var opts = MovieExportOptions(frameCount: ms.frameCount, frameRate: ms.frameRate, movieSize: ms.frameSize)
+		opts.showsCodec = true
+		opts.codec = Preferences.defaults.integer(forKey: "Video_iCodec")
+		let host = NSHostingView(rootView: MovieExportOptionsView(options: Binding(get: { opts }, set: { opts = $0 }),
+			viewSize: engine.viewSize))
+		host.frame = NSRect(x: 0, y: 0, width: 380, height: 240)
+		let a = NSAlert()
+		a.messageText = "Export Video"
+		a.informativeText = String(format: "Frames are encoded at the movie's rate, %g fps.", ms.frameRate)
+		a.accessoryView = host
+		a.addButton(withTitle: "Export")
+		a.addButton(withTitle: "Cancel")
+		guard a.runModal() == .alertFirstButtonReturn else { return }
+		Preferences.defaults.set(opts.codec, forKey: "Video_iCodec")
+		let (start, end) = opts.range
+		let total = end - start + 1
+		movieExportProgress = (0, total)
+		engine.exportMovieVideo(toPath: url.path, codec: opts.codec, start: start, end: end, flags: opts.flags,
+			width: Int32(opts.size.width), height: Int32(opts.size.height),
+			progress: { [weak self] done in self?.movieExportProgress = (done, total) },
+			completion: { [weak self] error in
+				self?.movieExportProgress = nil
+				if let error, error != "Canceled." { self?.alert("The video export stopped.", error) }
 			})
 	}
 
@@ -481,15 +513,28 @@ struct MovieExportOptions {
 	var height = 1080
 	var scaleToFit = 0
 	var allFrames = true
+	var showsCodec = false
+	var codec = 0	// VideoWriter::Codec
 	var start: Int64 = 0
 	var end: Int64
 	let frameCount: Int64
 	let frameRate: Float
+	let movieSize: CGSize
 
-	init(frameCount: Int64, frameRate: Float) {
+	init(frameCount: Int64, frameRate: Float, movieSize: CGSize) {
 		self.frameCount = frameCount
 		self.frameRate = frameRate
+		self.movieSize = movieSize
 		end = max(frameCount - 1, 0)
+	}
+
+	// CMovieExportDlg::UpdateFrameSize: the movie preset uses the movie's
+	// frame size; the view preset uses the view (EF_USE_VIEW_SIZE)
+	var size: (width: Int, height: Int) {
+		switch frameSize {
+		case .movie: return (Int(movieSize.width.rounded()), Int(movieSize.height.rounded()))
+		default: return (width, height)
+		}
 	}
 
 	var range: (Int64, Int64) {
@@ -518,7 +563,7 @@ struct MovieExportOptionsView: View {
 	var body: some View {
 		Form {
 			Picker("Frame size", selection: $options.frameSize) {
-				Text("Movie").tag(MovieExportOptions.FrameSize.movie)
+				Text("Movie (\(Int(options.movieSize.width)) × \(Int(options.movieSize.height)))").tag(MovieExportOptions.FrameSize.movie)
 				Text("View (\(Int(viewSize.width)) × \(Int(viewSize.height)))").tag(MovieExportOptions.FrameSize.view)
 				Text("Custom").tag(MovieExportOptions.FrameSize.custom)
 			}
@@ -534,6 +579,14 @@ struct MovieExportOptionsView: View {
 				Text("Width").tag(1)
 				Text("Height").tag(2)
 				Text("Both").tag(3)
+			}
+			if options.showsCodec {
+				Picker("Format", selection: $options.codec) {
+					Text("H.264").tag(0)
+					Text("HEVC").tag(1)
+					Text("ProRes 422").tag(2)
+					Text("ProRes 4444 (best for fine lines)").tag(3)
+				}
 			}
 			Toggle("All \(options.frameCount) frames (\(time(options.frameCount)))", isOn: $options.allFrames)
 			if !options.allFrames {

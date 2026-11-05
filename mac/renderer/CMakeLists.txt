@@ -11,10 +11,12 @@ add_library(whorld_renderer STATIC
   CGRenderer.mm
   ImageCompare.mm
   RenderJobs.mm
+  VideoWriter.mm
 )
 target_include_directories(whorld_renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(whorld_renderer PUBLIC whorld_engine
-  "-framework CoreGraphics" "-framework ImageIO" "-framework CoreFoundation")
-target_compile_options(whorld_renderer PRIVATE -Wall -Wextra)
+  "-framework CoreGraphics" "-framework ImageIO" "-framework CoreFoundation"
+  "-framework AVFoundation" "-framework CoreVideo" "-framework CoreMedia" "-framework Foundation")
+target_compile_options(whorld_renderer PRIVATE -Wall -Wextra -fobjc-arc)
 
 add_subdirectory(tests)

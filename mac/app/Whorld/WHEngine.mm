@@ -11,6 +11,7 @@
 #import <CoreMIDI/CoreMIDI.h>
 
 #include "CGRenderer.h"
+#include "VideoWriter.h"
 #include <IOSurface/IOSurface.h>
 #include "whorld/Controls.h"
 #include "whorld/MidiManager.h"
@@ -738,7 +739,8 @@ static std::string CaptureToPNG(whorld::WhorldEngine& eng, uint32_t nFlags, whor
 {
 	std::lock_guard<std::mutex>	lock(_mutex);
 	const auto&	m = _liveMovie;
-	return WHMovieState{(WHMovieIO)m.nIOState, m.nFrameCount, m.iFrame, m.fFrameRate, m.bPaused};
+	return WHMovieState{(WHMovieIO)m.nIOState, m.nFrameCount, m.iFrame, m.fFrameRate,
+		CGSizeMake(m.szFrame.width, m.szFrame.height), m.bPaused};
 }
 
 // ported from WhorldThread.cpp CWhorldThread::OnMovieExport and MakeImageSequenceFileName
@@ -774,6 +776,31 @@ static std::string CaptureToPNG(whorld::WhorldEngine& eng, uint32_t nFlags, whor
 			}
 		}
 		NSString	*msg = sErr.empty() ? nil : ToNS(sErr);
+		dispatch_async(dispatch_get_main_queue(), ^{ completion(msg); });
+	}];
+}
+
+- (void)exportMovieVideoToPath:(NSString *)path codec:(NSInteger)codec start:(int64_t)start end:(int64_t)end
+	flags:(WHExportFlags)flags width:(int)width height:(int)height
+	progress:(void (^)(int64_t))progress completion:(void (^)(NSString *))completion
+{
+	std::string	sPath = path.fileSystemRepresentation;
+	whorld::WhorldEngine	*pEngine = _engine.get();
+	std::atomic<bool>	*pCancel = &_cancelExport;
+	_cancelExport = false;
+	[self pushJob:[pEngine, sPath, codec, start, end, flags, width, height, progress, completion, pCancel] {
+		whorld::VideoExportOptions	opts;
+		opts.codec = static_cast<whorld::VideoWriter::Codec>(codec);
+		opts.nFlags = flags;
+		opts.szImage = whorld::IntSize{width, height};
+		opts.nStartFrame = start;
+		opts.nEndFrame = end;
+		std::string	sErr;
+		bool	bOk = whorld::ExportMovieVideo(*pEngine, sPath, opts, [&](int64_t nDone, int64_t) {
+			dispatch_async(dispatch_get_main_queue(), ^{ progress(nDone); });
+			return !*pCancel;
+		}, &sErr);
+		NSString	*msg = bOk ? nil : ToNS(sErr);
 		dispatch_async(dispatch_get_main_queue(), ^{ completion(msg); });
 	}];
 }

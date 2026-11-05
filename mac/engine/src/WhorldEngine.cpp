@@ -1250,6 +1250,7 @@ WhorldEngine::MovieState WhorldEngine::GetMovieState() const
 	ms.nFrameCount = m_movie.IsReading() ? m_movie.GetFrameCount() : 0;
 	ms.iFrame = m_movie.IsReading() ? m_movie.GetReadFrameIdx() : m_movie.GetFramesWritten();
 	ms.fFrameRate = m_movie.GetFrameRate();
+	ms.szFrame = m_movie.GetTargetSize();
 	ms.bPaused = m_bIsMoviePaused;
 	return ms;
 }

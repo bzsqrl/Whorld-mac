@@ -8,4 +8,4 @@
 
 add_executable(whorld-render whorld-render.mm)
 target_link_libraries(whorld-render PRIVATE whorld_renderer)
-target_compile_options(whorld-render PRIVATE -Wall -Wextra)
+target_compile_options(whorld-render PRIVATE -Wall -Wextra -fobjc-arc)

@@ -10,7 +10,7 @@ function(whorld_add_renderer_test name)
   add_executable(${name} ${name}.mm)
   target_link_libraries(${name} PRIVATE whorld_renderer)
   target_include_directories(${name} PRIVATE ${PROJECT_SOURCE_DIR}/engine/tests)
-  target_compile_options(${name} PRIVATE -Wall -Wextra)
+  target_compile_options(${name} PRIVATE -Wall -Wextra -fobjc-arc)
   target_compile_definitions(${name} PRIVATE
     WHORLD_TESTDATA_DIR="${PROJECT_SOURCE_DIR}/testdata")
   add_test(NAME ${name} COMMAND ${name})
@@ -18,3 +18,4 @@ endfunction()
 
 whorld_add_renderer_test(test_cgrenderer)
 whorld_add_renderer_test(test_golden)
+whorld_add_renderer_test(test_video)

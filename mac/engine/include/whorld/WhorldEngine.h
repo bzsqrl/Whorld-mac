@@ -65,6 +65,7 @@ public:
 		int64_t	nFrameCount;	// frames in the movie being played
 		int64_t	iFrame;			// next frame to read, or frames written
 		float	fFrameRate;
+		SizeF	szFrame;		// movie frame size (header target size), in DIPs
 		bool	bPaused;		// movie playback paused
 	};
 	typedef std::function<void(const Reply&)> ReplyCallback;

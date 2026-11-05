@@ -34,6 +34,7 @@
 		AAB618AE907BBA4A9059C0FE /* WhorldBase.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FAF8EB4D8501BA25F6DC307E /* WhorldBase.cpp */; };
 		AB24DD7E38B368A205F65B6F /* WhorldEngine.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 73C37FDF9DECAB5DB772722E /* WhorldEngine.cpp */; };
 		AA09D273D9A9F1E73DF7DFCA /* CGRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 4984649519BAE4D772D49843 /* CGRenderer.mm */; };
+		25D8899CF10B6B5FF66EF4BB /* VideoWriter.mm in Sources */ = {isa = PBXBuildFile; fileRef = 50C33E763C4E46F3D0C5DDB9 /* VideoWriter.mm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -68,6 +69,7 @@
 		FAF8EB4D8501BA25F6DC307E /* WhorldBase.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "WhorldBase.cpp"; sourceTree = "<group>"; };
 		73C37FDF9DECAB5DB772722E /* WhorldEngine.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "WhorldEngine.cpp"; sourceTree = "<group>"; };
 		4984649519BAE4D772D49843 /* CGRenderer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "CGRenderer.mm"; sourceTree = "<group>"; };
+		50C33E763C4E46F3D0C5DDB9 /* VideoWriter.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "VideoWriter.mm"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -148,6 +150,7 @@
 			isa = PBXGroup;
 			children = (
 				4984649519BAE4D772D49843 /* CGRenderer.mm */,
+				50C33E763C4E46F3D0C5DDB9 /* VideoWriter.mm */,
 			);
 			name = Renderer;
 			path = "../renderer";
@@ -232,6 +235,7 @@
 				AAB618AE907BBA4A9059C0FE /* WhorldBase.cpp in Sources */,
 				AB24DD7E38B368A205F65B6F /* WhorldEngine.cpp in Sources */,
 				AA09D273D9A9F1E73DF7DFCA /* CGRenderer.mm in Sources */,
+				25D8899CF10B6B5FF66EF4BB /* VideoWriter.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -319,6 +323,12 @@
 					QuartzCore,
 					"-framework",
 					CoreMIDI,
+					"-framework",
+					AVFoundation,
+					"-framework",
+					CoreVideo,
+					"-framework",
+					CoreMedia,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "io.github.bzsqrl.Whorld";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -355,6 +365,12 @@
 					QuartzCore,
 					"-framework",
 					CoreMIDI,
+					"-framework",
+					AVFoundation,
+					"-framework",
+					CoreVideo,
+					"-framework",
+					CoreMedia,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "io.github.bzsqrl.Whorld";
 				PRODUCT_NAME = "$(TARGET_NAME)";

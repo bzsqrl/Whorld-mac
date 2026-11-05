@@ -87,7 +87,9 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut(.home, modifiers: .command)
 				.disabled(ms.io != .reading)
 			Divider()
-			Button("Export…") { model.exportMovie() }
+			Button("Export Image Sequence…") { model.exportMovie() }
+				.disabled(ms.io != .reading || model.movieExportProgress != nil)
+			Button("Export Video…") { model.exportMovieVideo() }
 				.disabled(ms.io != .reading || model.movieExportProgress != nil)
 		}
 

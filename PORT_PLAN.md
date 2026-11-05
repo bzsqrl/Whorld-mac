@@ -1,6 +1,6 @@
 # Whorld macOS Port Plan
 
-Status: **Phase 6 done except video export (a new feature, waiting on the user); Phase 7 next** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
+Status: **Phase 6 done; Phase 7 next** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
 
 ## Goal
 
@@ -99,6 +99,14 @@ Each phase ends with something that runs. Check items off as they're done.
 
 **Done when:** a user can open a demo patch and watch it full screen at a steady frame rate. **Good moment to show upstream.**
 
+#### Video export (Mac only)
+
+Movie > Export Video… encodes the playing `.whm` movie to a QuickTime `.mov` (`mac/renderer/VideoWriter.{h,mm}`, AVFoundation). It renders offline, frame by frame, like image-sequence export, at the movie's own frame rate, with the same frame size, scaling and range options. Formats are H.264, HEVC, ProRes 422 and ProRes 4444. The renderer draws straight into the encoder's pixel buffers.
+- **Color:** tagged with Rec. 709 primaries and matrix and the **sRGB transfer function**, because Whorld draws sRGB values. Tagging the Rec. 709 transfer curve made decoded gray 128 come back as 117. With the sRGB tag, flat colors decode within about 2 levels.
+- **Fidelity** (`test_video`, 512×384, frame 130 of the sample movie, compared with a direct render): in flat areas, every format is within 0.2–1.4 levels. At edges, H.264 and HEVC (4:2:0) average about 5.4 and ProRes 422 (4:2:2) about 4.8. These formats store color at reduced resolution, which blurs Whorld's saturated hard edges. **ProRes 4444** keeps full color resolution: mean difference 1.6, with no pixel off by more than 32. The dialog recommends it for fine lines.
+- **Speed:** the full sample movie (1118 frames, 1056×1234) exports to H.264 in about 6 s on an M1 Max.
+- **Sizes:** odd dimensions are rounded down to even, because H.264 and HEVC need even sizes. A canceled export deletes the partial file. `whorld-render <movie.whm> --video out.mov [--codec h264|hevc|prores|prores4444]` does the same from the command line.
+
 #### Performance results (2026-11-05, M1 Max, 120 Hz ProMotion display, Release build)
 
 The renderer went through three steps, all measured with `bloom_cvx` (100 filled, curved, thickly outlined rings) in the app:
@@ -138,7 +146,7 @@ Two notes on accuracy:
 - [x] Playlists (`.whl`) and patch crossfading (spec: `Playlist`, `PlaylistBar`). (Playlist window: name and folder columns, playing indicator, insert, delete, move up and down, play with Return or double-click, and undo. Missing patches (Windows paths) resolve by file name next to the playlist, or by searching a chosen folder (`CMissingFilesDlg`). **Crossfading isn't in V2**: the only trace in `PlaylistBar.cpp` is a 2005 revision note from V1. Porting it would mean inventing a feature, so it's left out.)
 - [x] Save/load snapshots. (Take Snapshot, Load Snapshot (multiple files), First/Previous/Next/Last, Info and Export All, with snapshot mode as in `CWhorldApp::SetSnapshotMode`: pause, back up the document, restore it on unpause. Checked in the app: Export All of `yin yang_cvx.whs` matches the Windows golden image (0.02% of pixels over 32).)
 - [x] Movie record and playback (`.whm`); replace overlapped I/O with a background writer. (`SnapMovie`: the sample movie rewrites byte for byte, and the tests pass under ThreadSanitizer. In the app: Record and Play (⌘M and ⇧⌘M) and a movie bar with play/pause, seek slider and time. The Windows sample movie plays.)
-- [ ] Image and image-sequence export via ImageIO; consider video export via AVFoundation (new feature — ask first). (Image export (⌘E) and movie export to `img000000.png`… are done, with the Windows options and unique timestamped names (`MakeUniqueExportPath`). Movie export moves the folder's existing PNG files to the Trash after confirming; Windows deletes them. Video export is not started: it's a new feature and needs the user's go-ahead.)
+- [x] Image and image-sequence export via ImageIO; consider video export via AVFoundation (new feature — ask first). (Image export (⌘E) and movie export to `img000000.png`… are done, with the Windows options and unique timestamped names (`MakeUniqueExportPath`). Movie export moves the folder's existing PNG files to the Trash after confirming; Windows deletes them. **Video export**, approved by the user on 2026-11-05, is a Mac-only feature, described below.)
 
 ### Phase 7 — Release
 - [ ] App icon, About box with GPLv3 notice and credit to Chris Korda, help docs (adapt `docs/Help`).

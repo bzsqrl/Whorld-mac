@@ -88,6 +88,7 @@ typedef struct {
 	int64_t		frameCount;	// frames in the movie being played
 	int64_t		frame;		// next frame to read, or frames written
 	float		frameRate;
+	CGSize		frameSize;	// the movie's frame size, in DIPs
 	BOOL		paused;		// playback paused
 } WHMovieState;
 
@@ -246,6 +247,13 @@ typedef struct {
 	flags:(WHExportFlags)flags width:(int)width height:(int)height
 	progress:(void (^)(int64_t done))progress completion:(void (^)(NSString * _Nullable error))completion;
 - (void)cancelMovieExport;
+// Video export (new in the Mac port): encodes the playing movie's frames
+// start..end to a QuickTime movie at the movie's frame rate.
+// codec: 0 H.264, 1 HEVC, 2 ProRes 422, 3 ProRes 4444. Cancel with
+// cancelMovieExport; a canceled export deletes the partial file.
+- (void)exportMovieVideoToPath:(NSString *)path codec:(NSInteger)codec start:(int64_t)start end:(int64_t)end
+	flags:(WHExportFlags)flags width:(int)width height:(int)height
+	progress:(void (^)(int64_t done))progress completion:(void (^)(NSString * _Nullable error))completion;
 // Movie errors from the render thread (OnMovieError), on the main thread.
 @property (nonatomic, copy, nullable) void (^movieErrorHandler)(NSString *message);
 

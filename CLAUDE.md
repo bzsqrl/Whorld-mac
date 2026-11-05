@@ -21,6 +21,7 @@ These commands are created in Phase 0 of the plan. Keep this section accurate as
 - Engine + tests: `cmake -S mac -B build && cmake --build build && ctest --test-dir build --output-on-failure`
 - Render a frame: `build/tools/whorld-render <file.whp|file.whs> --out frame.png` (run with no arguments for options)
 - Compare images: `build/tools/whorld-render --compare a.png b.png --diff diff.png`
+- Movie to video: `build/tools/whorld-render movie.whm --video out.mov --codec prores4444` (or `--frame N --out f.png` for one frame)
 - App: `xcodebuild -project mac/app/Whorld.xcodeproj -scheme Whorld build` (run the built app with `WHORLD_STATS=1` to print frame-rate stats)
 
 On macOS, CMake also builds the Core Graphics renderer, the tools and the golden-image tests; on Linux it builds only the engine and its tests.

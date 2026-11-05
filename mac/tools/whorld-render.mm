@@ -15,6 +15,8 @@
 
 #include "ImageCompare.h"
 #include "RenderJobs.h"
+#include "VideoWriter.h"
+#include "whorld/WhorldEngine.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -32,7 +34,9 @@ int Usage()
 		"  whorld-render <patch.whp> [--frames N] [--size WxH] [--scale S] [--deferred] --out frame.png\n"
 		"  whorld-render <snapshot.whs> [--size WxH] [--view WxH] [--fit none|width|height|both]\n"
 		"                [--use-view-size] [--no-letterbox] --out frame.png\n"
-		"  whorld-render --compare a.png b.png [--threshold T] [--diff diff.png] [--region X,Y,W,H]\n");
+		"  whorld-render --compare a.png b.png [--threshold T] [--diff diff.png] [--region X,Y,W,H]\n"
+		"  whorld-render <movie.whm> [--size WxH] [--fit ...] [--use-view-size] [--start N] [--end N]\n"
+		"                --video out.mov [--codec h264|hevc|prores|prores4444]   (or --frame N --out frame.png)\n");
 	return 2;
 }
 
@@ -103,6 +107,9 @@ int main(int argc, char** argv)
 	uint32_t	nFlags = 0;
 	bool	bLetterbox = true;
 	bool	bDeferred = false;
+	std::string	sVideo;
+	VideoWriter::Codec	codec = VideoWriter::CODEC_H264;
+	long long	nStart = 0, nEnd = -1, nFrame = -1;
 	for (int i = 2; i < argc; i++) {
 		const char*	a = argv[i];
 		bool	bHasArg = i + 1 < argc;
@@ -135,12 +142,72 @@ int main(int argc, char** argv)
 			bLetterbox = false;
 		else if (!std::strcmp(a, "--deferred"))
 			bDeferred = true;
+		else if (!std::strcmp(a, "--video") && bHasArg)
+			sVideo = argv[++i];
+		else if (!std::strcmp(a, "--codec") && bHasArg) {
+			std::string	c = argv[++i];
+			if (c == "h264")
+				codec = VideoWriter::CODEC_H264;
+			else if (c == "hevc")
+				codec = VideoWriter::CODEC_HEVC;
+			else if (c == "prores")
+				codec = VideoWriter::CODEC_PRORES_422;
+			else if (c == "prores4444")
+				codec = VideoWriter::CODEC_PRORES_4444;
+			else
+				return Usage();
+		} else if (!std::strcmp(a, "--start") && bHasArg)
+			nStart = std::atoll(argv[++i]);
+		else if (!std::strcmp(a, "--end") && bHasArg)
+			nEnd = std::atoll(argv[++i]);
+		else if (!std::strcmp(a, "--frame") && bHasArg)
+			nFrame = std::atoll(argv[++i]);
 		else
 			return Usage();
 	}
+	std::string	err;
+	if (EndsWith(sIn, ".whm")) {	// movie: video, or one frame as PNG
+		if (sVideo.empty() && (nFrame < 0 || sOut.empty()))
+			return Usage();
+		WhorldEngine	eng;
+		eng.OnResize(SizeF{float(vw > 0 ? vw : w), float(vh > 0 ? vh : h)});
+		eng.SetSnapshotLetterbox(bLetterbox);
+		eng.OnMoviePlay(&sIn, true);	// paused
+		if (eng.GetMovieState().nIOState != SnapMovie::IO_READ) {
+			std::fprintf(stderr, "%s: can't open movie\n", sIn.c_str());
+			return 1;
+		}
+		if (!sVideo.empty()) {
+			VideoExportOptions	opts;
+			opts.codec = codec;
+			opts.nFlags = nFlags;
+			opts.szImage = IntSize{w, h};
+			opts.nStartFrame = nStart;
+			opts.nEndFrame = nEnd;
+			if (!ExportMovieVideo(eng, sVideo, opts, nullptr, &err)) {
+				std::fprintf(stderr, "%s\n", err.c_str());
+				return 1;
+			}
+			return 0;
+		}
+		if (!eng.MovieExportStart(nFrame) || !eng.MovieExportStep()) {
+			std::fprintf(stderr, "can't read frame %lld\n", nFrame);
+			return 1;
+		}
+		IntSize	sz = eng.GetCaptureSize(nFlags, IntSize{w, h});
+		CGBitmapRenderer	r(sz.cx, sz.cy, 1);
+		r.SetDeferred(bDeferred);
+		r.BeginFrame();
+		eng.DrawCapture(r, nFlags, IntSize{w, h});
+		r.EndFrame();
+		if (!r.WritePNG(sOut, &err)) {
+			std::fprintf(stderr, "%s\n", err.c_str());
+			return 1;
+		}
+		return 0;
+	}
 	if (sOut.empty() || !(fScale > 0) || nFrames < 1)
 		return Usage();
-	std::string	err;
 	std::unique_ptr<CGBitmapRenderer>	pRenderer;
 	if (EndsWith(sIn, ".whs")) {
 		auto	pSnapshot = Snapshot::Read(sIn, &err);

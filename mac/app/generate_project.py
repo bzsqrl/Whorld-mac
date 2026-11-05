@@ -20,7 +20,7 @@ app_files = ["WhorldApp.swift", "ContentView.swift", "Commands.swift", "Panels.s
              "WHEngine.h", "WHEngine.mm",
              "Whorld-Bridging-Header.h", "Info.plist"]
 engine_src = sorted(f for f in os.listdir(os.path.join(root, "../engine/src")) if f.endswith(".cpp"))
-renderer_src = ["CGRenderer.mm"]
+renderer_src = ["CGRenderer.mm", "VideoWriter.mm"]
 groups = [("Whorld", "Whorld", app_files), ("Engine", "../engine/src", engine_src), ("Renderer", "../renderer", renderer_src)]
 ftype = {".swift": "sourcecode.swift", ".h": "sourcecode.c.h", ".mm": "sourcecode.cpp.objcpp",
          ".cpp": "sourcecode.cpp.cpp", ".plist": "text.plist.xml"}
@@ -156,6 +156,12 @@ for cfg in ("Debug", "Release"):
 \t\t\t\t\tQuartzCore,
 \t\t\t\t\t"-framework",
 \t\t\t\t\tCoreMIDI,
+\t\t\t\t\t"-framework",
+\t\t\t\t\tAVFoundation,
+\t\t\t\t\t"-framework",
+\t\t\t\t\tCoreVideo,
+\t\t\t\t\t"-framework",
+\t\t\t\t\tCoreMedia,
 \t\t\t\t);
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = "io.github.bzsqrl.Whorld";
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
