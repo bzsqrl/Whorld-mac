@@ -1,6 +1,6 @@
 # Whorld macOS Port Plan
 
-Status: **Phase 3 done except the Metal decision (see Performance results)** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
+Status: **Phase 4 in progress** (Phase 3 done; Core Graphics kept) · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
 
 ## Goal
 
@@ -95,7 +95,7 @@ Each phase ends with something that runs. Check items off as they're done.
 - [x] Xcode project, SwiftUI app shell, Objective-C++ bridge. (`mac/app`: `WHEngine.{h,mm}` bridge, SwiftUI menus and window.)
 - [x] Render view driven by the display link, with the engine on a render thread. (`WHRenderView`: the display link requests frames; the render thread drains the command queue, draws into an IOSurface pool, and the layer shows the surface without copying. The engine's frame rate is the display's refresh rate, as on Windows.)
 - [x] Open a `.whp` patch (menu and drag-and-drop), play/pause, full screen, the main keyboard shortcuts from the Windows version. (Shortcut table in `mac/app/README.md`. Checked in the running app: opening patches, Mirror, Fill, check marks, Pause, Step, full screen. Drag-and-drop is untested because it can't be scripted.)
-- [x] Measure frame rate at high ring counts on Apple Silicon. Record results here. If below 60 fps, raise the Metal backend decision with the user. (Results below; decision raised with the user.)
+- [x] Measure frame rate at high ring counts on Apple Silicon. Record results here. If below 60 fps, raise the Metal backend decision with the user. (Results below. Decision, 2026-11-05: the user chose to stay on Core Graphics for now and revisit Metal before release, after testing on a base-model Mac.)
 
 **Done when:** a user can open a demo patch and watch it full screen at a steady frame rate. **Good moment to show upstream.**
 
