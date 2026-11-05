@@ -1,2 +1,6 @@
 *.user
 *.filters
+/build/
+.DS_Store
+xcuserdata/
+DerivedData/
