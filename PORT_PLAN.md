@@ -68,7 +68,7 @@ Each phase ends with something that runs. Check items off as they're done.
 ### Phase 0 — Setup
 - [x] Fork upstream on GitHub; clone; create branch `mac-port`. (Fork is `bzsqrl/Whorld`; `master` tracks upstream `5b5de69`.)
 - [x] Create `mac/engine`, `mac/renderer`, `mac/app`, `mac/testdata`; add `CMakeLists.txt` for the engine and tests. (Tests use a small built-in harness, `mac/engine/tests/TestHarness.h`, so there's no third-party dependency.)
-- [ ] Add GitHub Actions CI on a macOS runner: build the engine, run tests, build the app. (Workflow written in `.github/workflows/mac.yml`: engine on macOS 14 and Linux, app step skipped until the Xcode project exists. Not yet run: needs a push to `mac-port`.)
+- [ ] Add GitHub Actions CI on a macOS runner: build the engine, run tests, build the app. (Workflow written in `.github/workflows/mac.yml`: engine on macOS 15 and Linux, app step skipped until the Xcode project exists. Not yet run: needs a push to `mac-port`.)
 - [ ] Collect test data into `mac/testdata`: the demo `.whp` patches from the Windows release (the repo doesn't include them), a few `.whs` snapshots, and PNGs exported from Windows Whorld of those same snapshots. If no Windows machine or VM is available, ask the user — the golden-image tests depend on these. (The user will export these from Windows; the checklist is in `mac/testdata/README.md`.)
 
 **Done when:** an empty engine library and test target build locally and in CI.
@@ -121,7 +121,7 @@ Each phase ends with something that runs. Check items off as they're done.
 - [ ] Universal binary (Apple Silicon + Intel), code signing, notarization, DMG packaging.
 - [ ] README section for the Mac build.
 
-## Decisions (confirm with the user)
+## Decisions (confirmed with the user 2026-11-05)
 
 | Decision | Recommendation | Why |
 |---|---|---|
