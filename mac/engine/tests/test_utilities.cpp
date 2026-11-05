@@ -108,7 +108,16 @@ TEST(FormatValToStr) {
 	CHECK_EQ(s, std::string("0.333333"));	// %g keeps 6 significant digits
 	d = 1e-7;
 	CHECK(FormatIO::ValToStr(FIO_DOUBLE, &d, s));
-	CHECK_EQ(s, std::string("1e-07"));	// MSVC also prints two exponent digits
+	CHECK_EQ(s, std::string("1e-007"));	// msvcr110 prints three exponent digits
+	d = 7.22068e-5;
+	CHECK(FormatIO::ValToStr(FIO_DOUBLE, &d, s));
+	CHECK_EQ(s, std::string("7.22068e-005"));
+	d = -1.5e100;
+	CHECK(FormatIO::ValToStr(FIO_DOUBLE, &d, s));
+	CHECK_EQ(s, std::string("-1.5e+100"));
+	d = 1234567;
+	CHECK(FormatIO::ValToStr(FIO_DOUBLE, &d, s));
+	CHECK_EQ(s, std::string("1.23457e+006"));
 	DPOINT	pt = {0.5, -0.25};
 	CHECK(FormatIO::ValToStr(FIO_DPOINT, &pt, s));
 	CHECK_EQ(s, std::string("0.5 -0.25"));

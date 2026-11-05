@@ -9,31 +9,17 @@
 
 #include "whorld/FormatIO.h"
 #include "whorld/Types.h"
+#include "MsvcFormat.h"
 
 #include <cstdint>
 #include <cstdio>
 
 namespace whorld {
 
-namespace {
-template <typename... Args>
-std::string Format(const char* fmt, Args... args)
-{
-	char	buf[128];
-	int	n = std::snprintf(buf, sizeof(buf), fmt, args...);
-	if (n < 0)
-		return std::string();
-	if (static_cast<size_t>(n) < sizeof(buf))
-		return std::string(buf, static_cast<size_t>(n));
-	std::string	s(static_cast<size_t>(n) + 1, '\0');
-	std::snprintf(&s[0], s.size(), fmt, args...);
-	s.resize(static_cast<size_t>(n));
-	return s;
-}
-} // namespace
+using detail::FormatMsvc;
 
-#define VALTOSTR(id, type, fmt) case FIO_##id: Str = Format(fmt, *((const type *)Val)); break;
-#define VALTOSTR_PREC(id, type, fmt, prec) case FIO_##id: Str = Format(fmt, prec, *((const type *)Val)); break;
+#define VALTOSTR(id, type, fmt) case FIO_##id: Str = FormatMsvc(fmt, *((const type *)Val)); break;
+#define VALTOSTR_PREC(id, type, fmt, prec) case FIO_##id: Str = FormatMsvc(fmt, prec, *((const type *)Val)); break;
 #define STRTOVAL(id, type, fmt) case FIO_##id: std::sscanf(Str, fmt, (type *)Val); break;
 
 // ported from FormatIO.cpp CFormatIO::ValToStr
@@ -43,20 +29,20 @@ bool FormatIO::ValToStr(int Type, const void* Val, std::string& Str)
 	VALTOSTR(INT,		int32_t,	"%d");
 	VALTOSTR(UINT,		uint32_t,	"%u");
 	case FIO_FLOAT:
-		Str = Format("%g", static_cast<double>(*((const float *)Val)));
+		Str = FormatMsvc("%g", static_cast<double>(*((const float *)Val)));
 		break;
 	VALTOSTR(DOUBLE,	double,		"%g");
 	case FIO_DPOINT:
-		Str = Format("%g %g", ((const DPOINT *)Val)->x, ((const DPOINT *)Val)->y);
+		Str = FormatMsvc("%g %g", ((const DPOINT *)Val)->x, ((const DPOINT *)Val)->y);
 		break;
 	case FIO_SHORT:
-		Str = Format("%hd", static_cast<int>(*((const int16_t *)Val)));
+		Str = FormatMsvc("%hd", static_cast<int>(*((const int16_t *)Val)));
 		break;
 	case FIO_USHORT:
-		Str = Format("%hu", static_cast<unsigned>(*((const uint16_t *)Val)));
+		Str = FormatMsvc("%hu", static_cast<unsigned>(*((const uint16_t *)Val)));
 		break;
 	case FIO_BYTE:
-		Str = Format("%u", static_cast<unsigned>(*((const uint8_t *)Val)));
+		Str = FormatMsvc("%u", static_cast<unsigned>(*((const uint8_t *)Val)));
 		break;
 	default:
 		return false;
@@ -69,7 +55,7 @@ bool FormatIO::ValToStr(int Type, const void* Val, std::string& Str, int Precisi
 {
 	switch (Type) {
 	case FIO_FLOAT:
-		Str = Format("%.*f", Precision, static_cast<double>(*((const float *)Val)));
+		Str = FormatMsvc("%.*f", Precision, static_cast<double>(*((const float *)Val)));
 		break;
 	VALTOSTR_PREC(DOUBLE,	double,	"%.*f", Precision);
 	default:

@@ -76,7 +76,7 @@ Each phase ends with something that runs. Check items off as they're done.
 ### Phase 1 — Portable engine
 - [x] Port the definition headers and core types (`WhorldDef.h` X-macros, `PARAM_VALS`, `RING`, `DRAW_STATE`, `GLOB_RING`) with engine-native point/color/size structs. (`include/whorld/{WhorldDef,WhorldBase,RenderCmd,Types,Round,Random}.h`)
 - [x] Port `Oscillator`, `hls`, `DPoint`, `RandList`, `FormatIO`.
-- [ ] Port `Patch` read/write; test round-trip against the sample `.whp` files.
+- [x] Port `Patch` read/write; test round-trip against the sample `.whp` files. (All 86 samples parse. In the 14 version-4 files, 616 lines are reproduced byte for byte; 19 hand-edited lines, with empty fields or typos, are only required to parse.)
 - [ ] Define `IRenderer` (begin/end frame, clear, set antialiasing, build path, fill path, stroke path with width, fill rect, offscreen bitmap create/draw for mirroring).
 - [ ] Port `CWhorldDraw` as `WhorldEngine`: `TimerHook` → `Tick()`, `AddRing`, `DrawRing`, `DrawOutline`, origin/zoom/hue/globals updates, quad mirroring — drawing only through `IRenderer`. Separate it from the thread and device classes it inherits from on Windows.
 - [ ] Port `Snapshot` (including `SnapshotV1`) with explicit binary decoding.
@@ -152,5 +152,8 @@ Decisions made while porting that preserve Windows behavior in non-obvious ways.
 
 - **Rounding.** On x64, `Round()` and `Trunc()` (`Round.h`) use SSE `cvtsd2si` / `cvttsd2si`. Halves round to even (`Round(2.5) == 2`), and NaN or out-of-range input returns `INT_MIN`. `whorld::Round` and `whorld::Trunc` reproduce both, so don't replace them with `std::round` or `lround`.
 - **Random numbers.** MSVC's `rand()` is a per-thread LCG (`RAND_MAX` 32767) seeded with 1 on each thread, and Whorld never calls `srand`, so Windows Whorld produces the same random sequence on every run. `whorld::rand()` (`Random.h`) reproduces that generator exactly, so random waveforms and random origins match Windows and are the same on macOS and Linux. Ported code uses `whorld::rand()` and `whorld::kRandMax` instead of `rand()` and `RAND_MAX`.
+- **Number formatting.** Windows Whorld is built with toolset v110, whose C runtime (msvcr110) prints at least three exponent digits (`7.22068e-005`). C99 runtimes print two. `src/MsvcFormat.h` pads exponents so `.whp` output matches Windows byte for byte; reading accepts both forms. The sample patches confirm the three-digit form.
+- **Line endings.** `CStdioFile` text mode writes CRLF, so `Patch::Write` writes CRLF; `Patch::Read` accepts CRLF or LF.
+- **Errors.** The engine reports errors with `bool` results and an optional `std::string*` message, in place of MFC exceptions and message boxes. Use this everywhere in the engine.
 - **Display names.** These come from the `Whorld.rc` string table and are compiled in (`src/WhorldStrings.h`), replacing `LoadString` and `InitWhorldBase`.
 - **Anonymous structs in unions.** `PARAM_VALS` and `MASTER_PROPS` keep the original's union of named members and an array. This is a compiler extension that MSVC, clang and gcc all support. The warning is silenced only around those declarations, and `static_assert`s check that the members overlay the array exactly.
