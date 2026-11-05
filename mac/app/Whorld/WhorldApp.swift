@@ -13,6 +13,8 @@ import UniformTypeIdentifiers
 extension UTType {
 	// Whorld patch (.whp), declared in Info.plist
 	static let whorldPatch = UTType(importedAs: "io.github.bzsqrl.whorld.patch", conformingTo: .data)
+	// Whorld playlist (.whl), declared in Info.plist
+	static let whorldPlaylist = UTType(importedAs: "io.github.bzsqrl.whorld.playlist", conformingTo: .data)
 }
 
 /// Main property indices (WhorldBase MAIN_*)
@@ -57,6 +59,214 @@ final class AppModel: ObservableObject {
 		}
 		undoManager.levelsOfUndo = 100
 		engine.setSnapshotLetterbox(Preferences.snapshotLetterbox)
+		engine.midiInputName = Preferences.midiInputName
+		engine.midiHandler = { [weak self] kind, value in
+			self?.onMidi(kind: kind, value: value)
+		}
+	}
+
+	// MARK: MIDI and mappings
+
+	/// Mapping rows selected in the MIDI Mapping window, for learn.
+	@Published var mappingSelection = Set<Int>()
+	/// True while the MIDI Mapping window is the key window (learn needs it).
+	var mappingWindowIsKey = false
+	@Published private(set) var playlistTitle = "Untitled Playlist"
+	@Published private(set) var playlistModified = false
+	private var playlistURL: URL?
+	private var learnSelection = Set<Int>()
+
+	var midiLearn: Bool {
+		get { engine.midiLearn }
+		set { engine.midiLearn = newValue; changed() }
+	}
+
+	var mappings: [WHMappingData] {
+		(0..<engine.mappingCount()).map { engine.mapping(at: $0) }
+	}
+
+	/// Replaces all mappings, undoably. Consecutive edits with the same key
+	/// coalesce, as CMappingBar's undo does for repeated property edits.
+	func setMappings(_ new: [WHMappingData], key: String, title: String) {
+		let old = mappings
+		recordUndo(key: "mapping " + key, title: title) { [weak self] in
+			self?.setMappings(old, key: key, title: title)
+		}
+		new.withUnsafeBufferPointer { engine.setMappings($0.baseAddress, count: $0.count) }
+		playlistModified = true
+		changed()
+	}
+
+	func setMapping(_ index: Int, _ m: WHMappingData, column: String) {
+		var arr = mappings
+		guard index < arr.count else { return }
+		arr[index] = m
+		setMappings(arr, key: "\(index) \(column)", title: "Mapping " + column)
+	}
+
+	func insertMapping() {
+		var arr = mappings
+		let at = (mappingSelection.max() ?? arr.count - 1) + 1
+		arr.insert(WHMappingInfo.defaultMapping(), at: min(at, arr.count))
+		setMappings(arr, key: "insert \(arr.count)", title: "Insert Mapping")
+		mappingSelection = [min(at, arr.count - 1)]
+	}
+
+	func deleteMappings() {
+		guard !mappingSelection.isEmpty else { return }
+		let arr = mappings.enumerated().filter { !mappingSelection.contains($0.offset) }.map { $0.element }
+		setMappings(arr, key: "delete \(arr.count)", title: "Delete Mapping")
+		mappingSelection = []
+	}
+
+	private func onMidi(kind: Int, value: UInt32) {
+		switch kind {
+		case 2:	// play patch (Patch target)
+			playPatch(Int(value))
+		case 3:	// learn (CMappingBar::OnMidiEvent)
+			learn(value)
+		default:
+			break
+		}
+		changed()
+	}
+
+	private func learn(_ message: UInt32) {
+		guard engine.midiLearn, mappingWindowIsKey, !mappingSelection.isEmpty else { return }
+		var arr = mappings
+		var changedAny = false
+		for i in mappingSelection where i < arr.count {
+			var m = arr[i]
+			if WHMappingInfo.learn(message, into: &m) {
+				changedAny = changedAny || m.event != arr[i].event || m.channel != arr[i].channel
+					|| m.control != arr[i].control
+				arr[i] = m
+			}
+		}
+		guard changedAny else { return }
+		// a new selection starts a new undo step; the same selection coalesces
+		if mappingSelection != learnSelection {
+			learnSelection = mappingSelection
+			coalesceKey = nil
+		}
+		let sel = mappingSelection.sorted().map(String.init).joined(separator: ",")
+		setMappings(arr, key: "learn " + sel, title: mappingSelection.count > 1 ? "Learn Multiple" : "Learn")
+	}
+
+	// MARK: Playlist
+
+	func newPlaylist() {
+		guard confirmDiscardPlaylist() else { return }
+		engine.newPlaylist()
+		playlistURL = nil
+		playlistTitle = "Untitled Playlist"
+		playlistModified = false
+		mappingSelection = []
+		resetUndo()
+		changed()
+	}
+
+	func openPlaylist() {
+		guard confirmDiscardPlaylist() else { return }
+		let panel = NSOpenPanel()
+		panel.allowedContentTypes = [.whorldPlaylist]
+		guard panel.runModal() == .OK, let url = panel.url else { return }
+		openPlaylist(url)
+	}
+
+	func openPlaylist(_ url: URL) {
+		do {
+			try engine.openPlaylist(atPath: url.path)
+			playlistURL = url
+			playlistTitle = url.deletingPathExtension().lastPathComponent
+			playlistModified = false
+			mappingSelection = []
+			resetUndo()
+			NSDocumentController.shared.noteNewRecentDocumentURL(url)
+		} catch {
+			NSAlert(error: error).runModal()
+		}
+		changed()
+	}
+
+	@discardableResult
+	func savePlaylist() -> Bool {
+		if let url = playlistURL {
+			return writePlaylist(to: url)
+		}
+		return savePlaylistAs()
+	}
+
+	@discardableResult
+	func savePlaylistAs() -> Bool {
+		let panel = NSSavePanel()
+		panel.allowedContentTypes = [.whorldPlaylist]
+		panel.nameFieldStringValue = playlistTitle + ".whl"
+		guard panel.runModal() == .OK, let url = panel.url else { return false }
+		return writePlaylist(to: url)
+	}
+
+	private func writePlaylist(to url: URL) -> Bool {
+		do {
+			try engine.savePlaylist(toPath: url.path)
+			playlistURL = url
+			playlistTitle = url.deletingPathExtension().lastPathComponent
+			playlistModified = false
+			changed()
+			return true
+		} catch {
+			NSAlert(error: error).runModal()
+			return false
+		}
+	}
+
+	func confirmDiscardPlaylist() -> Bool {
+		guard playlistModified else { return true }
+		let alert = NSAlert()
+		alert.messageText = "Do you want to save the changes you made to the playlist \"\(playlistTitle)\"?"
+		alert.informativeText = "This includes its MIDI mappings."
+		alert.addButton(withTitle: "Save")
+		alert.addButton(withTitle: "Cancel")
+		alert.addButton(withTitle: "Don't Save")
+		switch alert.runModal() {
+		case .alertFirstButtonReturn: return savePlaylist()
+		case .alertThirdButtonReturn: return true
+		default: return false
+		}
+	}
+
+	/// Resolves a playlist's patch path. Windows playlists store Windows
+	/// paths; if the path doesn't exist here, look for the same file name
+	/// next to the playlist (full missing-file handling is Phase 6).
+	func resolvePatchPath(_ stored: String) -> URL? {
+		let fm = FileManager.default
+		if fm.fileExists(atPath: stored) {
+			return URL(fileURLWithPath: stored)
+		}
+		let name = stored.split(whereSeparator: { $0 == "\\" || $0 == "/" }).last.map(String.init) ?? stored
+		if let dir = playlistURL?.deletingLastPathComponent() {
+			let candidate = dir.appendingPathComponent(name)
+			if fm.fileExists(atPath: candidate.path) {
+				return candidate
+			}
+		}
+		return nil
+	}
+
+	// CPlaylistBar::Play (from the MIDI Patch target)
+	func playPatch(_ index: Int) {
+		let paths = engine.playlistPatches
+		guard index >= 0, index < paths.count, let url = resolvePatchPath(paths[index]) else { return }
+		let fullScreen = mainWindow?.styleMask.contains(.fullScreen) ?? false
+		// read first; then the save prompt, unless full screen
+		if !fullScreen && !confirmDiscard() {
+			return
+		}
+		if engine.playPatch(atPath: url.path) {
+			resetUndo()
+			updateTitle()
+			changed()
+		}
 	}
 
 	func changed() {
@@ -89,7 +299,7 @@ final class AppModel: ObservableObject {
 		changed()
 	}
 
-	private func resetUndo() {
+	func resetUndo() {
 		undoManager.removeAllActions()
 		coalesceKey = nil
 	}
@@ -241,7 +451,7 @@ final class AppModel: ObservableObject {
 
 	// MARK: Files
 
-	private func updateTitle() {
+	func updateTitle() {
 		if let path = engine.patchPath {
 			title = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
 		} else {
@@ -342,14 +552,23 @@ final class AppModel: ObservableObject {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
 	func application(_ application: NSApplication, open urls: [URL]) {
-		if let url = urls.first {
-			Task { @MainActor in AppModel.shared.open(url) }
+		for url in urls {
+			Task { @MainActor in
+				if url.pathExtension.lowercased() == "whl" {
+					if AppModel.shared.confirmDiscardPlaylist() {
+						AppModel.shared.openPlaylist(url)
+					}
+				} else {
+					AppModel.shared.open(url)
+				}
+			}
 		}
 	}
 
 	func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
 		MainActor.assumeIsolated {
-			AppModel.shared.confirmDiscard() ? .terminateNow : .terminateCancel
+			AppModel.shared.confirmDiscard() && AppModel.shared.confirmDiscardPlaylist()
+				? .terminateNow : .terminateCancel
 		}
 	}
 
@@ -397,6 +616,12 @@ struct WhorldApp: App {
 		}
 		.keyboardShortcut("r", modifiers: [.command, .shift])
 		.windowResizability(.contentSize)
+
+		Window("MIDI Mapping", id: "mapping") {
+			MappingPanel().environmentObject(model)
+		}
+		.keyboardShortcut("i", modifiers: [.command, .shift])
+		.defaultSize(width: 760, height: 420)
 
 		Settings {
 			PreferencesView().environmentObject(model)

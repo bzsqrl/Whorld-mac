@@ -40,6 +40,18 @@
 				<string>io.github.bzsqrl.whorld.patch</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Whorld Playlist</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>io.github.bzsqrl.whorld.playlist</string>
+			</array>
+		</dict>
 	</array>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
@@ -57,6 +69,23 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>whp</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>io.github.bzsqrl.whorld.playlist</string>
+			<key>UTTypeDescription</key>
+			<string>Whorld Playlist</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>whl</string>
 				</array>
 			</dict>
 		</dict>

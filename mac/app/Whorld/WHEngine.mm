@@ -8,9 +8,13 @@
 
 #import "WHEngine.h"
 
+#import <CoreMIDI/CoreMIDI.h>
+
 #include "CGRenderer.h"
 #include <IOSurface/IOSurface.h>
 #include "whorld/Controls.h"
+#include "whorld/MidiManager.h"
+#include "whorld/Playlist.h"
 #include "whorld/Patch.h"
 #include "whorld/WhorldEngine.h"
 
@@ -83,6 +87,87 @@ static NSString *ToNS(const std::string& s)
 }
 @end
 
+@implementation WHMappingInfo
++ (NSInteger)eventCount { return whorld::MappingBase::EVENTS; }
++ (NSInteger)targetCount { return whorld::MappingBase::TARGETS; }
++ (NSInteger)paramTargetCount { return WhorldBase::PARAM_COUNT; }
++ (NSInteger)masterTargetCount { return WhorldBase::MASTER_COUNT; }
++ (NSString *)eventName:(NSInteger)i { return ToNS(whorld::MappingBase::GetEventName((int)i)); }
++ (NSString *)targetName:(NSInteger)i { return ToNS(whorld::MappingBase::GetTargetName((int)i)); }
++ (BOOL)targetHasProperty:(NSInteger)i { return whorld::MappingBase::TargetHasProperty((int)i); }
++ (WHMappingData)defaultMapping
+{
+	whorld::Mapping	m;
+	return WHMappingData{m.m_iEvent, m.m_iChannel, m.m_iControl, m.m_iTarget, m.m_iProp, m.m_fStart, m.m_fEnd};
+}
+// ported from MappingBar.cpp CMappingBar::OnMidiEvent and LearnMapping
++ (BOOL)learn:(uint32_t)nInMidiMsg into:(WHMappingData *)pMap
+{
+	using namespace whorld;
+	int	iCmd = MIDI_CMD_IDX(nInMidiMsg);	// convert MIDI status to command index
+	if (iCmd < 0 || iCmd >= MIDI_CHANNEL_VOICE_MESSAGES)	// if not channel voice message
+		return NO;
+	// remove data from message by clearing second or both parameters
+	if (iCmd <= MIDI_CVM_CONTROL) {	// if message has a note/controller
+		nInMidiMsg &= ~MIDI_P2_MASK;	// only clear its second parameter
+	} else {	// message doesn't have a note/controller; only status matters
+		nInMidiMsg &= ~(MIDI_P1_MASK | MIDI_P2_MASK);	// clear both parameters
+	}
+	Mapping	m;
+	m.SetInputMidiMsg(nInMidiMsg);
+	pMap->event = m.m_iEvent;
+	pMap->channel = m.m_iChannel;
+	pMap->control = m.m_iControl;
+	return YES;
+}
+@end
+
+static whorld::Mapping FromWHMapping(const WHMappingData& d)
+{
+	whorld::Mapping	m;
+	m.m_iEvent = d.event;
+	m.m_iChannel = d.channel;
+	m.m_iControl = d.control;
+	m.m_iTarget = d.target;
+	m.m_iProp = d.prop;
+	m.m_fStart = d.start;
+	m.m_fEnd = d.end;
+	return m;
+}
+
+static WHMappingData ToWHMapping(const whorld::Mapping& m)
+{
+	return WHMappingData{m.m_iEvent, m.m_iChannel, m.m_iControl, m.m_iTarget, m.m_iProp, m.m_fStart, m.m_fEnd};
+}
+
+@class WHEngine;
+// Receives MidiManager output on the CoreMIDI thread.
+class WHMidiSink : public whorld::MidiManager::Sink {
+public:
+	__weak WHEngine	*m_engine = nil;
+	void	PushCommand(const WhorldBase::RenderCmd& cmd) override;
+	void	PostToMain(const whorld::MidiManager::Post& post) override;
+};
+
+@interface WHEngine ()
+- (void)pushCommand:(const RenderCmd &)cmd;
+- (void)applyMidiPost:(const whorld::MidiManager::Post &)post;
+@end
+
+void WHMidiSink::PushCommand(const WhorldBase::RenderCmd& cmd)
+{
+	[m_engine pushCommand:cmd];
+}
+
+void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
+{
+	__weak WHEngine	*engine = m_engine;
+	whorld::MidiManager::Post	copy = post;
+	dispatch_async(dispatch_get_main_queue(), ^{
+		[engine applyMidiPost:copy];
+	});
+}
+
 @implementation WHEngine {
 	// shared between threads, guarded by _mutex
 	std::mutex	_mutex;
@@ -115,6 +200,14 @@ static NSString *ToNS(const std::string& s)
 	int		_surfWidth, _surfHeight;
 	double	_surfScale;
 	int		_curRate;
+	// MIDI
+	WHMidiSink	_midiSink;
+	std::unique_ptr<whorld::MidiManager>	_midiMgr;
+	MIDIClientRef	_midiClient;
+	MIDIPortRef	_midiPort;
+	MIDIEndpointRef	_midiSource;	// connected source, or 0
+	NSString	*_midiInputName;
+	std::vector<std::string>	_playlistPatches;
 	// main thread only
 	whorld::Patch	_doc;	// the document, as CWhorldDoc
 	BOOL	_paused;
@@ -150,6 +243,9 @@ static NSString *ToNS(const std::string& s)
 		_engine = std::make_unique<whorld::WhorldEngine>();
 		_doc.SetDefaults();
 		_statStart = CACurrentMediaTime();
+		_midiSink.m_engine = self;
+		_midiMgr = std::make_unique<whorld::MidiManager>(_midiSink);
+		[self setUpMidi];
 		[self pushPatch];
 		// unretained: the thread must not keep the engine alive; dealloc joins it
 		__unsafe_unretained WHEngine	*unretained = self;
@@ -165,6 +261,10 @@ static NSString *ToNS(const std::string& s)
 		_quit = true;
 	}
 	_cv.notify_all();
+	if (_midiPort)
+		MIDIPortDispose(_midiPort);
+	if (_midiClient)
+		MIDIClientDispose(_midiClient);
 	if (_thread.joinable())
 		_thread.join();
 	[self releaseSurfaces];
@@ -426,6 +526,241 @@ static NSString *ToNS(const std::string& s)
 - (void)clear
 {
 	[self pushCommand:RenderCmd(WhorldBase::RC_SET_EMPTY)];
+}
+
+#pragma mark - MIDI
+
+// Replaces CMidiManager's WinMM input (MidiWrap, MidiDevices): a CoreMIDI
+// client and input port. CoreMIDI delivers Universal MIDI Packets; MIDI 1.0
+// channel voice packets (type 2) carry the original status and data bytes,
+// which are repacked as a WinMM short message for CMidiManager::OnMidiEvent.
+- (void)setUpMidi
+{
+	__weak WHEngine	*weakSelf = self;
+	OSStatus	err = MIDIClientCreateWithBlock(CFSTR("Whorld"), &_midiClient, ^(const MIDINotification *note) {
+		if (note->messageID == kMIDIMsgSetupChanged) {	// CMidiManager::OnDeviceChange
+			dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf midiSetupChanged]; });
+		}
+	});
+	if (err != noErr)
+		return;
+	whorld::MidiManager	*pMgr = _midiMgr.get();
+	err = MIDIInputPortCreateWithProtocol(_midiClient, CFSTR("Whorld Input"), kMIDIProtocol_1_0, &_midiPort,
+		^(const MIDIEventList *evtlist, void *srcConnRefCon) {
+		(void)srcConnRefCon;
+		const MIDIEventPacket	*packet = &evtlist->packet[0];
+		for (UInt32 i = 0; i < evtlist->numPackets; i++) {
+			for (UInt32 w = 0; w < packet->wordCount; w++) {
+				UInt32	word = packet->words[w];
+				if ((word >> 28) == kMIDIMessageTypeChannelVoice1) {	// MIDI 1.0 channel voice
+					uint32_t	status = (word >> 16) & 0xff;
+					uint32_t	d1 = (word >> 8) & 0x7f;
+					uint32_t	d2 = word & 0x7f;
+					pMgr->OnMidiEvent(status | (d1 << 8) | (d2 << 16));
+				}
+			}
+			packet = MIDIEventPacketNext(packet);
+		}
+	});
+	if (err != noErr)
+		_midiPort = 0;
+}
+
+static NSString *SourceName(MIDIEndpointRef src)
+{
+	CFStringRef	name = nullptr;
+	if (MIDIObjectGetStringProperty(src, kMIDIPropertyDisplayName, &name) != noErr || !name)
+		MIDIObjectGetStringProperty(src, kMIDIPropertyName, &name);
+	return name ? (__bridge_transfer NSString *)name : @"";
+}
+
+- (NSArray<NSString *> *)midiInputNames
+{
+	NSMutableArray	*names = [NSMutableArray array];
+	ItemCount	n = MIDIGetNumberOfSources();
+	for (ItemCount i = 0; i < n; i++)
+		[names addObject:SourceName(MIDIGetSource(i))];
+	return names;
+}
+
+- (NSString *)midiInputName { return _midiInputName; }
+
+// CMidiManager::OpenInputDevice: connect the named source, by name so the
+// choice survives reconnecting the device
+- (void)setMidiInputName:(NSString *)name
+{
+	_midiInputName = [name copy];
+	[self connectMidiInput];
+}
+
+- (void)connectMidiInput
+{
+	if (!_midiPort)
+		return;
+	if (_midiSource) {
+		MIDIPortDisconnectSource(_midiPort, _midiSource);
+		_midiSource = 0;
+	}
+	if (!_midiInputName.length)
+		return;
+	ItemCount	n = MIDIGetNumberOfSources();
+	for (ItemCount i = 0; i < n; i++) {
+		MIDIEndpointRef	src = MIDIGetSource(i);
+		if ([SourceName(src) isEqualToString:_midiInputName]) {
+			if (MIDIPortConnectSource(_midiPort, src, nullptr) == noErr)
+				_midiSource = src;
+			break;
+		}
+	}
+}
+
+- (void)midiSetupChanged
+{
+	[self connectMidiInput];	// reconnect if the device came back
+	if (_midiHandler)
+		_midiHandler(4, 0);
+}
+
+- (BOOL)midiLearn { return _midiMgr->IsLearnMode(); }
+- (void)setMidiLearn:(BOOL)b { _midiMgr->SetLearnMode(b); }
+
+- (NSInteger)mappingCount { return _midiMgr->m_midiMaps.GetCount(); }
+
+- (WHMappingData)mappingAt:(NSInteger)index
+{
+	std::lock_guard<std::mutex>	lock(_midiMgr->m_midiMaps.GetMutex());
+	return ToWHMapping(_midiMgr->m_midiMaps.GetAt((int)index));
+}
+
+- (void)setMappings:(const WHMappingData *)p count:(NSInteger)n
+{
+	whorld::MappingArray	arr;
+	for (NSInteger i = 0; i < n; i++)
+		arr.push_back(FromWHMapping(p[i]));
+	_midiMgr->m_midiMaps.SetArray(arr);
+}
+
+// The main-thread side of a MIDI change (CMainFrame::OnParamChange,
+// OnMasterPropChange, OnMainPropChange, OnSetDrawMode, OnPlayPatch, the
+// pause command, and CMappingBar::OnMidiEvent): update the document with
+// undo disabled. The render thread already has the change.
+- (void)applyMidiPost:(const whorld::MidiManager::Post &)post
+{
+	using Post = whorld::MidiManager::Post;
+	switch (post.type) {
+	case Post::PARAM_CHANGE:
+		{
+			WhorldBase::VARIANT_PROP	v;
+			v.llVal = 0;
+			if (post.iProp == WhorldBase::PARAM_PROP_Wave)
+				v.intVal = post.iVal;	// waveform is assumed to be integer
+			else
+				v.dblVal = post.fVal;	// all other properties are assumed to be float
+			_doc.SetParamRC(post.iParam, post.iProp, v);
+			_modified = YES;
+		}
+		break;
+	case Post::MASTER_PROP_CHANGE:
+		_doc.SetMasterProp(post.iProp, post.fVal);
+		_modified = YES;
+		break;
+	case Post::MAIN_PROP_CHANGE:
+		{
+			WhorldBase::VARIANT_PROP	v;
+			v.llVal = post.iVal;	// VARIANT_PROP prop = {lParam}
+			_doc.SetMainProp(post.iProp, v);
+			_modified = YES;
+		}
+		break;
+	case Post::SET_DRAW_MODE:
+		// first clear any bits that are non-zero in the mask; then set
+		// any bits that are non-zero in both the mask and the value
+		_doc.m_main.nDrawMode = (_doc.m_main.nDrawMode & ~post.nMask) | (post.nValue & post.nMask);
+		_modified = YES;
+		break;
+	case Post::PAUSE:
+		[self togglePause];
+		if (_midiHandler)
+			_midiHandler(1, 0);
+		return;
+	case Post::PLAY_PATCH:
+		if (_midiHandler)
+			_midiHandler(2, (uint32_t)post.iVal);
+		return;
+	case Post::MIDI_EVENT:
+		if (_midiHandler)
+			_midiHandler(3, post.nMsg);
+		return;
+	}
+	if (_midiHandler)
+		_midiHandler(0, 0);
+}
+
+#pragma mark - Playlist
+
+- (void)newPlaylist
+{
+	_playlistPatches.clear();
+	_midiMgr->m_midiMaps.RemoveAll();
+}
+
+// ported from Playlist.cpp CPlaylist::OnOpenDocument
+- (BOOL)openPlaylistAtPath:(NSString *)path error:(NSError **)error
+{
+	whorld::Playlist	pl;
+	std::string	sErr;
+	bool	bNewer = false;
+	if (!pl.Read(path.fileSystemRepresentation, &sErr, &bNewer)) {
+		if (error) {
+			*error = [NSError errorWithDomain:@"Whorld" code:3 userInfo:@{
+				NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Can't open \"%@\".", path.lastPathComponent],
+				NSLocalizedRecoverySuggestionErrorKey: ToNS(sErr) }];
+		}
+		return NO;
+	}
+	_playlistPatches = pl.m_arrPatch;
+	_midiMgr->m_midiMaps.SetArray(pl.m_arrMapping);
+	return YES;
+}
+
+// ported from Playlist.cpp CPlaylist::OnSaveDocument
+- (BOOL)savePlaylistToPath:(NSString *)path error:(NSError **)error
+{
+	whorld::Playlist	pl;
+	pl.m_arrPatch = _playlistPatches;
+	pl.m_arrMapping = _midiMgr->m_midiMaps.GetArray();
+	std::string	sErr;
+	if (!pl.Write(path.fileSystemRepresentation, &sErr)) {
+		if (error) {
+			*error = [NSError errorWithDomain:@"Whorld" code:4 userInfo:@{
+				NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Can't save \"%@\".", path.lastPathComponent],
+				NSLocalizedRecoverySuggestionErrorKey: ToNS(sErr) }];
+		}
+		return NO;
+	}
+	return YES;
+}
+
+- (NSArray<NSString *> *)playlistPatches
+{
+	NSMutableArray	*a = [NSMutableArray array];
+	for (const std::string& s : _playlistPatches)
+		[a addObject:ToNS(s)];
+	return a;
+}
+
+// CPlaylistBar::Play then CWhorldDoc::SetPatch: the patch becomes an
+// untitled, unmodified document
+- (BOOL)playPatchAtPath:(NSString *)path
+{
+	whorld::Patch	patch;
+	if (!patch.Read(path.fileSystemRepresentation))
+		return NO;
+	_doc = patch;
+	_patchPath = nil;
+	_modified = NO;
+	[self pushPatch];
+	return YES;
 }
 
 #pragma mark - Rendering

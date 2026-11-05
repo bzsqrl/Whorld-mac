@@ -16,7 +16,7 @@ root = os.path.dirname(os.path.abspath(__file__))  # mac/app
 def gid(name):
     return hashlib.md5(name.encode()).hexdigest()[:24].upper()
 
-app_files = ["WhorldApp.swift", "ContentView.swift", "Commands.swift", "Panels.swift", "Preferences.swift",
+app_files = ["WhorldApp.swift", "ContentView.swift", "Commands.swift", "Panels.swift", "Preferences.swift", "Mapping.swift",
              "WHEngine.h", "WHEngine.mm",
              "Whorld-Bridging-Header.h", "Info.plist"]
 engine_src = sorted(f for f in os.listdir(os.path.join(root, "../engine/src")) if f.endswith(".cpp"))
@@ -154,6 +154,8 @@ for cfg in ("Debug", "Release"):
 \t\t\t\t\tImageIO,
 \t\t\t\t\t"-framework",
 \t\t\t\t\tQuartzCore,
+\t\t\t\t\t"-framework",
+\t\t\t\t\tCoreMIDI,
 \t\t\t\t);
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = "io.github.bzsqrl.Whorld";
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";

@@ -77,6 +77,33 @@ typedef struct {
 + (double)spin:(double)value control:(WHControlInfo)control direction:(NSInteger)direction;
 @end
 
+// One MIDI mapping (whorld::Mapping), for Swift.
+typedef struct {
+	int		event;		// channel voice message index (MappingBase EVENT_*)
+	int		channel;	// 0..15
+	int		control;	// note or controller number, 0..127
+	int		target;		// MappingBase TARGET_*
+	int		prop;		// parameter property, for parameter targets
+	double	start;		// range start, percent
+	double	end;		// range end, percent
+} WHMappingData;
+
+// Mapping metadata (whorld::MappingBase).
+@interface WHMappingInfo : NSObject
+@property (class, readonly) NSInteger eventCount;
+@property (class, readonly) NSInteger targetCount;
+@property (class, readonly) NSInteger paramTargetCount;	// targets below this have a property
+@property (class, readonly) NSInteger masterTargetCount;
++ (NSString *)eventName:(NSInteger)iEvent;
++ (NSString *)targetName:(NSInteger)iTarget;
++ (BOOL)targetHasProperty:(NSInteger)iTarget;
++ (WHMappingData)defaultMapping;
+// MIDI learn: strip the data from an incoming message and set the mapping's
+// event, channel and control from it (CMappingBar::OnMidiEvent). Returns NO
+// if the message isn't a channel voice message.
++ (BOOL)learn:(uint32_t)message into:(WHMappingData *)mapping;
+@end
+
 // Owns the engine and its render thread. The main thread holds the document
 // (the current patch) and sends changes to the render thread as commands,
 // as CWhorldDoc does through CWhorldThread on Windows. Call from the main
@@ -148,6 +175,28 @@ typedef struct {
 	refreshRate:(int)refreshRate;
 // Cursor position for origin drag, normalized: (0, 0) top left, (1, 1) bottom right.
 - (void)setCursorPosition:(CGPoint)normalized;
+
+// MIDI input (CoreMIDI) and mappings (CMidiManager). Mappings belong to the
+// playlist, as on Windows.
+@property (nonatomic, readonly) NSArray<NSString *> *midiInputNames;	// current sources
+@property (nonatomic, copy, nullable) NSString *midiInputName;	// selected source, or nil
+@property (nonatomic) BOOL midiLearn;
+- (NSInteger)mappingCount;
+- (WHMappingData)mappingAt:(NSInteger)index;
+- (void)setMappings:(const WHMappingData * _Nullable)mappings count:(NSInteger)count;
+// Called on the main thread after the engine applied a MIDI change to the
+// document (kind: 0 document changed, 1 pause toggled, 2 play patch `value`,
+// 3 learn message `value`), and when the MIDI sources change (kind 4).
+@property (nonatomic, copy, nullable) void (^midiHandler)(NSInteger kind, uint32_t value);
+
+// Playlist (.whl): patch paths as stored, and mappings
+- (void)newPlaylist;
+- (BOOL)openPlaylistAtPath:(NSString *)path error:(NSError **)error;
+- (BOOL)savePlaylistToPath:(NSString *)path error:(NSError **)error;
+@property (nonatomic, readonly) NSArray<NSString *> *playlistPatches;
+// Loads a patch as an untitled document (CWhorldDoc::SetPatch, from
+// CPlaylistBar::Play). Returns NO if it can't be read.
+- (BOOL)playPatchAtPath:(NSString *)path;
 
 // Statistics, updated about once a second on the main thread.
 @property (nonatomic, readonly) double framesPerSecond;	// frames delivered

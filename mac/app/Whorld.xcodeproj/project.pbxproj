@@ -12,14 +12,19 @@
 		031C794DDED1BC1890B78647 /* Commands.swift in Sources */ = {isa = PBXBuildFile; fileRef = C33528911E3CFEFF12BAD665 /* Commands.swift */; };
 		659668C4B0184BDE707B153E /* Panels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B2CB79B02B0E8B107A93389 /* Panels.swift */; };
 		02B0769CB01668C657A76EBA /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877DEC98F9CFE00A9318DDF3 /* Preferences.swift */; };
+		D511977115546E3D85A5B217 /* Mapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = A202931F35E73683F6ABAA98 /* Mapping.swift */; };
 		E400806317F157D60866149F /* WHEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */; };
 		4C6344BF85C28FB3A76A2C9D /* ByteIO.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9AD330ED67D25720CAF715FE /* ByteIO.cpp */; };
 		78EE3481B81BC123DC5819C2 /* Controls.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 975509B0568EFB5A359C4670 /* Controls.cpp */; };
 		41FFB717DC4AE9B25DBAA195 /* DPoint.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A25943A1CB3686F094AC5B3E /* DPoint.cpp */; };
 		B51B3234CF919DF8114A7793 /* FormatIO.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E099C647CD3D8FBAA11F7828 /* FormatIO.cpp */; };
 		5C8E7DCF2FE02331F4299392 /* HLS.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52C386BFB5939679B4357CC9 /* HLS.cpp */; };
+		9F5A9AF547442CBAED430042 /* IniFile.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B8B54DF90B61A72EC3278280 /* IniFile.cpp */; };
+		917A00BDC83E2C88370D9645 /* Mapping.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 11CABE3F977B40CAFBD6A8B1 /* Mapping.cpp */; };
+		E0F569F06362AA9D31B12F8C /* MidiManager.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF14D787328CC3F752F21112 /* MidiManager.cpp */; };
 		81F3AE572CE7659290FE084F /* Oscillator.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EEBE8AEA3278B5C90BEB2179 /* Oscillator.cpp */; };
 		8C9859399AC78FCB78FB3453 /* Patch.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3DF57E86533CB766F1F15A16 /* Patch.cpp */; };
+		2669E1FC55C615FF789F6F50 /* Playlist.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C032ABA7440230A5E4879B5B /* Playlist.cpp */; };
 		2E2C550ABA91A18E1FCB0181 /* RandList.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1E71565B7500AE4C1D425636 /* RandList.cpp */; };
 		FA4F25B10B8D5F0F3C7822B1 /* Snapshot.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 767758B821E3B5577758599C /* Snapshot.cpp */; };
 		7F1EAB27F342C655730F7812 /* SnapshotV1.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4D59ADCBB6884B426EB05BB2 /* SnapshotV1.cpp */; };
@@ -36,6 +41,7 @@
 		C33528911E3CFEFF12BAD665 /* Commands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Commands.swift"; sourceTree = "<group>"; };
 		3B2CB79B02B0E8B107A93389 /* Panels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Panels.swift"; sourceTree = "<group>"; };
 		877DEC98F9CFE00A9318DDF3 /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Preferences.swift"; sourceTree = "<group>"; };
+		A202931F35E73683F6ABAA98 /* Mapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Mapping.swift"; sourceTree = "<group>"; };
 		34488F6B7AD3E8B693BF38A2 /* WHEngine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "WHEngine.h"; sourceTree = "<group>"; };
 		CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "WHEngine.mm"; sourceTree = "<group>"; };
 		895315CF8C9F41F1630E1694 /* Whorld-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Whorld-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -45,8 +51,12 @@
 		A25943A1CB3686F094AC5B3E /* DPoint.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "DPoint.cpp"; sourceTree = "<group>"; };
 		E099C647CD3D8FBAA11F7828 /* FormatIO.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "FormatIO.cpp"; sourceTree = "<group>"; };
 		52C386BFB5939679B4357CC9 /* HLS.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "HLS.cpp"; sourceTree = "<group>"; };
+		B8B54DF90B61A72EC3278280 /* IniFile.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "IniFile.cpp"; sourceTree = "<group>"; };
+		11CABE3F977B40CAFBD6A8B1 /* Mapping.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Mapping.cpp"; sourceTree = "<group>"; };
+		AF14D787328CC3F752F21112 /* MidiManager.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "MidiManager.cpp"; sourceTree = "<group>"; };
 		EEBE8AEA3278B5C90BEB2179 /* Oscillator.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Oscillator.cpp"; sourceTree = "<group>"; };
 		3DF57E86533CB766F1F15A16 /* Patch.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Patch.cpp"; sourceTree = "<group>"; };
+		C032ABA7440230A5E4879B5B /* Playlist.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Playlist.cpp"; sourceTree = "<group>"; };
 		1E71565B7500AE4C1D425636 /* RandList.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "RandList.cpp"; sourceTree = "<group>"; };
 		767758B821E3B5577758599C /* Snapshot.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Snapshot.cpp"; sourceTree = "<group>"; };
 		4D59ADCBB6884B426EB05BB2 /* SnapshotV1.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "SnapshotV1.cpp"; sourceTree = "<group>"; };
@@ -93,6 +103,7 @@
 				C33528911E3CFEFF12BAD665 /* Commands.swift */,
 				3B2CB79B02B0E8B107A93389 /* Panels.swift */,
 				877DEC98F9CFE00A9318DDF3 /* Preferences.swift */,
+				A202931F35E73683F6ABAA98 /* Mapping.swift */,
 				34488F6B7AD3E8B693BF38A2 /* WHEngine.h */,
 				CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */,
 				895315CF8C9F41F1630E1694 /* Whorld-Bridging-Header.h */,
@@ -110,8 +121,12 @@
 				A25943A1CB3686F094AC5B3E /* DPoint.cpp */,
 				E099C647CD3D8FBAA11F7828 /* FormatIO.cpp */,
 				52C386BFB5939679B4357CC9 /* HLS.cpp */,
+				B8B54DF90B61A72EC3278280 /* IniFile.cpp */,
+				11CABE3F977B40CAFBD6A8B1 /* Mapping.cpp */,
+				AF14D787328CC3F752F21112 /* MidiManager.cpp */,
 				EEBE8AEA3278B5C90BEB2179 /* Oscillator.cpp */,
 				3DF57E86533CB766F1F15A16 /* Patch.cpp */,
+				C032ABA7440230A5E4879B5B /* Playlist.cpp */,
 				1E71565B7500AE4C1D425636 /* RandList.cpp */,
 				767758B821E3B5577758599C /* Snapshot.cpp */,
 				4D59ADCBB6884B426EB05BB2 /* SnapshotV1.cpp */,
@@ -189,14 +204,19 @@
 				031C794DDED1BC1890B78647 /* Commands.swift in Sources */,
 				659668C4B0184BDE707B153E /* Panels.swift in Sources */,
 				02B0769CB01668C657A76EBA /* Preferences.swift in Sources */,
+				D511977115546E3D85A5B217 /* Mapping.swift in Sources */,
 				E400806317F157D60866149F /* WHEngine.mm in Sources */,
 				4C6344BF85C28FB3A76A2C9D /* ByteIO.cpp in Sources */,
 				78EE3481B81BC123DC5819C2 /* Controls.cpp in Sources */,
 				41FFB717DC4AE9B25DBAA195 /* DPoint.cpp in Sources */,
 				B51B3234CF919DF8114A7793 /* FormatIO.cpp in Sources */,
 				5C8E7DCF2FE02331F4299392 /* HLS.cpp in Sources */,
+				9F5A9AF547442CBAED430042 /* IniFile.cpp in Sources */,
+				917A00BDC83E2C88370D9645 /* Mapping.cpp in Sources */,
+				E0F569F06362AA9D31B12F8C /* MidiManager.cpp in Sources */,
 				81F3AE572CE7659290FE084F /* Oscillator.cpp in Sources */,
 				8C9859399AC78FCB78FB3453 /* Patch.cpp in Sources */,
+				2669E1FC55C615FF789F6F50 /* Playlist.cpp in Sources */,
 				2E2C550ABA91A18E1FCB0181 /* RandList.cpp in Sources */,
 				FA4F25B10B8D5F0F3C7822B1 /* Snapshot.cpp in Sources */,
 				7F1EAB27F342C655730F7812 /* SnapshotV1.cpp in Sources */,
@@ -289,6 +309,8 @@
 					ImageIO,
 					"-framework",
 					QuartzCore,
+					"-framework",
+					CoreMIDI,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "io.github.bzsqrl.Whorld";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -323,6 +345,8 @@
 					ImageIO,
 					"-framework",
 					QuartzCore,
+					"-framework",
+					CoreMIDI,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "io.github.bzsqrl.Whorld";
 				PRODUCT_NAME = "$(TARGET_NAME)";

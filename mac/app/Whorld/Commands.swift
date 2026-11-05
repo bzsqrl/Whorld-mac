@@ -57,6 +57,19 @@ struct WhorldCommands: Commands {
 				.disabled(!model.undoManager.canRedo)
 		}
 
+		CommandMenu("Playlist") {
+			Button("New Playlist") { model.newPlaylist() }
+				.keyboardShortcut("n", modifiers: [.command, .shift])
+			Button("Open Playlist…") { model.openPlaylist() }
+				.keyboardShortcut("o", modifiers: [.command, .shift])
+			Button("Save Playlist") { model.savePlaylist() }
+				.keyboardShortcut("s", modifiers: [.command, .option])
+			Button("Save Playlist As…") { model.savePlaylistAs() }
+			Divider()
+			Toggle("MIDI Learn", isOn: Binding(get: { model.midiLearn }, set: { model.midiLearn = $0 }))
+				.keyboardShortcut("l", modifiers: [.command, .shift])
+		}
+
 		CommandMenu("Image") {
 			toggle("Fill", e.fill) { model.toggleFill() }
 				.keyboardShortcut(fkey(NSF6FunctionKey), modifiers: [])

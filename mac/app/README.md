@@ -5,6 +5,7 @@ SwiftUI/AppKit app (`Whorld.xcodeproj`, macOS 14+, Xcode 16.2 or later). It comp
 - `Whorld/WHEngine.{h,mm}`: the Objective-C++ bridge. `WHEngine` owns the engine, a render thread and a command queue; it keeps the current patch as the document, as `CWhorldDoc` does. `WHRenderView` is the AppKit view: its display link (`NSView.displayLink`) requests one frame per display refresh, and the render thread draws it straight into an IOSurface that the view's layer displays without copying.
 - `Whorld/WhorldApp.swift`: `AppModel`, which holds the app state and makes every document edit undoable (coalescing as `CUndoManager` does), plus the scenes.
 - `Whorld/Panels.swift`: the Parameters, Master, Globals and Properties panels (`ParamsBar`, `MasterBar`, `GlobalsBar`, main properties). Their slider and edit-box math is `whorld::Controls` in the engine.
+- `Whorld/Mapping.swift`: the MIDI Mapping window (`MappingBar`) and MIDI learn.
 - `Whorld/Preferences.swift`: the Preferences window (`OptionsDef.h`), stored in `UserDefaults` under the Windows option names.
 - `Whorld/ContentView.swift`, `Commands.swift`: the render window, menus and shortcuts.
 - `generate_project.py`: regenerates `Whorld.xcodeproj`. Add new source files to its lists.
@@ -27,6 +28,11 @@ From the Windows accelerator table (`Whorld.rc`, `IDR_MAINFRAME`), with Ctrl map
 | Globals panel | Shift+G | ⇧⌘G |
 | Properties panel | — | ⇧⌘R |
 | Preferences | Shift+O | ⌘, |
+| MIDI Mapping window | Shift+I | ⇧⌘I |
+| MIDI Learn | Shift+L | ⇧⌘L |
+| New Playlist | Ctrl+Shift+N | ⇧⌘N |
+| Open Playlist | Ctrl+Shift+O | ⇧⌘O |
+| Save Playlist | Ctrl+Shift+S | ⌥⌘S (⇧⌘S is Save As) |
 | Open patch | Ctrl+O | ⌘O |
 | Fill | F6 | F6 |
 | Outline | F7 | F7 |

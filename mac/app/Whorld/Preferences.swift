@@ -25,7 +25,15 @@ enum Preferences {
 			"Export_bPromptUser": true,
 			"Snapshot_bLetterbox": true,
 			"Snapshot_iLegacySize": 1,
+			"Midi_sInputDevice": "",
 		])
+	}
+
+	/// MIDI input device, by name (the Windows option stores an index)
+	static var midiInputName: String? {
+		register()
+		let s = defaults.string(forKey: "Midi_sInputDevice") ?? ""
+		return s.isEmpty ? nil : s
 	}
 
 	static var wheelSense: Double {
@@ -51,8 +59,25 @@ struct PreferencesView: View {
 	@AppStorage("Snapshot_bLetterbox") private var letterbox = true
 	@AppStorage("Snapshot_iLegacySize") private var legacySize = 1
 
+	@AppStorage("Midi_sInputDevice") private var midiInput = ""
+
 	var body: some View {
 		Form {
+			Section("MIDI") {
+				let _ = model.revision
+				Picker("Input device", selection: $midiInput) {
+					Text("None").tag("")
+					ForEach(model.engine.midiInputNames, id: \.self) { name in
+						Text(name).tag(name)
+					}
+					if !midiInput.isEmpty && !model.engine.midiInputNames.contains(midiInput) {
+						Text(midiInput + " (not connected)").tag(midiInput)
+					}
+				}
+				.onChange(of: midiInput) { _, name in
+					model.engine.midiInputName = name.isEmpty ? nil : name
+				}
+			}
 			Section("Input") {
 				LabeledContent("Wheel sensitivity") {
 					HStack {
@@ -106,7 +131,7 @@ struct PreferencesView: View {
 			}
 		}
 		.formStyle(.grouped)
-		.frame(width: 460, height: 540)
+		.frame(width: 460, height: 620)
 		.onAppear { Preferences.register() }
 	}
 

@@ -1,6 +1,6 @@
 # Whorld macOS Port Plan
 
-Status: **Phase 4 done; Phase 5 (MIDI) next** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
+Status: **Phase 5 done; Phase 6 next** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
 
 ## Goal
 
@@ -130,9 +130,9 @@ Two notes on accuracy:
 - [x] Preferences window (spec: `OptionsDef.h`, `OptionsDlg`), stored in `UserDefaults`. (Keys use the Windows names, for example `Export_nImageWidth`. Wheel sensitivity and letterbox take effect now; the export options are stored for Phase 6. The MIDI device comes in Phase 5. The recent-files count is left to macOS.)
 
 ### Phase 5 — MIDI
-- [ ] CoreMIDI input with device selection (replaces `MidiWrap`, `MidiDevices`, `MidiManager`).
-- [ ] Port the mapping model (`Mapping`, `MappingDef.h`, `MidiCtrlrDef.h`) and build the mapping UI (spec: `MappingBar`).
-- [ ] MIDI learn; mapping files compatible with Windows.
+- [x] CoreMIDI input with device selection (replaces `MidiWrap`, `MidiDevices`, `MidiManager`). (`WHEngine.mm`: a CoreMIDI client and input port using the MIDI 1.0 protocol. Channel voice packets are repacked as WinMM short messages for the ported `MidiManager::OnMidiEvent`. The device is chosen in Preferences and stored by name (`Midi_sInputDevice`), and it reconnects when the device comes back. Tested end to end with a virtual CoreMIDI source.)
+- [x] Port the mapping model (`Mapping`, `MappingDef.h`, `MidiCtrlrDef.h`) and build the mapping UI (spec: `MappingBar`). (Engine: `Mapping`, `MidiManager`, `IniFile`, `Playlist`, with tests in `test_midi`. App: the MIDI Mapping window (`Mapping.swift`) with insert, delete and undo; cut, copy, paste, move and sort aren't ported yet. As on Windows, MIDI changes go straight to the render thread, and the document is updated with undo disabled.)
+- [x] MIDI learn; mapping files compatible with Windows. (Learn follows `CMappingBar::OnMidiEvent`: it needs the Mapping window in front and a selection, strips the data from the message, and coalesces repeats into one undo step. Mappings live in the playlist (`.whl`), as on Windows; both sample playlists round-trip byte for byte, and a playlist saved after a learn differs only in the learned lines.)
 
 ### Phase 6 — Playlists, snapshots, movies, export
 - [ ] Playlists (`.whl`) and patch crossfading (spec: `Playlist`, `PlaylistBar`).
@@ -200,5 +200,7 @@ Decisions made while porting that preserve Windows behavior in non-obvious ways.
 - **Deferred, banded rendering.** The app uses `CGBitmapRenderer::SetDeferred(true)`: calls are recorded, stroke outlines are built in parallel (`CGPathCreateCopyByStrokingPath`), and the frame is replayed into 32 horizontal bands in parallel. Strokes thinner than 2 device pixels are stroked directly in each band, because Core Graphics renders thin lines differently from their prebuilt outlines, and its direct rendering is closer to Direct2D (fish eye: 0.95% → 0.37% of pixels off). The golden test checks both modes.
 - **Performance (early measurement, Phase 2).** Release build, M1 Max, CPU only, 3024×1964 pixels (full-screen Retina): `saturn_cvx` about 6 ms per frame; `bloom_cvx` (100 filled curved rings with thick outlines) about 41 ms per frame, roughly 24 fps. Phase 3 should measure in the app and raise the Metal decision if heavy patches can't hold 60 fps. Rendering at 1× and scaling up is a cheaper fallback to evaluate first.
 - **Pane control math.** The slider mappings, log curves, display scaling and edit ranges from `ParamsRowDlg`, `GlobalsRowDlg`, `MasterRowDlg`, `EditSliderCtrl` and `NumEdit` are ported to the engine as `Controls`, with tests. The master slider table stores scales as `float`, as the original does, so typed values carry the same rounding.
+- **Playlists ahead of Phase 6.** Mappings are stored in playlists, so the playlist file format (`Playlist`, `IniFile`) is ported in Phase 5. The Playlist menu opens and saves `.whl` files with their mappings and patch paths. The MIDI Patch target plays playlist entry *n*. A Windows path that doesn't exist on the Mac is tried by file name next to the playlist; proper missing-file handling (`CMissingFilesDlg`) comes in Phase 6.
+- **One undo history.** Windows keeps separate undo stacks for the patch and the mapping pane. The Mac app uses one `UndoManager`, so mapping edits and patch edits share Edit > Undo, and opening a playlist clears the whole history.
 - **Display names.** These come from the `Whorld.rc` string table and are compiled in (`src/WhorldStrings.h`), replacing `LoadString` and `InitWhorldBase`.
 - **Anonymous structs in unions.** `PARAM_VALS` and `MASTER_PROPS` keep the original's union of named members and an array. This is a compiler extension that MSVC, clang and gcc all support. The warning is silenced only around those declarations, and `static_assert`s check that the members overlay the array exactly.
