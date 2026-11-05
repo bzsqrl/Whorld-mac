@@ -1,0 +1,4 @@
+Whorld 2.0.20.0 x64 Release
+1024 x 768
+scale-to-fit: OFF
+Windows Display scaling: 125%
