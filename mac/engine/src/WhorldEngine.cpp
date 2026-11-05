@@ -99,6 +99,8 @@ WhorldEngine::WhorldEngine()
 	m_bHasCursor = false;
 	m_ptCursor = DPoint(0.5, 0.5);
 	m_bSnapshotLetterbox = true;	// COptions default for m_Snapshot_bLetterbox
+	m_bIsMoviePaused = false;
+	m_bMovieSingleStep = false;
 }
 
 // ported from WhorldDraw.cpp CWhorldDraw::OnResize
@@ -116,7 +118,7 @@ void WhorldEngine::SetCursorPosition(DPoint ptNormalized)
 void WhorldEngine::PostReply(uint32_t nCmd, void* pData, DPoint ptOrigin) const
 {
 	if (m_fnReply) {
-		Reply	reply = {nCmd, pData, ptOrigin};
+		Reply	reply = {nCmd, pData, ptOrigin, std::string()};
 		m_fnReply(reply);
 	} else if (nCmd == RC_CAPTURE_SNAPSHOT) {
 		delete static_cast<Snapshot*>(pData);	// nobody to take ownership
@@ -527,7 +529,9 @@ bool WhorldEngine::Draw(IRenderer& renderer)
 	if (!m_bIsPaused) {	// if unpaused
 		TimerHook();	// do time-based updates
 	} else {	// paused
-		// movie playback (ReadMovieFrame) is ported in Phase 6
+		if (m_movie.IsReading()) {	// if playing movie
+			ReadMovieFrame();	// read its next frame
+		}
 	}
 	// after reading movie frame but before any drawing
 	if (m_main.bMirror) {	// if mirroring
@@ -698,7 +702,11 @@ bool WhorldEngine::Draw(IRenderer& renderer)
 			RING&	ring = *m_posDel;
 			ring.bDelete = true;	// cascade delete
 		}
-		// movie recording (m_movie.Write) is ported in Phase 6
+		if (m_movie.IsWriting()) {
+			if (!m_movie.Write(*GetSnapshot())) {
+				OnMovieError(RC_MOVIE_RECORD);
+			}
+		}
 	} else {	// paused
 		// if we're displaying a snapshot and it should be letterboxed
 		if (m_bSnapshotMode && m_bSnapshotLetterbox) {
@@ -1025,8 +1033,13 @@ void WhorldEngine::OnSetPause(bool bIsPaused)
 void WhorldEngine::OnSingleStep()
 {
 	if (m_bIsPaused) {
-		// movie single-step (m_movie.IsReading) is ported in Phase 6
-		TimerHook();
+		if (m_movie.IsReading()) {
+			if (m_bIsMoviePaused) {
+				m_bMovieSingleStep = true;
+			}
+		} else {
+			TimerHook();
+		}
 	}
 }
 
@@ -1129,6 +1142,118 @@ void WhorldEngine::OnSetSnapshotSize(IntSize szSnapshot)
 	}
 }
 
+// ported from WhorldDraw.cpp CWhorldDraw::ReadMovieFrame
+bool WhorldEngine::ReadMovieFrame()
+{
+	if (m_movie.IsEndOfFile()) {	// if end of movie reached
+		return true;	// nothing to do
+	}
+	// if movie is paused and single step flag isn't set
+	if (m_bIsMoviePaused && !m_bMovieSingleStep) {
+		return true;	// nothing to do
+	}
+	m_bMovieSingleStep = false;	// reset single step flag
+	std::unique_ptr<const Snapshot>	pSnapshot(m_movie.Read());
+	if (pSnapshot == nullptr) {	// if read snapshot failed
+		OnMovieError(RC_MOVIE_PLAY);
+		return false;
+	}
+	SetSnapshot(*pSnapshot);
+	return true;
+}
+
+// ported from WhorldDraw.cpp CWhorldDraw::OnMovieError: report and close
+void WhorldEngine::OnMovieError(uint32_t nCmd)
+{
+	std::string	sError = m_movie.GetLastError();
+	m_movie.Close();	// close movie to avoid flood of errors
+	if (m_fnReply) {	// replaces HandleError's message box
+		Reply	reply = {nCmd, nullptr, DPoint(0, 0), sError};
+		m_fnReply(reply);
+	}
+}
+
+// ported from WhorldThread.cpp CWhorldThread::OnMovieRecord
+void WhorldEngine::OnMovieRecord(const std::string* psPath)
+{
+	if (psPath != nullptr) {	// if path specified
+		// start recording
+		m_movie.SetFrameRate(static_cast<float>(m_nFrameRate));
+		m_movie.SetTargetSize(m_szTarget);
+		if (!m_movie.Open(*psPath, true)) {
+			OnMovieError(RC_MOVIE_RECORD);
+		}
+	} else {	// no path; stop recording
+		if (!m_movie.Close()) {
+			OnMovieError(RC_MOVIE_RECORD);
+		}
+	}
+}
+
+// ported from WhorldThread.cpp CWhorldThread::OnMoviePlay
+void WhorldEngine::OnMoviePlay(const std::string* psPath, bool bPaused)
+{
+	if (psPath != nullptr) {	// if path specified
+		// start playback
+		if (!m_movie.Open(*psPath, false)) {
+			OnMovieError(RC_MOVIE_PLAY);
+			return;
+		}
+		m_bIsMoviePaused = bPaused;
+		EnterSnapshotMode();
+	} else {	// no path; stop playback
+		m_movie.Close();
+	}
+}
+
+// ported from WhorldThread.cpp CWhorldThread::OnMoviePause
+void WhorldEngine::OnMoviePause(bool bEnable)
+{
+	m_bIsMoviePaused = bEnable;
+}
+
+// ported from WhorldThread.cpp CWhorldThread::OnMovieSeek
+void WhorldEngine::OnMovieSeek(int64_t iFrame)
+{
+	if (m_movie.SeekFrame(iFrame)) {	// if seek succeeds
+		if (m_bIsMoviePaused) {	// if movie is paused
+			m_bMovieSingleStep = true;	// set single step flag
+			ReadMovieFrame();	// read exactly one frame
+		}
+	} else {	// seek failed
+		OnMovieError(RC_MOVIE_SEEK);
+	}
+}
+
+// ported from WhorldThread.cpp CWhorldThread::OnMovieExport (setup)
+bool WhorldEngine::MovieExportStart(int64_t iStartFrame)
+{
+	m_bIsMoviePaused = true;	// pause playback during export
+	if (!m_movie.SeekFrame(iStartFrame)) {
+		OnMovieError(RC_MOVIE_EXPORT);
+		return false;	// fail
+	}
+	return true;
+}
+
+// ported from WhorldThread.cpp CWhorldThread::OnMovieExport (per frame)
+bool WhorldEngine::MovieExportStep()
+{
+	m_bMovieSingleStep = true;
+	return ReadMovieFrame();
+}
+
+WhorldEngine::MovieState WhorldEngine::GetMovieState() const
+{
+	MovieState	ms;
+	ms.nIOState = m_movie.GetIOState();
+	ms.nFrameCount = m_movie.IsReading() ? m_movie.GetFrameCount() : 0;
+	ms.iFrame = m_movie.IsReading() ? m_movie.GetReadFrameIdx() : m_movie.GetFramesWritten();
+	ms.fFrameRate = m_movie.GetFrameRate();
+	ms.bPaused = m_bIsMoviePaused;
+	return ms;
+}
+
 // ported from WhorldThread.cpp CWhorldThread::OnRenderCommand. Commands
 // carrying pointers follow the original's ownership rules: SET_PATCH and
 // DISPLAY_SNAPSHOT take ownership of a heap object; GET_PATCH and
@@ -1227,12 +1352,28 @@ void WhorldEngine::OnRenderCommand(const RenderCmd& cmd)
 	case RC_SET_SNAPSHOT_SIZE:
 		OnSetSnapshotSize(cmd.m_prop.szVal);
 		break;
-	case RC_CAPTURE_BITMAP:	// host-side: GetCaptureSize and DrawCapture
-	case RC_MOVIE_RECORD:	// movie commands are ported in Phase 6
+	case RC_MOVIE_RECORD:	// takes ownership of a heap std::string path, or null
+		{
+			std::unique_ptr<const std::string>	psPath(static_cast<const std::string*>(cmd.m_prop.byref));
+			OnMovieRecord(psPath.get());
+		}
+		break;
 	case RC_MOVIE_PLAY:
+		{
+			std::unique_ptr<const std::string>	psPath(static_cast<const std::string*>(cmd.m_prop.byref));
+			OnMoviePlay(psPath.get(), cmd.m_nParam != 0);
+		}
+		break;
 	case RC_MOVIE_PAUSE:
+		OnMoviePause(cmd.m_nParam != 0);
+		break;
 	case RC_MOVIE_SEEK:
-	case RC_MOVIE_EXPORT:
+		// The original passes m_prop.intVal, truncating to 32 bits (see
+		// PORT_PLAN.md "Upstream notes"); the full 64-bit value is used here.
+		OnMovieSeek(cmd.m_prop.llVal);
+		break;
+	case RC_CAPTURE_BITMAP:	// host-side: GetCaptureSize and DrawCapture
+	case RC_MOVIE_EXPORT:	// host-side: MovieExportStart / MovieExportStep
 		break;
 	default:
 		assert(0);	// missing command case

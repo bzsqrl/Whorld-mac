@@ -21,6 +21,7 @@ add_library(whorld_engine STATIC
   src/Playlist.cpp
   src/WhorldEngine.cpp
   src/RandList.cpp
+  src/SnapMovie.cpp
   src/Snapshot.cpp
   src/SnapshotV1.cpp
   src/Version.cpp

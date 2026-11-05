@@ -18,19 +18,22 @@
 // Draw() once per displayed frame with an IRenderer, and calls the command
 // handlers (or OnRenderCommand) between frames on the same thread.
 //
-// Not ported yet: movie recording and playback (Phase 6). Bitmap capture is
-// split: the engine draws the capture (DrawCapture); creating the
-// offscreen target and writing the image file are the host's job.
+// Bitmap capture is split: the engine draws the capture (DrawCapture);
+// creating the offscreen target and writing the image file are the host's
+// job. Movie export likewise: the host loops MovieExportStart /
+// MovieExportStep / DrawCapture (CWhorldThread::OnMovieExport).
 
 #include "whorld/IRenderer.h"
 #include "whorld/Oscillator.h"
 #include "whorld/Patch.h"
+#include "whorld/SnapMovie.h"
 #include "whorld/Snapshot.h"
 
 #include <cstdint>
 #include <functional>
 #include <list>
 #include <memory>
+#include <string>
 
 namespace whorld {
 
@@ -55,6 +58,14 @@ public:
 		uint32_t	nCmd;		// command that produced the reply (RC_*)
 		void*		pData;		// Patch*, Status* or Snapshot* (owned by the receiver)
 		DPoint		ptOrigin;	// for RC_GET_ORIGIN: normalized origin
+		std::string	sError;		// for movie errors (replaces OnMovieError's message box)
+	};
+	struct MovieState {	// for the movie bar
+		int		nIOState;		// SnapMovie::IO_*
+		int64_t	nFrameCount;	// frames in the movie being played
+		int64_t	iFrame;			// next frame to read, or frames written
+		float	fFrameRate;
+		bool	bPaused;		// movie playback paused
 	};
 	typedef std::function<void(const Reply&)> ReplyCallback;
 
@@ -104,6 +115,13 @@ public:
 	void	OnSetDampedGlobal(int iParam, double fGlobal);
 	void	OnSetDrawMode(uint32_t nMask, uint32_t nVal);
 	void	OnSetSnapshotSize(IntSize szSnapshot);
+	void	OnMovieRecord(const std::string* psPath);	// null stops recording
+	void	OnMoviePlay(const std::string* psPath, bool bPaused);	// null stops playback
+	void	OnMoviePause(bool bEnable);
+	void	OnMovieSeek(int64_t iFrame);
+	bool	MovieExportStart(int64_t iStartFrame);	// pauses playback and seeks
+	bool	MovieExportStep();		// reads exactly one frame
+	MovieState	GetMovieState() const;
 
 // Attributes (for the host and tests)
 	const Patch&	GetPatch() const { return *this; }
@@ -171,6 +189,9 @@ protected:
 	DPoint	m_ptCursor;			// normalized cursor position (OM_DRAG)
 	bool	m_bSnapshotLetterbox;	// theApp.m_options.m_Snapshot_bLetterbox
 	ReplyCallback	m_fnReply;	// replaces PostMsgToMainWnd
+	SnapMovie	m_movie;		// snapshot movie for recording and playback
+	bool	m_bIsMoviePaused;	// true if movie playback is paused
+	bool	m_bMovieSingleStep;	// true to single-step movie while it's paused
 
 // Helpers
 	static double	Wrap(double fVal, double fLimit);
@@ -206,6 +227,8 @@ protected:
 	void	OnMasterPropChange();
 	void	OnMainPropChange();
 	void	PostReply(uint32_t nCmd, void* pData, DPoint ptOrigin = DPoint(0, 0)) const;
+	bool	ReadMovieFrame();
+	void	OnMovieError(uint32_t nCmd);
 };
 
 } // namespace whorld
