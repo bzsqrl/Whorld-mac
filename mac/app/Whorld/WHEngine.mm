@@ -20,7 +20,9 @@
 
 #include <chrono>
 #include <cmath>
+#include <atomic>
 #include <condition_variable>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <pthread.h>
@@ -172,7 +174,13 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	// shared between threads, guarded by _mutex
 	std::mutex	_mutex;
 	std::condition_variable	_cv;
-	std::vector<RenderCmd>	_queue;	// replaces CRenderThread's interlocked ring buffer
+	// replaces CRenderThread's interlocked ring buffer; items are commands
+	// or render-thread jobs, run in order
+	struct QueueItem {
+		RenderCmd	cmd;
+		std::function<void()>	job;	// if set, run instead of the command
+	};
+	std::vector<QueueItem>	_queue;
 	bool	_quit;
 	bool	_frameRequested;
 	int		_reqWidth, _reqHeight;
@@ -186,6 +194,9 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	int		_statFrames;
 	size_t	_statRings;
 	whorld::DPoint	_liveOrigin;	// normalized origin after the last frame
+	whorld::WhorldEngine::MovieState	_liveMovie;	// movie state after the last frame
+	whorld::SizeF	_liveTarget;	// render target size in DIPs
+	std::atomic<bool>	_cancelExport;
 	// render thread only
 	std::thread	_thread;
 	std::unique_ptr<whorld::WhorldEngine>	_engine;
@@ -212,6 +223,8 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	whorld::Patch	_doc;	// the document, as CWhorldDoc
 	BOOL	_paused;
 	BOOL	_modified;
+	BOOL	_snapshotMode;
+	std::unique_ptr<whorld::Patch>	_preSnapshotPatch;	// m_pPreSnapshotModePatch
 	NSString	*_patchPath;
 	__weak CALayer	*_layer;
 	int		_deliveredFrames;
@@ -243,6 +256,20 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 		_engine = std::make_unique<whorld::WhorldEngine>();
 		_doc.SetDefaults();
 		_statStart = CACurrentMediaTime();
+		_liveMovie = _engine->GetMovieState();
+		_liveTarget = whorld::SizeF{0, 0};
+		_cancelExport = false;
+		__weak WHEngine	*weakSelf = self;
+		_engine->SetReplyCallback([weakSelf](const whorld::WhorldEngine::Reply& r) {
+			if (!r.sError.empty()) {	// movie error (OnMovieError's message box)
+				NSString	*msg = ToNS(r.sError);
+				dispatch_async(dispatch_get_main_queue(), ^{
+					WHEngine	*strong = weakSelf;
+					if (strong.movieErrorHandler)
+						strong.movieErrorHandler(msg);
+				});
+			}
+		});
 		_midiSink.m_engine = self;
 		_midiMgr = std::make_unique<whorld::MidiManager>(_midiSink);
 		[self setUpMidi];
@@ -268,9 +295,15 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	if (_thread.joinable())
 		_thread.join();
 	[self releaseSurfaces];
-	for (const RenderCmd& cmd : _queue) {	// free payloads the thread never took
-		if (cmd.m_nCmd == WhorldBase::RC_SET_PATCH)
-			delete static_cast<whorld::Patch *>(cmd.m_prop.byref);
+	for (const QueueItem& item : _queue) {	// free payloads the thread never took
+		if (item.job)
+			continue;
+		if (item.cmd.m_nCmd == WhorldBase::RC_SET_PATCH)
+			delete static_cast<whorld::Patch *>(item.cmd.m_prop.byref);
+		else if (item.cmd.m_nCmd == WhorldBase::RC_DISPLAY_SNAPSHOT)
+			delete static_cast<whorld::Snapshot *>(item.cmd.m_prop.byref);
+		else if (item.cmd.m_nCmd == WhorldBase::RC_MOVIE_RECORD || item.cmd.m_nCmd == WhorldBase::RC_MOVIE_PLAY)
+			delete static_cast<std::string *>(item.cmd.m_prop.byref);
 	}
 }
 
@@ -279,7 +312,14 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 - (void)pushCommand:(const RenderCmd &)cmd
 {
 	std::lock_guard<std::mutex>	lock(_mutex);
-	_queue.push_back(cmd);
+	_queue.push_back(QueueItem{cmd, nullptr});
+}
+
+// Runs a block on the render thread, in order with the commands.
+- (void)pushJob:(std::function<void()>)job
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	_queue.push_back(QueueItem{RenderCmd(0), std::move(job)});
 }
 
 // ported from WhorldThread.cpp CWhorldThread::SetPatch: send a heap copy
@@ -512,10 +552,242 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 
 - (BOOL)paused { return _paused; }
 
+// CMainFrame::OnWindowPause: pauses the movie if one is playing, else the app
 - (void)togglePause
 {
-	_paused = !_paused;
-	[self pushCommand:RenderCmd(WhorldBase::RC_SET_PAUSE, _paused ? 1 : 0)];
+	WHMovieState	ms = self.movieState;
+	if (ms.io == WHMovieIOReading) {
+		[self pauseMovie:!ms.paused];
+		return;
+	}
+	[self setPaused:!_paused];
+}
+
+// ported from Whorld.cpp CWhorldApp::SetPause
+- (void)setPaused:(BOOL)bEnable
+{
+	if (bEnable == _paused)	// if already in requested state
+		return;	// nothing to do
+	[self pushCommand:RenderCmd(WhorldBase::RC_SET_PAUSE, bEnable ? 1 : 0)];
+	_paused = bEnable;	// update our paused state
+	if (!bEnable) {	// if we're unpausing
+		[self setSnapshotMode:NO];	// exit snapshot mode
+	}
+}
+
+// ported from Whorld.cpp CWhorldApp::SetSnapshotMode
+- (void)setSnapshotMode:(BOOL)bEnable
+{
+	if (bEnable == _snapshotMode)	// if already in requested mode
+		return;	// nothing to do
+	_snapshotMode = bEnable;
+	if (bEnable) {	// if entering snapshot mode
+		[self setPaused:YES];	// pause render updates while showing snapshot
+		if (!_preSnapshotPatch)	// if pre-snapshot mode backup unmade
+			_preSnapshotPatch = std::make_unique<whorld::Patch>(_doc);
+		// zoom is relative to the snapshot's zoom; the render thread resets
+		// its zoom to 100% when it enters snapshot mode
+		_doc.m_master.fZoom = 1;
+	} else {	// exiting snapshot mode
+		if (_preSnapshotPatch) {
+			_doc = *_preSnapshotPatch;	// copy previously saved patch to document
+			_preSnapshotPatch.reset();
+			[self pushPatch];	// notify views of new patch
+		}
+	}
+}
+
+- (BOOL)snapshotMode { return _snapshotMode; }
+
+#pragma mark - Snapshots
+
+- (void)takeSnapshotToPath:(NSString *)path completion:(void (^)(NSString *))completion
+{
+	std::string	sPath = path.fileSystemRepresentation;
+	whorld::WhorldEngine	*pEngine = _engine.get();
+	[self pushJob:[pEngine, sPath, completion] {
+		auto	pSnapshot = pEngine->OnCaptureSnapshot();	// CWhorldThread::OnCaptureSnapshot
+		std::string	sErr;
+		bool	bOk = whorld::Snapshot::Write(pSnapshot.get(), sPath, &sErr);	// CMainFrame::WriteSnapshot
+		NSString	*msg = bOk ? nil : ToNS(sErr);
+		dispatch_async(dispatch_get_main_queue(), ^{ completion(msg); });
+	}];
+}
+
+// ported from Whorld.cpp CWhorldApp::LoadSnapshot
+- (BOOL)loadSnapshotAtPath:(NSString *)path error:(NSError **)error
+{
+	std::string	sErr;
+	std::unique_ptr<whorld::Snapshot>	pSnapshot = whorld::Snapshot::Read(path.fileSystemRepresentation, &sErr,
+		[self legacySnapshotSize]);
+	if (!pSnapshot) {	// if read failed
+		if (error) {
+			*error = [NSError errorWithDomain:@"Whorld" code:5 userInfo:@{
+				NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Can't open \"%@\".", path.lastPathComponent],
+				NSLocalizedRecoverySuggestionErrorKey: ToNS(sErr) }];
+		}
+		return NO;
+	}
+	[self setSnapshotMode:YES];	// enter snapshot mode
+	_doc.m_main.bMirror = pSnapshot->m_drawState.bMirror;
+	RenderCmd	cmd(WhorldBase::RC_DISPLAY_SNAPSHOT);	// render thread takes ownership
+	cmd.m_prop.byref = pSnapshot.release();
+	[self pushCommand:cmd];
+	return YES;
+}
+
+// COptions::GetLegacySnapshotSize, from the preference
+- (whorld::IntSize)legacySnapshotSize
+{
+	static const whorld::IntSize	aSize[] = {{640, 480}, {800, 600}, {1024, 768}};	// LEGACYSIZEDEF
+	NSInteger	i = [NSUserDefaults.standardUserDefaults integerForKey:@"Snapshot_iLegacySize"];
+	if ([NSUserDefaults.standardUserDefaults objectForKey:@"Snapshot_iLegacySize"] == nil)
+		i = 1;
+	return aSize[std::min<NSInteger>(std::max<NSInteger>(i, 0), 2)];
+}
+
+// ported from MainFrm.cpp CMainFrame::OnSnapshotInfo
++ (NSString *)snapshotInfoAtPath:(NSString *)path
+{
+	auto	pSnapshot = whorld::Snapshot::Read(path.fileSystemRepresentation);
+	if (!pSnapshot)
+		return nil;
+	const auto&	ds = pSnapshot->m_drawState;
+	int	nVersion = !(ds.nFlags & whorld::Snapshot::SF_V1) + 1;
+	return [NSString stringWithFormat:@"Name:\t%@\nSize:\t%g x %g\nZoom:\t%g\nRings:\t%d\nVersion:\t%d",
+		path.lastPathComponent.stringByDeletingPathExtension, ds.szTarget.width, ds.szTarget.height,
+		ds.fZoom, ds.nRings, nVersion];
+}
+
+#pragma mark - Export
+
+- (CGSize)viewSize
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	return CGSizeMake(_liveTarget.width, _liveTarget.height);
+}
+
+// Render thread: CWhorldDraw::CaptureBitmap and WriteCapturedBitmap
+static std::string CaptureToPNG(whorld::WhorldEngine& eng, uint32_t nFlags, whorld::IntSize sz, const std::string& sPath)
+{
+	whorld::IntSize	szImage = eng.GetCaptureSize(nFlags, sz);
+	if (szImage.cx <= 0 || szImage.cy <= 0)
+		return "The image size is empty.";
+	whorld::CGBitmapRenderer	renderer(szImage.cx, szImage.cy, 1);
+	if (!renderer.IsValid())
+		return "Can't create the image.";
+	renderer.SetDeferred(true);
+	renderer.BeginFrame();
+	eng.DrawCapture(renderer, nFlags, sz);
+	renderer.EndFrame();
+	std::string	sErr;
+	if (!renderer.WritePNG(sPath, &sErr))
+		return sErr;
+	return std::string();
+}
+
+- (void)exportImageToPath:(NSString *)path flags:(WHExportFlags)flags width:(int)width height:(int)height
+	completion:(void (^)(NSString *))completion
+{
+	std::string	sPath = path.fileSystemRepresentation;
+	whorld::WhorldEngine	*pEngine = _engine.get();
+	[self pushJob:[pEngine, sPath, flags, width, height, completion] {
+		std::string	sErr = CaptureToPNG(*pEngine, flags, whorld::IntSize{width, height}, sPath);
+		NSString	*msg = sErr.empty() ? nil : ToNS(sErr);
+		dispatch_async(dispatch_get_main_queue(), ^{ completion(msg); });
+	}];
+}
+
+#pragma mark - Movies
+
+- (void)recordMovieToPath:(NSString *)path
+{
+	RenderCmd	cmd(WhorldBase::RC_MOVIE_RECORD);
+	cmd.m_prop.byref = path ? new std::string(path.fileSystemRepresentation) : nullptr;
+	[self pushCommand:cmd];
+}
+
+// ported from MainFrm.cpp CMainFrame::PlayMovie
+- (void)playMovieAtPath:(NSString *)path paused:(BOOL)paused
+{
+	RenderCmd	cmd(WhorldBase::RC_MOVIE_PLAY, paused ? 1 : 0);
+	cmd.m_prop.byref = path ? new std::string(path.fileSystemRepresentation) : nullptr;
+	[self pushCommand:cmd];
+	if (path) {
+		[self setSnapshotMode:YES];
+	} else {
+		[self setPaused:NO];	// exit snapshot mode and resume patch
+	}
+}
+
+- (void)pauseMovie:(BOOL)pause
+{
+	[self pushCommand:RenderCmd(WhorldBase::RC_MOVIE_PAUSE, pause ? 1 : 0)];
+	std::lock_guard<std::mutex>	lock(_mutex);
+	_liveMovie.bPaused = pause;	// show it right away
+}
+
+- (void)seekMovie:(int64_t)frame
+{
+	RenderCmd	cmd(WhorldBase::RC_MOVIE_SEEK);
+	cmd.m_prop.llVal = frame;
+	[self pushCommand:cmd];
+}
+
+- (WHMovieState)movieState
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	const auto&	m = _liveMovie;
+	return WHMovieState{(WHMovieIO)m.nIOState, m.nFrameCount, m.iFrame, m.fFrameRate, m.bPaused};
+}
+
+// ported from WhorldThread.cpp CWhorldThread::OnMovieExport and MakeImageSequenceFileName
+- (void)exportMovieToFolder:(NSString *)folder start:(int64_t)start end:(int64_t)end
+	flags:(WHExportFlags)flags width:(int)width height:(int)height
+	progress:(void (^)(int64_t))progress completion:(void (^)(NSString *))completion
+{
+	std::string	sFolder = folder.fileSystemRepresentation;
+	whorld::WhorldEngine	*pEngine = _engine.get();
+	std::atomic<bool>	*pCancel = &_cancelExport;
+	_cancelExport = false;
+	[self pushJob:[pEngine, sFolder, start, end, flags, width, height, progress, completion, pCancel] {
+		std::string	sErr;
+		// end frame is inclusive, hence the plus one
+		int64_t	nFrames = end - start + 1;
+		if (!pEngine->MovieExportStart(start)) {
+			sErr = "Can't seek to the first frame.";
+		} else {
+			for (int64_t iFrame = 0; iFrame < nFrames; iFrame++) {
+				if (*pCancel)	// if task canceled
+					break;	// abort
+				if (!pEngine->MovieExportStep()) {	// if can't read frame
+					sErr = "Can't read frame " + std::to_string(start + iFrame) + ".";
+					break;	// fail
+				}
+				char	szName[32];
+				std::snprintf(szName, sizeof(szName), "/img%06lld.png", static_cast<long long>(iFrame));
+				sErr = CaptureToPNG(*pEngine, flags, whorld::IntSize{width, height}, sFolder + szName);
+				if (!sErr.empty())
+					break;
+				int64_t	nDone = iFrame + 1;
+				dispatch_async(dispatch_get_main_queue(), ^{ progress(nDone); });
+			}
+		}
+		NSString	*msg = sErr.empty() ? nil : ToNS(sErr);
+		dispatch_async(dispatch_get_main_queue(), ^{ completion(msg); });
+	}];
+}
+
+- (void)cancelMovieExport
+{
+	_cancelExport = true;
+}
+
+- (void)setPlaylistPatches:(NSArray<NSString *> *)paths
+{
+	_playlistPatches.clear();
+	for (NSString *p in paths)
+		_playlistPatches.push_back(p.UTF8String);
 }
 
 - (void)singleStep
@@ -800,7 +1072,7 @@ static NSString *SourceName(MIDIEndpointRef src)
 	pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
 	pthread_setname_np("Whorld render");
 	for (;;) {
-		std::vector<RenderCmd>	cmds;
+		std::vector<QueueItem>	cmds;
 		int		w, h, rate;
 		double	scale;
 		bool	bCursor, bLetterbox, bLetterboxOn;
@@ -823,8 +1095,12 @@ static NSString *SourceName(MIDIEndpointRef src)
 			bLetterboxOn = _letterbox;
 			_letterboxChanged = false;
 		}
-		for (const RenderCmd& cmd : cmds)	// ProcessCommand
-			_engine->OnRenderCommand(cmd);
+		for (QueueItem& item : cmds) {	// ProcessCommand
+			if (item.job)
+				item.job();
+			else
+				_engine->OnRenderCommand(item.cmd);
+		}
 		if (rate != _curRate) {	// display frequency changed
 			_engine->SetFrameRate(rate);
 			_curRate = rate;
@@ -856,9 +1132,12 @@ static NSString *SourceName(MIDIEndpointRef src)
 		double	ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 		size_t	nRings = _engine->GetRingCount();
 		whorld::DPoint	ptOrigin = _engine->GetOrigin();
+		whorld::WhorldEngine::MovieState	movieState = _engine->GetMovieState();
 		{
 			std::lock_guard<std::mutex>	lock(_mutex);
 			_liveOrigin = ptOrigin;
+			_liveMovie = movieState;
+			_liveTarget = whorld::SizeF{float(w / scale), float(h / scale)};
 			_statRenderSum += ms;
 			_statFrames++;
 			_statRings = nRings;

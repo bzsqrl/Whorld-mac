@@ -1,6 +1,6 @@
 # Whorld macOS Port Plan
 
-Status: **Phase 5 done; Phase 6 next** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
+Status: **Phase 6 done except video export (a new feature, waiting on the user); Phase 7 next** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
 
 ## Goal
 
@@ -135,10 +135,10 @@ Two notes on accuracy:
 - [x] MIDI learn; mapping files compatible with Windows. (Learn follows `CMappingBar::OnMidiEvent`: it needs the Mapping window in front and a selection, strips the data from the message, and coalesces repeats into one undo step. Mappings live in the playlist (`.whl`), as on Windows; both sample playlists round-trip byte for byte, and a playlist saved after a learn differs only in the learned lines.)
 
 ### Phase 6 — Playlists, snapshots, movies, export
-- [ ] Playlists (`.whl`) and patch crossfading (spec: `Playlist`, `PlaylistBar`).
-- [ ] Save/load snapshots.
-- [ ] Movie record and playback (`.whm`); replace overlapped I/O with a background writer.
-- [ ] Image and image-sequence export via ImageIO; consider video export via AVFoundation (new feature — ask first).
+- [x] Playlists (`.whl`) and patch crossfading (spec: `Playlist`, `PlaylistBar`). (Playlist window: name and folder columns, playing indicator, insert, delete, move up and down, play with Return or double-click, and undo. Missing patches (Windows paths) resolve by file name next to the playlist, or by searching a chosen folder (`CMissingFilesDlg`). **Crossfading isn't in V2**: the only trace in `PlaylistBar.cpp` is a 2005 revision note from V1. Porting it would mean inventing a feature, so it's left out.)
+- [x] Save/load snapshots. (Take Snapshot, Load Snapshot (multiple files), First/Previous/Next/Last, Info and Export All, with snapshot mode as in `CWhorldApp::SetSnapshotMode`: pause, back up the document, restore it on unpause. Checked in the app: Export All of `yin yang_cvx.whs` matches the Windows golden image (0.02% of pixels over 32).)
+- [x] Movie record and playback (`.whm`); replace overlapped I/O with a background writer. (`SnapMovie`: the sample movie rewrites byte for byte, and the tests pass under ThreadSanitizer. In the app: Record and Play (⌘M and ⇧⌘M) and a movie bar with play/pause, seek slider and time. The Windows sample movie plays.)
+- [ ] Image and image-sequence export via ImageIO; consider video export via AVFoundation (new feature — ask first). (Image export (⌘E) and movie export to `img000000.png`… are done, with the Windows options and unique timestamped names (`MakeUniqueExportPath`). Movie export moves the folder's existing PNG files to the Trash after confirming; Windows deletes them. Video export is not started: it's a new feature and needs the user's go-ahead.)
 
 ### Phase 7 — Release
 - [ ] App icon, About box with GPLv3 notice and credit to Chris Korda, help docs (adapt `docs/Help`).

@@ -77,6 +77,27 @@ typedef struct {
 + (double)spin:(double)value control:(WHControlInfo)control direction:(NSInteger)direction;
 @end
 
+// Movie state for the movie bar (WhorldEngine::MovieState)
+typedef NS_ENUM(NSInteger, WHMovieIO) {
+	WHMovieIOClosed = -1,
+	WHMovieIOReading = 0,
+	WHMovieIOWriting = 1,
+};
+typedef struct {
+	WHMovieIO	io;
+	int64_t		frameCount;	// frames in the movie being played
+	int64_t		frame;		// next frame to read, or frames written
+	float		frameRate;
+	BOOL		paused;		// playback paused
+} WHMovieState;
+
+// Image export flags (WhorldBase EF_*)
+typedef NS_OPTIONS(uint32_t, WHExportFlags) {
+	WHExportUseViewSize = 0x01,
+	WHExportFitWidth = 0x02,
+	WHExportFitHeight = 0x04,
+};
+
 // One MIDI mapping (whorld::Mapping), for Swift.
 typedef struct {
 	int		event;		// channel voice message index (MappingBase EVENT_*)
@@ -197,6 +218,39 @@ typedef struct {
 // Loads a patch as an untitled document (CWhorldDoc::SetPatch, from
 // CPlaylistBar::Play). Returns NO if it can't be read.
 - (BOOL)playPatchAtPath:(NSString *)path;
+
+// Snapshots (CWhorldApp::LoadSnapshot, SetSnapshotMode)
+@property (nonatomic, readonly) BOOL snapshotMode;
+// Captures the current frame's rings and writes a .whs file. The completion
+// runs on the main thread with nil or an error message.
+- (void)takeSnapshotToPath:(NSString *)path completion:(void (^)(NSString * _Nullable error))completion;
+// Enters snapshot mode (paused, document backed up) and shows the snapshot.
+- (BOOL)loadSnapshotAtPath:(NSString *)path error:(NSError **)error;
++ (nullable NSString *)snapshotInfoAtPath:(NSString *)path;	// CMainFrame::OnSnapshotInfo
+
+// Image export (CaptureBitmap + WriteCapturedBitmap): renders the current
+// frame offscreen and writes a PNG. Queued behind earlier commands.
+- (void)exportImageToPath:(NSString *)path flags:(WHExportFlags)flags width:(int)width height:(int)height
+	completion:(void (^)(NSString * _Nullable error))completion;
+@property (nonatomic, readonly) CGSize viewSize;	// render target size in DIPs
+
+// Movies (CMainFrame::RecordMovie, PlayMovie, PauseMovie; MovieBar)
+- (void)recordMovieToPath:(nullable NSString *)path;	// nil stops recording
+- (void)playMovieAtPath:(nullable NSString *)path paused:(BOOL)paused;	// nil stops playback
+- (void)pauseMovie:(BOOL)pause;
+- (void)seekMovie:(int64_t)frame;
+@property (nonatomic, readonly) WHMovieState movieState;	// as of the last frame
+// Exports frames start..end (inclusive) as img000000.png... in a folder.
+// Progress and completion run on the main thread; set cancel to stop.
+- (void)exportMovieToFolder:(NSString *)folder start:(int64_t)start end:(int64_t)end
+	flags:(WHExportFlags)flags width:(int)width height:(int)height
+	progress:(void (^)(int64_t done))progress completion:(void (^)(NSString * _Nullable error))completion;
+- (void)cancelMovieExport;
+// Movie errors from the render thread (OnMovieError), on the main thread.
+@property (nonatomic, copy, nullable) void (^movieErrorHandler)(NSString *message);
+
+// Playlist patch list editing
+- (void)setPlaylistPatches:(NSArray<NSString *> *)paths;
 
 // Statistics, updated about once a second on the main thread.
 @property (nonatomic, readonly) double framesPerSecond;	// frames delivered

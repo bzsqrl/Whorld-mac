@@ -16,6 +16,9 @@ struct ContentView: View {
 		RenderView(engine: model.engine, fullResolution: model.fullResolution)
 			.ignoresSafeArea()
 			.frame(minWidth: 320, minHeight: 240)
+			.overlay(alignment: .bottom) {
+				MovieBar()
+			}
 			.overlay(alignment: .topLeading) {
 				if model.showFrameRate {
 					Text(model.statsText)
@@ -29,8 +32,16 @@ struct ContentView: View {
 			.onDrop(of: [.fileURL], isTargeted: nil) { providers in
 				guard let provider = providers.first else { return false }
 				_ = provider.loadObject(ofClass: URL.self) { url, _ in
-					guard let url, url.pathExtension.lowercased() == "whp" else { return }
-					Task { @MainActor in model.open(url) }
+					guard let url else { return }
+					Task { @MainActor in
+						switch url.pathExtension.lowercased() {
+						case "whp": model.open(url)
+						case "whl": if model.confirmDiscardPlaylist() { model.openPlaylist(url) }
+						case "whs": model.loadSnapshots([url])
+						case "whm": model.playMovie(url)
+						default: break
+						}
+					}
 				}
 				return true
 			}

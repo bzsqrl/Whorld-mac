@@ -13,6 +13,7 @@
 		659668C4B0184BDE707B153E /* Panels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B2CB79B02B0E8B107A93389 /* Panels.swift */; };
 		02B0769CB01668C657A76EBA /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877DEC98F9CFE00A9318DDF3 /* Preferences.swift */; };
 		D511977115546E3D85A5B217 /* Mapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = A202931F35E73683F6ABAA98 /* Mapping.swift */; };
+		2309C1A12ADDA54BDB043D68 /* Media.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED4E027A8713B30562EE3645 /* Media.swift */; };
 		E400806317F157D60866149F /* WHEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */; };
 		4C6344BF85C28FB3A76A2C9D /* ByteIO.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9AD330ED67D25720CAF715FE /* ByteIO.cpp */; };
 		78EE3481B81BC123DC5819C2 /* Controls.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 975509B0568EFB5A359C4670 /* Controls.cpp */; };
@@ -26,6 +27,7 @@
 		8C9859399AC78FCB78FB3453 /* Patch.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3DF57E86533CB766F1F15A16 /* Patch.cpp */; };
 		2669E1FC55C615FF789F6F50 /* Playlist.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C032ABA7440230A5E4879B5B /* Playlist.cpp */; };
 		2E2C550ABA91A18E1FCB0181 /* RandList.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1E71565B7500AE4C1D425636 /* RandList.cpp */; };
+		6A86F3CADAA89BD84B02A5CF /* SnapMovie.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 13EA72F9CCE861E230CB980D /* SnapMovie.cpp */; };
 		FA4F25B10B8D5F0F3C7822B1 /* Snapshot.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 767758B821E3B5577758599C /* Snapshot.cpp */; };
 		7F1EAB27F342C655730F7812 /* SnapshotV1.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4D59ADCBB6884B426EB05BB2 /* SnapshotV1.cpp */; };
 		85ABB2394770A9FD8B8DBA56 /* Version.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BE3BAAE5B7560CADB1137050 /* Version.cpp */; };
@@ -42,6 +44,7 @@
 		3B2CB79B02B0E8B107A93389 /* Panels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Panels.swift"; sourceTree = "<group>"; };
 		877DEC98F9CFE00A9318DDF3 /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Preferences.swift"; sourceTree = "<group>"; };
 		A202931F35E73683F6ABAA98 /* Mapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Mapping.swift"; sourceTree = "<group>"; };
+		ED4E027A8713B30562EE3645 /* Media.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Media.swift"; sourceTree = "<group>"; };
 		34488F6B7AD3E8B693BF38A2 /* WHEngine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "WHEngine.h"; sourceTree = "<group>"; };
 		CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "WHEngine.mm"; sourceTree = "<group>"; };
 		895315CF8C9F41F1630E1694 /* Whorld-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Whorld-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -58,6 +61,7 @@
 		3DF57E86533CB766F1F15A16 /* Patch.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Patch.cpp"; sourceTree = "<group>"; };
 		C032ABA7440230A5E4879B5B /* Playlist.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Playlist.cpp"; sourceTree = "<group>"; };
 		1E71565B7500AE4C1D425636 /* RandList.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "RandList.cpp"; sourceTree = "<group>"; };
+		13EA72F9CCE861E230CB980D /* SnapMovie.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "SnapMovie.cpp"; sourceTree = "<group>"; };
 		767758B821E3B5577758599C /* Snapshot.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Snapshot.cpp"; sourceTree = "<group>"; };
 		4D59ADCBB6884B426EB05BB2 /* SnapshotV1.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "SnapshotV1.cpp"; sourceTree = "<group>"; };
 		BE3BAAE5B7560CADB1137050 /* Version.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Version.cpp"; sourceTree = "<group>"; };
@@ -104,6 +108,7 @@
 				3B2CB79B02B0E8B107A93389 /* Panels.swift */,
 				877DEC98F9CFE00A9318DDF3 /* Preferences.swift */,
 				A202931F35E73683F6ABAA98 /* Mapping.swift */,
+				ED4E027A8713B30562EE3645 /* Media.swift */,
 				34488F6B7AD3E8B693BF38A2 /* WHEngine.h */,
 				CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */,
 				895315CF8C9F41F1630E1694 /* Whorld-Bridging-Header.h */,
@@ -128,6 +133,7 @@
 				3DF57E86533CB766F1F15A16 /* Patch.cpp */,
 				C032ABA7440230A5E4879B5B /* Playlist.cpp */,
 				1E71565B7500AE4C1D425636 /* RandList.cpp */,
+				13EA72F9CCE861E230CB980D /* SnapMovie.cpp */,
 				767758B821E3B5577758599C /* Snapshot.cpp */,
 				4D59ADCBB6884B426EB05BB2 /* SnapshotV1.cpp */,
 				BE3BAAE5B7560CADB1137050 /* Version.cpp */,
@@ -205,6 +211,7 @@
 				659668C4B0184BDE707B153E /* Panels.swift in Sources */,
 				02B0769CB01668C657A76EBA /* Preferences.swift in Sources */,
 				D511977115546E3D85A5B217 /* Mapping.swift in Sources */,
+				2309C1A12ADDA54BDB043D68 /* Media.swift in Sources */,
 				E400806317F157D60866149F /* WHEngine.mm in Sources */,
 				4C6344BF85C28FB3A76A2C9D /* ByteIO.cpp in Sources */,
 				78EE3481B81BC123DC5819C2 /* Controls.cpp in Sources */,
@@ -218,6 +225,7 @@
 				8C9859399AC78FCB78FB3453 /* Patch.cpp in Sources */,
 				2669E1FC55C615FF789F6F50 /* Playlist.cpp in Sources */,
 				2E2C550ABA91A18E1FCB0181 /* RandList.cpp in Sources */,
+				6A86F3CADAA89BD84B02A5CF /* SnapMovie.cpp in Sources */,
 				FA4F25B10B8D5F0F3C7822B1 /* Snapshot.cpp in Sources */,
 				7F1EAB27F342C655730F7812 /* SnapshotV1.cpp in Sources */,
 				85ABB2394770A9FD8B8DBA56 /* Version.cpp in Sources */,

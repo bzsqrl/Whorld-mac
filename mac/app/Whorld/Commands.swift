@@ -46,6 +46,49 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut("s")
 			Button("Save As…") { model.saveAs() }
 				.keyboardShortcut("s", modifiers: [.command, .shift])
+			Divider()
+			Button("Take Snapshot…") { model.takeSnapshot() }
+				.keyboardShortcut("t")
+			Button("Load Snapshot…") { model.loadSnapshots() }
+				.keyboardShortcut("l")
+			Button("Export…") { model.exportImage() }
+				.keyboardShortcut("e")
+		}
+
+		CommandMenu("Snapshot") {
+			Button("First") { model.snapshotFirst() }
+				.keyboardShortcut(.home, modifiers: [])
+				.disabled(!model.hasSnapshots)
+			Button("Previous") { model.snapshotPrev() }
+				.keyboardShortcut(.pageUp, modifiers: [])
+				.disabled(!model.hasSnapshots)
+			Button("Next") { model.snapshotNext() }
+				.keyboardShortcut(.pageDown, modifiers: [])
+				.disabled(!model.hasSnapshots)
+			Button("Last") { model.snapshotLast() }
+				.keyboardShortcut(.end, modifiers: [])
+				.disabled(!model.hasSnapshots)
+			Divider()
+			Button("Export All…") { model.exportAllSnapshots() }
+				.disabled(!model.hasSnapshots)
+			Button("Info…") { model.snapshotInfo() }
+				.disabled(!model.isCurrentSnapshotValid)
+		}
+
+		CommandMenu("Movie") {
+			let ms = model.engine.movieState
+			Button(ms.io == .writing ? "Stop Recording" : "Record…") { model.toggleRecordMovie() }
+				.keyboardShortcut("m")
+				.disabled(ms.io == .reading)
+			Button(ms.io == .reading ? "Stop Playing" : "Play…") { model.togglePlayMovie() }
+				.keyboardShortcut("m", modifiers: [.command, .shift])
+				.disabled(ms.io == .writing)
+			Button("Rewind") { model.rewindMovie() }
+				.keyboardShortcut(.home, modifiers: .command)
+				.disabled(ms.io != .reading)
+			Divider()
+			Button("Export…") { model.exportMovie() }
+				.disabled(ms.io != .reading || model.movieExportProgress != nil)
 		}
 
 		CommandGroup(replacing: .undoRedo) {

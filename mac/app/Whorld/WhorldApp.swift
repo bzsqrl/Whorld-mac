@@ -45,7 +45,7 @@ final class AppModel: ObservableObject {
 
 	/// Undo coalescing key of the edit on top of the undo stack
 	/// (CUndoManager::NotifyUndoableEdit with UE_COALESCE).
-	private var coalesceKey: String?
+	var coalesceKey: String?
 
 	private init() {
 		engine.statsHandler = { [weak self] in
@@ -60,6 +60,12 @@ final class AppModel: ObservableObject {
 		undoManager.levelsOfUndo = 100
 		engine.setSnapshotLetterbox(Preferences.snapshotLetterbox)
 		engine.midiInputName = Preferences.midiInputName
+		engine.movieErrorHandler = { message in
+			let alert = NSAlert()
+			alert.messageText = "Movie error"
+			alert.informativeText = message
+			alert.runModal()
+		}
 		engine.midiHandler = { [weak self] kind, value in
 			self?.onMidi(kind: kind, value: value)
 		}
@@ -67,13 +73,22 @@ final class AppModel: ObservableObject {
 
 	// MARK: MIDI and mappings
 
+	// MARK: Phase 6 state (see Media.swift)
+	/// Snapshots loaded with Load Snapshot (CMainFrame::m_aSnapshotPath).
+	@Published var snapshotPaths: [URL] = []
+	@Published var currentSnapshot = 0
+	/// Index of the playing playlist patch (CPlaylistBar::m_iPlayingPatch).
+	@Published var playingPatch = -1
+	@Published var playlistSelection = Set<Int>()
+	@Published var movieExportProgress: (done: Int64, total: Int64)? = nil
+
 	/// Mapping rows selected in the MIDI Mapping window, for learn.
 	@Published var mappingSelection = Set<Int>()
 	/// True while the MIDI Mapping window is the key window (learn needs it).
 	var mappingWindowIsKey = false
 	@Published private(set) var playlistTitle = "Untitled Playlist"
-	@Published private(set) var playlistModified = false
-	private var playlistURL: URL?
+	@Published var playlistModified = false
+	private(set) var playlistURL: URL?
 	private var learnSelection = Set<Int>()
 
 	var midiLearn: Bool {
@@ -159,6 +174,7 @@ final class AppModel: ObservableObject {
 		guard confirmDiscardPlaylist() else { return }
 		engine.newPlaylist()
 		playlistURL = nil
+		playingPatch = -1
 		playlistTitle = "Untitled Playlist"
 		playlistModified = false
 		mappingSelection = []
@@ -178,6 +194,8 @@ final class AppModel: ObservableObject {
 		do {
 			try engine.openPlaylist(atPath: url.path)
 			playlistURL = url
+			playingPatch = -1
+			checkMissingPatches()
 			playlistTitle = url.deletingPathExtension().lastPathComponent
 			playlistModified = false
 			mappingSelection = []
@@ -263,6 +281,7 @@ final class AppModel: ObservableObject {
 			return
 		}
 		if engine.playPatch(atPath: url.path) {
+			playingPatch = index
 			resetUndo()
 			updateTitle()
 			changed()
@@ -277,7 +296,7 @@ final class AppModel: ObservableObject {
 
 	/// Registers an undo step unless it coalesces with the previous one:
 	/// consecutive edits of the same thing are one step, as on Windows.
-	private func recordUndo(key: String, title: String, restore: @escaping () -> Void) {
+	func recordUndo(key: String, title: String, restore: @escaping () -> Void) {
 		let replaying = undoManager.isUndoing || undoManager.isRedoing
 		if !replaying && key == coalesceKey && undoManager.canUndo {
 			return
@@ -554,12 +573,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 	func application(_ application: NSApplication, open urls: [URL]) {
 		for url in urls {
 			Task { @MainActor in
-				if url.pathExtension.lowercased() == "whl" {
+				switch url.pathExtension.lowercased() {
+				case "whl":
 					if AppModel.shared.confirmDiscardPlaylist() {
 						AppModel.shared.openPlaylist(url)
 					}
-				} else {
-					AppModel.shared.open(url)
+				case "whs": AppModel.shared.loadSnapshots([url])
+				case "whm": AppModel.shared.playMovie(url)
+				default: AppModel.shared.open(url)
 				}
 			}
 		}
@@ -616,6 +637,12 @@ struct WhorldApp: App {
 		}
 		.keyboardShortcut("r", modifiers: [.command, .shift])
 		.windowResizability(.contentSize)
+
+		Window("Playlist", id: "playlist") {
+			PlaylistPanel().environmentObject(model)
+		}
+		.keyboardShortcut("a", modifiers: [.command, .shift])
+		.defaultSize(width: 520, height: 420)
 
 		Window("MIDI Mapping", id: "mapping") {
 			MappingPanel().environmentObject(model)
