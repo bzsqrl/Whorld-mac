@@ -68,7 +68,7 @@ Each phase ends with something that runs. Check items off as they're done.
 ### Phase 0 — Setup
 - [x] Fork upstream on GitHub; clone; create branch `mac-port`. (Fork is `bzsqrl/Whorld`; `master` tracks upstream `5b5de69`.)
 - [x] Create `mac/engine`, `mac/renderer`, `mac/app`, `mac/testdata`; add `CMakeLists.txt` for the engine and tests. (Tests use a small built-in harness, `mac/engine/tests/TestHarness.h`, so there's no third-party dependency.)
-- [x] Add GitHub Actions CI on a macOS runner: build the engine, run tests, build the app. (`.github/workflows/mac.yml`: engine on macOS 15 and Linux; the app build step is skipped until the Xcode project exists. First green run: 42100966306.)
+- [x] Add GitHub Actions CI on a macOS runner: build the engine, run tests, build the app. (`.github/workflows/mac.yml`: engine on macOS (`macos-latest`) and Linux; the app build step is skipped until the Xcode project exists. First green run: 42100966306.)
 - [x] Collect test data into `mac/testdata`: the demo `.whp` patches from the Windows release (the repo doesn't include them), a few `.whs` snapshots, and PNGs exported from Windows Whorld of those same snapshots. If no Windows machine or VM is available, ask the user — the golden-image tests depend on these. (Exported by the user from Windows Whorld 2.0.20: 86 patches, 2 playlists, 8 snapshots with golden PNGs, 1 movie. See `mac/testdata/README.md`.)
 
 **Done when:** an empty engine library and test target build locally and in CI.

@@ -9,7 +9,7 @@ on:
 
 jobs:
   engine-macos:
-    runs-on: macos-15
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
       - name: Configure
@@ -33,7 +33,7 @@ jobs:
         run: ctest --test-dir build --output-on-failure
 
   app:
-    runs-on: macos-15
+    runs-on: macos-latest
     needs: engine-macos
     steps:
       - uses: actions/checkout@v5
