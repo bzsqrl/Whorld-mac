@@ -79,7 +79,7 @@ Each phase ends with something that runs. Check items off as they're done.
 - [x] Port `Patch` read/write; test round-trip against the sample `.whp` files. (All 86 samples parse. In the 14 version-4 files, 616 lines are reproduced byte for byte; 19 hand-edited lines, with empty fields or typos, are only required to parse.)
 - [ ] Define `IRenderer` (begin/end frame, clear, set antialiasing, build path, fill path, stroke path with width, fill rect, offscreen bitmap create/draw for mirroring).
 - [ ] Port `CWhorldDraw` as `WhorldEngine`: `TimerHook` → `Tick()`, `AddRing`, `DrawRing`, `DrawOutline`, origin/zoom/hue/globals updates, quad mirroring — drawing only through `IRenderer`. Separate it from the thread and device classes it inherits from on Windows.
-- [ ] Port `Snapshot` (including `SnapshotV1`) with explicit binary decoding.
+- [x] Port `Snapshot` (including `SnapshotV1`) with explicit binary decoding. (All 8 sample snapshots decode and re-encode byte for byte. The V1 reader is tested only with synthetic files, because no real V1 snapshot is available.)
 - [ ] Unit tests: oscillator waveforms, patch round-trip, snapshot parsing, a recording `IRenderer` that checks the draw calls for a fixed seed.
 
 **Done when:** the engine builds with no Windows or Apple headers and tests pass.
@@ -145,6 +145,7 @@ Record here anything worth telling the upstream author: suspected bugs found whi
 - **`FormatIO.cpp` `CFormatIO::StrToVal`:** the `FIO_BYTE` case (also used for `bool`) has no `break`, so it falls through to `default` and returns `FALSE` even though the value was stored. Harmless today because `CPatch::Read` ignores the return value. The port keeps this behavior.
 - **`Oscillator.cpp` `COscillator::SetPhaseFromVal`:** for `TRIANGLE`, `r = (fVal + 1) / 2 + 10.5` lands on the phase where `GetVal()` returns `-fVal`, not `fVal`. The other waveforms invert correctly. Nothing calls `SetPhaseFromVal`, so there's no visible effect. The port keeps this behavior.
 - **`Oscillator.h` `CTriggerOscillator()`:** the default constructor leaves `m_bIsHigh` uninitialized. The port initializes it to `false`. This is latent only: the one user, `CWhorldDraw::m_oscOrigin`, uses the two-argument constructor.
+- **`SnapshotV1.cpp` `CSnapshotV1::CvtRing`:** `ptShiftDelta` is copied from the V1 ring's `Shift` rather than its `ShiftDelta`. This might be intentional. The port keeps it.
 
 ## Port notes
 
@@ -155,5 +156,7 @@ Decisions made while porting that preserve Windows behavior in non-obvious ways.
 - **Number formatting.** Windows Whorld is built with toolset v110, whose C runtime (msvcr110) prints at least three exponent digits (`7.22068e-005`). C99 runtimes print two. `src/MsvcFormat.h` pads exponents so `.whp` output matches Windows byte for byte; reading accepts both forms. The sample patches confirm the three-digit form.
 - **Line endings.** `CStdioFile` text mode writes CRLF, so `Patch::Write` writes CRLF; `Patch::Read` accepts CRLF or LF.
 - **Errors.** The engine reports errors with `bool` results and an optional `std::string*` message, in place of MFC exceptions and message boxes. Use this everywhere in the engine.
+- **Binary layouts.** `.whs` structs are decoded at the MSVC x64 offsets listed in `Snapshot.cpp`: `DRAW_STATE` 40 bytes, `GLOB_RING` 104, `RING` 192, none with padding. V1 snapshots use the 32-bit MSVC offsets listed in `SnapshotV1.cpp`. Each struct is copied into a zeroed image of its full size before decoding, which reproduces the original's behavior of reading `min(size, sizeof)` bytes into a zeroed struct for files with older, smaller structs.
+- **Legacy snapshot size.** `CSnapshotV1` gets the frame size from the options (`GetLegacySnapshotSize`); the port takes it as a parameter, defaulting to 800×600 like the Windows option.
 - **Display names.** These come from the `Whorld.rc` string table and are compiled in (`src/WhorldStrings.h`), replacing `LoadString` and `InitWhorldBase`.
 - **Anonymous structs in unions.** `PARAM_VALS` and `MASTER_PROPS` keep the original's union of named members and an array. This is a compiler extension that MSVC, clang and gcc all support. The warning is silenced only around those declarations, and `static_assert`s check that the members overlay the array exactly.

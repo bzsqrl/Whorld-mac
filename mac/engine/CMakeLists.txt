@@ -8,12 +8,15 @@
 
 # Portable engine: plain C++17, no Windows, MFC or Apple headers.
 add_library(whorld_engine STATIC
+  src/ByteIO.cpp
   src/DPoint.cpp
   src/FormatIO.cpp
   src/HLS.cpp
   src/Oscillator.cpp
   src/Patch.cpp
   src/RandList.cpp
+  src/Snapshot.cpp
+  src/SnapshotV1.cpp
   src/Version.cpp
   src/WhorldBase.cpp
 )
