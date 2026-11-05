@@ -10,6 +10,7 @@ License: GPLv3. Every new file gets a GPLv3 header and keeps the original copyri
 - `mac/engine/` — portable C++17 engine extracted from the Windows source. No Windows headers, no MFC, no Apple headers.
 - `mac/engine/tests/` — engine unit tests and golden-image tests.
 - `mac/renderer/` — the Core Graphics drawing backend (Objective-C++, `.mm`), implementing the engine's renderer interface.
+- `mac/tools/` — command-line tools: `whorld-render` renders a patch or snapshot to PNG and compares images.
 - `mac/app/` — the macOS app (Swift / SwiftUI, Xcode project), talking to the engine through a thin Objective-C++ bridge.
 - `mac/testdata/` — sample `.whp` patches, `.whs` snapshots and reference PNGs exported from Windows Whorld.
 
@@ -18,7 +19,11 @@ License: GPLv3. Every new file gets a GPLv3 header and keeps the original copyri
 These commands are created in Phase 0 of the plan. Keep this section accurate as the build changes.
 
 - Engine + tests: `cmake -S mac -B build && cmake --build build && ctest --test-dir build --output-on-failure`
+- Render a frame: `build/tools/whorld-render <file.whp|file.whs> --out frame.png` (run with no arguments for options)
+- Compare images: `build/tools/whorld-render --compare a.png b.png --diff diff.png`
 - App: `xcodebuild -project mac/app/Whorld.xcodeproj -scheme Whorld build`
+
+On macOS, CMake also builds the Core Graphics renderer, the tools and the golden-image tests; on Linux it builds only the engine and its tests.
 
 Run the engine tests after every engine change. Build the app after every change to the bridge, renderer or app.
 

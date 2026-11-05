@@ -1,6 +1,6 @@
 # Whorld macOS Port Plan
 
-Status: **Phase 1 done; Phase 2 next** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
+Status: **Phase 2 done; Phase 3 next** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
 
 ## Goal
 
@@ -85,9 +85,9 @@ Each phase ends with something that runs. Check items off as they're done.
 **Done when:** the engine builds with no Windows or Apple headers and tests pass.
 
 ### Phase 2 — Core Graphics renderer and headless renderer tool
-- [ ] Implement `CoreGraphicsRenderer` with `CGContext` and `CGPath` (y-flip and backing scale handled here).
-- [ ] Build a command-line tool: `whorld-render <patch.whp> --frames N --size WxH --out frame.png`, and `whorld-render <snapshot.whs> --out frame.png`.
-- [ ] Golden-image tests: render each `.whs` and compare to the Windows PNG within a tolerance (antialiasing differs slightly between Direct2D and Core Graphics; use a perceptual or per-pixel threshold, not exact match).
+- [x] Implement `CoreGraphicsRenderer` with `CGContext` and `CGPath` (y-flip and backing scale handled here). (`mac/renderer/CGRenderer.{h,mm}`, `CGBitmapRenderer`: draws into its own BGRA premultiplied bitmap, like the Direct2D swap chain, and mirrors by copying pixels. 12 unit tests.)
+- [x] Build a command-line tool: `whorld-render <patch.whp> --frames N --size WxH --out frame.png`, and `whorld-render <snapshot.whs> --out frame.png`. (`mac/tools/whorld-render.mm`. Also supports `--scale`, `--fit`, `--use-view-size`, `--no-letterbox`, and `--compare a.png b.png [--diff d.png] [--region X,Y,W,H]`.)
+- [x] Golden-image tests: render each `.whs` and compare to the Windows PNG within a tolerance (antialiasing differs slightly between Direct2D and Core Graphics; use a perceptual or per-pixel threshold, not exact match). (`test_golden`: every image must have mean difference ≤ 1.5 and at most 1% of pixels with an RGB difference over 32. Worst today: bloom at 0.70% and mean 0.72; the rest are under 0.4%. Mirrored snapshots compare only the upper-left quadrant; see Upstream notes.)
 
 **Done when:** snapshots render visibly identical to Windows output and the golden tests pass.
 
@@ -148,6 +148,7 @@ Record here anything worth telling the upstream author: suspected bugs found whi
 - **`SnapshotV1.cpp` `CSnapshotV1::CvtRing`:** `ptShiftDelta` is copied from the V1 ring's `Shift` rather than its `ShiftDelta`. This might be intentional. The port keeps it.
 - **Patch loading ignores waveforms and pulse widths (visible).** `CWhorldThread::OnSetPatch` copies the patch into the render thread but never calls `COscillator::SetWaveform` or `SetPulseWidth`; only `OnSetWaveform` and `OnSetPulseWidth` (from editing a parameter) do. Opening a patch sends only `RC_SET_PATCH` (`CWhorldView::OnUpdate`, `HINT_NONE`), so each oscillator keeps its previous waveform (`TRIANGLE` at startup) and pulse width (0.5). A loaded patch with sine or square modulation therefore animates with the previous waveform until that row is edited. The port keeps this behavior, and `test_engine` documents it. This is worth reporting upstream; the fix would be to set each oscillator's waveform and pulse width in `OnSetPatch`. The user decided (2026-11-05) to keep the bug in the port for now. It's hard to see on their patches.
 - **`WhorldThread.cpp` `OnRenderCommand` `RC_MOVIE_SEEK`:** passes `cmd.m_prop.intVal`, so frame indices above 2^31 are truncated, even though `MovieSeek` takes a `LONGLONG`. Harmless in practice. Noted for the Phase 6 port.
+- **Exporting while mirroring uses a stale mirror bitmap (visible in exports).** `CWhorldDraw::InitMirroring` creates `m_pMirrorBitmap` lazily at the live window's quadrant size, and only `OnResize` releases it. `CaptureBitmap` recomputes `m_szMirQuad` for the export bitmap but reuses the window-sized bitmap. `FinishMirroring` then copies only the export's quadrant into the bitmap's corner, and `DrawBitmap` with no source rectangle squeezes the whole bitmap, stale content included, into each mirrored quadrant. Confirmed with `pinwheel_cvx-mirrored`: a 528×617 stale bitmap (half the 1056×1234 view) reproduces the Windows output with 99.7% of pixels matching. Live mirroring in the window is unaffected. The port mirrors exports correctly; the golden test compares only the upper-left quadrant. The fix upstream would be to release `m_pMirrorBitmap` when the capture target is set, or to pass a source rectangle to `DrawBitmap`.
 
 ## Port notes
 
@@ -164,5 +165,12 @@ Decisions made while porting that preserve Windows behavior in non-obvious ways.
 - **Overlapping copy.** `CWhorldDraw::OnDraw` copies the previous ring's points with `memcpy` into a range that overlaps when the current ring has fewer points. MSVC's `memcpy` handles overlap like `memmove`, so the port uses `memmove`.
 - **Frame timing.** As on Windows, the engine advances one tick per displayed frame, and the oscillators use the display rate as their clock (`SetFrameRate`). Ring growth is per tick, so a 120 Hz display grows rings twice as fast as 60 Hz, exactly as a 120 Hz monitor does on Windows. Phase 3 should pass the real display rate.
 - **Cursor and options.** `OM_DRAG` reads the cursor through `SetCursorPosition` (normalized) instead of `GetCursorPos`. The snapshot letterbox option is `SetSnapshotLetterbox`.
+- **Renderer: Direct2D stroke semantics.** Found against the golden images:
+  - A negative stroke width is drawn as its absolute value. Oscillators can push line width below zero; `fish eye_cvx` showed it.
+  - Direct2D's default join is `D2D1_LINE_JOIN_MITER` with limit 10. Past the limit Direct2D **clips** the miter, while Core Graphics bevels it, so `CGBitmapRenderer::StrokePath` adds the clipped-miter polygons itself. Both measure the limit as 1 / sin(θ/2), so the Core Graphics miter limit is also 10. Curved rings with negative shear turn back on themselves at vertices, and their long miters are a visible part of patches like `bloom_cvx`.
+  - A zero-width stroke is skipped. Core Graphics would draw a hairline; Direct2D's behavior at exactly zero is unverified.
+- **Renderer: color.** The bitmap and every fill color use the same sRGB color space, so values are written without conversion, as Direct2D does. PNG export writes the premultiplied bytes labeled as straight alpha, as `WriteCapturedBitmap` does through WIC; this only differs for translucent backgrounds.
+- **Export scale.** Windows captures into a bitmap at 96 DPI, so exports are 1 DIP = 1 pixel whatever the display scaling. The 125% scaling the goldens were exported at doesn't affect them. `RenderSnapshotExport` reproduces Export All: snapshot mode, then `DrawCapture`.
+- **Performance (early measurement, Phase 2).** Release build, M1 Max, CPU only, 3024×1964 pixels (full-screen Retina): `saturn_cvx` about 6 ms per frame; `bloom_cvx` (100 filled curved rings with thick outlines) about 41 ms per frame, roughly 24 fps. Phase 3 should measure in the app and raise the Metal decision if heavy patches can't hold 60 fps. Rendering at 1× and scaling up is a cheaper fallback to evaluate first.
 - **Display names.** These come from the `Whorld.rc` string table and are compiled in (`src/WhorldStrings.h`), replacing `LoadString` and `InitWhorldBase`.
 - **Anonymous structs in unions.** `PARAM_VALS` and `MASTER_PROPS` keep the original's union of named members and an array. This is a compiler extension that MSVC, clang and gcc all support. The warning is silenced only around those declarations, and `static_assert`s check that the members overlay the array exactly.

@@ -17,3 +17,4 @@ function(whorld_add_renderer_test name)
 endfunction()
 
 whorld_add_renderer_test(test_cgrenderer)
+whorld_add_renderer_test(test_golden)
