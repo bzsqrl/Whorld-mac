@@ -10,6 +10,7 @@
 
 #include "CGRenderer.h"
 #include <IOSurface/IOSurface.h>
+#include "whorld/Controls.h"
 #include "whorld/Patch.h"
 #include "whorld/WhorldEngine.h"
 
@@ -25,6 +26,63 @@
 using whorld::WhorldBase;
 using RenderCmd = WhorldBase::RenderCmd;
 
+using whorld::Controls;
+
+static WHControlInfo ToWH(const whorld::ControlInfo& ci)
+{
+	return WHControlInfo{ci.nRangeMin, ci.nRangeMax, ci.nDefaultPos, ci.nPageSize, ci.fEditScale,
+		ci.nEditPrecision, ci.fEditMin, ci.fEditMax, ci.bEditClamp, ci.fSpinDelta};
+}
+
+static whorld::ControlInfo FromWH(const WHControlInfo& c)
+{
+	return whorld::ControlInfo{c.rangeMin, c.rangeMax, c.defaultPos, c.pageSize, c.editScale,
+		c.editPrecision, c.editMin, c.editMax, (bool)c.editClamp, c.spinDelta};
+}
+
+static NSString *ToNS(const std::string& s)
+{
+	return [NSString stringWithUTF8String:s.c_str()];
+}
+
+@implementation WHControls
++ (NSInteger)paramCount { return WhorldBase::PARAM_COUNT; }
++ (NSInteger)masterCount { return WhorldBase::MASTER_COUNT; }
++ (NSInteger)globalCount { return WhorldBase::GLOBAL_COUNT; }
++ (NSInteger)waveformCount { return WhorldBase::WAVEFORM_COUNT; }
++ (NSString *)paramName:(NSInteger)i { return ToNS(WhorldBase::GetParamName((int)i)); }
++ (NSString *)masterName:(NSInteger)i { return ToNS(WhorldBase::GetMasterName((int)i)); }
++ (NSString *)waveformName:(NSInteger)i { return ToNS(WhorldBase::GetWaveformName((int)i)); }
++ (NSInteger)paramForGlobal:(NSInteger)i { return WhorldBase::MapGlobalToParam((int)i); }
++ (NSString *)mainName:(NSInteger)i { return ToNS(WhorldBase::GetMainName((int)i)); }
++ (NSString *)paramPropertyName:(NSInteger)i { return ToNS(WhorldBase::GetParamPropName((int)i)); }
++ (double)masterNorm01:(NSInteger)i value:(double)v { return Controls::MasterNorm01((int)i, v); }
++ (double)masterDenorm01:(NSInteger)i value:(double)v { return Controls::MasterDenorm01((int)i, v); }
++ (WHControlInfo)paramControl:(NSInteger)i column:(NSInteger)col { return ToWH(Controls::ParamInfo((int)i, (int)col)); }
++ (WHControlInfo)globalControl:(NSInteger)i { return ToWH(Controls::GlobalInfo((int)i)); }
++ (WHControlInfo)masterControl:(NSInteger)i { return ToWH(Controls::MasterInfo((int)i)); }
++ (double)paramPosition:(NSInteger)i value:(double)v { return Controls::ParamNorm((int)i, v); }
++ (double)paramValue:(NSInteger)i position:(double)p { return Controls::ParamDenorm((int)i, p); }
++ (double)globalPosition:(NSInteger)i value:(double)v { return Controls::GlobalNorm((int)i, v); }
++ (double)globalValue:(NSInteger)i position:(double)p { return Controls::GlobalDenorm((int)i, p); }
++ (double)masterPosition:(NSInteger)i value:(double)v { return Controls::MasterNorm((int)i, v); }
++ (double)masterValue:(NSInteger)i position:(double)p { return Controls::MasterDenorm((int)i, p); }
++ (NSString *)format:(double)v control:(WHControlInfo)c { return ToNS(Controls::FormatValue(FromWH(c), v)); }
++ (double)parse:(NSString *)t control:(WHControlInfo)c { return Controls::ParseValue(FromWH(c), t.UTF8String); }
++ (NSString *)formatMaster:(NSInteger)i value:(double)v { return ToNS(Controls::FormatMaster((int)i, v)); }
++ (double)parseMaster:(NSInteger)i text:(NSString *)t
+{
+	double	v = 0;
+	Controls::ParseMaster((int)i, t.UTF8String, v);
+	return v;
+}
++ (double)spin:(double)v control:(WHControlInfo)c direction:(NSInteger)dir
+{
+	Controls::AddSpin(FromWH(c), v, (int)dir);
+	return v;
+}
+@end
+
 @implementation WHEngine {
 	// shared between threads, guarded by _mutex
 	std::mutex	_mutex;
@@ -36,10 +94,13 @@ using RenderCmd = WhorldBase::RenderCmd;
 	double	_reqScale;
 	int		_reqRate;
 	bool	_cursorChanged;
+	bool	_letterbox;
+	bool	_letterboxChanged;
 	whorld::DPoint	_cursor;
 	double	_statRenderSum;
 	int		_statFrames;
 	size_t	_statRings;
+	whorld::DPoint	_liveOrigin;	// normalized origin after the last frame
 	// render thread only
 	std::thread	_thread;
 	std::unique_ptr<whorld::WhorldEngine>	_engine;
@@ -57,6 +118,7 @@ using RenderCmd = WhorldBase::RenderCmd;
 	// main thread only
 	whorld::Patch	_doc;	// the document, as CWhorldDoc
 	BOOL	_paused;
+	BOOL	_modified;
 	NSString	*_patchPath;
 	__weak CALayer	*_layer;
 	int		_deliveredFrames;
@@ -76,9 +138,12 @@ using RenderCmd = WhorldBase::RenderCmd;
 		_reqScale = 1;
 		_reqRate = 60;
 		_cursorChanged = false;
+		_letterbox = true;
+		_letterboxChanged = false;
 		_statRenderSum = 0;
 		_statFrames = 0;
 		_statRings = 0;
+		_liveOrigin = whorld::DPoint(0.5, 0.5);
 		_curRate = 0;
 		_surfWidth = _surfHeight = 0;
 		_surfScale = 0;
@@ -127,6 +192,7 @@ using RenderCmd = WhorldBase::RenderCmd;
 
 - (void)pushMainProp:(int)iProp
 {
+	_modified = YES;
 	// ported from CWhorldView::OnUpdate HINT_MAIN: send the document's value
 	RenderCmd	cmd(WhorldBase::RC_SET_MAIN, iProp);
 	_doc.GetMainProp(iProp, cmd.m_prop);
@@ -149,6 +215,7 @@ using RenderCmd = WhorldBase::RenderCmd;
 {
 	_doc.SetDefaults();
 	_patchPath = nil;
+	_modified = NO;
 	[self pushPatch];
 }
 
@@ -166,6 +233,7 @@ using RenderCmd = WhorldBase::RenderCmd;
 	}
 	_doc = patch;
 	_patchPath = [path copy];
+	_modified = NO;
 	[self pushPatch];	// CWhorldView::OnUpdate HINT_NONE
 	return YES;
 }
@@ -173,6 +241,112 @@ using RenderCmd = WhorldBase::RenderCmd;
 - (NSString *)patchPath
 {
 	return _patchPath;
+}
+
+- (BOOL)modified { return _modified; }
+- (void)setModified:(BOOL)modified { _modified = modified; }
+
+// ported from WhorldDoc.cpp CWhorldDoc::OnSaveDocument
+- (BOOL)savePatchToPath:(NSString *)path error:(NSError **)error
+{
+	{	// get fresh origin from render thread
+		std::lock_guard<std::mutex>	lock(_mutex);
+		_doc.m_main.dptOrigin = _liveOrigin;
+	}
+	std::string	sErr;
+	if (!_doc.Write(path.fileSystemRepresentation, &sErr)) {
+		if (error) {
+			*error = [NSError errorWithDomain:@"Whorld" code:2 userInfo:@{
+				NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Can't save \"%@\".", path.lastPathComponent],
+				NSLocalizedRecoverySuggestionErrorKey: ToNS(sErr) }];
+		}
+		return NO;
+	}
+	_patchPath = [path copy];
+	_modified = NO;
+	return YES;
+}
+
+#pragma mark - Parameters
+
+- (double)paramValue:(NSInteger)iParam property:(WHParamProperty)prop
+{
+	WhorldBase::VARIANT_PROP	v;
+	_doc.GetParamRC((int)iParam, (int)prop, v);
+	return prop == WHParamPropertyWave ? v.intVal : v.dblVal;
+}
+
+// ported from WhorldDoc.cpp CWhorldDoc::SetParam and CWhorldView::OnUpdate HINT_PARAM
+- (void)setParamValue:(double)value param:(NSInteger)iParam property:(WHParamProperty)prop
+{
+	WhorldBase::VARIANT_PROP	v;
+	v.llVal = 0;
+	if (prop == WHParamPropertyWave)
+		v.intVal = (int)value;
+	else
+		v.dblVal = value;
+	_doc.SetParamRC((int)iParam, (int)prop, v);
+	_modified = YES;
+	RenderCmd	cmd(WhorldBase::RC_SET_PARAM_FIRST + (uint32_t)prop, (uint32_t)iParam);
+	cmd.m_prop = v;
+	[self pushCommand:cmd];
+}
+
+- (double)masterValue:(NSInteger)iProp
+{
+	return _doc.GetMasterProp((int)iProp);
+}
+
+// ported from WhorldDoc.cpp CWhorldDoc::SetMasterProp and HINT_MASTER
+- (void)setMasterValue:(double)value prop:(NSInteger)iProp
+{
+	_doc.SetMasterProp((int)iProp, value);
+	_modified = YES;
+	[self pushCommand:RenderCmd(WhorldBase::RC_SET_MASTER, (uint32_t)iProp, value)];
+}
+
+- (CGPoint)origin
+{
+	return CGPointMake(_doc.m_main.dptOrigin.x, _doc.m_main.dptOrigin.y);
+}
+
+- (void)setOrigin:(CGPoint)pt
+{
+	_doc.m_main.dptOrigin = whorld::DPoint(pt.x, pt.y);
+	[self pushMainProp:WhorldBase::MAIN_Origin];	// OnMainPropChange: OnSetOrigin, no damping
+}
+
+- (double)hue { return _doc.m_main.fHue; }
+
+- (void)setHue:(double)hue
+{
+	_doc.m_main.fHue = hue;
+	[self pushMainProp:WhorldBase::MAIN_Hue];
+}
+
+- (BOOL)invertColor { return _doc.m_main.bInvertColor; }
+
+- (void)setInvertColor:(BOOL)b
+{
+	[self setMainBool:WhorldBase::MAIN_InvertColor value:b];
+}
+
+- (uint32_t)drawMode { return _doc.m_main.nDrawMode; }
+
+// ported from WhorldDoc.cpp CWhorldDoc::SetZoom
+- (void)setZoom:(double)zoom damping:(BOOL)damping
+{
+	RenderCmd	cmd(WhorldBase::RC_SET_ZOOM, damping ? 1 : 0, zoom);
+	[self pushCommand:cmd];
+	_doc.m_master.fZoom = zoom;
+	_modified = YES;
+}
+
+- (void)setSnapshotLetterbox:(BOOL)enable
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	_letterbox = enable;
+	_letterboxChanged = true;
 }
 
 #pragma mark - Image menu
@@ -204,16 +378,16 @@ using RenderCmd = WhorldBase::RenderCmd;
 - (void)toggleAntialiasing { [self setMainBool:WhorldBase::MAIN_Antialiasing value:!_doc.m_main.bAntialiasing]; }
 
 // CWhorldDoc::SetOriginMotion
-- (void)setOriginMotion:(int)nMotion
+- (void)setOriginMotion:(WHOriginMotion)nMotion
 {
-	_doc.m_main.nOrgMotion = nMotion;
+	_doc.m_main.nOrgMotion = (int)nMotion;
 	[self pushMainProp:WhorldBase::MAIN_OrgMotion];
 }
 
 // CWhorldDoc::OnImageOriginCenter
 - (void)originCenter
 {
-	[self setOriginMotion:WhorldBase::OM_PARK];
+	[self setOriginMotion:WHOriginMotionPark];
 	RenderCmd	cmd(WhorldBase::RC_SET_ORIGIN, 0);	// center, no damping
 	cmd.m_prop.fltPt = whorld::PointF{0.5f, 0.5f};
 	[self pushCommand:cmd];
@@ -221,12 +395,12 @@ using RenderCmd = WhorldBase::RenderCmd;
 
 - (void)toggleOriginDrag
 {
-	[self setOriginMotion:_doc.m_main.nOrgMotion == WhorldBase::OM_DRAG ? WhorldBase::OM_PARK : WhorldBase::OM_DRAG];
+	[self setOriginMotion:_doc.m_main.nOrgMotion == WhorldBase::OM_DRAG ? WHOriginMotionPark : WHOriginMotionDrag];
 }
 
 - (void)toggleOriginRandom
 {
-	[self setOriginMotion:_doc.m_main.nOrgMotion == WhorldBase::OM_RANDOM ? WhorldBase::OM_PARK : WhorldBase::OM_RANDOM];
+	[self setOriginMotion:_doc.m_main.nOrgMotion == WhorldBase::OM_RANDOM ? WHOriginMotionPark : WHOriginMotionRandom];
 }
 
 - (void)randomPhase
@@ -294,7 +468,7 @@ using RenderCmd = WhorldBase::RenderCmd;
 		std::vector<RenderCmd>	cmds;
 		int		w, h, rate;
 		double	scale;
-		bool	bCursor;
+		bool	bCursor, bLetterbox, bLetterboxOn;
 		whorld::DPoint	cursor;
 		{
 			std::unique_lock<std::mutex>	lock(_mutex);
@@ -310,6 +484,9 @@ using RenderCmd = WhorldBase::RenderCmd;
 			bCursor = _cursorChanged;
 			cursor = _cursor;
 			_cursorChanged = false;
+			bLetterbox = _letterboxChanged;
+			bLetterboxOn = _letterbox;
+			_letterboxChanged = false;
 		}
 		for (const RenderCmd& cmd : cmds)	// ProcessCommand
 			_engine->OnRenderCommand(cmd);
@@ -319,6 +496,8 @@ using RenderCmd = WhorldBase::RenderCmd;
 		}
 		if (bCursor)
 			_engine->SetCursorPosition(cursor);
+		if (bLetterbox)
+			_engine->SetSnapshotLetterbox(bLetterboxOn);
 		if (w <= 0 || h <= 0)
 			continue;
 		if (w != _surfWidth || h != _surfHeight || scale != _surfScale) {	// RC_RESIZE
@@ -341,8 +520,10 @@ using RenderCmd = WhorldBase::RenderCmd;
 		CFRetain(image);
 		double	ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 		size_t	nRings = _engine->GetRingCount();
+		whorld::DPoint	ptOrigin = _engine->GetOrigin();
 		{
 			std::lock_guard<std::mutex>	lock(_mutex);
+			_liveOrigin = ptOrigin;
 			_statRenderSum += ms;
 			_statFrames++;
 			_statRings = nRings;
@@ -515,6 +696,20 @@ using RenderCmd = WhorldBase::RenderCmd;
 		return;
 	// view y points up; the engine's normalized y points down
 	[_engine setCursorPosition:CGPointMake(pt.x / size.width, 1 - pt.y / size.height)];
+}
+
+- (void)scrollWheel:(NSEvent *)event
+{
+	if (!_wheelHandler)
+		return;
+	// a mouse wheel reports lines (about one per notch); a trackpad reports
+	// points, so treat 10 points as a notch
+	BOOL	shift = (event.modifierFlags & NSEventModifierFlagShift) != 0;
+	// macOS turns Shift + wheel into horizontal scrolling
+	double	delta = event.scrollingDeltaY != 0 ? event.scrollingDeltaY : (shift ? event.scrollingDeltaX : 0);
+	double	notches = event.hasPreciseScrollingDeltas ? delta / 10 : delta;
+	if (notches != 0)
+		_wheelHandler(notches, shift);
 }
 
 - (void)mouseMoved:(NSEvent *)event { [self reportMouse:event]; }

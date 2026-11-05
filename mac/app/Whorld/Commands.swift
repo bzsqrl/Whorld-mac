@@ -41,30 +41,46 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut("o")
 		}
 
+		CommandGroup(replacing: .saveItem) {
+			Button("Save") { model.save() }
+				.keyboardShortcut("s")
+			Button("Save As…") { model.saveAs() }
+				.keyboardShortcut("s", modifiers: [.command, .shift])
+		}
+
+		CommandGroup(replacing: .undoRedo) {
+			Button(model.undoManager.canUndo ? model.undoManager.undoMenuItemTitle : "Undo") { model.undo() }
+				.keyboardShortcut("z")
+				.disabled(!model.undoManager.canUndo)
+			Button(model.undoManager.canRedo ? model.undoManager.redoMenuItemTitle : "Redo") { model.redo() }
+				.keyboardShortcut("z", modifiers: [.command, .shift])
+				.disabled(!model.undoManager.canRedo)
+		}
+
 		CommandMenu("Image") {
-			toggle("Fill", e.fill) { e.toggleFill() }
+			toggle("Fill", e.fill) { model.toggleFill() }
 				.keyboardShortcut(fkey(NSF6FunctionKey), modifiers: [])
-			toggle("Outline", e.outline) { e.toggleOutline() }
+			toggle("Outline", e.outline) { model.toggleOutline() }
 				.keyboardShortcut(fkey(NSF7FunctionKey), modifiers: [])
-			toggle("Mirror", e.mirror) { e.toggleMirror() }
+			toggle("Mirror", e.mirror) { model.toggle(.mirror) }
 				.keyboardShortcut(fkey(NSF5FunctionKey), modifiers: [])
 			Divider()
-			toggle("Reverse", e.reverse) { e.toggleReverse() }
+			toggle("Reverse", e.reverse) { model.toggle(.reverse) }
 				.keyboardShortcut(.delete, modifiers: .command)
-			toggle("Convex", e.convex) { e.toggleConvex() }
+			toggle("Convex", e.convex) { model.toggle(.convex) }
 				.keyboardShortcut(.tab, modifiers: .control)
-			toggle("Loop Hue", e.loopHue) { e.toggleLoopHue() }
+			toggle("Loop Hue", e.loopHue) { model.toggle(.loopHue) }
 				.keyboardShortcut(fkey(NSF2FunctionKey), modifiers: [])
-			toggle("Zoom Center", e.zoomCenter) { e.toggleZoomCenter() }
+			toggle("Zoom Center", e.zoomCenter) { model.toggle(.zoomCenter) }
 				.keyboardShortcut("w", modifiers: .shift)
-			toggle("Antialiasing", e.antialiasing) { e.toggleAntialiasing() }
+			toggle("Antialiasing", e.antialiasing) { model.toggle(.antialiasing) }
 				.keyboardShortcut("a", modifiers: [.command, .option])
 			Divider()
-			Button("Origin Center") { e.originCenter(); model.changed() }
+			Button("Origin Center") { model.originCenter() }
 				.keyboardShortcut("0")
-			toggle("Origin Drag", e.originMotion == .drag) { e.toggleOriginDrag() }
+			toggle("Origin Drag", e.originMotion == .drag) { model.toggleOriginDrag() }
 				.keyboardShortcut("d")
-			toggle("Origin Random", e.originMotion == .random) { e.toggleOriginRandom() }
+			toggle("Origin Random", e.originMotion == .random) { model.toggleOriginRandom() }
 				.keyboardShortcut("r")
 			Divider()
 			Button("Random Phase") { e.randomPhase() }

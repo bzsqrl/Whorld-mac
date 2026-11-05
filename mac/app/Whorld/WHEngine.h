@@ -20,6 +20,63 @@ typedef NS_ENUM(NSInteger, WHOriginMotion) {
 	WHOriginMotionRandom = 2,
 };
 
+// Parameter property columns (WhorldBase PARAM_PROP_*)
+typedef NS_ENUM(NSInteger, WHParamProperty) {
+	WHParamPropertyVal = 0,
+	WHParamPropertyWave = 1,
+	WHParamPropertyAmp = 2,
+	WHParamPropertyFreq = 3,
+	WHParamPropertyPW = 4,
+	WHParamPropertyGlobal = 5,
+};
+
+// whorld::ControlInfo: how a pane row's slider and edit box behave.
+typedef struct {
+	int		rangeMin;		// slider position range
+	int		rangeMax;
+	int		defaultPos;		// slider default position
+	int		pageSize;
+	double	editScale;		// the edit box shows value / editScale
+	int		editPrecision;	// digits after the point, or -1 for %g
+	double	editMin;		// typed values are clamped to this range
+	double	editMax;
+	BOOL	editClamp;		// if YES
+	double	spinDelta;		// stepper increment in value units (0: none)
+} WHControlInfo;
+
+// The pane control math (whorld::Controls), for building the panels.
+@interface WHControls : NSObject
+@property (class, readonly) NSInteger paramCount;
+@property (class, readonly) NSInteger masterCount;
+@property (class, readonly) NSInteger globalCount;
+@property (class, readonly) NSInteger waveformCount;
++ (NSString *)paramName:(NSInteger)iParam;
++ (NSString *)masterName:(NSInteger)iProp;
++ (NSString *)waveformName:(NSInteger)iWave;
++ (NSString *)mainName:(NSInteger)iProp;
++ (NSString *)paramPropertyName:(NSInteger)iProp;
+// normalized 0..1 master slider math (CMasterRowDlg::Norm / Denorm)
++ (double)masterNorm01:(NSInteger)iProp value:(double)value;
++ (double)masterDenorm01:(NSInteger)iProp value:(double)value;
++ (NSInteger)paramForGlobal:(NSInteger)iGlobal;	// global row to parameter index
+// column: 0 Val, 1 Amp, 2 Freq, 3 PW (Controls::COL_*)
++ (WHControlInfo)paramControl:(NSInteger)iParam column:(NSInteger)column;
++ (WHControlInfo)globalControl:(NSInteger)iParam;
++ (WHControlInfo)masterControl:(NSInteger)iProp;
++ (double)paramPosition:(NSInteger)iParam value:(double)value;
++ (double)paramValue:(NSInteger)iParam position:(double)position;
++ (double)globalPosition:(NSInteger)iParam value:(double)value;
++ (double)globalValue:(NSInteger)iParam position:(double)position;
++ (double)masterPosition:(NSInteger)iProp value:(double)value;
++ (double)masterValue:(NSInteger)iProp position:(double)position;
++ (NSString *)format:(double)value control:(WHControlInfo)control;
++ (double)parse:(NSString *)text control:(WHControlInfo)control;
++ (NSString *)formatMaster:(NSInteger)iProp value:(double)value;
++ (double)parseMaster:(NSInteger)iProp text:(NSString *)text;
+// spin button: returns the new value, or the same value if clamped unchanged
++ (double)spin:(double)value control:(WHControlInfo)control direction:(NSInteger)direction;
+@end
+
 // Owns the engine and its render thread. The main thread holds the document
 // (the current patch) and sends changes to the render thread as commands,
 // as CWhorldDoc does through CWhorldThread on Windows. Call from the main
@@ -30,6 +87,28 @@ typedef NS_ENUM(NSInteger, WHOriginMotion) {
 - (void)newPatch;
 - (BOOL)openPatchAtPath:(NSString *)path error:(NSError **)error;
 @property (nonatomic, readonly, nullable) NSString *patchPath;
+// Writes the document, with the live origin from the render thread, as
+// CWhorldDoc::OnSaveDocument does. Clears `modified` on success.
+- (BOOL)savePatchToPath:(NSString *)path error:(NSError **)error;
+// YES after any change since the last new, open or save.
+@property (nonatomic) BOOL modified;
+
+// Parameters, master and main properties of the document. Setters update
+// the document and send the change to the render thread.
+- (double)paramValue:(NSInteger)iParam property:(WHParamProperty)property;
+- (void)setParamValue:(double)value param:(NSInteger)iParam property:(WHParamProperty)property;
+- (double)masterValue:(NSInteger)iProp;
+- (void)setMasterValue:(double)value prop:(NSInteger)iProp;
+@property (nonatomic) CGPoint origin;	// normalized; setting it moves the origin without damping
+@property (nonatomic) double hue;
+@property (nonatomic) BOOL invertColor;
+- (void)setOriginMotion:(WHOriginMotion)motion;
+// CWhorldDoc::SetZoom: sets the master zoom and zooms, optionally damped
+- (void)setZoom:(double)zoom damping:(BOOL)damping;
+// snapshot letterbox option (COptions m_Snapshot_bLetterbox)
+- (void)setSnapshotLetterbox:(BOOL)enable;
+- (void)setDrawMode:(uint32_t)drawMode;
+@property (nonatomic, readonly) uint32_t drawMode;
 
 // Image menu (CWhorldDoc::OnImage*)
 @property (nonatomic, readonly) BOOL fill;
@@ -85,6 +164,9 @@ typedef NS_ENUM(NSInteger, WHOriginMotion) {
 @property (nonatomic, strong, nullable) WHEngine *engine;
 // If NO, render at one pixel per point and let the layer scale it up.
 @property (nonatomic) BOOL fullResolution;
+// Scroll wheel over the view (CRenderWnd::OnMouseWheel): delta in wheel
+// notches, positive away from the user; shift if the Shift key is down.
+@property (nonatomic, copy, nullable) void (^wheelHandler)(double notches, BOOL shift);
 @end
 
 NS_ASSUME_NONNULL_END

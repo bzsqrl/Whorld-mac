@@ -1,6 +1,6 @@
 # Whorld macOS Port Plan
 
-Status: **Phase 4 in progress** (Phase 3 done; Core Graphics kept) · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
+Status: **Phase 4 done; Phase 5 (MIDI) next** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
 
 ## Goal
 
@@ -124,10 +124,10 @@ Two notes on accuracy:
 
 
 ### Phase 4 — Controls
-- [ ] Parameters panel: value, waveform, amplitude, frequency, pulse width, global for each parameter (spec: `ParamsBar`, `ParamsRowDlg`).
-- [ ] Master and globals panels (`MasterBar`, `GlobalsBar`), main properties (`PropertiesGrid`).
-- [ ] Save patch; native undo/redo via `UndoManager`.
-- [ ] Preferences window (spec: `OptionsDef.h`, `OptionsDlg`), stored in `UserDefaults`.
+- [x] Parameters panel: value, waveform, amplitude, frequency, pulse width, global for each parameter (spec: `ParamsBar`, `ParamsRowDlg`). (`Panels.swift` `ParamsPanel`. The global column is in the Globals panel, as on Windows.)
+- [x] Master and globals panels (`MasterBar`, `GlobalsBar`), main properties (`PropertiesGrid`). (Separate windows, so they can sit on a laptop screen while the render window is full screen on a projector. The slider and edit math is the engine's `Controls`.)
+- [x] Save patch; native undo/redo via `UndoManager`. (Save writes the live origin, as `CWhorldDoc::OnSaveDocument` does. Undo coalesces consecutive edits of the same thing and uses the Windows undo titles (`CWhorldDoc::GetUndoTitle`). The app asks to save changes on New, Open and Quit. Mouse-wheel zoom, and Shift+wheel damping (`CWhorldDoc::OnMouseWheel`), are undoable too.)
+- [x] Preferences window (spec: `OptionsDef.h`, `OptionsDlg`), stored in `UserDefaults`. (Keys use the Windows names, for example `Export_nImageWidth`. Wheel sensitivity and letterbox take effect now; the export options are stored for Phase 6. The MIDI device comes in Phase 5. The recent-files count is left to macOS.)
 
 ### Phase 5 — MIDI
 - [ ] CoreMIDI input with device selection (replaces `MidiWrap`, `MidiDevices`, `MidiManager`).
