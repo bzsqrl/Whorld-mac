@@ -21,3 +21,12 @@ endif()
 enable_testing()
 
 add_subdirectory(engine)
+
+# The Core Graphics renderer, tools and golden-image tests need macOS.
+if(APPLE)
+  enable_language(OBJCXX)
+  set(CMAKE_OBJCXX_STANDARD 17)
+  set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
+  add_subdirectory(renderer)
+  add_subdirectory(tools)
+endif()
