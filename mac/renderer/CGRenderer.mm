@@ -9,6 +9,7 @@
 #include "CGRenderer.h"
 
 #include <ImageIO/ImageIO.h>
+#include <dispatch/dispatch.h>
 
 #include <algorithm>
 #include <cmath>
@@ -26,6 +27,7 @@ namespace {
 // Core Graphics bevels it; StrokePath adds the clipped part back.
 const CGFloat kMiterLimit = 10;
 const double kD2DMiterLimit = 10;	// times half the stroke width
+const double kMinOutlineWidth = 2;	// deferred: thinner strokes (device pixels) are stroked directly
 
 struct Vec {
 	double	x, y;
@@ -77,10 +79,24 @@ CGBitmapRenderer::CGBitmapRenderer(int nWidth, int nHeight, double fScale)
 {
 	m_nStride = static_cast<size_t>(m_nWidth) * 4;
 	m_aPixel.assign(m_nStride * static_cast<size_t>(std::max(m_nHeight, 1)), 0);
+	m_pPixels = m_aPixel.data();
+	CreateContext();
+}
+
+CGBitmapRenderer::CGBitmapRenderer(uint8_t* pPixels, int nWidth, int nHeight, size_t nStride, double fScale)
+	: m_nWidth(std::max(nWidth, 0)), m_nHeight(std::max(nHeight, 0)), m_fScale(fScale)
+{
+	m_nStride = nStride;
+	m_pPixels = pPixels;
+	CreateContext();
+}
+
+void CGBitmapRenderer::CreateContext()
+{
 	m_space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-	if (m_nWidth > 0 && m_nHeight > 0) {
+	if (m_nWidth > 0 && m_nHeight > 0 && m_pPixels) {
 		// BGRA in memory, premultiplied: DXGI_FORMAT_B8G8R8A8_UNORM, PREMULTIPLIED
-		m_ctx = CGBitmapContextCreate(m_aPixel.data(), m_nWidth, m_nHeight, 8, m_nStride, m_space,
+		m_ctx = CGBitmapContextCreate(m_pPixels, m_nWidth, m_nHeight, 8, m_nStride, m_space,
 			kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
 	}
 	if (m_ctx) {
@@ -91,6 +107,12 @@ CGBitmapRenderer::CGBitmapRenderer(int nWidth, int nHeight, double fScale)
 
 CGBitmapRenderer::~CGBitmapRenderer()
 {
+	for (Op& op : m_aOp) {	// frame never ended
+		if (op.path)
+			CGPathRelease(op.path);
+		if (op.miters)
+			CGPathRelease(op.miters);
+	}
 	ReleasePaths();
 	if (m_ctx)
 		CGContextRelease(m_ctx);
@@ -127,6 +149,7 @@ void CGBitmapRenderer::EndFrame()
 {
 	if (!m_ctx || !m_bInFrame)
 		return;
+	Flush();
 	if (m_bMirrorClip) {	// unbalanced mirror; drop the clip
 		CGContextRestoreGState(m_ctx);
 		m_bMirrorClip = false;
@@ -137,20 +160,20 @@ void CGBitmapRenderer::EndFrame()
 	m_bInFrame = false;
 }
 
-void CGBitmapRenderer::SetFillColor(const ColorF& clr)
+void CGBitmapRenderer::SetFillColor(CGContextRef ctx, const ColorF& clr)
 {
 	// same color space as the context: no conversion, as in Direct2D
 	const CGFloat	comp[4] = {clr.r, clr.g, clr.b, clr.a};
 	CGColorRef	c = CGColorCreate(m_space, comp);
-	CGContextSetFillColorWithColor(m_ctx, c);
+	CGContextSetFillColorWithColor(ctx, c);
 	CGColorRelease(c);
 }
 
-void CGBitmapRenderer::SetStrokeColor(const ColorF& clr)
+void CGBitmapRenderer::SetStrokeColor(CGContextRef ctx, const ColorF& clr)
 {
 	const CGFloat	comp[4] = {clr.r, clr.g, clr.b, clr.a};
 	CGColorRef	c = CGColorCreate(m_space, comp);
-	CGContextSetStrokeColorWithColor(m_ctx, c);
+	CGContextSetStrokeColorWithColor(ctx, c);
 	CGColorRelease(c);
 }
 
@@ -158,22 +181,46 @@ void CGBitmapRenderer::SetAntialiasing(bool bEnable)
 {
 	if (!m_ctx)
 		return;
-	CGContextSetShouldAntialias(m_ctx, bEnable);
-	CGContextSetAllowsAntialiasing(m_ctx, bEnable);
+	if (m_bDeferred) {
+		Op	op;
+		op.type = Op::ANTIALIAS;
+		op.bFlag = bEnable;
+		m_aOp.push_back(op);
+		return;
+	}
+	DoAntialiasing(m_ctx, bEnable);
+}
+
+void CGBitmapRenderer::DoAntialiasing(CGContextRef ctx, bool bEnable)
+{
+	CGContextSetShouldAntialias(ctx, bEnable);
+	CGContextSetAllowsAntialiasing(ctx, bEnable);
 }
 
 void CGBitmapRenderer::Clear(const ColorF& clr)
 {
 	if (!m_ctx)
 		return;
+	if (m_bDeferred) {
+		Op	op;
+		op.type = Op::CLEAR;
+		op.clr = clr;
+		m_aOp.push_back(op);
+		return;
+	}
+	DoClear(m_ctx, clr);
+}
+
+void CGBitmapRenderer::DoClear(CGContextRef ctx, const ColorF& clr)
+{
 	// replace every pixel within the clip, including alpha, without blending
-	CGContextSaveGState(m_ctx);
-	CGContextSetBlendMode(m_ctx, kCGBlendModeCopy);
-	CGContextSetShouldAntialias(m_ctx, false);
-	SetFillColor(clr);
+	CGContextSaveGState(ctx);
+	CGContextSetBlendMode(ctx, kCGBlendModeCopy);
+	CGContextSetShouldAntialias(ctx, false);
+	SetFillColor(ctx, clr);
 	SizeF	sz = GetSizeDIPs();
-	CGContextFillRect(m_ctx, CGRectMake(0, 0, sz.width, sz.height));
-	CGContextRestoreGState(m_ctx);
+	CGContextFillRect(ctx, CGRectMake(0, 0, sz.width, sz.height));
+	CGContextRestoreGState(ctx);
 }
 
 void CGBitmapRenderer::ReleasePaths()
@@ -229,9 +276,22 @@ void CGBitmapRenderer::FillPath(const ColorF& clr)
 {
 	if (!m_ctx || !m_pathFilled || CGPathIsEmpty(m_pathFilled))
 		return;
-	SetFillColor(clr);
-	CGContextAddPath(m_ctx, m_pathFilled);
-	CGContextEOFillPath(m_ctx);	// D2D1_FILL_MODE_ALTERNATE
+	if (m_bDeferred) {
+		Op	op;
+		op.type = Op::FILL;
+		op.clr = clr;
+		op.path = CGPathCreateCopy(m_pathFilled);
+		m_aOp.push_back(op);
+		return;
+	}
+	DoFill(m_ctx, m_pathFilled, clr);
+}
+
+void CGBitmapRenderer::DoFill(CGContextRef ctx, CGPathRef path, const ColorF& clr)
+{
+	SetFillColor(ctx, clr);
+	CGContextAddPath(ctx, path);
+	CGContextEOFillPath(ctx);	// D2D1_FILL_MODE_ALTERNATE
 }
 
 void CGBitmapRenderer::StrokePath(const ColorF& clr, float fWidth)
@@ -247,32 +307,60 @@ void CGBitmapRenderer::StrokePath(const ColorF& clr, float fWidth)
 	if (!(fWidth > 0))
 		return;
 	CGMutablePathRef	pathMiters = CGPathCreateMutable();
-	bool	bMiters = AddClippedMiters(pathMiters, fWidth);
+	if (!AddClippedMiters(pathMiters, fWidth)) {
+		CGPathRelease(pathMiters);
+		pathMiters = nullptr;
+	}
+	if (m_bDeferred) {
+		Op	op;
+		op.type = Op::STROKE;
+		op.clr = clr;
+		op.fWidth = fWidth;
+		op.path = CGPathCreateCopy(m_pathAll);
+		op.miters = pathMiters;	// owned by the op
+		m_aOp.push_back(op);
+		return;
+	}
+	DoStroke(m_ctx, m_pathAll, nullptr, pathMiters, clr, fWidth);
+	if (pathMiters)
+		CGPathRelease(pathMiters);
+}
+
+// Strokes path, or fills its precomputed outline, then adds clipped miters.
+void CGBitmapRenderer::DoStroke(CGContextRef ctx, CGPathRef path, CGPathRef outline, CGPathRef pathMiters,
+	const ColorF& clr, float fWidth)
+{
+	bool	bMiters = pathMiters != nullptr;
 	// With translucent color, the stroke and the miter fill overlap would
 	// blend twice; draw both opaque into a layer and composite it once.
 	bool	bLayer = bMiters && clr.a < 1;
 	ColorF	clrDraw = clr;
 	if (bLayer) {
-		CGContextSaveGState(m_ctx);
-		CGContextSetAlpha(m_ctx, clr.a);
-		CGRect	rBounds = CGRectInset(CGPathGetBoundingBox(m_pathAll), -fWidth * kD2DMiterLimit, -fWidth * kD2DMiterLimit);
-		CGContextBeginTransparencyLayerWithRect(m_ctx, rBounds, nullptr);
+		CGContextSaveGState(ctx);
+		CGContextSetAlpha(ctx, clr.a);
+		CGRect	rBounds = CGRectInset(CGPathGetBoundingBox(path), -fWidth * kD2DMiterLimit, -fWidth * kD2DMiterLimit);
+		CGContextBeginTransparencyLayerWithRect(ctx, rBounds, nullptr);
 		clrDraw.a = 1;
 	}
-	SetStrokeColor(clrDraw);
-	CGContextSetLineWidth(m_ctx, fWidth);
-	CGContextAddPath(m_ctx, m_pathAll);
-	CGContextStrokePath(m_ctx);
+	if (outline) {	// same geometry Core Graphics would stroke, built ahead of time
+		SetFillColor(ctx, clrDraw);
+		CGContextAddPath(ctx, outline);
+		CGContextFillPath(ctx);
+	} else {
+		SetStrokeColor(ctx, clrDraw);
+		CGContextSetLineWidth(ctx, fWidth);
+		CGContextAddPath(ctx, path);
+		CGContextStrokePath(ctx);
+	}
 	if (bMiters) {
-		SetFillColor(clrDraw);
-		CGContextAddPath(m_ctx, pathMiters);
-		CGContextFillPath(m_ctx);	// polygons are oriented alike, so nonzero is a union
+		SetFillColor(ctx, clrDraw);
+		CGContextAddPath(ctx, pathMiters);
+		CGContextFillPath(ctx);	// polygons are oriented alike, so nonzero is a union
 	}
 	if (bLayer) {
-		CGContextEndTransparencyLayer(m_ctx);
-		CGContextRestoreGState(m_ctx);
+		CGContextEndTransparencyLayer(ctx);
+		CGContextRestoreGState(ctx);
 	}
-	CGPathRelease(pathMiters);
 }
 
 bool CGBitmapRenderer::AddClippedMiters(CGMutablePathRef path, float fWidth) const
@@ -360,12 +448,171 @@ void CGBitmapRenderer::FillRect(const RectF& rect, const ColorF& clr)
 {
 	if (!m_ctx)
 		return;
-	SetFillColor(clr);
-	CGContextFillRect(m_ctx, CGRectMake(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top));
+	if (m_bDeferred) {
+		Op	op;
+		op.type = Op::RECT;
+		op.rect = rect;
+		op.clr = clr;
+		m_aOp.push_back(op);
+		return;
+	}
+	DoFillRect(m_ctx, rect, clr);
+}
+
+void CGBitmapRenderer::DoFillRect(CGContextRef ctx, const RectF& rect, const ColorF& clr)
+{
+	SetFillColor(ctx, clr);
+	CGContextFillRect(ctx, CGRectMake(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top));
+}
+
+bool CGBitmapRenderer::BeginQuadMirror()
+{
+	if (!m_bDeferred)
+		return DoBeginQuadMirror();
+	if (!m_ctx || m_bMirrorPending || !((m_nWidth + 1) / 2) || !((m_nHeight + 1) / 2))
+		return false;	// same failures as DoBeginQuadMirror
+	Op	op;
+	op.type = Op::MIRROR_BEGIN;
+	m_aOp.push_back(op);
+	m_bMirrorPending = true;
+	m_bMirrorBegun = true;
+	m_nQuadWidth = (m_nWidth + 1) / 2;
+	m_nQuadHeight = (m_nHeight + 1) / 2;
+	return true;
+}
+
+bool CGBitmapRenderer::EndQuadMirror()
+{
+	if (!m_bDeferred)
+		return DoEndQuadMirror();
+	if (!m_bMirrorPending)
+		return false;	// no clip was pushed
+	Op	op;
+	op.type = Op::MIRROR_END;
+	m_aOp.push_back(op);
+	m_bMirrorPending = false;
+	return true;
+}
+
+void CGBitmapRenderer::Flush()
+{
+	if (m_aOp.empty())
+		return;
+	// 1) Build stroke outlines in parallel. Paths are immutable and the
+	// stroking function has no shared state.
+	// Thin strokes are left to the bands to stroke directly: Core Graphics
+	// renders thin lines differently from their prebuilt outlines, and its
+	// direct rendering matches Direct2D better ("fish eye" golden image).
+	std::vector<size_t>	aStroke;
+	for (size_t i = 0; i < m_aOp.size(); i++) {
+		if (m_aOp[i].type == Op::STROKE && m_aOp[i].fWidth * m_fScale >= kMinOutlineWidth)
+			aStroke.push_back(i);
+	}
+	Op*	pOps = m_aOp.data();
+	const size_t*	pIdx = aStroke.data();
+	dispatch_apply(aStroke.size(), DISPATCH_APPLY_AUTO, ^(size_t i) {
+		Op&	op = pOps[pIdx[i]];
+		op.outline = CGPathCreateCopyByStrokingPath(op.path, nullptr, op.fWidth,
+			kCGLineCapButt, kCGLineJoinMiter, kMiterLimit);
+	});
+	// 2) Rasterize in horizontal bands in parallel. Each band is a bitmap
+	// context over the same pixel memory, so drawing order within a pixel
+	// is unchanged and antialiasing coverage is identical. The CTM of the
+	// frame context is (translate 0, H; scale s, -s); a band whose top row
+	// is y0 and height is h needs (translate 0, y0 + h; scale s, -s).
+	const int	nBands = std::max(1, std::min(m_nHeight, 32));
+	struct Band {
+		CGContextRef	ctx;
+		bool	bMirrorClip;
+	};
+	std::vector<Band>	aBand(nBands);
+	for (int b = 0; b < nBands; b++) {
+		int	y0 = m_nHeight * b / nBands, y1 = m_nHeight * (b + 1) / nBands;
+		CGContextRef	ctx = CGBitmapContextCreate(&m_pPixels[y0 * m_nStride], m_nWidth, y1 - y0, 8,
+			m_nStride, m_space, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
+		CGContextSetInterpolationQuality(ctx, kCGInterpolationNone);
+		CGContextTranslateCTM(ctx, 0, y1);
+		CGContextScaleCTM(ctx, m_fScale, -m_fScale);
+		CGContextSetLineJoin(ctx, kCGLineJoinMiter);
+		CGContextSetMiterLimit(ctx, kMiterLimit);
+		CGContextSetLineCap(ctx, kCGLineCapButt);
+		CGContextSetShouldAntialias(ctx, true);	// default; frames begin with an ANTIALIAS op
+		aBand[b] = Band{ctx, false};
+	}
+	Band*	pBands = aBand.data();
+	size_t	iStart = 0;
+	while (iStart < m_aOp.size()) {
+		// replay up to and including the next MIRROR_END, which needs the
+		// whole image before the pixel copy
+		size_t	iEnd = iStart;
+		while (iEnd < m_aOp.size() && m_aOp[iEnd].type != Op::MIRROR_END)
+			iEnd++;
+		bool	bMirrorEnd = iEnd < m_aOp.size();
+		size_t	iFirst = iStart, iLast = iEnd;	// [iFirst, iLast)
+		dispatch_apply(nBands, DISPATCH_APPLY_AUTO, ^(size_t b) {
+			Band&	band = pBands[b];
+			for (size_t i = iFirst; i < iLast; i++)
+				ReplayOp(band.ctx, pOps[i], band.bMirrorClip);
+			if (bMirrorEnd && band.bMirrorClip) {
+				CGContextRestoreGState(band.ctx);	// pop clip
+				band.bMirrorClip = false;
+			}
+		});
+		if (bMirrorEnd && m_bMirrorBegun)
+			MirrorPixels();
+		m_bMirrorBegun = false;
+		iStart = bMirrorEnd ? iEnd + 1 : iEnd;
+	}
+	for (Band& band : aBand) {
+		if (band.bMirrorClip)	// unbalanced mirror
+			CGContextRestoreGState(band.ctx);
+		CGContextRelease(band.ctx);
+	}
+	for (Op& op : m_aOp) {
+		if (op.path)
+			CGPathRelease(op.path);
+		if (op.miters)
+			CGPathRelease(op.miters);
+		if (op.outline)
+			CGPathRelease(op.outline);
+	}
+	m_aOp.clear();
+	m_bMirrorPending = false;
+}
+
+void CGBitmapRenderer::ReplayOp(CGContextRef ctx, const Op& op, bool& bMirrorClip)
+{
+	switch (op.type) {
+	case Op::ANTIALIAS:
+		DoAntialiasing(ctx, op.bFlag);
+		break;
+	case Op::CLEAR:
+		DoClear(ctx, op.clr);
+		break;
+	case Op::FILL:
+		DoFill(ctx, op.path, op.clr);
+		break;
+	case Op::STROKE:
+		DoStroke(ctx, op.path, op.outline, op.miters, op.clr, op.fWidth);
+		break;
+	case Op::RECT:
+		DoFillRect(ctx, op.rect, op.clr);
+		break;
+	case Op::MIRROR_BEGIN:
+		if (!bMirrorClip) {	// same clip as DoBeginQuadMirror
+			CGContextSaveGState(ctx);
+			CGContextClipToRect(ctx, CGRectMake(0, 0, ((m_nWidth + 1) / 2) / m_fScale,
+				((m_nHeight + 1) / 2) / m_fScale));
+			bMirrorClip = true;
+		}
+		break;
+	case Op::MIRROR_END:	// handled by Flush
+		break;
+	}
 }
 
 // ported from WhorldDraw.cpp CWhorldDraw::InitMirroring
-bool CGBitmapRenderer::BeginQuadMirror()
+bool CGBitmapRenderer::DoBeginQuadMirror()
 {
 	if (!m_ctx || m_bMirrorClip)
 		return false;
@@ -382,22 +629,28 @@ bool CGBitmapRenderer::BeginQuadMirror()
 }
 
 // ported from WhorldDraw.cpp CWhorldDraw::FinishMirroring
-bool CGBitmapRenderer::EndQuadMirror()
+bool CGBitmapRenderer::DoEndQuadMirror()
 {
 	if (!m_ctx || !m_bMirrorClip)	// no clip was pushed
 		return false;
 	CGContextRestoreGState(m_ctx);	// pop clip
 	m_bMirrorClip = false;
 	CGContextFlush(m_ctx);
+	MirrorPixels();
+	return true;
+}
+
+void CGBitmapRenderer::MirrorPixels()
+{
 	// copy the upper-left quadrant, then write it flipped into the other
 	// three with copy semantics (no blending), reflecting across the full
 	// frame: source pixel x lands at width - 1 - x, y at height - 1 - y
 	const int	qw = m_nQuadWidth, qh = m_nQuadHeight;
 	std::vector<uint32_t>	quad(static_cast<size_t>(qw) * qh);
 	for (int y = 0; y < qh; y++)
-		std::memcpy(&quad[static_cast<size_t>(y) * qw], &m_aPixel[y * m_nStride], qw * 4);
+		std::memcpy(&quad[static_cast<size_t>(y) * qw], &m_pPixels[y * m_nStride], qw * 4);
 	auto	Put = [this](int x, int y, uint32_t px) {
-		std::memcpy(&m_aPixel[y * m_nStride + static_cast<size_t>(x) * 4], &px, 4);
+		std::memcpy(&m_pPixels[y * m_nStride + static_cast<size_t>(x) * 4], &px, 4);
 	};
 	for (int y = 0; y < qh; y++) {	// upper right: horizontal flip
 		for (int x = 0; x < qw; x++)
@@ -411,7 +664,6 @@ bool CGBitmapRenderer::EndQuadMirror()
 		for (int x = 0; x < qw; x++)
 			Put(m_nWidth - 1 - x, m_nHeight - 1 - y, quad[static_cast<size_t>(y) * qw + x]);
 	}
-	return true;
 }
 
 CGImageRef CGBitmapRenderer::CopyImage() const
@@ -431,7 +683,7 @@ bool CGBitmapRenderer::WritePNG(const std::string& sPath, std::string* pError) c
 	// WIC is given GUID_WICPixelFormat32bppBGRA (straight alpha) but the
 	// mapped bits are premultiplied; reproduce that by labeling the same
 	// bytes as non-premultiplied
-	CFDataRef	data = CFDataCreate(nullptr, m_aPixel.data(), m_nStride * m_nHeight);
+	CFDataRef	data = CFDataCreate(nullptr, m_pPixels, m_nStride * m_nHeight);
 	CGDataProviderRef	provider = CGDataProviderCreateWithCFData(data);
 	CGImageRef	image = CGImageCreate(m_nWidth, m_nHeight, 8, 32, m_nStride, m_space,
 		kCGImageAlphaFirst | kCGBitmapByteOrder32Little, provider, nullptr, false,

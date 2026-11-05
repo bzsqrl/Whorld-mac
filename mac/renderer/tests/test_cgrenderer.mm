@@ -11,6 +11,9 @@
 #include "CGRenderer.h"
 #include "TestHarness.h"
 
+#include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 using namespace whorld;
@@ -223,6 +226,61 @@ TEST(AntialiasingToggle) {
 	CHECK(r == 0 || r == 255);
 	int	ra = GetPx(rr, 12, 5).r;	// antialiased edge pixel: half covered
 	CHECK(ra > 100 && ra < 160);
+}
+
+namespace {
+// Draws a scene that exercises every operation, optionally mirrored.
+void DrawScene(CGBitmapRenderer& rr, bool bMirror)
+{
+	rr.BeginFrame();
+	rr.SetAntialiasing(true);
+	if (bMirror)
+		rr.BeginQuadMirror();
+	rr.Clear(ColorF{0.1f, 0.1f, 0.2f, 1});
+	PointF	outer[5] = {{5, 5}, {60, 8}, {55, 50}, {8, 45}, {5, 5}};
+	PointF	inner[5] = {{20, 20}, {40, 20}, {40, 35}, {20, 35}, {20, 20}};
+	rr.BeginPath();
+	rr.AddFigure(outer, 4, false, true);
+	rr.AddFigure(inner, 4, false, true);
+	rr.EndPath();
+	rr.FillPath(ColorF{1, 0.5f, 0, 1});
+	rr.StrokePath(ColorF{0, 0, 0, 1}, 3);
+	PointF	curve[7] = {{70, 10}, {90, 0}, {100, 40}, {80, 50}, {60, 60}, {50, 20}, {70, 10}};
+	rr.BeginPath();
+	rr.AddFigure(curve, 2, true, false);
+	rr.EndPath();
+	rr.StrokePath(ColorF{0, 1, 1, 0.5f}, 4);
+	rr.StrokePath(ColorF{1, 1, 1, 1}, 0.5f);	// thin: stroked directly
+	if (bMirror)
+		rr.EndQuadMirror();
+	rr.FillRect(RectF{0, 0, 4, 61}, ColorF{0, 0, 0, 1});	// after mirroring, like the letterbox
+	rr.EndFrame();
+}
+} // namespace
+
+TEST(DeferredMatchesImmediate) {
+	for (bool bMirror : {false, true}) {
+		CGBitmapRenderer	a(121, 61), b(121, 61);	// odd sizes: shared center row and column
+		b.SetDeferred(true);
+		DrawScene(a, bMirror);
+		DrawScene(b, bMirror);
+		int	nMax = 0;
+		for (int y = 0; y < 61; y++) {
+			for (int x = 0; x < 121; x++) {
+				Px	pa = GetPx(a, x, y), pb = GetPx(b, x, y);
+				nMax = std::max({nMax, std::abs(pa.r - pb.r), std::abs(pa.g - pb.g), std::abs(pa.b - pb.b)});
+			}
+		}
+		// prebuilt stroke outlines rasterize within a few levels of direct strokes
+		if (nMax > 24)
+			std::fprintf(stderr, "  mirror %d: max difference %d\n", bMirror, nMax);
+		CHECK(nMax <= 24);
+		if (bMirror) {	// (x, y) lands at (width - 1 - x, height - 1 - y)
+			CHECK_EQ(GetPx(b, 110, 50).r, GetPx(b, 10, 10).r);
+			CHECK_EQ(GetPx(b, 110, 50).g, GetPx(b, 10, 10).g);
+			CHECK_EQ(GetPx(b, 90, 15).b, GetPx(b, 30, 15).b);
+		}
+	}
 }
 
 int main() { return RunAllTests(); }

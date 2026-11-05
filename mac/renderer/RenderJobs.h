@@ -23,6 +23,7 @@ struct SnapshotExportOptions {
 	uint32_t	nFlags = 0;			// WhorldBase::EF_* export flags
 	SizeF	szView = {0, 0};		// view size in DIPs; 0 = same as image
 	bool	bLetterbox = true;		// snapshot letterbox option
+	bool	bDeferred = false;		// CGBitmapRenderer deferred mode
 };
 
 // Reproduce Windows "Snapshot > Export All" for one snapshot: display the
@@ -35,6 +36,7 @@ struct PatchRenderOptions {
 	double	fScale = 1;				// pixels per DIP
 	int		nFrames = 300;			// frames to run; the last one is kept
 	uint32_t	nFrameRate = 60;	// engine frame rate in Hz
+	bool	bDeferred = false;		// CGBitmapRenderer deferred mode
 };
 
 // Run a patch for nFrames frames from a fresh engine and keep the last frame.

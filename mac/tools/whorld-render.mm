@@ -29,7 +29,7 @@ int Usage()
 {
 	std::fprintf(stderr,
 		"usage:\n"
-		"  whorld-render <patch.whp> [--frames N] [--size WxH] [--scale S] --out frame.png\n"
+		"  whorld-render <patch.whp> [--frames N] [--size WxH] [--scale S] [--deferred] --out frame.png\n"
 		"  whorld-render <snapshot.whs> [--size WxH] [--view WxH] [--fit none|width|height|both]\n"
 		"                [--use-view-size] [--no-letterbox] --out frame.png\n"
 		"  whorld-render --compare a.png b.png [--threshold T] [--diff diff.png] [--region X,Y,W,H]\n");
@@ -102,6 +102,7 @@ int main(int argc, char** argv)
 	double	fScale = 1;
 	uint32_t	nFlags = 0;
 	bool	bLetterbox = true;
+	bool	bDeferred = false;
 	for (int i = 2; i < argc; i++) {
 		const char*	a = argv[i];
 		bool	bHasArg = i + 1 < argc;
@@ -132,6 +133,8 @@ int main(int argc, char** argv)
 			nFlags |= WhorldBase::EF_USE_VIEW_SIZE;
 		else if (!std::strcmp(a, "--no-letterbox"))
 			bLetterbox = false;
+		else if (!std::strcmp(a, "--deferred"))
+			bDeferred = true;
 		else
 			return Usage();
 	}
@@ -150,6 +153,7 @@ int main(int argc, char** argv)
 		opts.nFlags = nFlags;
 		opts.szView = SizeF{float(vw), float(vh)};
 		opts.bLetterbox = bLetterbox;
+		opts.bDeferred = bDeferred;
 		pRenderer = RenderSnapshotExport(*pSnapshot, opts);
 	} else {
 		Patch	patch;
@@ -161,6 +165,7 @@ int main(int argc, char** argv)
 		opts.szImage = IntSize{w, h};
 		opts.fScale = fScale;
 		opts.nFrames = nFrames;
+		opts.bDeferred = bDeferred;
 		pRenderer = RenderPatch(patch, opts);
 	}
 	if (!pRenderer) {

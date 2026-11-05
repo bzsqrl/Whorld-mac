@@ -30,7 +30,8 @@ const double	kMaxFracOver = 0.01;	// at most 1% of pixels over the threshold
 const double	kMaxMeanAbs = 1.5;		// mean absolute difference, 0..255
 } // namespace
 
-TEST(GoldenSnapshots) {
+static void CompareGoldens(bool bDeferred)
+{
 	fs::path	dirSnap = fs::path(WHORLD_TESTDATA_DIR) / "snapshots";
 	fs::path	dirGold = fs::path(WHORLD_TESTDATA_DIR) / "golden";
 	fs::path	dirOut = fs::temp_directory_path() / "whorld_golden";
@@ -48,11 +49,13 @@ TEST(GoldenSnapshots) {
 		CHECK(pSnap != nullptr);
 		if (!pSnap)
 			continue;
-		auto	pRenderer = RenderSnapshotExport(*pSnap, SnapshotExportOptions());
+		SnapshotExportOptions	opts;
+		opts.bDeferred = bDeferred;
+		auto	pRenderer = RenderSnapshotExport(*pSnap, opts);
 		CHECK(pRenderer != nullptr);
 		if (!pRenderer)
 			continue;
-		fs::path	pathOut = dirOut / (name + ".png");
+		fs::path	pathOut = dirOut / (name + (bDeferred ? "-deferred.png" : ".png"));
 		CHECK(pRenderer->WritePNG(pathOut.string(), &err));
 		ImageRGBA	gold, mine;
 		CHECK(LoadImageRGBA(pathGold.string(), gold, &err));
@@ -80,8 +83,17 @@ TEST(GoldenSnapshots) {
 		CHECK(bPass);
 		nCompared++;
 	}
-	std::printf("  %d snapshots compared with Windows golden images\n", nCompared);
+	std::printf("  %d snapshots compared with Windows golden images (%s)\n", nCompared,
+		bDeferred ? "deferred, banded" : "immediate");
 	CHECK(nCompared > 0);
+}
+
+TEST(GoldenSnapshotsImmediate) {
+	CompareGoldens(false);
+}
+
+TEST(GoldenSnapshotsDeferred) {	// the mode the app uses
+	CompareGoldens(true);
 }
 
 int main() { return RunAllTests(); }

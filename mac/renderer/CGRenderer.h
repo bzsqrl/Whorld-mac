@@ -30,6 +30,9 @@ class CGBitmapRenderer : public IRenderer {
 public:
 	// Bitmap of nWidth x nHeight pixels; DIP size is pixels / fScale.
 	CGBitmapRenderer(int nWidth, int nHeight, double fScale = 1);
+	// Draws into caller-owned BGRA premultiplied memory (for example an
+	// IOSurface); it must outlive the renderer.
+	CGBitmapRenderer(uint8_t* pPixels, int nWidth, int nHeight, size_t nStride, double fScale);
 	~CGBitmapRenderer() override;
 	CGBitmapRenderer(const CGBitmapRenderer&) = delete;
 	CGBitmapRenderer& operator=(const CGBitmapRenderer&) = delete;
@@ -42,12 +45,19 @@ public:
 	SizeF	GetSizeDIPs() const;
 	CGContextRef	GetContext() const { return m_ctx; }
 	// Pixel access: BGRA, premultiplied; row 0 is the top of the image.
-	const uint8_t*	GetPixels() const { return m_aPixel.data(); }
+	const uint8_t*	GetPixels() const { return m_pPixels; }
 	size_t	GetStride() const { return m_nStride; }
 
 // Frame (the host's BeginDraw / EndDraw)
 	void	BeginFrame();
 	void	EndFrame();
+	// Deferred mode records the frame's calls and draws them at EndFrame,
+	// building all stroke outlines in parallel first. The output is the
+	// same; it's faster on multicore machines because stroke geometry is
+	// most of Core Graphics' cost. Rasterizing is split into horizontal bands
+	// drawn in parallel, with the same pixels. Off by default.
+	void	SetDeferred(bool bEnable) { m_bDeferred = bEnable; }
+	bool	IsDeferred() const { return m_bDeferred; }
 
 // Output
 	CGImageRef	CopyImage() const;	// caller releases
@@ -73,7 +83,8 @@ protected:
 	int		m_nHeight;
 	double	m_fScale;
 	size_t	m_nStride;
-	std::vector<uint8_t>	m_aPixel;
+	std::vector<uint8_t>	m_aPixel;	// owned pixels, unless external
+	uint8_t*	m_pPixels = nullptr;
 	CGColorSpaceRef	m_space = nullptr;
 	CGContextRef	m_ctx = nullptr;
 	CGMutablePathRef	m_pathFilled = nullptr;	// figures begun FILLED
@@ -89,10 +100,38 @@ protected:
 	int		m_nQuadWidth = 0;	// mirror quadrant size in pixels
 	int		m_nQuadHeight = 0;
 
-	void	SetFillColor(const ColorF& clr);
-	void	SetStrokeColor(const ColorF& clr);
+	// deferred drawing
+	struct Op {
+		enum Type { ANTIALIAS, CLEAR, FILL, STROKE, RECT, MIRROR_BEGIN, MIRROR_END };
+		Type	type;
+		ColorF	clr{0, 0, 0, 0};
+		float	fWidth = 0;
+		RectF	rect{0, 0, 0, 0};
+		bool	bFlag = false;
+		CGPathRef	path = nullptr;		// fill path, or stroke source path
+		CGPathRef	miters = nullptr;	// clipped miter polygons for a stroke
+		CGPathRef	outline = nullptr;	// stroke outline, built in parallel
+	};
+	bool	m_bDeferred = false;
+	bool	m_bMirrorPending = false;	// deferred: a mirror begin is recorded
+	std::vector<Op>	m_aOp;
+	bool	m_bMirrorBegun = false;	// deferred: mirror begun in the current segment
+	void	Flush();
+	void	ReplayOp(CGContextRef ctx, const Op& op, bool& bMirrorClip);
+	void	DoAntialiasing(CGContextRef ctx, bool bEnable);
+	void	DoClear(CGContextRef ctx, const ColorF& clr);
+	void	DoFill(CGContextRef ctx, CGPathRef path, const ColorF& clr);
+	void	DoStroke(CGContextRef ctx, CGPathRef path, CGPathRef outline, CGPathRef miters, const ColorF& clr, float fWidth);
+	void	DoFillRect(CGContextRef ctx, const RectF& rect, const ColorF& clr);
+	bool	DoBeginQuadMirror();
+	bool	DoEndQuadMirror();
+	void	MirrorPixels();
+
+	void	SetFillColor(CGContextRef ctx, const ColorF& clr);
+	void	SetStrokeColor(CGContextRef ctx, const ColorF& clr);
 	void	ReleasePaths();
 	void	ApplyBaseState();
+	void	CreateContext();
 	// Adds Direct2D's clipped miters for joins whose miter exceeds the limit.
 	// Returns false if no join needs one.
 	bool	AddClippedMiters(CGMutablePathRef path, float fWidth) const;

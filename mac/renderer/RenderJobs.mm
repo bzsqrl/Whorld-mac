@@ -25,6 +25,7 @@ std::unique_ptr<CGBitmapRenderer> RenderSnapshotExport(const Snapshot& snapshot,
 	auto	pRenderer = std::make_unique<CGBitmapRenderer>(sz.cx, sz.cy, 1);
 	if (!pRenderer->IsValid())
 		return nullptr;
+	pRenderer->SetDeferred(opts.bDeferred);
 	pRenderer->BeginFrame();
 	eng.DrawCapture(*pRenderer, opts.nFlags, opts.szImage);
 	pRenderer->EndFrame();
@@ -36,6 +37,7 @@ std::unique_ptr<CGBitmapRenderer> RenderPatch(const Patch& patch, const PatchRen
 	auto	pRenderer = std::make_unique<CGBitmapRenderer>(opts.szImage.cx, opts.szImage.cy, opts.fScale);
 	if (!pRenderer->IsValid())
 		return nullptr;
+	pRenderer->SetDeferred(opts.bDeferred);
 	WhorldEngine	eng;
 	eng.SetFrameRate(opts.nFrameRate);
 	eng.OnResize(pRenderer->GetSizeDIPs());
