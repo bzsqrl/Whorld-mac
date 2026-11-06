@@ -74,7 +74,7 @@ extension AppModel {
 	/// CMainFrame::PromptingForExport: prompt unless full screen on the only screen.
 	var promptingForExport: Bool {
 		Preferences.register()
-		let fullScreenSingle = (mainWindow?.styleMask.contains(.fullScreen) ?? false) && NSScreen.screens.count == 1
+		let fullScreenSingle = isFullScreen && NSScreen.screens.count == 1
 		return Preferences.defaults.bool(forKey: "Export_bPromptUser") && !fullScreenSingle
 	}
 

@@ -1168,6 +1168,8 @@ static NSString *SourceName(MIDIEndpointRef src)
 	_layer = layer;
 }
 
+- (CALayer *)attachedLayer { return _layer; }
+
 - (void)setCursorPosition:(CGPoint)normalized
 {
 	std::lock_guard<std::mutex>	lock(_mutex);
@@ -1507,6 +1509,10 @@ static NSString *SourceName(MIDIEndpointRef src)
 
 - (void)displayLinkFired:(CADisplayLink *)link
 {
+	// Only the view the engine draws for drives it: while the full-screen
+	// window shows the picture, the hidden main window's view stays idle.
+	if (_engine.attachedLayer != self.layer)
+		return;
 	double	scale = _fullResolution ? (self.window.backingScaleFactor ?: 1) : 1;
 	NSSize	size = self.bounds.size;
 	int		w = (int)std::lround(size.width * scale);

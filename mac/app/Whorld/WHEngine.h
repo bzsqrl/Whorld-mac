@@ -197,6 +197,8 @@ typedef struct {
 // and is shown at the start of a refresh, well before the compositor's
 // deadline. Requests made while a frame is being drawn are coalesced.
 - (void)attachLayer:(nullable CALayer *)layer;
+// The layer frames go to; only the view showing it drives the engine.
+@property (nonatomic, readonly, weak, nullable) CALayer *attachedLayer;
 - (void)presentFrame;
 - (void)requestFrameWithPixelWidth:(int)width height:(int)height scale:(double)scale
 	refreshRate:(int)refreshRate;

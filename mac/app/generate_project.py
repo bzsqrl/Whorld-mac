@@ -16,7 +16,7 @@ root = os.path.dirname(os.path.abspath(__file__))  # mac/app
 def gid(name):
     return hashlib.md5(name.encode()).hexdigest()[:24].upper()
 
-app_files = ["WhorldApp.swift", "ContentView.swift", "Commands.swift", "Panels.swift", "Preferences.swift", "Mapping.swift", "Media.swift",
+app_files = ["WhorldApp.swift", "ContentView.swift", "Commands.swift", "Panels.swift", "Preferences.swift", "Mapping.swift", "Media.swift", "FullScreen.swift",
              "WHEngine.h", "WHEngine.mm",
              "Whorld-Bridging-Header.h", "Info.plist", "AppIcon.icns"]
 engine_src = sorted(f for f in os.listdir(os.path.join(root, "../engine/src")) if f.endswith(".cpp"))

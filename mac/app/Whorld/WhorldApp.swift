@@ -278,9 +278,8 @@ final class AppModel: ObservableObject {
 	func playPatch(_ index: Int) {
 		let paths = engine.playlistPatches
 		guard index >= 0, index < paths.count, let url = resolvePatchPath(paths[index]) else { return }
-		let fullScreen = mainWindow?.styleMask.contains(.fullScreen) ?? false
 		// read first; then the save prompt, unless full screen
-		if !fullScreen && !confirmDiscard() {
+		if !isFullScreen && !confirmDiscard() {
 			return
 		}
 		if engine.playPatch(atPath: url.path) {
@@ -562,8 +561,19 @@ final class AppModel: ObservableObject {
 		}
 	}
 
+	// CMainFrame::OnWindowFullscreen
+	private let fullScreen = FullScreenController()
+	var isFullScreen: Bool { fullScreen.isFullScreen }
+
 	func toggleFullScreen() {
-		mainWindow?.toggleFullScreen(nil)
+		if fullScreen.isFullScreen {
+			fullScreen.exit(engine: engine)
+		} else {
+			fullScreen.enter(from: mainWindow, engine: engine, fullResolution: fullResolution) { [weak self] in
+				self?.toggleFullScreen()
+			}
+		}
+		changed()
 	}
 
 	var mainWindow: NSWindow? {
@@ -573,6 +583,22 @@ final class AppModel: ObservableObject {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+	func applicationDidFinishLaunching(_ notification: Notification) {
+		// One full screen, Whorld's own (FullScreen.swift): the green button
+		// zooms instead of entering macOS's full screen.
+		DispatchQueue.main.async {
+			MainActor.assumeIsolated {
+				_ = AppModel.shared.mainWindow?.collectionBehavior.insert(.fullScreenNone)
+			}
+		}
+		// WHORLD_FULLSCREEN=1: start in full screen (for measuring there)
+		if ProcessInfo.processInfo.environment["WHORLD_FULLSCREEN"] == "1" {
+			DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+				MainActor.assumeIsolated { AppModel.shared.toggleFullScreen() }
+			}
+		}
+	}
+
 	func application(_ application: NSApplication, open urls: [URL]) {
 		for url in urls {
 			Task { @MainActor in

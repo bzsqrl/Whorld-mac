@@ -14,6 +14,7 @@
 		02B0769CB01668C657A76EBA /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877DEC98F9CFE00A9318DDF3 /* Preferences.swift */; };
 		D511977115546E3D85A5B217 /* Mapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = A202931F35E73683F6ABAA98 /* Mapping.swift */; };
 		2309C1A12ADDA54BDB043D68 /* Media.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED4E027A8713B30562EE3645 /* Media.swift */; };
+		5C82167338CAB3E6BE9F4009 /* FullScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB4773404CB775A09ABFD03 /* FullScreen.swift */; };
 		E400806317F157D60866149F /* WHEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */; };
 		7DCDC4E90CC8AD643F19711A /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 58343318BF1C025D14EA9769 /* AppIcon.icns */; };
 		4C6344BF85C28FB3A76A2C9D /* ByteIO.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9AD330ED67D25720CAF715FE /* ByteIO.cpp */; };
@@ -49,6 +50,7 @@
 		877DEC98F9CFE00A9318DDF3 /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Preferences.swift"; sourceTree = "<group>"; };
 		A202931F35E73683F6ABAA98 /* Mapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Mapping.swift"; sourceTree = "<group>"; };
 		ED4E027A8713B30562EE3645 /* Media.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Media.swift"; sourceTree = "<group>"; };
+		3FB4773404CB775A09ABFD03 /* FullScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FullScreen.swift"; sourceTree = "<group>"; };
 		34488F6B7AD3E8B693BF38A2 /* WHEngine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "WHEngine.h"; sourceTree = "<group>"; };
 		CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "WHEngine.mm"; sourceTree = "<group>"; };
 		895315CF8C9F41F1630E1694 /* Whorld-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Whorld-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -117,6 +119,7 @@
 				877DEC98F9CFE00A9318DDF3 /* Preferences.swift */,
 				A202931F35E73683F6ABAA98 /* Mapping.swift */,
 				ED4E027A8713B30562EE3645 /* Media.swift */,
+				3FB4773404CB775A09ABFD03 /* FullScreen.swift */,
 				34488F6B7AD3E8B693BF38A2 /* WHEngine.h */,
 				CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */,
 				895315CF8C9F41F1630E1694 /* Whorld-Bridging-Header.h */,
@@ -226,6 +229,7 @@
 				02B0769CB01668C657A76EBA /* Preferences.swift in Sources */,
 				D511977115546E3D85A5B217 /* Mapping.swift in Sources */,
 				2309C1A12ADDA54BDB043D68 /* Media.swift in Sources */,
+				5C82167338CAB3E6BE9F4009 /* FullScreen.swift in Sources */,
 				E400806317F157D60866149F /* WHEngine.mm in Sources */,
 				4C6344BF85C28FB3A76A2C9D /* ByteIO.cpp in Sources */,
 				78EE3481B81BC123DC5819C2 /* Controls.cpp in Sources */,
