@@ -1,6 +1,6 @@
 # Whorld macOS Port Plan
 
-Status: **Phase 7 done (unnotarized ad-hoc build)** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
+Status: **Phase 7 done (unnotarized ad-hoc build); Phase 8 (Metal renderer) planned, awaiting confirmation** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
 
 ## Goal
 
@@ -159,6 +159,50 @@ Two notes on accuracy:
   - To do with a Developer ID: sign with it, enable the hardened runtime, notarize with `notarytool`, and staple the DMG.
 - [x] README section for the Mac build.
 - [ ] Before a public release: measure performance on a base-model Mac (decision from Phase 3).
+
+### Phase 8 — Metal renderer (planned 2026-11-05, not started)
+
+**Why.** Core Graphics rasterizes on the CPU. Rendering already uses about 8 of the 10 cores on an M1 Max, and most of that time is spent inside Core Graphics' antialiased rasterizer (`CGSColorMaskCopyARGB8888`, `aa_render`). A heavy patch filling a large Retina window takes about 8 ms per frame, which misses refreshes at 120 Hz. Windows Whorld avoids this because Direct2D draws on the GPU. A Metal backend behind the existing `IRenderer` interface does the same here, and the engine doesn't change.
+
+**Goal.** The live view holds the display's refresh rate with 0 missed refreshes, full screen at full resolution:
+- 120 Hz on this M1 Max for every sample patch except `boomer_cvx`, and at least 60 Hz for `boomer_cvx`;
+- 60 Hz on a base-model Mac.
+Output must stay within the golden-image tolerance (mean ≤ 1.5, at most 1% of pixels over 32).
+
+**Approach.**
+
+1. **CPU: geometry.** Plain C++ with no Apple headers, so it's unit-tested on Linux too. Lives in `mac/renderer/gpu/`.
+   - Flatten Bezier figures adaptively to a tolerance in device pixels. A tolerance around 0.1 px is expected; the spike (step 0 below) sets the exact value.
+   - Tessellate strokes into triangles: one quad per segment, plus the join. Joins follow Direct2D's rule: a miter with limit 10, clipped (not beveled) past the limit. The clipped-miter math is already worked out in `CGRenderer.mm` `AddClippedMiters`. Figures are always closed, so there are no caps.
+   - Fills stay as polygons for the GPU's even-odd stencil pass.
+   - Rings are independent, so they're processed in parallel, as the deferred CG mode does now.
+2. **GPU: drawing.** `MetalRenderer`, implementing `IRenderer`, in `mac/renderer/MetalRenderer.mm`.
+   - **Target:** `bgra8Unorm` (not `_srgb`), so blending happens on sRGB values as Direct2D does. Antialiasing uses multisampling (4× or 8×) resolved into the output. With antialiasing off, it draws single-sampled; the GPU's pixel-center rules match Direct2D's aliased mode.
+   - **Strokes:** drawn as their triangles in one draw. A per-path stencil reference touches each sample once, so a translucent stroke doesn't darken where its own triangles overlap (the joins, self-crossing rings).
+   - **Even-odd fills:** stencil, then cover. A triangle fan inverts the stencil, then the same fan is drawn again where the stencil is set, clearing it as it goes. The work is proportional to the ring's area, not the whole screen.
+   - **`Clear`, `FillRect`:** an unblended quad, or the pass's load action.
+   - **Quad mirror:** scissor to the upper-left quadrant, then a nearest-neighbor pass copies it flipped into the other three, pixel-exact as now.
+   - **Batching:** a whole frame's geometry goes into one vertex buffer and one command buffer.
+3. **App integration.**
+   - Render into IOSurface-backed Metal textures and hand them to the layer exactly as now. Exports and the frame-pacing pipeline (`presentFrame`) stay as they are.
+   - A frame counts as ready when its command buffer completes. Up to three frames are in flight.
+   - Settings get a Renderer choice: Metal (the default) or Core Graphics. The app falls back to Core Graphics automatically if Metal is unavailable or fails.
+4. **Exports stay on Core Graphics.** Image, image-sequence and video export, and `whorld-render`, keep the golden-tested CG renderer. Exports aren't real-time, and CG has no texture-size limit (Metal's is 16384 px). Moving them to Metal can come later if wanted.
+
+**Tasks.**
+- [ ] 0. **Spike (go/no-go).** Tessellate and draw the 8 golden snapshots with Metal offscreen, with 4× and 8× multisampling. Measure the golden-image error and GPU time for `bloom_cvx` and `boomer_cvx`, full screen. Check against `trunk/Whorld/WhorldDraw.cpp` that the stencil plan covers every path type Whorld draws. Report back before going on.
+- [ ] 1. Geometry library: flattening, stroke tessellation with clipped miters, fan generation. Unit tests cover join cases (sharp angles past the limit, collinear and zero-length segments, negative and zero widths as in the CG renderer) and compare outlines against `CGPathCreateCopyByStrokingPath` plus the clipped miters.
+- [ ] 2. `MetalRenderer`: pipelines, multisampling and stencil, every `IRenderer` call, antialiasing toggle, quad mirror.
+- [ ] 3. Golden tests for Metal against the Windows reference PNGs, in both antialiasing modes and with mirroring. Also a Metal-vs-CG comparison across all 86 patches over many frames, to catch differences the 8 snapshots miss. The tests skip, with a message, where no Metal device exists (CI runners may have none; check).
+- [ ] 4. App: IOSurface-backed textures, completion-driven frame handoff, the Renderer setting, the fallback. Build and run, and check the "missed" count.
+- [ ] 5. Performance: time all 86 patches (`whorld-render --metal`, full screen size) and run the app full screen. Record the results here, as in the Phase 3 table. Check on a base-model Mac and the Intel slice (an Intel Mac with its own GPU, if one is available).
+- [ ] 6. Documentation: README, help page, CLAUDE.md build notes.
+
+**Risks.**
+- **Antialiasing match.** Direct2D computes exact edge coverage; multisampling approximates it with 4 or 8 samples per pixel. Thin or nearly horizontal edges may differ by more than the golden-image tolerance. The spike measures this first. If 8× still fails, the fallback is analytic edge antialiasing in the shader for strokes, which is a larger job.
+- **CPU tessellation cost.** In Phase 3, drawing at 1× saved little, because stroke geometry was a big part of the cost. Tessellation must be cheap: no Core Graphics path objects, buffers reused, parallel across rings. If it's still the bottleneck, it can move into a compute shader.
+- **Self-overlapping rings** (`boomer_cvx`) make a lot of geometry and stencil work. It may stay below 120 Hz, but should still be several times faster than on the CPU.
+- **CI.** GitHub's macOS runners may not expose a Metal device. If so, Metal tests run locally only, and CI keeps covering the CG path.
 
 ## Decisions (confirmed with the user 2026-11-05)
 
