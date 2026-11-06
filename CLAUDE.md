@@ -18,7 +18,8 @@ License: GPLv3. Every new file gets a GPLv3 header and keeps the original copyri
 
 These commands are created in Phase 0 of the plan. Keep this section accurate as the build changes.
 
-- Engine + tests: `cmake -S mac -B build && cmake --build build && ctest --test-dir build --output-on-failure`
+- Engine + tests: `cmake -S mac -B build && cmake --build build && ctest --test-dir build --output-on-failure` (`build/` defaults to Debug)
+- Timing: use an optimized tree, `cmake -S mac -B build-release -DCMAKE_BUILD_TYPE=Release && cmake --build build-release`; Debug CPU code runs about 10× slower. The Metal spike tool is `build-release/renderer/tests/spike_metal` (see PORT_PLAN Phase 8)
 - Render a frame: `build/tools/whorld-render <file.whp|file.whs> --out frame.png` (run with no arguments for options)
 - Compare images: `build/tools/whorld-render --compare a.png b.png --diff diff.png`
 - Movie to video: `build/tools/whorld-render movie.whm --video out.mov --codec prores4444` (or `--frame N --out f.png` for one frame)

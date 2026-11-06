@@ -1,6 +1,6 @@
 # Whorld macOS Port Plan
 
-Status: **Phase 7 done (unnotarized ad-hoc build); Phase 8 (Metal renderer) spike done, revised plan confirmed 2026-11-05 (coverage mode); tessellation speed in progress** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
+Status: **Phase 7 done (unnotarized ad-hoc build); Phase 8 (Metal renderer) spike done, revised plan confirmed 2026-11-05 (coverage mode); next: cheaper strokes (2b)** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
 
 ## Goal
 
@@ -195,7 +195,7 @@ Output must stay within the golden-image tolerance (mean ≤ 1.5, at most 1% of 
 - [x] 0. **Spike (go/no-go).** Tessellate and draw the 8 golden snapshots with Metal offscreen, with 4× and 8× multisampling. Measure the golden-image error and GPU time for `bloom_cvx` and `boomer_cvx`, full screen. Check against `trunk/Whorld/WhorldDraw.cpp` that the stencil plan covers every path type Whorld draws. Report back before going on. *Done; see "Spike results" below. Multisampling failed the accuracy goal; coverage mode passed.*
 - [ ] 1. Geometry library: flattening, stroke tessellation with clipped miters, fan generation. Unit tests cover join cases (sharp angles past the limit, collinear and zero-length segments, negative and zero widths as in the CG renderer) and compare outlines against `CGPathCreateCopyByStrokingPath` plus the clipped miters.
 - [ ] 2. `MetalRenderer`: pipelines, coverage mode for antialiased frames and stencil for aliased ones, every `IRenderer` call, antialiasing toggle, quad mirror. (The spike's version is a start; remove the profiling switches or keep them behind a debug flag.)
-- [ ] 2a. CPU tessellation under 8 ms at `bloom_cvx`'s size (1.8 M vertices; 13.4 ms in the spike).
+- [x] 2a. CPU tessellation under 8 ms at `bloom_cvx`'s size (1.8 M vertices; 13.4 ms in the spike). *Done without code changes: 13.4 ms was a Debug build; Release takes 1.18 ms for bloom and 5.67 ms for boomer.*
 - [ ] 2b. Cheaper strokes (`bloom_cvx`: about 9.5 ms of GPU).
 - [ ] 2c. Fewer fan fragments for self-overlapping rings (`boomer_cvx`: 641 screens of fan flips per frame), for 60 Hz on `boomer_cvx`.
 - [ ] 3. Golden tests for Metal against the Windows reference PNGs, in both antialiasing modes and with mirroring. Also a Metal-vs-CG comparison across all 86 patches over many frames, to catch differences the 8 snapshots miss. The tests skip, with a message, where no Metal device exists (CI runners may have none; check).
@@ -214,22 +214,22 @@ Output must stay within the golden-image tolerance (mean ≤ 1.5, at most 1% of 
   - Run-time-indexed local arrays spill to stack memory; avoided.
   - **Hybrid even-odd fills:** the fan's triangles, ungrown, flip all mask bits where a pixel's center is inside (the rasterizer's own parity, nearly free per fragment). Each contour edge, drawn as a band, XORs in the samples whose segment to the pixel center crosses it: beyond the edge's line and inside the wedge of rays through its endpoints, three table lookups. A bounding-box quad blends. Whorld's patches stroke every ring's outline over its fill, hiding fill edges, so `spike_metal --fills` checks fills on a fill-only scene: the hybrid matches CG as closely as the exact path (mean 0.287, max 15 of 255).
 - **Path types.** Every Direct2D call in `WhorldDraw.cpp` maps to an `IRenderer` call that `MetalRenderer` implements: `Clear`; `FillGeometry` on one filled ring or on two (between a ring and the previous one, even-odd); `DrawGeometry` on hollow rings and on the outlines of filled ones; `FillRectangle` (letterbox bars); the quad mirror's bitmap copies; the antialias toggle. Straight and curved figures share the flattening (tolerance 0.1 px). Not yet tested: aliased frames (antialiasing off) against a golden image, and letterbox bars.
-- **Timings,** coverage mode, 3024 × 1964 px (full screen, scale 2), antialiasing on, after 300 warm-up frames, M1 Max. CPU (tessellation) and GPU times are serial here; the app would overlap them, so a frame costs about the larger of the two. The budget at 120 Hz is 8.3 ms.
+- **Timings,** coverage mode, Release build, 3024 × 1964 px (full screen, scale 2), antialiasing on, after 300 warm-up frames, M1 Max. CPU (tessellation, then encoding) and GPU times are serial here; the app would overlap them, so a frame costs about the larger of the two. The budget at 120 Hz is 8.3 ms.
 
-  | Patch | Vertices | CPU tessellation | GPU | Core Graphics (deferred) |
-  |---|---|---|---|---|
-  | `default_cvx` | 24 K | 0.4 ms | 2.0 ms | 7.9 ms |
-  | `saturn_cvx` | 97 K | 0.9 ms | 1.2 ms | 10.3 ms |
-  | `fish eye_cvx` | 130 K | 1.1 ms | 6.8 ms | 36.5 ms |
-  | `typhoon_cvx` | 935 K | 8.1 ms | 9.6 ms | 20.7 ms |
-  | `bloom_cvx` | 1.8 M | 13.4 ms | 18.0 ms | 25.2 ms |
-  | `boomer_cvx` | 7.3 M | 56.6 ms | 81.2 ms | 69.5 ms |
+  | Patch | Vertices | CPU tessellation | CPU encoding | GPU | Core Graphics (deferred) |
+  |---|---|---|---|---|---|
+  | `default_cvx` | 24 K | 0.08 ms | 0.07 ms | 2.1 ms | 7.3 ms |
+  | `saturn_cvx` | 97 K | 0.16 ms | 0.07 ms | 1.2 ms | 8.6 ms |
+  | `fish eye_cvx` | 130 K | 0.22 ms | 0.09 ms | 6.8 ms | 34.6 ms |
+  | `typhoon_cvx` | 935 K | 0.70 ms | 0.32 ms | 9.6 ms | 20.2 ms |
+  | `bloom_cvx` | 1.8 M | 1.18 ms | 0.62 ms | 18.0 ms | 24.5 ms |
+  | `boomer_cvx` | 8.8 M | 5.67 ms | 2.08 ms | 82.3 ms | 72.0 ms |
 
-  (Earlier Core Graphics figures in this plan, such as 14 ms for fish eye, had antialiasing off.)
+  (Earlier Core Graphics figures in this plan, such as 14 ms for fish eye, had antialiasing off. During the spike, CPU times were first measured with the default Debug build of `build/`, about 10× slower: 13.4 ms for bloom's tessellation. Time CPU work with a Release build.)
 - **Where the time still goes.**
   - `boomer_cvx`: fills, about 53 of its 81 ms. Its rings loop over themselves, so the fans flip 641 screens of fragments per frame (bloom: 94). That overdraw is inherent to fan-based even-odd filling; the stencil (multisampling) path paid the same, 110 ms. Strokes about 28 ms.
   - `bloom_cvx`: strokes about 9.5 ms GPU (359 K thick stroke triangles, each run through the full coverage test), fills about 7.7 ms.
-  - CPU tessellation is over budget from about 1 M vertices (typhoon, bloom, boomer).
+  - CPU tessellation and encoding fit the budget on every patch (boomer: 7.8 ms together, overlapped with its GPU time).
 - **Recommendation: go, with coverage mode instead of multisampling.** It matches Windows where multisampling doesn't, and it's faster than Core Graphics on every patch measured except `boomer_cvx`. Patches with up to about 130 K vertices already fit 120 Hz; `typhoon_cvx` and `bloom_cvx` need about 2× more; `boomer_cvx` is slower than CG and needs fewer fill fragments (a better fill decomposition than one fan per path) to reach the plan's 60 Hz goal for it.
 
 **Revision (confirmed with the user 2026-11-05).** Change step 2 from multisampling and stencil to coverage mode: per-path 64-sample masks in tile memory, the lookup table, hybrid even-odd fills, single-sampled stencil drawing kept for aliased frames. Coverage mode needs an Apple GPU, so Intel Macs would stay on Core Graphics (the automatic fallback in step 3), and the Intel-slice check in task 5 becomes a fallback check. Add tasks: CPU tessellation under 8 ms at bloom's size; cheaper strokes; fewer fan fragments for self-overlapping rings (`boomer_cvx`).
