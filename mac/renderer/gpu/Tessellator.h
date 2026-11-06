@@ -37,9 +37,16 @@ struct Vec2 {
 // A closed figure flattened to a polygon in device pixels. The closing edge
 // from the last point back to the first is implied. corner[i] is nonzero
 // where point i is a vertex of the original figure (a segment end).
+// tanIn[i] and tanOut[i], where set (nonzero), are the exact unit tangents
+// (directions of travel) of the curve arriving at and leaving corner i; the
+// chord is used where they're zero, or where the vectors are empty. Miters
+// follow them, as CGRenderer.mm's do: on a small curve the flattened
+// chords near a segment end can point far from the curve's tangent.
 struct Contour {
 	std::vector<Vec2>	pts;
 	std::vector<uint8_t>	corner;
+	std::vector<Vec2>	tanIn;
+	std::vector<Vec2>	tanOut;
 };
 
 // Flattens one figure (as passed to IRenderer::AddFigure), scaling DIPs to

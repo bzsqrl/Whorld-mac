@@ -27,7 +27,7 @@ These commands are created in Phase 0 of the plan. Keep this section accurate as
 - Release DMG: `sh mac/packaging/make_dmg.sh` (universal, ad-hoc signed, not notarized; writes `build/dist/Whorld-<version>.dmg`)
 - App icon: `xcrun swiftc mac/packaging/make_icon.swift -o /tmp/make_icon && /tmp/make_icon mac/app/Whorld/AppIcon.icns`
 
-On macOS, CMake also builds the Core Graphics renderer, the tools and the golden-image tests; on Linux it builds only the engine and its tests.
+On macOS, CMake also builds the Core Graphics and Metal renderers, the tools and the golden-image tests; on Linux it builds only the engine, the GPU renderer's portable geometry (`mac/renderer/gpu`) and their tests.
 
 Run the engine tests after every engine change. Build the app after every change to the bridge, renderer or app.
 

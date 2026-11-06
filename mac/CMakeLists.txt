@@ -21,6 +21,7 @@ endif()
 enable_testing()
 
 add_subdirectory(engine)
+add_subdirectory(renderer/gpu)	# portable geometry for the Metal renderer
 
 # The Core Graphics renderer, tools and golden-image tests need macOS.
 if(APPLE)

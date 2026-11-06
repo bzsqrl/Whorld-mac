@@ -13,10 +13,9 @@ add_library(whorld_renderer STATIC
   RenderJobs.mm
   VideoWriter.mm
   MetalRenderer.mm
-  gpu/Tessellator.cpp
 )
 target_include_directories(whorld_renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(whorld_renderer PUBLIC whorld_engine
+target_link_libraries(whorld_renderer PUBLIC whorld_engine whorld_gpu_geometry
   "-framework CoreGraphics" "-framework ImageIO" "-framework CoreFoundation"
   "-framework AVFoundation" "-framework CoreVideo" "-framework CoreMedia" "-framework Foundation" "-framework Metal")
 target_compile_options(whorld_renderer PRIVATE -Wall -Wextra $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)

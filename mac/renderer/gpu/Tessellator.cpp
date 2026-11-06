@@ -57,11 +57,26 @@ void AddPoint(Contour& out, Vec2 p, bool bCorner)
 	}
 	out.pts.push_back(p);
 	out.corner.push_back(bCorner ? 1 : 0);
+	out.tanIn.push_back(Vec2{0, 0});
+	out.tanOut.push_back(Vec2{0, 0});
 }
 
-// Join at vertex p between incoming direction a and outgoing direction b
-// (unit vectors).
-void Join(std::vector<Vec2>& tris, Vec2 p, Vec2 a, Vec2 b, float hw, bool bCorner, float fTolerance)
+// Unit tangent at the end p of a cubic, toward the curve: q1, q2, q3 are the
+// other points in order along it, the first that differs from p is used.
+// ported from CGRenderer.mm BezierEndTangent
+bool BezierEndTangent(Vec2 p, Vec2 q1, Vec2 q2, Vec2 q3, Vec2& t)
+{
+	for (Vec2 q : {q1, q2, q3}) {
+		t = q - p;
+		if (Normalize(t))
+			return true;
+	}
+	return false;
+}
+
+// Bevel and miter at corner p for incoming direction a and outgoing b (unit
+// vectors): Direct2D's miter, clipped (not beveled) at the limit.
+void Miter(std::vector<Vec2>& tris, Vec2 p, Vec2 a, Vec2 b, float hw)
 {
 	float	cr = Cross(a, b), dt = Dot(a, b);
 	if (std::fabs(cr) < 1e-6f && dt > 0)
@@ -70,26 +85,52 @@ void Join(std::vector<Vec2>& tris, Vec2 p, Vec2 a, Vec2 b, float hw, bool bCorne
 	float	s = cr > 0 ? -1.0f : 1.0f;
 	Vec2	na = Perp(a) * s, nb = Perp(b) * s;
 	Vec2	o1 = p + na * hw, o2 = p + nb * hw;
-	if (bCorner) {	// Direct2D miter, clipped at the limit
-		Tri(tris, p, o1, o2);	// bevel
-		Vec2	m = a - b;	// miter direction, out of the corner
-		if (!Normalize(m))
+	Tri(tris, p, o1, o2);	// bevel
+	Vec2	m = a - b;	// miter direction, out of the corner
+	if (!Normalize(m))
+		return;
+	float	fDot = Dot(m, na);	// cos of half the exterior angle
+	float	fLimit = kMiterLimit * hw;
+	float	fMiter = fDot > 1e-6f ? hw / fDot : HUGE_VALF;
+	if (fMiter <= fLimit) {
+		Tri(tris, o1, p + m * fMiter, o2);
+	} else {
+		float	fA = Dot(a, m), fB = Dot(b, m);
+		if (!(fA > 1e-6f) || !(fB < -1e-6f))
 			return;
-		float	fDot = Dot(m, na);	// cos of half the exterior angle
-		float	fLimit = kMiterLimit * hw;
-		float	fMiter = fDot > 1e-6f ? hw / fDot : HUGE_VALF;
-		if (fMiter <= fLimit) {
-			Tri(tris, o1, p + m * fMiter, o2);
-		} else {
-			float	fA = Dot(a, m), fB = Dot(b, m);
-			if (!(fA > 1e-6f) || !(fB < -1e-6f))
-				return;
-			Vec2	x1 = o1 + a * ((fLimit - Dot(o1 - p, m)) / fA);
-			Vec2	x2 = o2 + b * ((fLimit - Dot(o2 - p, m)) / fB);
-			Tri(tris, o1, x1, x2);
-			Tri(tris, o1, x2, o2);
+		Vec2	x1 = o1 + a * ((fLimit - Dot(o1 - p, m)) / fA);
+		Vec2	x2 = o2 + b * ((fLimit - Dot(o2 - p, m)) / fB);
+		Tri(tris, o1, x1, x2);
+		Tri(tris, o1, x2, o2);
+	}
+}
+
+// Join at vertex p between incoming direction a and outgoing direction b
+// (unit vectors, the chords). At a corner, ta and tb are the exact tangents
+// (the chords where they're unset): the miter follows them, and a bevel from
+// the chords joins it to the segments' square ends.
+void Join(std::vector<Vec2>& tris, Vec2 p, Vec2 a, Vec2 b, Vec2 ta, Vec2 tb, float hw, bool bCorner,
+	float fTolerance)
+{
+	if (bCorner) {
+		bool	bTangents = (ta.x != a.x || ta.y != a.y || tb.x != b.x || tb.y != b.y);
+		if (bTangents) {
+			float	cr = Cross(a, b), dt = Dot(a, b);
+			if (!(std::fabs(cr) < 1e-6f && dt > 0)) {
+				float	s = cr > 0 ? -1.0f : 1.0f;
+				Tri(tris, p, p + Perp(a) * (s * hw), p + Perp(b) * (s * hw));	// chord bevel
+			}
 		}
-	} else {	// inside a flattened curve: round join
+		Miter(tris, p, ta, tb, hw);
+		return;
+	}
+	float	cr = Cross(a, b), dt = Dot(a, b);
+	if (std::fabs(cr) < 1e-6f && dt > 0)
+		return;	// straight through
+	float	s = cr > 0 ? -1.0f : 1.0f;
+	Vec2	na = Perp(a) * s, nb = Perp(b) * s;
+	Vec2	o1 = p + na * hw, o2 = p + nb * hw;
+	{	// inside a flattened curve: round join
 		float	fAngle = std::atan2(std::fabs(cr), dt);	// turn angle, 0..pi
 		// step angle keeping the arc within the tolerance
 		float	fStep = hw > fTolerance ? 2 * std::acos(1 - fTolerance / hw) : 3.14159265f;
@@ -119,12 +160,23 @@ void FlattenFigure(const PointF* pStart, int nSegments, bool bCurved, float fSca
 {
 	out.pts.clear();
 	out.corner.clear();
+	out.tanIn.clear();
+	out.tanOut.clear();
 	auto	P = [fScale](const PointF& p) { return Vec2{p.x * fScale, p.y * fScale}; };
 	Vec2	cur = P(pStart[0]);
 	AddPoint(out, cur, true);
 	if (bCurved) {
 		for (int i = 0; i < nSegments; i++) {
 			Vec2	p1 = P(pStart[1 + i * 3]), p2 = P(pStart[2 + i * 3]), p3 = P(pStart[3 + i * 3]);
+			// exact tangents at both ends (a segment that's a point has none)
+			Vec2	t0, t1;
+			if (BezierEndTangent(cur, p1, p2, p3, t0)) {
+				BezierEndTangent(p3, p2, p1, cur, t1);
+				out.tanOut.back() = t0;
+				t1 = t1 * -1;	// direction of travel
+			} else {
+				t1 = Vec2{0, 0};
+			}
 			// Wang's formula: n >= sqrt(3/4 * max|second difference| / tol)
 			float	d = std::max(Len(cur - p1 * 2 + p2), Len(p1 - p2 * 2 + p3));
 			int		n = int(std::ceil(std::sqrt(0.75f * d / fTolerance)));
@@ -132,6 +184,8 @@ void FlattenFigure(const PointF* pStart, int nSegments, bool bCurved, float fSca
 			for (int j = 1; j <= n; j++) {
 				if (j == n) {
 					AddPoint(out, p3, true);
+					if (t1.x != 0 || t1.y != 0)
+						out.tanIn.back() = t1;
 					break;
 				}
 				float	t = float(j) / n, u = 1 - t;
@@ -151,8 +205,12 @@ void FlattenFigure(const PointF* pStart, int nSegments, bool bCurved, float fSca
 		if (std::fabs(a.x - b.x) < 1e-4f && std::fabs(a.y - b.y) < 1e-4f) {
 			if (out.corner.back())
 				out.corner.front() = 1;
+			if (out.tanIn.back().x != 0 || out.tanIn.back().y != 0)
+				out.tanIn.front() = out.tanIn.back();
 			out.pts.pop_back();
 			out.corner.pop_back();
+			out.tanIn.pop_back();
+			out.tanOut.pop_back();
 		}
 	}
 }
@@ -182,6 +240,18 @@ void StrokeContours(const Contour* pContour, size_t nContours, float fWidth, flo
 				d = Vec2{1, 0};	// can't happen after merging duplicates
 			dir[i] = d;
 		}
+		const bool	bTan = ct.tanIn.size() == n && ct.tanOut.size() == n;
+		auto	JoinAt = [&](size_t i) {
+			Vec2	a = dir[(i + n - 1) % n], b = dir[i];
+			Vec2	ta = a, tb = b;
+			if (bTan && ct.corner[i]) {
+				if (ct.tanIn[i].x != 0 || ct.tanIn[i].y != 0)
+					ta = ct.tanIn[i];
+				if (ct.tanOut[i].x != 0 || ct.tanOut[i].y != 0)
+					tb = ct.tanOut[i];
+			}
+			Join(tris, ct.pts[i], a, b, ta, tb, hw, ct.corner[i] != 0, fTolerance);
+		};
 		if (!pQuads || n < 3) {
 			for (size_t i = 0; i < n; i++) {
 				Vec2	nrm = Perp(dir[i]) * hw;
@@ -190,7 +260,7 @@ void StrokeContours(const Contour* pContour, size_t nContours, float fWidth, flo
 				Tri(tris, p1 + nrm, p0 - nrm, p1 - nrm);
 			}
 			for (size_t i = 0; i < n; i++)	// join at point i
-				Join(tris, ct.pts[i], dir[(i + n - 1) % n], dir[i], hw, ct.corner[i] != 0, fTolerance);
+				JoinAt(i);
 			continue;
 		}
 		// which points join their segments in a strip
@@ -232,7 +302,7 @@ void StrokeContours(const Contour* pContour, size_t nContours, float fWidth, flo
 		}
 		for (size_t i = 0; i < n; i++) {	// joins at the other points
 			if (!IsStrip(i))
-				Join(tris, ct.pts[i], dir[(i + n - 1) % n], dir[i], hw, ct.corner[i] != 0, fTolerance);
+				JoinAt(i);
 		}
 	}
 }

@@ -356,6 +356,7 @@ void FillScene(IRenderer& r, float w, float h, bool bStroke = false)
 	auto	rnd = [&seed]() { seed = seed * 1664525u + 1013904223u; return (seed >> 8) / float(1 << 24); };
 	r.SetAntialiasing(true);
 	r.Clear(ColorF{0, 0, 0, 1});
+	static const int	iOnly = getenv("SPIKE_SHAPE") ? atoi(getenv("SPIKE_SHAPE")) : -1;	// one shape only
 	for (int i = 0; i < 160; i++) {
 		float	cx = rnd() * w, cy = rnd() * h;
 		float	rad = i < 120 ? 10 + rnd() * h * 0.3f : 0.2f + rnd() * 2;	// last 40 tiny
@@ -370,6 +371,11 @@ void FillScene(IRenderer& r, float w, float h, bool bStroke = false)
 					pts.push_back(PointF{cx + (rnd() * 2 - 1) * rad * 1.5f, cy + (rnd() * 2 - 1) * rad * 1.5f});
 				float	a = 2 * float(M_PI) * (k + 1) / n;
 				pts.push_back(k == n - 1 ? pts[0] : PointF{cx + rad * std::cos(a), cy + rad * std::sin(a)});
+			}
+			if (i == iOnly && getenv("SPIKE_DUMP")) {
+				for (const PointF& q : pts)
+					std::printf("{%.2ff, %.2ff}, ", q.x, q.y);
+				std::printf("\n");
 			}
 			r.AddFigure(pts.data(), n, true, true);
 		} else {	// star polygon; kind 2 adds a reversed inner figure (a hole)
@@ -393,6 +399,11 @@ void FillScene(IRenderer& r, float w, float h, bool bStroke = false)
 			}
 		}
 		r.EndPath();
+		if (iOnly >= 0 && i != iOnly) {	// keep the random sequence, draw nothing
+			rnd(); rnd(); rnd(); rnd();
+			if (bStroke) rnd();
+			continue;
+		}
 		if (bStroke) {	// widths 0.3 to 40 px, thick ones on tight curves
 			float	fW = i % 3 == 0 ? 0.3f + rnd() * 2 : 2 + rnd() * 38;
 			r.StrokePath(ColorF{rnd(), rnd(), rnd(), 0.4f + 0.5f * rnd()}, fW);

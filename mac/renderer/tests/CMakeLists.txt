@@ -19,6 +19,8 @@ endfunction()
 whorld_add_renderer_test(test_cgrenderer)
 whorld_add_renderer_test(test_golden)
 whorld_add_renderer_test(test_video)
+whorld_add_renderer_test(test_tessellator_cg)
+target_include_directories(test_tessellator_cg PRIVATE ${PROJECT_SOURCE_DIR}/renderer/gpu/tests)
 
 # Phase 8 spike: run by hand, not by ctest
 add_executable(spike_metal spike_metal.mm)
