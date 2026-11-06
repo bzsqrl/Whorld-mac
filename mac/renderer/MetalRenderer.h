@@ -67,8 +67,18 @@ public:
 		double	fGpuMs = 0;		// GPU time of the last finished frame
 		size_t	nVertices = 0;
 		size_t	nDraws = 0;
+		struct Profile {	// coverage mode, with WHORLD_MTL_PROFILE: [fill, stroke, rect]
+			size_t	nOps[3] = {};
+			size_t	nTris[3] = {};
+			double	fPx[3] = {};	// pixels rasterized by one draw (mask; the cover draw repeats it)
+			double	fArea[3] = {};	// triangle area before growth
+			size_t	nBoxTris = 0;	// thin triangles drawn as their bounding box
+		} prof;
 	};
 	const Stats&	GetStats() const { return m_stats; }
+	// coverage mode with WHORLD_MTL_PROFILE: the last frame's mask-draw
+	// fragments by path through TriangleMask (see the shader)
+	bool	GetFragmentCounts(uint32_t aCount[7]) const;
 
 // IRenderer
 	void	SetAntialiasing(bool bEnable) override;
@@ -118,6 +128,9 @@ private:
 	bool	m_bAntialias = true;
 	bool	m_bAntialiasSet = false;	// first SetAntialiasing of the frame seen
 	bool	m_bMirrorPending = false;
+	int		m_nAblate = 0;		// WHORLD_MTL_ABLATE (profiling)
+	bool	m_bProfile = false;	// WHORLD_MTL_PROFILE
+	void	ProfileOp(const Op& op);
 
 	void	Tessellate();
 	void	Encode();
