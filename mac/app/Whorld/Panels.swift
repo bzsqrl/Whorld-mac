@@ -16,7 +16,10 @@ import SwiftUI
 // MARK: Components
 
 /// An edit box: shows the formatted value, and on Return or losing focus
-/// parses what was typed, as CNumEdit does. Optional stepper (spin control).
+/// parses what was typed, if anything was, as CNumEdit does (it commits only
+/// if GetModify). Committing unedited text would round the value to what's
+/// shown, and a panel's first field loses focus whenever another window
+/// opens. Optional stepper (spin control).
 struct NumberField: View {
 	let value: Double
 	let format: (Double) -> String
@@ -26,6 +29,7 @@ struct NumberField: View {
 	var width: CGFloat = 72
 
 	@State private var text = ""
+	@State private var shown = ""	// the text as last formatted: unedited if text equals it
 	@FocusState private var focused: Bool
 
 	var body: some View {
@@ -46,16 +50,23 @@ struct NumberField: View {
 					.controlSize(.mini)
 			}
 		}
-		.onAppear { text = format(value) }
+		.onAppear { show(value) }
 		.onChange(of: value) { _, newValue in
-			if !focused { text = format(newValue) }
+			if !focused { show(newValue) }
 		}
 	}
 
+	private func show(_ v: Double) {
+		text = format(v)
+		shown = text
+	}
+
+	// ported from NumEdit.cpp CNumEdit::OnKillfocus
 	private func apply() {
+		guard text != shown else { return }	// not modified
 		let v = parse(text)
 		commit(v)
-		text = format(v)
+		show(v)
 	}
 }
 
