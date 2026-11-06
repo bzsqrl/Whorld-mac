@@ -1,6 +1,6 @@
 # Whorld macOS Port Plan
 
-Status: **Phase 7 done (unnotarized ad-hoc build); Phase 8 (Metal renderer) spike done, go/no-go and plan revision awaiting confirmation** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
+Status: **Phase 7 done (unnotarized ad-hoc build); Phase 8 (Metal renderer) spike done, revised plan confirmed 2026-11-05 (coverage mode); tessellation speed in progress** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
 
 ## Goal
 
@@ -176,10 +176,12 @@ Output must stay within the golden-image tolerance (mean ≤ 1.5, at most 1% of 
    - Tessellate strokes into triangles: one quad per segment, plus the join. Joins follow Direct2D's rule: a miter with limit 10, clipped (not beveled) past the limit. The clipped-miter math is already worked out in `CGRenderer.mm` `AddClippedMiters`. Figures are always closed, so there are no caps.
    - Fills stay as polygons for the GPU's even-odd stencil pass.
    - Rings are independent, so they're processed in parallel, as the deferred CG mode does now.
-2. **GPU: drawing.** `MetalRenderer`, implementing `IRenderer`, in `mac/renderer/MetalRenderer.mm`.
-   - **Target:** `bgra8Unorm` (not `_srgb`), so blending happens on sRGB values as Direct2D does. Antialiasing uses multisampling (4× or 8×) resolved into the output. With antialiasing off, it draws single-sampled; the GPU's pixel-center rules match Direct2D's aliased mode.
-   - **Strokes:** drawn as their triangles in one draw. A per-path stencil reference touches each sample once, so a translucent stroke doesn't darken where its own triangles overlap (the joins, self-crossing rings).
-   - **Even-odd fills:** stencil, then cover. A triangle fan inverts the stencil, then the same fan is drawn again where the stencil is set, clearing it as it goes. The work is proportional to the ring's area, not the whole screen.
+2. **GPU: drawing.** `MetalRenderer`, implementing `IRenderer`, in `mac/renderer/MetalRenderer.mm`. (Revised after the spike, confirmed 2026-11-05: coverage mode replaces multisampling. Details under "Spike results".)
+   - **Target:** `bgra8Unorm` (not `_srgb`), so blending happens on sRGB values as Direct2D does.
+   - **Antialiased frames: coverage mode.** Each path sets bits in a 64-sample mask per pixel, an `RG32Uint` attachment kept in tile memory; one draw then blends the path's color by popcount / 64 and clears the mask, so each shape blends by its own coverage as in Direct2D. A crossing edge's sample mask comes from a 512 × 257 lookup table, so shared edges stay watertight. Needs framebuffer reads, so Apple GPUs only; other GPUs use Core Graphics (step 3's fallback).
+   - **Strokes:** their triangles OR into the mask, each drawn as a conservative shape (grown by 0.75 px; thin triangles as a hexagon).
+   - **Even-odd fills: hybrid.** The fan flips the mask where the pixel center is inside; bands along the contour's edges correct the samples near edges; a bounding-box quad blends.
+   - **Aliased frames** (antialiasing off): single-sampled stencil drawing, as planned before; the GPU's pixel-center rules match Direct2D's aliased mode.
    - **`Clear`, `FillRect`:** an unblended quad, or the pass's load action.
    - **Quad mirror:** scissor to the upper-left quadrant, then a nearest-neighbor pass copies it flipped into the other three, pixel-exact as now.
    - **Batching:** a whole frame's geometry goes into one vertex buffer and one command buffer.
@@ -192,10 +194,13 @@ Output must stay within the golden-image tolerance (mean ≤ 1.5, at most 1% of 
 **Tasks.**
 - [x] 0. **Spike (go/no-go).** Tessellate and draw the 8 golden snapshots with Metal offscreen, with 4× and 8× multisampling. Measure the golden-image error and GPU time for `bloom_cvx` and `boomer_cvx`, full screen. Check against `trunk/Whorld/WhorldDraw.cpp` that the stencil plan covers every path type Whorld draws. Report back before going on. *Done; see "Spike results" below. Multisampling failed the accuracy goal; coverage mode passed.*
 - [ ] 1. Geometry library: flattening, stroke tessellation with clipped miters, fan generation. Unit tests cover join cases (sharp angles past the limit, collinear and zero-length segments, negative and zero widths as in the CG renderer) and compare outlines against `CGPathCreateCopyByStrokingPath` plus the clipped miters.
-- [ ] 2. `MetalRenderer`: pipelines, multisampling and stencil, every `IRenderer` call, antialiasing toggle, quad mirror.
+- [ ] 2. `MetalRenderer`: pipelines, coverage mode for antialiased frames and stencil for aliased ones, every `IRenderer` call, antialiasing toggle, quad mirror. (The spike's version is a start; remove the profiling switches or keep them behind a debug flag.)
+- [ ] 2a. CPU tessellation under 8 ms at `bloom_cvx`'s size (1.8 M vertices; 13.4 ms in the spike).
+- [ ] 2b. Cheaper strokes (`bloom_cvx`: about 9.5 ms of GPU).
+- [ ] 2c. Fewer fan fragments for self-overlapping rings (`boomer_cvx`: 641 screens of fan flips per frame), for 60 Hz on `boomer_cvx`.
 - [ ] 3. Golden tests for Metal against the Windows reference PNGs, in both antialiasing modes and with mirroring. Also a Metal-vs-CG comparison across all 86 patches over many frames, to catch differences the 8 snapshots miss. The tests skip, with a message, where no Metal device exists (CI runners may have none; check).
 - [ ] 4. App: IOSurface-backed textures, completion-driven frame handoff, the Renderer setting, the fallback. Build and run, and check the "missed" count.
-- [ ] 5. Performance: time all 86 patches (`whorld-render --metal`, full screen size) and run the app full screen. Record the results here, as in the Phase 3 table. Check on a base-model Mac and the Intel slice (an Intel Mac with its own GPU, if one is available).
+- [ ] 5. Performance: time all 86 patches (`whorld-render --metal`, full screen size) and run the app full screen. Record the results here, as in the Phase 3 table. Check on a base-model Mac, and check that the Intel slice falls back to Core Graphics.
 - [ ] 6. Documentation: README, help page, CLAUDE.md build notes.
 
 **Spike results (2026-11-05).** Code: `mac/renderer/MetalRenderer.{h,mm}`, `mac/renderer/gpu/Tessellator.{h,cpp}`, and the hand-run tool `mac/renderer/tests/spike_metal.mm` (`build/renderer/tests/spike_metal`; `--fills` for the fill-only scene, `--no-golden`/`--no-perf`, `--patches`, `--warm`, `--frames`, `--samples 0` for coverage mode, `--aa 1` to force antialiasing). Commits `1e496a5` to `bc0bc3a`.
@@ -227,7 +232,7 @@ Output must stay within the golden-image tolerance (mean ≤ 1.5, at most 1% of 
   - CPU tessellation is over budget from about 1 M vertices (typhoon, bloom, boomer).
 - **Recommendation: go, with coverage mode instead of multisampling.** It matches Windows where multisampling doesn't, and it's faster than Core Graphics on every patch measured except `boomer_cvx`. Patches with up to about 130 K vertices already fit 120 Hz; `typhoon_cvx` and `bloom_cvx` need about 2× more; `boomer_cvx` is slower than CG and needs fewer fill fragments (a better fill decomposition than one fan per path) to reach the plan's 60 Hz goal for it.
 
-**Proposed revision (awaiting confirmation).** Change step 2 from multisampling and stencil to coverage mode: per-path 64-sample masks in tile memory, the lookup table, hybrid even-odd fills, single-sampled stencil drawing kept for aliased frames. Coverage mode needs an Apple GPU, so Intel Macs would stay on Core Graphics (the automatic fallback in step 3), and the Intel-slice check in task 5 becomes a fallback check. Add tasks: CPU tessellation under 8 ms at bloom's size; cheaper strokes; fewer fan fragments for self-overlapping rings (`boomer_cvx`).
+**Revision (confirmed with the user 2026-11-05).** Change step 2 from multisampling and stencil to coverage mode: per-path 64-sample masks in tile memory, the lookup table, hybrid even-odd fills, single-sampled stencil drawing kept for aliased frames. Coverage mode needs an Apple GPU, so Intel Macs would stay on Core Graphics (the automatic fallback in step 3), and the Intel-slice check in task 5 becomes a fallback check. Add tasks: CPU tessellation under 8 ms at bloom's size; cheaper strokes; fewer fan fragments for self-overlapping rings (`boomer_cvx`).
 
 **Risks.**
 - **Antialiasing match.** Direct2D computes exact edge coverage; multisampling approximates it with 4 or 8 samples per pixel. Thin or nearly horizontal edges may differ by more than the golden-image tolerance. The spike measures this first. If 8× still fails, the fallback is analytic edge antialiasing in the shader for strokes, which is a larger job. *Spike: 4× failed and 8× isn't supported here; the 64-sample coverage mode above passes.*
