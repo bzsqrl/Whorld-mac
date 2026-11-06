@@ -340,8 +340,9 @@ fragment FBOut fsMaskXor(TOut in [[stage_in]], uint2 m [[color(1)]],
 // can flip that pixel's parity; with an edge through the center the
 // coverage is near 1/2 either way, so the error stays small.
 
-fragment FBOut fsFanFlip(VOut in [[stage_in]], uint2 m [[color(1)]])
+fragment FBOut fsFanFlip(VOut in [[stage_in]], uint2 m [[color(1)]] CNT_PARAM)
 {
+	COUNT(7);
 	FBOut o;
 	o.color = float4(0);	// not written
 	o.mask = ~m;
@@ -1062,11 +1063,11 @@ void MetalRenderer::Encode()
 	}
 }
 
-bool MetalRenderer::GetFragmentCounts(uint32_t aCount[7]) const
+bool MetalRenderer::GetFragmentCounts(uint32_t aCount[8]) const
 {
 	if (!m_pImpl->counts)
 		return false;
-	std::memcpy(aCount, m_pImpl->counts.contents, sizeof(uint32_t) * 7);
+	std::memcpy(aCount, m_pImpl->counts.contents, sizeof(uint32_t) * 8);
 	return true;
 }
 

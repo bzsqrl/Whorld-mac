@@ -77,8 +77,9 @@ public:
 	};
 	const Stats&	GetStats() const { return m_stats; }
 	// coverage mode with WHORLD_MTL_PROFILE: the last frame's mask-draw
-	// fragments by path through TriangleMask (see the shader)
-	bool	GetFragmentCounts(uint32_t aCount[7]) const;
+	// fragments by path through TriangleMask (see the shader), then [7] the
+	// hybrid fills' fan-flip fragments
+	bool	GetFragmentCounts(uint32_t aCount[8]) const;
 
 // IRenderer
 	void	SetAntialiasing(bool bEnable) override;

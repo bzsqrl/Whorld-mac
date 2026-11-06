@@ -511,15 +511,15 @@ void Perf(const std::vector<std::string>& aPatch, const std::vector<int>& aSampl
 							aName[t], p.nOps[t], p.nTris[t], p.fArea[t] / fScreen, p.fPx[t] / fScreen);
 				}
 				std::printf("    hexagon tris %zu, draws %zu\n", p.nBoxTris, mr.GetStats().nDraws);
-				uint32_t	aCnt[7];
+				uint32_t	aCnt[8];
 				if (mr.GetFragmentCounts(aCnt)) {
 					const char	*aCat[7] = {"degenerate", "outside", "full", "1 edge", "2 edges", "3 edges", "empty after loop"};
 					double	fTot = 0;
-					for (uint32_t c : aCnt) fTot += c;
+					for (int i = 0; i < 7; i++) fTot += aCnt[i];
 					std::printf("    mask fragments %.2f screens:", fTot / fScreen);
 					for (int i = 0; i < 7; i++)
 						std::printf(" %s %.0f%%", aCat[i], fTot ? 100.0 * aCnt[i] / fTot : 0);
-					std::printf("\n");
+					std::printf("\n    fan-flip fragments %.2f screens\n", aCnt[7] / fScreen);
 				}
 			}
 			ImageRGBA	img = MetalImage(mr);
