@@ -118,6 +118,7 @@ private:
 		size_t	nFig = 0;
 		std::vector<gpu::Vec2>	tris;	// built at EndFrame
 		size_t	iVert = 0;	// first vertex in the frame's buffer
+		float	box[4] = {};	// fills: bounding box in pixels (left, top, right, bottom)
 	};
 	std::vector<PointF>	m_aPt;
 	std::vector<Figure>	m_aFig;

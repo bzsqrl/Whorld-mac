@@ -346,6 +346,92 @@ void Golden(const std::vector<int>& aSamples, const std::vector<int>& aSS, float
 }
 
 
+// Fill-only scene with visible fill edges (Whorld's own patches stroke
+// every outline, which hides fill edges): random translucent star
+// polygons that cross themselves, curved figures, paths with holes, and
+// shapes smaller than a pixel.
+void FillScene(IRenderer& r, float w, float h)
+{
+	uint32_t	seed = 12345;
+	auto	rnd = [&seed]() { seed = seed * 1664525u + 1013904223u; return (seed >> 8) / float(1 << 24); };
+	r.SetAntialiasing(true);
+	r.Clear(ColorF{0, 0, 0, 1});
+	for (int i = 0; i < 160; i++) {
+		float	cx = rnd() * w, cy = rnd() * h;
+		float	rad = i < 120 ? 10 + rnd() * h * 0.3f : 0.2f + rnd() * 2;	// last 40 tiny
+		int		kind = i % 4;
+		std::vector<PointF>	pts;
+		r.BeginPath();
+		if (kind == 1) {	// curved closed figure, cubic segments
+			int	n = 3 + int(rnd() * 5);
+			pts.push_back(PointF{cx + rad, cy});
+			for (int k = 0; k < n; k++) {
+				for (int j = 0; j < 2; j++)
+					pts.push_back(PointF{cx + (rnd() * 2 - 1) * rad * 1.5f, cy + (rnd() * 2 - 1) * rad * 1.5f});
+				float	a = 2 * float(M_PI) * (k + 1) / n;
+				pts.push_back(k == n - 1 ? pts[0] : PointF{cx + rad * std::cos(a), cy + rad * std::sin(a)});
+			}
+			r.AddFigure(pts.data(), n, true, true);
+		} else {	// star polygon; kind 2 adds a reversed inner figure (a hole)
+			int	n = 5 + int(rnd() * 30), step = 1 + int(rnd() * 3);
+			for (int k = 0; k <= n; k++) {
+				float	a = 2 * float(M_PI) * (k * step % n) / n + 0.1f * i;
+				float	q = (k == n) ? 1 : (0.6f + 0.4f * rnd());
+				if (k == n)
+					pts.push_back(pts[0]);
+				else
+					pts.push_back(PointF{cx + rad * q * std::cos(a), cy + rad * q * std::sin(a)});
+			}
+			r.AddFigure(pts.data(), n, false, true);
+			if (kind == 2) {
+				std::vector<PointF>	hole;
+				for (int k = 0; k <= 12; k++) {
+					float	a = -2 * float(M_PI) * k / 12;
+					hole.push_back(PointF{cx + rad * 0.3f * std::cos(a), cy + rad * 0.3f * std::sin(a)});
+				}
+				r.AddFigure(hole.data(), 12, false, true);
+			}
+		}
+		r.EndPath();
+		r.FillPath(ColorF{rnd(), rnd(), rnd(), 0.4f + 0.5f * rnd()});
+	}
+}
+
+void FillTest(float fTol, const fs::path& dirOut)
+{
+	const int	w = 1024, h = 768;
+	std::printf("Fill-only scene (%dx%d, antialiased), vs Core Graphics:\n", w, h);
+	CGBitmapRenderer	cgr(w, h, 1);
+	cgr.BeginFrame();
+	FillScene(cgr, w, h);
+	cgr.EndFrame();
+	ImageRGBA	cg = FromBGRA(cgr.GetPixels(), cgr.GetPixelWidth(), cgr.GetPixelHeight(), cgr.GetStride());
+	SaveImageRGBA((dirOut / "fills-cg.png").string(), cg);
+	const char	*saved = getenv("WHORLD_MTL_ABLATE");
+	std::string	sSaved = saved ? saved : "";
+	struct { const char *label, *ablate, *suffix; } aRun[] = {
+		{"metal hybrid", "0", "hybrid"}, {"metal fan (exact)", "2048", "fan"}, {"hybrid, no bands", "4096", "nobands"}};
+	for (auto& run : aRun) {
+		setenv("WHORLD_MTL_ABLATE", run.ablate, 1);
+		MetalRenderer	mr(w, h, 1, 0);
+		if (!mr.IsValid()) {
+			std::printf("  no Metal device\n");
+			break;
+		}
+		mr.SetTolerance(fTol);
+		mr.BeginFrame();
+		FillScene(mr, w, h);
+		mr.EndFrame();
+		ImageRGBA	img = MetalImage(mr);
+		ImageDiff	d = CompareImages(cg, img, kThreshold);
+		std::printf("  %-20s mean %.3f, max %3d, %.3f%% over %d\n", run.label, d.fMeanAbs, d.nMaxDiff,
+			100 * d.fFracOver, kThreshold);
+		SaveImageRGBA((dirOut / (std::string("fills-") + run.suffix + ".png")).string(), img);
+	}
+	if (saved) setenv("WHORLD_MTL_ABLATE", sSaved.c_str(), 1); else unsetenv("WHORLD_MTL_ABLATE");
+	std::printf("  images: %s/fills-*.png\n\n", dirOut.string().c_str());
+}
+
 struct Timing {
 	double	fSum = 0, fMax = 0;
 	int		n = 0;
@@ -460,7 +546,7 @@ int main(int argc, char **argv)
 	std::vector<int>	aSamples = {4};
 	std::vector<int>	aSS = {1};
 	float	fTol = 0.1f;
-	bool	bGolden = true, bPerf = true;
+	bool	bGolden = true, bPerf = true, bFills = false;
 	std::vector<std::string>	aPatch = {"default_cvx", "saturn_cvx", "fish eye_cvx", "bloom_cvx",
 		"typhoon_cvx", "boomer_cvx"};
 	int		nWarm = 300, nFrames = 120;
@@ -487,6 +573,8 @@ int main(int argc, char **argv)
 			i++;
 		} else if (!std::strcmp(a, "--no-golden")) {
 			bGolden = false;
+		} else if (!std::strcmp(a, "--fills")) {
+			bFills = true;
 		} else if (!std::strcmp(a, "--no-perf")) {
 			bPerf = false;
 		} else if (!std::strcmp(a, "--patches")) {
@@ -512,6 +600,10 @@ int main(int argc, char **argv)
 	fs::path	dirOut = fs::temp_directory_path() / "whorld_spike";
 	fs::create_directories(dirOut);
 	std::printf("Flattening tolerance %.3f px\n\n", fTol);
+	if (bFills) {
+		FillTest(fTol, dirOut);
+		return 0;
+	}
 	if (bGolden)
 		Golden(aSamples, aSS, fTol, dirOut);
 	if (bPerf)

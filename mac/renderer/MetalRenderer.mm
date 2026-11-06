@@ -74,7 +74,7 @@ struct TOut {
 	uint tri [[flat]];
 };
 
-constant int kLutAngles = 512, kLutDists = 256;
+constant int kLutAngles = 512, kLutDists = 257;	// odd: column 128 is distance 0
 constant float kLutR = 0.7072;	// just over half the pixel diagonal
 
 // One instance per triangle (three float2 at buffer 0), 12 vertices: a fan
@@ -157,16 +157,21 @@ inline Edge PixelEdge(float2 p, float2 q, float sign, float2 o)
 // atan2), columns its signed distance from the pixel center. Both triangles
 // sharing an edge read the same entry, and the one on the other side takes
 // its complement, so they split the samples exactly.
+// Mask of the samples s with A s'.x + B s'.y + c > 0, s' = s - center.
+inline uint2 LutMask(float A, float B, float c, texture2d<uint> lut)
+{
+	float p = B / (abs(A) + abs(B));
+	float da = A >= 0 ? (B >= 0 ? p : 4 + p) : 2 - p;
+	uint row = uint(int(rint(da * (kLutAngles / 4)))) & (kLutAngles - 1);
+	// distance of the center from the line, in table columns: -c / len
+	float k = ((kLutDists - 1) / (2 * kLutR)) * rsqrt(A * A + B * B);
+	int j = clamp(int(rint(fma(-c, k, (kLutDists - 1) * 0.5))), 0, kLutDists - 1);
+	return lut.read(uint2(j, row)).xy;
+}
+
 inline uint2 EdgeMask(Edge e, texture2d<uint> lut)
 {
-	float p = e.B / (abs(e.A) + abs(e.B));
-	float da = e.A >= 0 ? (e.B >= 0 ? p : 4 + p) : 2 - p;
-	uint row = uint(int(rint(da * (kLutAngles / 4)))) & (kLutAngles - 1);
-	// distance of the center from the edge, in table columns: -e0(center) / len
-	float c = e.base + 0.5 * (e.A + e.B);
-	float k = ((kLutDists - 1) / (2 * kLutR)) * rsqrt(e.A * e.A + e.B * e.B);
-	int j = clamp(int(rint(fma(-c, k, (kLutDists - 1) * 0.5))), 0, kLutDists - 1);
-	uint2 m = lut.read(uint2(j, row)).xy;
+	uint2 m = LutMask(e.A, e.B, e.base + 0.5 * (e.A + e.B), lut);	// e0 at the center
 	return e.g > 0 ? m : ~m;
 }
 
@@ -316,6 +321,88 @@ fragment FBOut fsMaskXor(TOut in [[stage_in]], uint2 m [[color(1)]],
 	return o;
 }
 
+// ---- hybrid even-odd fills ----
+//
+// 1. The fan's triangles, not grown, flip all 64 bits where the pixel's
+//    center is inside: each pixel's mask holds the fill's parity at its
+//    center (the rasterizer's own watertight rule; no coverage math).
+// 2. Each contour edge, drawn as a band around it, XORs in the samples s
+//    for which the segment from the center c to s crosses the edge: those
+//    are exactly the samples whose parity differs from c's by that edge.
+//    The set is the edge's shadow seen from c: beyond the edge's line, and
+//    inside the wedge between the rays from c through its endpoints. Three
+//    table lookups. Consecutive edges compute the ray through their shared
+//    vertex identically, so a sample near it is counted consistently.
+// 3. A quad over the path's bounding box blends by coverage and clears.
+// Cost grows with the fan's area only in step 1, which is nearly free; the
+// coverage math runs on a band about 2.5 pixels wide along the outline.
+// A contour passing within the rasterizer's precision of a pixel center
+// can flip that pixel's parity; with an edge through the center the
+// coverage is near 1/2 either way, so the error stays small.
+
+fragment FBOut fsFanFlip(VOut in [[stage_in]], uint2 m [[color(1)]])
+{
+	FBOut o;
+	o.color = float4(0);	// not written
+	o.mask = ~m;
+	return o;
+}
+
+// one instance per fan triangle; its edge is vertices 1 and 2
+vertex TOut vsBand(uint vid [[vertex_id]], uint iid [[instance_id]],
+	const device float2 *v [[buffer(0)]], constant float2 &size [[buffer(1)]])
+{
+	float2 P = v[iid * 3 + 1], Q = v[iid * 3 + 2];
+	TOut o;
+	o.tri = iid;
+	const float d = 0.75;
+	float2 p = P;
+	float len = length(Q - P);
+	if (len > 0) {
+		float2 t = (Q - P) / len, n = float2(-t.y, t.x);
+		const float2 k[6] = {float2(0, -1), float2(1, -1), float2(0, 1), float2(1, -1), float2(1, 1), float2(0, 1)};
+		float2 e = k[vid].x > 0 ? Q + t * d : P - t * d;
+		p = e + n * (d * k[vid].y);
+	}
+	o.pos = float4(p.x / size.x * 2 - 1, 1 - p.y / size.y * 2, 0, 1);
+	return o;
+}
+
+fragment FBOut fsBand(TOut in [[stage_in]], uint2 m [[color(1)]],
+	const device float2 *v [[buffer(1)]], texture2d<uint> lut [[texture(0)]])
+{
+	float2 c = floor(in.pos.xy) + 0.5;
+	float2 P = v[in.tri * 3 + 1] - c, Q = v[in.tri * 3 + 2] - c;	// relative to the center
+	// beyond the edge's line: e(s') = A s'.x + B s'.y + ec, on the side away from c
+	float A = -(Q.y - P.y), B = Q.x - P.x;
+	float ec = -(A * P.x + B * P.y);
+	uint2 x = LutMask(A, B, ec, lut);
+	if (ec > 0)
+		x = ~x;
+	// the wedge: Q's side of the ray through P, P's side of the ray through Q
+	float cr = P.x * Q.y - P.y * Q.x;	// Q's side of line c-P is the sign of cr
+	uint2 wp = LutMask(-P.y, P.x, 0, lut), wq = LutMask(-Q.y, Q.x, 0, lut);
+	x &= (cr > 0 ? wp : ~wp) & (cr > 0 ? ~wq : wq);
+	if (!any(x != 0))
+		discard_fragment();
+	FBOut o;
+	o.color = float4(0);	// not written
+	o.mask = m ^ x;
+	return o;
+}
+
+// the cover quad: a rectangle in pixels (left, top, right, bottom)
+vertex TOut vsRect(uint vid [[vertex_id]], constant float2 &size [[buffer(1)]],
+	constant float4 &r [[buffer(2)]])
+{
+	const uint2 k[6] = {uint2(0, 0), uint2(1, 0), uint2(0, 1), uint2(1, 0), uint2(1, 1), uint2(0, 1)};
+	float2 p = float2(k[vid].x ? r.z : r.x, k[vid].y ? r.w : r.y);
+	TOut o;
+	o.tri = 0;
+	o.pos = float4(p.x / size.x * 2 - 1, 1 - p.y / size.y * 2, 0, 1);
+	return o;
+}
+
 fragment FBOut fsCover(TOut in [[stage_in]], float4 dst [[color(0)]], uint2 m [[color(1)]],
 	constant float4 &clr [[buffer(0)]])
 {
@@ -351,7 +438,7 @@ fragment float4 fsMirror(VOut in [[stage_in]], texture2d<float> src [[texture(0)
 // dot(n, s - center) > r, for n the unit direction at diamond angle
 // 4 i / kLutAngles and r = -kLutR + 2 kLutR j / (kLutDists - 1). Samples as
 // Sample() in the shader.
-const int	kLutAngles = 512, kLutDists = 256;
+const int	kLutAngles = 512, kLutDists = 257;
 const float	kLutR = 0.7072f;
 
 void BuildMaskTable(std::vector<uint32_t>& aLut)
@@ -414,6 +501,7 @@ struct MetalRenderer::Impl {
 	std::map<int, Pipelines>	pipes;
 	struct CovPipelines {
 		id<MTLRenderPipelineState>	maskOr, maskXor, cover, clear;
+		id<MTLRenderPipelineState>	fanFlip, band, coverRect;	// hybrid fills
 	} cov;
 	id<MTLTexture>	mask;	// coverage mode: RG32Uint, tile memory only
 	id<MTLBuffer>	counts;	// coverage mode fragment counts (profiling)
@@ -538,7 +626,9 @@ MetalRenderer::MetalRenderer(int nWidth, int nHeight, double fScale, int nSample
 	// profiling: WHORLD_MTL_ABLATE bits turn parts of coverage mode off
 	// (1 per-sample loop, 2 cover draw, 4 fills, 8 strokes, 16 triangle growth,
 	// 64 exact per-sample loop instead of the lookup table, 128 mask draws
-	// don't read the mask, 256 no mask computation at all, 512 no discard);
+	// don't read the mask, 256 no mask computation at all, 512 no discard,
+	// 2048 fills as grown fan triangles instead of hybrid, 4096 hybrid fills
+	// without edge bands);
 	// WHORLD_MTL_PROFILE counts pixels and fragments (and slows the GPU)
 	m_nAblate = getenv("WHORLD_MTL_ABLATE") ? atoi(getenv("WHORLD_MTL_ABLATE")) : 0;
 	m_bProfile = getenv("WHORLD_MTL_PROFILE") != nullptr;
@@ -587,6 +677,9 @@ MetalRenderer::MetalRenderer(int nWidth, int nHeight, double fScale, int nSample
 		im.cov.maskXor = im.MakeCovPipe(@"vsTri", @"fsMaskXor", false);
 		im.cov.cover = im.MakeCovPipe(@"vsTri", @"fsCover", true);
 		im.cov.clear = im.MakeCovPipe(@"vsFull", @"fsClearCov", true);
+		im.cov.fanFlip = im.MakeCovPipe(@"vsPath", @"fsFanFlip", false);
+		im.cov.band = im.MakeCovPipe(@"vsBand", @"fsBand", false);
+		im.cov.coverRect = im.MakeCovPipe(@"vsRect", @"fsCover", true);
 		MTLTextureDescriptor	*md = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRG32Uint
 			width:m_nWidth height:m_nHeight mipmapped:NO];
 		md.usage = MTLTextureUsageRenderTarget;
@@ -774,6 +867,12 @@ void MetalRenderer::Tessellate()
 				}
 				gpu::FanContours(filled.data(), filled.size(), op.tris);
 			}
+			float	x0 = HUGE_VALF, y0 = HUGE_VALF, x1 = -HUGE_VALF, y1 = -HUGE_VALF;
+			for (gpu::Vec2 p : op.tris) {
+				x0 = std::min(x0, p.x); y0 = std::min(y0, p.y);
+				x1 = std::max(x1, p.x); y1 = std::max(y1, p.y);
+			}
+			op.box[0] = x0; op.box[1] = y0; op.box[2] = x1; op.box[3] = y1;
 			break;
 		}
 		case Op::STROKE:
@@ -1087,6 +1186,28 @@ void MetalRenderer::EncodeCoverage()
 				NSUInteger	nTri = op.tris.size() / 3;
 				if (m_bProfile)
 					ProfileOp(op);
+				if (op.type == Op::FILL && !(m_nAblate & 2048)) {	// hybrid fill
+					[enc setVertexBufferOffset:op.iVert * sizeof(gpu::Vec2) atIndex:0];
+					[enc setFragmentBufferOffset:op.iVert * sizeof(gpu::Vec2) atIndex:1];
+					[enc setRenderPipelineState:im.cov.fanFlip];
+					[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:op.tris.size()];
+					if (!(m_nAblate & 4096)) {
+						[enc setRenderPipelineState:im.cov.band];
+						[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6 instanceCount:nTri];
+					}
+					// cover the bounding box (from Tessellate), grown a pixel, clipped to the target
+					const float	x0 = op.box[0], y0 = op.box[1], x1 = op.box[2], y1 = op.box[3];
+					const float	r[4] = {std::max(x0 - 1, 0.f), std::max(y0 - 1, 0.f),
+						std::min(x1 + 1, float(m_nWidth)), std::min(y1 + 1, float(m_nHeight))};
+					if (r[2] > r[0] && r[3] > r[1]) {
+						[enc setRenderPipelineState:im.cov.coverRect];
+						[enc setVertexBytes:r length:sizeof(r) atIndex:2];
+						[enc setFragmentBytes:clr length:sizeof(clr) atIndex:0];
+						[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+					}
+					nDraws += 3;
+					break;
+				}
 				[enc setVertexBufferOffset:op.iVert * sizeof(gpu::Vec2) atIndex:0];
 				[enc setFragmentBufferOffset:op.iVert * sizeof(gpu::Vec2) atIndex:1];
 				[enc setRenderPipelineState:op.type == Op::FILL ? im.cov.maskXor : im.cov.maskOr];
