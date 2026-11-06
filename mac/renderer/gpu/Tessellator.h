@@ -51,8 +51,16 @@ void	FlattenFigure(const PointF* pStart, int nSegments, bool bCurved, float fSca
 
 // Appends triangles covering the stroke of the contours with the given
 // width in pixels (absolute value; zero draws nothing).
+//
+// With pQuads, smooth stretches become a strip of convex quads (four points
+// each, in order around the quad) instead: at a point inside a flattened
+// curve whose turn is small enough that a miter there stays within
+// fTolerance of the round join, the two segments share one edge across the
+// stroke, along the bisector, and no join is drawn. Quads that meet share
+// that edge exactly. Other points (corners, sharper turns, short segments)
+// end their segments square and get the usual join triangles.
 void	StrokeContours(const Contour* pContour, size_t nContours, float fWidth, float fTolerance,
-	std::vector<Vec2>& tris);
+	std::vector<Vec2>& tris, std::vector<Vec2>* pQuads = nullptr);
 
 // Appends a triangle fan per contour edge from a common pivot. Inverting a
 // stencil bit for every triangle leaves it set exactly where the even-odd

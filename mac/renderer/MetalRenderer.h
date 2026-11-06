@@ -120,6 +120,8 @@ private:
 		std::vector<gpu::Vec2>	tris;	// built at EndFrame
 		size_t	iVert = 0;	// first vertex in the frame's buffer
 		float	box[4] = {};	// fills: bounding box in pixels (left, top, right, bottom)
+		std::vector<gpu::Vec2>	quads;	// coverage-mode strokes: strip quads, four points each
+		size_t	iQuad = 0;	// first quad point in the frame's buffer
 	};
 	std::vector<PointF>	m_aPt;
 	std::vector<Figure>	m_aFig;

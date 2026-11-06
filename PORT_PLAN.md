@@ -1,6 +1,6 @@
 # Whorld macOS Port Plan
 
-Status: **Phase 7 done (unnotarized ad-hoc build); Phase 8 (Metal renderer) spike done, revised plan confirmed 2026-11-05 (coverage mode); next: cheaper strokes (2b)** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
+Status: **Phase 7 done (unnotarized ad-hoc build); Phase 8 (Metal renderer) spike done, revised plan confirmed 2026-11-05 (coverage mode); next: fewer fan fragments (2c)** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
 
 ## Goal
 
@@ -193,10 +193,10 @@ Output must stay within the golden-image tolerance (mean ≤ 1.5, at most 1% of 
 
 **Tasks.**
 - [x] 0. **Spike (go/no-go).** Tessellate and draw the 8 golden snapshots with Metal offscreen, with 4× and 8× multisampling. Measure the golden-image error and GPU time for `bloom_cvx` and `boomer_cvx`, full screen. Check against `trunk/Whorld/WhorldDraw.cpp` that the stencil plan covers every path type Whorld draws. Report back before going on. *Done; see "Spike results" below. Multisampling failed the accuracy goal; coverage mode passed.*
-- [ ] 1. Geometry library: flattening, stroke tessellation with clipped miters, fan generation. Unit tests cover join cases (sharp angles past the limit, collinear and zero-length segments, negative and zero widths as in the CG renderer) and compare outlines against `CGPathCreateCopyByStrokingPath` plus the clipped miters.
+- [ ] 1. Geometry library: flattening, stroke tessellation with clipped miters, fan generation. *Known difference from the spike: on `spike_metal --strokes` (random thick strokes with sharp corners, Bezier figures with near-cusps), a few clipped miters reach much farther than the CG renderer's (0.83% of pixels over 32 in both the strip and triangle paths). Both use the same limit and clipping math; the suspect is the join direction at curve segment ends: CG uses the exact Bezier end tangents, the tessellator the flattened chord. Whorld's patches don't hit it.* Unit tests cover join cases (sharp angles past the limit, collinear and zero-length segments, negative and zero widths as in the CG renderer) and compare outlines against `CGPathCreateCopyByStrokingPath` plus the clipped miters.
 - [ ] 2. `MetalRenderer`: pipelines, coverage mode for antialiased frames and stencil for aliased ones, every `IRenderer` call, antialiasing toggle, quad mirror. (The spike's version is a start; remove the profiling switches or keep them behind a debug flag.)
 - [x] 2a. CPU tessellation under 8 ms at `bloom_cvx`'s size (1.8 M vertices; 13.4 ms in the spike). *Done without code changes: 13.4 ms was a Debug build; Release takes 1.18 ms for bloom and 5.67 ms for boomer.*
-- [ ] 2b. Cheaper strokes (`bloom_cvx`: about 9.5 ms of GPU).
+- [x] 2b. Cheaper strokes (`bloom_cvx`: about 9.5 ms of GPU). *Done: smooth stretches of a stroke are a strip of quads sharing their edges along the bisector, with no join triangles, where a miter stays within the flattening tolerance of the round join (`StrokeContours` with `pQuads`; coverage mode only). Bloom's strokes alone 7.2 → 3.1 ms of GPU (the 9.5 ms estimate was from overlapping ablations); typhoon 9.6 → 4.2 ms. Output: within 16 levels of the triangle path on the golden snapshots, identical numbers on `spike_metal --strokes`.*
 - [ ] 2c. Fewer fan fragments for self-overlapping rings (`boomer_cvx`: 641 screens of fan flips per frame), for 60 Hz on `boomer_cvx`.
 - [ ] 3. Golden tests for Metal against the Windows reference PNGs, in both antialiasing modes and with mirroring. Also a Metal-vs-CG comparison across all 86 patches over many frames, to catch differences the 8 snapshots miss. The tests skip, with a message, where no Metal device exists (CI runners may have none; check).
 - [ ] 4. App: IOSurface-backed textures, completion-driven frame handoff, the Renderer setting, the fallback. Build and run, and check the "missed" count.
@@ -224,6 +224,17 @@ Output must stay within the golden-image tolerance (mean ≤ 1.5, at most 1% of 
   | `typhoon_cvx` | 935 K | 0.70 ms | 0.32 ms | 9.6 ms | 20.2 ms |
   | `bloom_cvx` | 1.8 M | 1.18 ms | 0.62 ms | 18.0 ms | 24.5 ms |
   | `boomer_cvx` | 8.8 M | 5.67 ms | 2.08 ms | 82.3 ms | 72.0 ms |
+
+  After task 2b (stroke strips), same conditions (vertex counts drop because strips need fewer):
+
+  | Patch | Vertices | CPU tessellation | CPU encoding | GPU | Core Graphics (deferred) |
+  |---|---|---|---|---|---|
+  | `default_cvx` | 21 K | 0.08 ms | 0.08 ms | 1.9 ms | 7.2 ms |
+  | `saturn_cvx` | 78 K | 0.16 ms | 0.07 ms | 1.1 ms | 8.6 ms |
+  | `fish eye_cvx` | 111 K | 0.21 ms | 0.10 ms | 6.0 ms | 34.4 ms |
+  | `typhoon_cvx` | 428 K | 0.46 ms | 0.19 ms | 4.2 ms | 20.4 ms |
+  | `bloom_cvx` | 1.1 M | 0.85 ms | 0.43 ms | 12.8–13.6 ms | 24.5 ms |
+  | `boomer_cvx` | 5.2 M | 3.79 ms | 1.68 ms | 69.0 ms | 71.6 ms |
 
   (Earlier Core Graphics figures in this plan, such as 14 ms for fish eye, had antialiasing off. During the spike, CPU times were first measured with the default Debug build of `build/`, about 10× slower: 13.4 ms for bloom's tessellation. Time CPU work with a Release build.)
 - **Where the time still goes.**

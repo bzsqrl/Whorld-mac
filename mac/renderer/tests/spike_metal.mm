@@ -350,7 +350,7 @@ void Golden(const std::vector<int>& aSamples, const std::vector<int>& aSS, float
 // every outline, which hides fill edges): random translucent star
 // polygons that cross themselves, curved figures, paths with holes, and
 // shapes smaller than a pixel.
-void FillScene(IRenderer& r, float w, float h)
+void FillScene(IRenderer& r, float w, float h, bool bStroke = false)
 {
 	uint32_t	seed = 12345;
 	auto	rnd = [&seed]() { seed = seed * 1664525u + 1013904223u; return (seed >> 8) / float(1 << 24); };
@@ -393,24 +393,34 @@ void FillScene(IRenderer& r, float w, float h)
 			}
 		}
 		r.EndPath();
-		r.FillPath(ColorF{rnd(), rnd(), rnd(), 0.4f + 0.5f * rnd()});
+		if (bStroke) {	// widths 0.3 to 40 px, thick ones on tight curves
+			float	fW = i % 3 == 0 ? 0.3f + rnd() * 2 : 2 + rnd() * 38;
+			r.StrokePath(ColorF{rnd(), rnd(), rnd(), 0.4f + 0.5f * rnd()}, fW);
+		} else {
+			r.FillPath(ColorF{rnd(), rnd(), rnd(), 0.4f + 0.5f * rnd()});
+		}
 	}
 }
 
-void FillTest(float fTol, const fs::path& dirOut)
+void FillTest(float fTol, const fs::path& dirOut, bool bStroke)
 {
 	const int	w = 1024, h = 768;
-	std::printf("Fill-only scene (%dx%d, antialiased), vs Core Graphics:\n", w, h);
+	const char	*pre = bStroke ? "strokes-" : "fills-";
+	std::printf("%s scene (%dx%d, antialiased), vs Core Graphics:\n", bStroke ? "Stroke-only" : "Fill-only", w, h);
 	CGBitmapRenderer	cgr(w, h, 1);
 	cgr.BeginFrame();
-	FillScene(cgr, w, h);
+	FillScene(cgr, w, h, bStroke);
 	cgr.EndFrame();
 	ImageRGBA	cg = FromBGRA(cgr.GetPixels(), cgr.GetPixelWidth(), cgr.GetPixelHeight(), cgr.GetStride());
-	SaveImageRGBA((dirOut / "fills-cg.png").string(), cg);
+	SaveImageRGBA((dirOut / (std::string(pre) + "cg.png")).string(), cg);
 	const char	*saved = getenv("WHORLD_MTL_ABLATE");
 	std::string	sSaved = saved ? saved : "";
-	struct { const char *label, *ablate, *suffix; } aRun[] = {
-		{"metal hybrid", "0", "hybrid"}, {"metal fan (exact)", "2048", "fan"}, {"hybrid, no bands", "4096", "nobands"}};
+	struct Run { const char *label, *ablate, *suffix; };
+	const Run	aFill[] = {{"metal hybrid", "0", "hybrid"}, {"metal fan (exact)", "2048", "fan"},
+		{"hybrid, no bands", "4096", "nobands"}};
+	const Run	aStroke[] = {{"metal strips", "0", "strips"}, {"metal triangles", "8192", "tris"}};
+	std::vector<Run>	aRun = bStroke ? std::vector<Run>(std::begin(aStroke), std::end(aStroke))
+		: std::vector<Run>(std::begin(aFill), std::end(aFill));
 	for (auto& run : aRun) {
 		setenv("WHORLD_MTL_ABLATE", run.ablate, 1);
 		MetalRenderer	mr(w, h, 1, 0);
@@ -420,16 +430,16 @@ void FillTest(float fTol, const fs::path& dirOut)
 		}
 		mr.SetTolerance(fTol);
 		mr.BeginFrame();
-		FillScene(mr, w, h);
+		FillScene(mr, w, h, bStroke);
 		mr.EndFrame();
 		ImageRGBA	img = MetalImage(mr);
 		ImageDiff	d = CompareImages(cg, img, kThreshold);
 		std::printf("  %-20s mean %.3f, max %3d, %.3f%% over %d\n", run.label, d.fMeanAbs, d.nMaxDiff,
 			100 * d.fFracOver, kThreshold);
-		SaveImageRGBA((dirOut / (std::string("fills-") + run.suffix + ".png")).string(), img);
+		SaveImageRGBA((dirOut / (std::string(pre) + run.suffix + ".png")).string(), img);
 	}
 	if (saved) setenv("WHORLD_MTL_ABLATE", sSaved.c_str(), 1); else unsetenv("WHORLD_MTL_ABLATE");
-	std::printf("  images: %s/fills-*.png\n\n", dirOut.string().c_str());
+	std::printf("  images: %s/%s*.png\n\n", dirOut.string().c_str(), pre);
 }
 
 struct Timing {
@@ -546,7 +556,7 @@ int main(int argc, char **argv)
 	std::vector<int>	aSamples = {4};
 	std::vector<int>	aSS = {1};
 	float	fTol = 0.1f;
-	bool	bGolden = true, bPerf = true, bFills = false;
+	bool	bGolden = true, bPerf = true, bFills = false, bStrokes = false;
 	std::vector<std::string>	aPatch = {"default_cvx", "saturn_cvx", "fish eye_cvx", "bloom_cvx",
 		"typhoon_cvx", "boomer_cvx"};
 	int		nWarm = 300, nFrames = 120;
@@ -575,6 +585,8 @@ int main(int argc, char **argv)
 			bGolden = false;
 		} else if (!std::strcmp(a, "--fills")) {
 			bFills = true;
+		} else if (!std::strcmp(a, "--strokes")) {
+			bStrokes = true;
 		} else if (!std::strcmp(a, "--no-perf")) {
 			bPerf = false;
 		} else if (!std::strcmp(a, "--patches")) {
@@ -600,8 +612,11 @@ int main(int argc, char **argv)
 	fs::path	dirOut = fs::temp_directory_path() / "whorld_spike";
 	fs::create_directories(dirOut);
 	std::printf("Flattening tolerance %.3f px\n\n", fTol);
-	if (bFills) {
-		FillTest(fTol, dirOut);
+	if (bFills || bStrokes) {
+		if (bFills)
+			FillTest(fTol, dirOut, false);
+		if (bStrokes)
+			FillTest(fTol, dirOut, true);
 		return 0;
 	}
 	if (bGolden)

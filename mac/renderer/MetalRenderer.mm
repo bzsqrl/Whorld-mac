@@ -201,6 +201,47 @@ inline float2 Sample(uint k)
 
 // fragment counts (PROF_COUNT): 0 degenerate, 1 outside an edge, 2 full,
 // 3..5 one..three crossing edges, 6 no sample covered after the loop
+// One edge of a convex shape at a pixel: false if the pixel is outside it
+// (no sample covered); otherwise ANDs in its sample mask if it crosses the
+// pixel, counting crossing edges in n.
+inline bool EdgeStep(Edge e, thread uint2& m, thread int& n, texture2d<uint> lut)
+{
+	float v00 = e.base, v10 = e.A + e.base, v01 = e.B + e.base, v11 = e.A + e.B + e.base;
+	float lo = min(min(v00, v10), min(v01, v11)), hi = max(max(v00, v10), max(v01, v11));
+	if (e.g < 0) {
+		float t = lo;
+		lo = -hi;
+		hi = -t;
+	}
+	if (hi < 0)
+		return false;
+	if (lo > 0)
+		return true;
+	n++;
+	m &= EdgeMask(e, lut);
+	return true;
+}
+
+// Stroke strips: a convex quad (four points at buffer 1, in order)
+inline uint2 QuadMask(TOut in, const device float2 *q, texture2d<uint> lut CNT_ARG)
+{
+	float2 a = q[in.tri * 4], b = q[in.tri * 4 + 1], c = q[in.tri * 4 + 2], d = q[in.tri * 4 + 3];
+	float area = (a.x * b.y - b.x * a.y) + (b.x * c.y - c.x * b.y) + (c.x * d.y - d.x * c.y) + (d.x * a.y - a.x * d.y);
+	if (area == 0)
+		return uint2(0);
+	float sg = area > 0 ? 1 : -1;
+	float2 o = floor(in.pos.xy);
+	uint2 m = uint2(0xFFFFFFFF);
+	int n = 0;
+	if (!EdgeStep(PixelEdge(a, b, sg, o), m, n, lut) || !EdgeStep(PixelEdge(b, c, sg, o), m, n, lut)
+		|| !EdgeStep(PixelEdge(c, d, sg, o), m, n, lut) || !EdgeStep(PixelEdge(d, a, sg, o), m, n, lut)) {
+		COUNT(1);
+		return uint2(0);
+	}
+	COUNT(n == 0 ? 2 : min(2 + n, 5));
+	return m;
+}
+
 inline uint2 TriangleMask(TOut in, const device float2 *v, texture2d<uint> lut CNT_ARG)
 {
 #if ABLATE_ALL
@@ -404,6 +445,54 @@ vertex TOut vsRect(uint vid [[vertex_id]], constant float2 &size [[buffer(1)]],
 	return o;
 }
 
+// One instance per quad (four float2 at buffer 0), 6 vertices: the quad
+// grown by 0.75 px with mitered corners (its corners are near right angles),
+// or its grown bounding box if a corner is sharp or an edge has no length.
+vertex TOut vsQuad(uint vid [[vertex_id]], uint iid [[instance_id]],
+	const device float2 *v [[buffer(0)]], constant float2 &size [[buffer(1)]])
+{
+	float2 q[4] = {v[iid * 4], v[iid * 4 + 1], v[iid * 4 + 2], v[iid * 4 + 3]};
+	TOut o;
+	o.tri = iid;
+	const float d = 0.75;
+	const uint fan[6] = {0, 1, 2, 0, 2, 3};
+	uint k = fan[vid];
+	float area = (q[0].x * q[1].y - q[1].x * q[0].y) + (q[1].x * q[2].y - q[2].x * q[1].y)
+		+ (q[2].x * q[3].y - q[3].x * q[2].y) + (q[3].x * q[0].y - q[0].x * q[3].y);
+	float s = area > 0 ? 1 : -1;
+	float2 eIn = q[k] - q[(k + 3) & 3], eOut = q[(k + 1) & 3] - q[k];
+	float2 p = q[0];
+	bool bBox = true;
+	if (area != 0 && length(eIn) > 0 && length(eOut) > 0) {
+		float2 n1 = s * float2(normalize(eIn).y, -normalize(eIn).x);
+		float2 n2 = s * float2(normalize(eOut).y, -normalize(eOut).x);
+		float kk = 1 + dot(n1, n2);
+		if (kk > 0.08) {
+			p = q[k] + (n1 + n2) * (d / kk);
+			bBox = false;
+		}
+	}
+	if (bBox && area != 0) {	// grown bounding box (rare)
+		float2 lo = min(min(q[0], q[1]), min(q[2], q[3])) - d, hi = max(max(q[0], q[1]), max(q[2], q[3])) + d;
+		const uint2 c[4] = {uint2(0, 0), uint2(1, 0), uint2(1, 1), uint2(0, 1)};
+		p = float2(c[k].x ? hi.x : lo.x, c[k].y ? hi.y : lo.y);
+	}
+	o.pos = float4(p.x / size.x * 2 - 1, 1 - p.y / size.y * 2, 0, 1);
+	return o;
+}
+
+fragment FBOut fsMaskOrQuad(TOut in [[stage_in]], uint2 m [[color(1)]],
+	const device float2 *v [[buffer(1)]], texture2d<uint> lut [[texture(0)]] CNT_PARAM)
+{
+	uint2 t = QuadMask(in, v, lut CNT_PASS);
+	if (!any(t != 0))
+		discard_fragment();
+	FBOut o;
+	o.color = float4(0);	// not written
+	o.mask = m | t;
+	return o;
+}
+
 fragment FBOut fsCover(TOut in [[stage_in]], float4 dst [[color(0)]], uint2 m [[color(1)]],
 	constant float4 &clr [[buffer(0)]])
 {
@@ -503,6 +592,7 @@ struct MetalRenderer::Impl {
 	struct CovPipelines {
 		id<MTLRenderPipelineState>	maskOr, maskXor, cover, clear;
 		id<MTLRenderPipelineState>	fanFlip, band, coverRect;	// hybrid fills
+		id<MTLRenderPipelineState>	maskOrQuad, coverQuad;	// stroke strips
 	} cov;
 	id<MTLTexture>	mask;	// coverage mode: RG32Uint, tile memory only
 	id<MTLBuffer>	counts;	// coverage mode fragment counts (profiling)
@@ -629,7 +719,7 @@ MetalRenderer::MetalRenderer(int nWidth, int nHeight, double fScale, int nSample
 	// 64 exact per-sample loop instead of the lookup table, 128 mask draws
 	// don't read the mask, 256 no mask computation at all, 512 no discard,
 	// 2048 fills as grown fan triangles instead of hybrid, 4096 hybrid fills
-	// without edge bands);
+	// without edge bands, 8192 strokes as triangles instead of strips);
 	// WHORLD_MTL_PROFILE counts pixels and fragments (and slows the GPU)
 	m_nAblate = getenv("WHORLD_MTL_ABLATE") ? atoi(getenv("WHORLD_MTL_ABLATE")) : 0;
 	m_bProfile = getenv("WHORLD_MTL_PROFILE") != nullptr;
@@ -681,6 +771,8 @@ MetalRenderer::MetalRenderer(int nWidth, int nHeight, double fScale, int nSample
 		im.cov.fanFlip = im.MakeCovPipe(@"vsPath", @"fsFanFlip", false);
 		im.cov.band = im.MakeCovPipe(@"vsBand", @"fsBand", false);
 		im.cov.coverRect = im.MakeCovPipe(@"vsRect", @"fsCover", true);
+		im.cov.maskOrQuad = im.MakeCovPipe(@"vsQuad", @"fsMaskOrQuad", false);
+		im.cov.coverQuad = im.MakeCovPipe(@"vsQuad", @"fsCover", true);
 		MTLTextureDescriptor	*md = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRG32Uint
 			width:m_nWidth height:m_nHeight mipmapped:NO];
 		md.usage = MTLTextureUsageRenderTarget;
@@ -849,9 +941,12 @@ void MetalRenderer::Tessellate()
 	Op	*pOps = m_aOp.data();
 	const gpu::Contour	*pCt = m_aContour.data();
 	const Figure	*pFig = m_aFig.data();
+	// stroke strips only in coverage mode; the stencil path draws triangles
+	const bool	bStrips = !m_nSamples && m_bAntialias && !(m_nAblate & 8192);
 	dispatch_apply(m_aOp.size(), DISPATCH_APPLY_AUTO, ^(size_t i) {
 		Op&	op = pOps[i];
 		op.tris.clear();
+		op.quads.clear();
 		switch (op.type) {
 		case Op::FILL: {
 			// only figures begun FILLED take part in the fill
@@ -877,7 +972,8 @@ void MetalRenderer::Tessellate()
 			break;
 		}
 		case Op::STROKE:
-			gpu::StrokeContours(&pCt[op.iFig], op.nFig, op.fWidth * fScale, fTol, op.tris);
+			gpu::StrokeContours(&pCt[op.iFig], op.nFig, op.fWidth * fScale, fTol, op.tris,
+				bStrips ? &op.quads : nullptr);
 			break;
 		case Op::RECT:
 			gpu::RectTriangles(op.rect.left * fScale, op.rect.top * fScale,
@@ -898,6 +994,8 @@ void MetalRenderer::Encode()
 		for (Op& op : m_aOp) {
 			op.iVert = nVert;
 			nVert += op.tris.size();
+			op.iQuad = nVert;
+			nVert += op.quads.size();
 		}
 		m_stats.nVertices = nVert;
 		size_t	nBytes = std::max<size_t>(nVert, 1) * sizeof(gpu::Vec2);
@@ -909,6 +1007,8 @@ void MetalRenderer::Encode()
 		for (const Op& op : m_aOp) {
 			if (!op.tris.empty())
 				std::memcpy(&pDst[op.iVert], op.tris.data(), op.tris.size() * sizeof(gpu::Vec2));
+			if (!op.quads.empty())
+				std::memcpy(&pDst[op.iQuad], op.quads.data(), op.quads.size() * sizeof(gpu::Vec2));
 		}
 
 		if (!m_nSamples && m_bAntialias) {
@@ -1180,9 +1280,37 @@ void MetalRenderer::EncodeCoverage()
 			case Op::FILL:
 			case Op::STROKE:
 			case Op::RECT: {
-				if (op.tris.empty())
+				if (op.tris.empty() && op.quads.empty())
 					break;
 				if (((m_nAblate & 4) && op.type == Op::FILL) || ((m_nAblate & 8) && op.type == Op::STROKE))
+					break;
+				if (!op.quads.empty()) {	// stroke strips: quads and the remaining join triangles, one mask
+					NSUInteger	nQuad = op.quads.size() / 4, nTri = op.tris.size() / 3;
+					[enc setVertexBufferOffset:op.iQuad * sizeof(gpu::Vec2) atIndex:0];
+					[enc setFragmentBufferOffset:op.iQuad * sizeof(gpu::Vec2) atIndex:1];
+					[enc setRenderPipelineState:im.cov.maskOrQuad];
+					[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6 instanceCount:nQuad];
+					if (nTri) {
+						[enc setVertexBufferOffset:op.iVert * sizeof(gpu::Vec2) atIndex:0];
+						[enc setFragmentBufferOffset:op.iVert * sizeof(gpu::Vec2) atIndex:1];
+						[enc setRenderPipelineState:im.cov.maskOr];
+						[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:12 instanceCount:nTri];
+					}
+					if (!(m_nAblate & 2)) {
+						[enc setFragmentBytes:clr length:sizeof(clr) atIndex:0];
+						[enc setVertexBufferOffset:op.iQuad * sizeof(gpu::Vec2) atIndex:0];
+						[enc setRenderPipelineState:im.cov.coverQuad];
+						[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6 instanceCount:nQuad];
+						if (nTri) {
+							[enc setVertexBufferOffset:op.iVert * sizeof(gpu::Vec2) atIndex:0];
+							[enc setRenderPipelineState:im.cov.cover];
+							[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:12 instanceCount:nTri];
+						}
+					}
+					nDraws += 4;
+					break;
+				}
+				if (op.tris.empty())
 					break;
 				NSUInteger	nTri = op.tris.size() / 3;
 				if (m_bProfile)

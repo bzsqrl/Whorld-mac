@@ -158,30 +158,82 @@ void FlattenFigure(const PointF* pStart, int nSegments, bool bCurved, float fSca
 }
 
 void StrokeContours(const Contour* pContour, size_t nContours, float fWidth, float fTolerance,
-	std::vector<Vec2>& tris)
+	std::vector<Vec2>& tris, std::vector<Vec2>* pQuads)
 {
 	float	hw = std::fabs(fWidth) / 2;
 	if (!(hw > 0))
 		return;
 	std::vector<Vec2>	dir;
+	std::vector<float>	len, shift;	// strips: segment lengths, inner shift at each point
+	std::vector<Vec2>	ofs;	// strips: offset from point i to its shared edge's + end (0: no strip)
+	// a strip point's miter reaches hw / cos(theta / 2) instead of hw
+	const float	fMinCosHalf = 1 / (1 + fTolerance / hw);
 	for (size_t c = 0; c < nContours; c++) {
 		const Contour&	ct = pContour[c];
 		size_t	n = ct.pts.size();
 		if (n < 2)
 			continue;
 		dir.resize(n);
+		len.resize(n);
 		for (size_t i = 0; i < n; i++) {	// segment i: point i to point i + 1
 			Vec2	d = ct.pts[(i + 1) % n] - ct.pts[i];
+			len[i] = Len(d);
 			if (!Normalize(d))
 				d = Vec2{1, 0};	// can't happen after merging duplicates
 			dir[i] = d;
-			Vec2	nrm = Perp(d) * hw;
-			Vec2	p0 = ct.pts[i], p1 = ct.pts[(i + 1) % n];
-			Tri(tris, p0 + nrm, p0 - nrm, p1 + nrm);
-			Tri(tris, p1 + nrm, p0 - nrm, p1 - nrm);
 		}
-		for (size_t i = 0; i < n; i++)	// join at point i
-			Join(tris, ct.pts[i], dir[(i + n - 1) % n], dir[i], hw, ct.corner[i] != 0, fTolerance);
+		if (!pQuads || n < 3) {
+			for (size_t i = 0; i < n; i++) {
+				Vec2	nrm = Perp(dir[i]) * hw;
+				Vec2	p0 = ct.pts[i], p1 = ct.pts[(i + 1) % n];
+				Tri(tris, p0 + nrm, p0 - nrm, p1 + nrm);
+				Tri(tris, p1 + nrm, p0 - nrm, p1 - nrm);
+			}
+			for (size_t i = 0; i < n; i++)	// join at point i
+				Join(tris, ct.pts[i], dir[(i + n - 1) % n], dir[i], hw, ct.corner[i] != 0, fTolerance);
+			continue;
+		}
+		// which points join their segments in a strip
+		ofs.assign(n, Vec2{0, 0});
+		shift.assign(n, 0);
+		for (size_t i = 0; i < n; i++) {
+			if (ct.corner[i])
+				continue;	// Direct2D miter: keep the exact join
+			Vec2	a = dir[(i + n - 1) % n], b = dir[i];
+			float	cosT = Dot(a, b);
+			if (!(cosT > 0))
+				continue;
+			float	cosHalf = std::sqrt((1 + cosT) / 2);
+			if (cosHalf < fMinCosHalf)
+				continue;
+			Vec2	m = Perp(a) + Perp(b);	// bisector, on the + (left) side
+			if (!Normalize(m))
+				continue;
+			ofs[i] = m * (hw / cosHalf);
+			shift[i] = hw * std::sqrt(std::max(0.f, 1 - cosHalf * cosHalf)) / cosHalf;	// hw tan(theta / 2)
+		}
+		for (size_t i = 0; i < n; i++) {	// the inner side mustn't fold over a short segment
+			size_t	j = (i + 1) % n;
+			if (shift[i] + shift[j] >= len[i] * 0.5f) {
+				ofs[i] = ofs[j] = Vec2{0, 0};
+				shift[i] = shift[j] = 0;
+			}
+		}
+		auto	IsStrip = [&](size_t i) { return ofs[i].x != 0 || ofs[i].y != 0; };
+		for (size_t i = 0; i < n; i++) {	// segment i as a quad
+			size_t	j = (i + 1) % n;
+			Vec2	p0 = ct.pts[i], p1 = ct.pts[j];
+			Vec2	nrm = Perp(dir[i]) * hw;
+			Vec2	o0 = IsStrip(i) ? ofs[i] : nrm, o1 = IsStrip(j) ? ofs[j] : nrm;
+			pQuads->push_back(p0 + o0);
+			pQuads->push_back(p1 + o1);
+			pQuads->push_back(p1 - o1);
+			pQuads->push_back(p0 - o0);
+		}
+		for (size_t i = 0; i < n; i++) {	// joins at the other points
+			if (!IsStrip(i))
+				Join(tris, ct.pts[i], dir[(i + n - 1) % n], dir[i], hw, ct.corner[i] != 0, fTolerance);
+		}
 	}
 }
 
