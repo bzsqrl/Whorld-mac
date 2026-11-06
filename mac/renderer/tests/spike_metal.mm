@@ -424,7 +424,7 @@ void Perf(const std::vector<std::string>& aPatch, const std::vector<int>& aSampl
 						std::printf("    %-6s ops %5zu  tris %8zu  area %6.2f screens  rasterized %6.2f screens per draw\n",
 							aName[t], p.nOps[t], p.nTris[t], p.fArea[t] / fScreen, p.fPx[t] / fScreen);
 				}
-				std::printf("    box tris %zu, draws %zu\n", p.nBoxTris, mr.GetStats().nDraws);
+				std::printf("    hexagon tris %zu, draws %zu\n", p.nBoxTris, mr.GetStats().nDraws);
 				uint32_t	aCnt[7];
 				if (mr.GetFragmentCounts(aCnt)) {
 					const char	*aCat[7] = {"degenerate", "outside", "full", "1 edge", "2 edges", "3 edges", "empty after loop"};
@@ -432,7 +432,7 @@ void Perf(const std::vector<std::string>& aPatch, const std::vector<int>& aSampl
 					for (uint32_t c : aCnt) fTot += c;
 					std::printf("    mask fragments %.2f screens:", fTot / fScreen);
 					for (int i = 0; i < 7; i++)
-						std::printf(" %s %.0f%%", aCat[i], fTot ? 100 * aCnt[i] / fTot : 0);
+						std::printf(" %s %.0f%%", aCat[i], fTot ? 100.0 * aCnt[i] / fTot : 0);
 					std::printf("\n");
 				}
 			}

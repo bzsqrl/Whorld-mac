@@ -65,55 +65,62 @@ fragment float4 fsCopy(VOut in [[stage_in]], texture2d<float> src [[texture(0)]]
 // coverage = set bits / 64 and clears the mask. That is how Direct2D blends
 // a shape: by its own coverage, independently of other shapes.
 
+// Only the triangle's index is passed to the fragments: on Apple GPUs each
+// flat input is fetched again per fragment, and passing the edges' setup
+// (21 values) cost more than all of the coverage math. The fragment shader
+// reads the triangle's vertices from the vertex buffer instead.
 struct TOut {
 	float4 pos [[position]];
-	float2 a [[flat]];
-	float2 b [[flat]];
-	float2 c [[flat]];
+	uint tri [[flat]];
 };
 
-// One instance per triangle (three float2 at buffer 0). The rasterized
-// shape is the triangle grown by 0.75 px, so that every pixel the triangle
-// touches gets a fragment; very thin triangles use their grown bounding box
-// instead. Vertices 3..5 are only used for the box.
+constant int kLutAngles = 512, kLutDists = 256;
+constant float kLutR = 0.7072;	// just over half the pixel diagonal
+
+// One instance per triangle (three float2 at buffer 0), 12 vertices: a fan
+// of four triangles. The rasterized shape is the triangle grown by 0.75 px,
+// so that every pixel the triangle touches gets a fragment. Triangles with
+// a corner sharper than about 33 degrees, whose mitered corners would reach
+// far out, use a hexagon instead: each edge pushed out by 0.75 px and
+// extended 0.75 px past both ends, the corners cut flat. (A bounding box was
+// used before; for long thin stroke triangles its area grows with the square
+// of their length.) Mitered triangles use vertices 0..2 only.
 vertex TOut vsTri(uint vid [[vertex_id]], uint iid [[instance_id]],
 	const device float2 *v [[buffer(0)]], constant float2 &size [[buffer(1)]])
 {
 	float2 a = v[iid * 3], b = v[iid * 3 + 1], c = v[iid * 3 + 2];
 	TOut o;
-	o.a = a; o.b = b; o.c = c;
+	o.tri = iid;
 #if ABLATE_NOGROW
 	const float d = 0.0;
 #else
 	const float d = 0.75;
 #endif
 	float area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-	float2 p;
-	bool bBox = true;
+	float2 p = a;	// degenerate: nothing to draw
 	if (area != 0) {
-		// outward unit normals of the edges ab, bc, ca
+		// edge directions and outward unit normals of ab, bc, ca
 		float s = area > 0 ? 1 : -1;
 		float2 eab = normalize(b - a), ebc = normalize(c - b), eca = normalize(a - c);
 		float2 nab = s * float2(eab.y, -eab.x), nbc = s * float2(ebc.y, -ebc.x), nca = s * float2(eca.y, -eca.x);
 		float ka = 1 + dot(nca, nab), kb = 1 + dot(nab, nbc), kc = 1 + dot(nbc, nca);
-		if (min(ka, min(kb, kc)) > 0.08) {	// no corner sharper than about 33 degrees
-			bBox = false;
-			if (vid >= 3) {
-				p = a;	// degenerate: unused
-			} else {
-				float2 q = vid == 0 ? a : vid == 1 ? b : c;
-				float2 n1 = vid == 0 ? nca : vid == 1 ? nab : nbc;
-				float2 n2 = vid == 0 ? nab : vid == 1 ? nbc : nca;
+		// fan triangle t = vid / 3 has hexagon corners 0, t + 1, t + 2
+		uint t = vid / 3, j = vid % 3;
+		uint h = j == 0 ? 0 : t + j;
+		if (min(ka, min(kb, kc)) > 0.08) {	// mitered triangle: fan triangle 0 only
+			if (t == 0) {
+				float2 q = j == 0 ? a : j == 1 ? b : c;
+				float2 n1 = j == 0 ? nca : j == 1 ? nab : nbc;
+				float2 n2 = j == 0 ? nab : j == 1 ? nbc : nca;
 				p = q + (n1 + n2) * (d / (1 + dot(n1, n2)));
 			}
+		} else {	// hexagon: two corners per vertex, the incoming edge's then the outgoing's
+			uint k = h / 2;
+			float2 q = k == 0 ? a : k == 1 ? b : c;
+			float2 eIn = k == 0 ? eca : k == 1 ? eab : ebc, nIn = k == 0 ? nca : k == 1 ? nab : nbc;
+			float2 eOut = k == 0 ? eab : k == 1 ? ebc : eca, nOut = k == 0 ? nab : k == 1 ? nbc : nca;
+			p = (h & 1) ? q + d * (nOut - eOut) : q + d * (nIn + eIn);
 		}
-	}
-	if (bBox) {
-		float2 lo = min(a, min(b, c)) - d, hi = max(a, max(b, c)) + d;
-		const uint2 k[6] = {uint2(0, 0), uint2(1, 0), uint2(0, 1), uint2(1, 0), uint2(1, 1), uint2(0, 1)};
-		p = float2(k[vid].x ? hi.x : lo.x, k[vid].y ? hi.y : lo.y);
-		if (area == 0)
-			p = lo;	// nothing to draw
 	}
 	o.pos = float4(p.x / size.x * 2 - 1, 1 - p.y / size.y * 2, 0, 1);
 	return o;
@@ -121,54 +128,53 @@ vertex TOut vsTri(uint vid [[vertex_id]], uint iid [[instance_id]],
 
 // 64 sample positions in a pixel, n-rooks: x = (k + 0.5) / 64, y = ((37k mod 64) + 0.5) / 64
 //
-// Each edge p -> q becomes a linear form e(s) = A s.x + B s.y + C, built from
-// the endpoints in a canonical order, so the two triangles sharing an edge
-// get exactly opposite forms, and a sample on the edge (e = 0) is given to
-// exactly one of them, by the sign of the gradient (A, B).
+// Edge p -> q of a triangle with orientation sign, at the pixel's corner o.
+// The edge's canonical form takes its endpoints in a fixed order (u, w):
+// e0(x) = A (x.x - u.x) + B (x.y - u.y), A = -(w.y - u.y), B = w.x - u.x,
+// and the triangle's inside is g e0 > 0. Per pixel, base = e0(o) and
+// e0(o + s) = base + A s.x + B s.y. Both triangles sharing the edge compute
+// the same A, B and base, and opposite g, so a sample goes to exactly one of
+// them; one on the edge (value 0) by the sign of the gradient g (A, B).
 struct Edge {
-	float A, B, C;
-	bool tie;	// inside when e = 0
-	float g;	// +1 or -1: (A, B, C) * g is the canonical form, shared by both sides
+	float A, B, base;	// canonical
+	float g;
 };
 
-inline Edge MakeEdge(float2 p, float2 q, float sign)
+inline Edge PixelEdge(float2 p, float2 q, float sign, float2 o)
 {
 	bool swap = p.x > q.x || (p.x == q.x && p.y > q.y);
 	float2 u = swap ? q : p, w = swap ? p : q;
-	float g = swap ? -sign : sign;
-	float dx = w.x - u.x, dy = w.y - u.y;
-	Edge e;
-	e.A = -dy * g;
-	e.B = dx * g;
-	e.C = (dy * u.x - dx * u.y) * g;
-	e.tie = e.A > 0 || (e.A == 0 && e.B > 0);
-	e.g = g;
-	return e;
+	Edge x;
+	x.A = -(w.y - u.y);
+	x.B = w.x - u.x;
+	x.base = fma(x.A, o.x - u.x, x.B * (o.y - u.y));
+	x.g = swap ? -sign : sign;
+	return x;
 }
 
 // Sample mask of one edge from the lookup table (see BuildMaskTable): rows
-// are the canonical normal's angle, columns its signed distance from the
-// pixel center. Both triangles sharing an edge compute the same canonical
-// form, hence the same entry, and the one on the other side takes its
-// complement, so they split the samples exactly.
-constant int kLutAngles = 512, kLutDists = 256;
-constant float kLutR = 0.7072;	// just over half the pixel diagonal
-
+// are the canonical normal's direction as a "diamond angle" in [0, 4) (no
+// atan2), columns its signed distance from the pixel center. Both triangles
+// sharing an edge read the same entry, and the one on the other side takes
+// its complement, so they split the samples exactly.
 inline uint2 EdgeMask(Edge e, texture2d<uint> lut)
 {
-	float A0 = e.A * e.g, B0 = e.B * e.g, C0 = e.C * e.g;
-	float len = sqrt(A0 * A0 + B0 * B0);
-	float r = -(C0 + 0.5 * (A0 + B0)) / len;
-	int i = int(rint(atan2(B0, A0) * (kLutAngles / (2 * M_PI_F)))) & (kLutAngles - 1);
-	int j = clamp(int(rint((r + kLutR) * ((kLutDists - 1) / (2 * kLutR)))), 0, kLutDists - 1);
-	uint2 m = lut.read(uint2(j, i)).xy;
+	float p = e.B / (abs(e.A) + abs(e.B));
+	float da = e.A >= 0 ? (e.B >= 0 ? p : 4 + p) : 2 - p;
+	uint row = uint(int(rint(da * (kLutAngles / 4)))) & (kLutAngles - 1);
+	// distance of the center from the edge, in table columns: -e0(center) / len
+	float c = e.base + 0.5 * (e.A + e.B);
+	float k = ((kLutDists - 1) / (2 * kLutR)) * rsqrt(e.A * e.A + e.B * e.B);
+	int j = clamp(int(rint(fma(-c, k, (kLutDists - 1) * 0.5))), 0, kLutDists - 1);
+	uint2 m = lut.read(uint2(j, row)).xy;
 	return e.g > 0 ? m : ~m;
 }
 
 inline bool Inside(Edge e, float2 s)
 {
-	float v = fma(e.A, s.x, fma(e.B, s.y, e.C));
-	return v > 0 || (v == 0 && e.tie);
+	float v = fma(e.A, s.x, fma(e.B, s.y, e.base)) * e.g;	// exact: g is +1 or -1
+	float A = e.A * e.g, B = e.B * e.g;
+	return v > 0 || (v == 0 && (A > 0 || (A == 0 && B > 0)));
 }
 
 inline float2 Sample(uint k)
@@ -190,48 +196,61 @@ inline float2 Sample(uint k)
 
 // fragment counts (PROF_COUNT): 0 degenerate, 1 outside an edge, 2 full,
 // 3..5 one..three crossing edges, 6 no sample covered after the loop
-inline uint2 TriangleMask(TOut in, texture2d<uint> lut CNT_ARG)
+inline uint2 TriangleMask(TOut in, const device float2 *v, texture2d<uint> lut CNT_ARG)
 {
-	float2 o = floor(in.pos.xy);
-	float2 a = in.a - o, b = in.b - o, c = in.c - o;
+#if ABLATE_ALL
+	return uint2(0xFFFFFFFF);	// timing only: raster and framebuffer cost
+#endif
+	float2 a = v[in.tri * 3], b = v[in.tri * 3 + 1], c = v[in.tri * 3 + 2];
 	float area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
 	if (area == 0) {
 		COUNT(0);
 		return uint2(0);
 	}
 	float sg = area > 0 ? 1 : -1;
-	Edge e3[3] = {MakeEdge(a, b, sg), MakeEdge(b, c, sg), MakeEdge(c, a, sg)};
+	float2 o = floor(in.pos.xy);
+	Edge e3[3] = {PixelEdge(a, b, sg, o), PixelEdge(b, c, sg, o), PixelEdge(c, a, sg, o)};
 	// Classify each edge by the pixel's corners (e is linear, so the samples
 	// lie between the corner values): all outside, the pixel is empty; all
-	// inside, the edge can't exclude a sample. Only crossing edges are tested.
-	Edge x[3];
+	// inside, the edge can't exclude a sample. Only crossing edges are tested,
+	// each ANDing its mask in as it's found: no array indexed at run time,
+	// which would move to stack memory.
+	uint2 m = uint2(0xFFFFFFFF);
 	int n = 0;
+#if EXACT_LOOP
+	Edge x[3];
+#endif
 	for (int i = 0; i < 3; i++) {
 		Edge e = e3[i];
-		float v00 = e.C, v10 = e.A + e.C, v01 = e.B + e.C, v11 = e.A + e.B + e.C;
+		float v00 = e.base, v10 = e.A + e.base, v01 = e.B + e.base, v11 = e.A + e.B + e.base;
 		float lo = min(min(v00, v10), min(v01, v11)), hi = max(max(v00, v10), max(v01, v11));
+		if (e.g < 0) {
+			float t = lo;
+			lo = -hi;
+			hi = -t;
+		}
 		if (hi < 0) {
 			COUNT(1);
 			return uint2(0);
 		}
 		if (lo > 0)
 			continue;
-		x[n++] = e;
+		n++;
+#if ABLATE_LOOP
+		m = uint2(0x55555555);	// half coverage, no per-sample tests
+#elif EXACT_LOOP
+		x[n - 1] = e;
+#else
+		m &= EdgeMask(e, lut);
+#endif
 	}
 	if (n == 0) {
 		COUNT(2);
-		return uint2(0xFFFFFFFF);
+		return m;
 	}
 	COUNT(2 + n);
-#if ABLATE_LOOP
-	return uint2(0x55555555);	// half coverage, no per-sample tests
-#endif
-#if !EXACT_LOOP
-	uint2 m = EdgeMask(x[0], lut);
-	if (n > 1) m &= EdgeMask(x[1], lut);
-	if (n > 2) m &= EdgeMask(x[2], lut);
-#else
-	uint2 m = uint2(0);
+#if EXACT_LOOP
+	m = uint2(0);
 	if (n == 1) {
 		Edge e = x[0];
 		for (uint k = 0; k < 32; k++) {
@@ -240,7 +259,7 @@ inline uint2 TriangleMask(TOut in, texture2d<uint> lut CNT_ARG)
 		}
 	} else {
 		Edge e0 = x[0], e1 = x[1];
-		Edge e2 = n == 3 ? x[2] : Edge{0, 0, 1, false};	// always inside
+		Edge e2 = n == 3 ? x[2] : Edge{0, 0, 1, 1};	// always inside
 		for (uint k = 0; k < 32; k++) {
 			float2 s = Sample(k), t = Sample(k + 32);
 			m.x |= uint(Inside(e0, s) && Inside(e1, s) && Inside(e2, s)) << k;
@@ -262,26 +281,38 @@ struct FBOut {
 // fragment that covers no sample is discarded: overlapping fragments on a
 // pixel wait for each other only where they touch the framebuffer.
 fragment FBOut fsMaskOr(TOut in [[stage_in]], uint2 m [[color(1)]],
-	texture2d<uint> lut [[texture(0)]] CNT_PARAM)
+	const device float2 *v [[buffer(1)]], texture2d<uint> lut [[texture(0)]] CNT_PARAM)
 {
-	uint2 t = TriangleMask(in, lut CNT_PASS);
+	uint2 t = TriangleMask(in, v, lut CNT_PASS);
+#if !NO_DISCARD
 	if (!any(t != 0))
 		discard_fragment();
+#endif
 	FBOut o;
 	o.color = float4(0);	// not written (write mask)
+#if ABLATE_FETCH
+	o.mask = t;	// timing only: wrong output
+#else
 	o.mask = m | t;
+#endif
 	return o;
 }
 
 fragment FBOut fsMaskXor(TOut in [[stage_in]], uint2 m [[color(1)]],
-	texture2d<uint> lut [[texture(0)]] CNT_PARAM)
+	const device float2 *v [[buffer(1)]], texture2d<uint> lut [[texture(0)]] CNT_PARAM)
 {
-	uint2 t = TriangleMask(in, lut CNT_PASS);
+	uint2 t = TriangleMask(in, v, lut CNT_PASS);
+#if !NO_DISCARD
 	if (!any(t != 0))
 		discard_fragment();
+#endif
 	FBOut o;
 	o.color = float4(0);
+#if ABLATE_FETCH
+	o.mask = t;	// timing only: wrong output
+#else
 	o.mask = m ^ t;
+#endif
 	return o;
 }
 
@@ -315,10 +346,11 @@ fragment float4 fsMirror(VOut in [[stage_in]], texture2d<float> src [[texture(0)
 }
 )";
 
-// Coverage mode edge lookup table; must match kLut* in the shader. Entry
-// (angle i, distance j) holds the mask of the 64 samples s with
-// dot(n, s - center) > r, for n = (cos, sin)(2 pi i / kLutAngles) and
-// r = -kLutR + 2 kLutR j / (kLutDists - 1). Samples as Sample() in the shader.
+// Coverage mode edge lookup table; must match kLut* and EdgeMask in the
+// shader. Entry (row i, column j) holds the mask of the 64 samples s with
+// dot(n, s - center) > r, for n the unit direction at diamond angle
+// 4 i / kLutAngles and r = -kLutR + 2 kLutR j / (kLutDists - 1). Samples as
+// Sample() in the shader.
 const int	kLutAngles = 512, kLutDists = 256;
 const float	kLutR = 0.7072f;
 
@@ -331,8 +363,14 @@ void BuildMaskTable(std::vector<uint32_t>& aLut)
 		sy[k] = (((k * 37) & 63) + 0.5f) / 64 - 0.5f;
 	}
 	for (int i = 0; i < kLutAngles; i++) {
-		double	a = 2 * M_PI * i / kLutAngles;
-		float	nx = float(std::cos(a)), ny = float(std::sin(a));
+		// diamond angle da in [0, 4) -> a point on |x| + |y| = 1, normalized
+		double	da = 4.0 * i / kLutAngles, x, y;
+		if (da < 1) { x = 1 - da; y = da; }
+		else if (da < 2) { x = 1 - da; y = 2 - da; }
+		else if (da < 3) { x = da - 3; y = 2 - da; }
+		else { x = da - 3; y = da - 4; }
+		double	len = std::sqrt(x * x + y * y);
+		float	nx = float(x / len), ny = float(y / len);
 		for (int j = 0; j < kLutDists; j++) {
 			float	r = -kLutR + 2 * kLutR * j / (kLutDists - 1);
 			uint32_t	*p = &aLut[(size_t(i) * kLutDists + j) * 2];
@@ -499,14 +537,17 @@ MetalRenderer::MetalRenderer(int nWidth, int nHeight, double fScale, int nSample
 	NSError	*err = nil;
 	// profiling: WHORLD_MTL_ABLATE bits turn parts of coverage mode off
 	// (1 per-sample loop, 2 cover draw, 4 fills, 8 strokes, 16 triangle growth,
-	// 64 exact per-sample loop instead of the lookup table);
+	// 64 exact per-sample loop instead of the lookup table, 128 mask draws
+	// don't read the mask, 256 no mask computation at all, 512 no discard);
 	// WHORLD_MTL_PROFILE counts pixels and fragments (and slows the GPU)
 	m_nAblate = getenv("WHORLD_MTL_ABLATE") ? atoi(getenv("WHORLD_MTL_ABLATE")) : 0;
 	m_bProfile = getenv("WHORLD_MTL_PROFILE") != nullptr;
 	MTLCompileOptions	*co = [MTLCompileOptions new];
 	co.preprocessorMacros = @{@"ABLATE_LOOP": @((m_nAblate & 1) ? 1 : 0),
 		@"ABLATE_NOGROW": @((m_nAblate & 16) ? 1 : 0), @"PROF_COUNT": @(m_bProfile ? 1 : 0),
-		@"EXACT_LOOP": @((m_nAblate & 64) ? 1 : 0)};
+		@"EXACT_LOOP": @((m_nAblate & 64) ? 1 : 0), @"ABLATE_FETCH": @((m_nAblate & 128) ? 1 : 0),
+		@"ABLATE_ALL": @((m_nAblate & 256) ? 1 : 0),
+		@"NO_DISCARD": @((m_nAblate & 512) ? 1 : 0)};
 	im.library = [im.device newLibraryWithSource:@(kShaderSource) options:co error:&err];
 	if (!im.library) {
 		NSLog(@"MetalRenderer: shaders: %@", err);
@@ -955,10 +996,18 @@ void MetalRenderer::ProfileOp(const Op& op)
 			};
 			gpu::Vec2	A = grow(a, nca, nab), B = grow(b, nab, nbc), C = grow(c, nbc, nca);
 			fPx += std::fabs((B.x - A.x) * (C.y - A.y) - (B.y - A.y) * (C.x - A.x)) / 2;
-		} else {
-			float	w = std::max(a.x, std::max(b.x, c.x)) - std::min(a.x, std::min(b.x, c.x)) + 2 * d;
-			float	h = std::max(a.y, std::max(b.y, c.y)) - std::min(a.y, std::min(b.y, c.y)) + 2 * d;
-			fPx += double(w) * h;
+		} else {	// hexagon, as vsTri
+			gpu::Vec2	q[3] = {a, b, c}, e[3] = {eca, eab, ebc}, n[3] = {nca, nab, nbc};
+			gpu::Vec2	hx[6];
+			for (int k = 0; k < 3; k++) {
+				int	o = (k + 1) % 3;
+				hx[2 * k] = {q[k].x + d * (n[k].x + e[k].x), q[k].y + d * (n[k].y + e[k].y)};
+				hx[2 * k + 1] = {q[k].x + d * (n[o].x - e[o].x), q[k].y + d * (n[o].y - e[o].y)};
+			}
+			double	f = 0;
+			for (int k = 0; k < 6; k++)
+				f += double(hx[k].x) * hx[(k + 1) % 6].y - double(hx[(k + 1) % 6].x) * hx[k].y;
+			fPx += std::fabs(f) / 2;
 			m_stats.prof.nBoxTris++;
 		}
 	}
@@ -1012,6 +1061,7 @@ void MetalRenderer::EncodeCoverage()
 		[enc setVertexBuffer:im.vertices offset:0 atIndex:0];
 		[enc setVertexBytes:size length:sizeof(size) atIndex:1];
 		[enc setFragmentTexture:im.maskLut atIndex:0];
+		[enc setFragmentBuffer:im.vertices offset:0 atIndex:1];
 		if (m_bProfile)
 			[enc setFragmentBuffer:im.counts offset:0 atIndex:2];
 		for (size_t i = iOp; i < iEnd; i++) {
@@ -1038,13 +1088,14 @@ void MetalRenderer::EncodeCoverage()
 				if (m_bProfile)
 					ProfileOp(op);
 				[enc setVertexBufferOffset:op.iVert * sizeof(gpu::Vec2) atIndex:0];
+				[enc setFragmentBufferOffset:op.iVert * sizeof(gpu::Vec2) atIndex:1];
 				[enc setRenderPipelineState:op.type == Op::FILL ? im.cov.maskXor : im.cov.maskOr];
-				[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6 instanceCount:nTri];
+				[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:12 instanceCount:nTri];
 				nDraws++;
 				if (!(m_nAblate & 2)) {
 					[enc setRenderPipelineState:im.cov.cover];
 					[enc setFragmentBytes:clr length:sizeof(clr) atIndex:0];
-					[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6 instanceCount:nTri];
+					[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:12 instanceCount:nTri];
 					nDraws++;
 				}
 				break;
