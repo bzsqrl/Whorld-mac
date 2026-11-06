@@ -659,6 +659,13 @@ struct WhorldApp: App {
 	@NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 	@StateObject private var model = AppModel.shared
 
+	init() {
+		// No automatic Enter Full Screen item (it drives macOS's full screen,
+		// which Whorld doesn't use): the View menu has Whorld's own. AppKit
+		// reads this before the app delegate runs.
+		UserDefaults.standard.register(defaults: ["NSFullScreenMenuItemEverywhere": false])
+	}
+
 	var body: some Scene {
 		Window("Whorld", id: "main") {
 			ContentView()

@@ -146,6 +146,14 @@ struct WhorldCommands: Commands {
 		}
 
 		CommandGroup(after: .toolbar) {
+			// Whorld's own full screen (FullScreen.swift) with the Mac
+			// shortcut. It replaces AppKit's automatic Enter Full Screen item,
+			// which drives macOS's full screen (turned off; see AppDelegate).
+			// F11, the Windows shortcut, is on the Window menu's item; on most
+			// Mac keyboards it doesn't reach apps (a media key, or fn-F11 for
+			// Show Desktop).
+			Button(model.isFullScreen ? "Exit Full Screen" : "Enter Full Screen") { model.toggleFullScreen() }
+				.keyboardShortcut("f", modifiers: [.control, .command])
 			Toggle("Full Resolution", isOn: $model.fullResolution)
 			Toggle("Show Frame Rate", isOn: $model.showFrameRate)
 				.keyboardShortcut("f", modifiers: [.command, .shift])
