@@ -13,6 +13,7 @@
 #include "CGRenderer.h"
 #include "whorld/Patch.h"
 #include "whorld/Snapshot.h"
+#include "whorld/WhorldEngine.h"
 
 #include <memory>
 
@@ -25,6 +26,12 @@ struct SnapshotExportOptions {
 	bool	bLetterbox = true;		// snapshot letterbox option
 	bool	bDeferred = false;		// CGBitmapRenderer deferred mode
 };
+
+// Sets up an engine to export a snapshot as Windows "Snapshot > Export All"
+// does (display the snapshot in snapshot mode) and returns the bitmap size.
+// Then draw with eng.DrawCapture(renderer, opts.nFlags, opts.szImage).
+IntSize	PrepareSnapshotExport(WhorldEngine& eng, const Snapshot& snapshot,
+	const SnapshotExportOptions& opts);
 
 // Reproduce Windows "Snapshot > Export All" for one snapshot: display the
 // snapshot in the engine (snapshot mode), then capture a bitmap.

@@ -19,3 +19,9 @@ endfunction()
 whorld_add_renderer_test(test_cgrenderer)
 whorld_add_renderer_test(test_golden)
 whorld_add_renderer_test(test_video)
+
+# Phase 8 spike: run by hand, not by ctest
+add_executable(spike_metal spike_metal.mm)
+target_link_libraries(spike_metal PRIVATE whorld_renderer)
+target_compile_options(spike_metal PRIVATE -Wall -Wextra -fobjc-arc)
+target_compile_definitions(spike_metal PRIVATE WHORLD_TESTDATA_DIR="${PROJECT_SOURCE_DIR}/testdata")

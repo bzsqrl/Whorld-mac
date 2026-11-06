@@ -11,17 +11,23 @@
 
 namespace whorld {
 
-std::unique_ptr<CGBitmapRenderer> RenderSnapshotExport(const Snapshot& snapshot,
+IntSize PrepareSnapshotExport(WhorldEngine& eng, const Snapshot& snapshot,
 	const SnapshotExportOptions& opts)
 {
-	WhorldEngine	eng;
 	SizeF	szView = opts.szView;
 	if (!(szView.width > 0 && szView.height > 0))
 		szView = SizeF{float(opts.szImage.cx), float(opts.szImage.cy)};
 	eng.OnResize(szView);
 	eng.SetSnapshotLetterbox(opts.bLetterbox);
 	eng.OnDisplaySnapshot(snapshot);	// CMainFrame::OnSnapshotExportAll: LoadSnapshot
-	IntSize	sz = eng.GetCaptureSize(opts.nFlags, opts.szImage);	// then CaptureBitmap
+	return eng.GetCaptureSize(opts.nFlags, opts.szImage);	// then CaptureBitmap
+}
+
+std::unique_ptr<CGBitmapRenderer> RenderSnapshotExport(const Snapshot& snapshot,
+	const SnapshotExportOptions& opts)
+{
+	WhorldEngine	eng;
+	IntSize	sz = PrepareSnapshotExport(eng, snapshot, opts);
 	auto	pRenderer = std::make_unique<CGBitmapRenderer>(sz.cx, sz.cy, 1);
 	if (!pRenderer->IsValid())
 		return nullptr;
