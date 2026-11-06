@@ -26,7 +26,14 @@ enum Preferences {
 			"Snapshot_bLetterbox": true,
 			"Snapshot_iLegacySize": 1,
 			"Midi_sInputDevice": "",
+			"Render_bMetal": true,
 		])
+	}
+
+	/// Live view renderer: Metal (true) or Core Graphics (new in the Mac port)
+	static var preferMetal: Bool {
+		register()
+		return defaults.bool(forKey: "Render_bMetal")
 	}
 
 	/// MIDI input device, by name (the Windows option stores an index)
@@ -60,9 +67,22 @@ struct PreferencesView: View {
 	@AppStorage("Snapshot_iLegacySize") private var legacySize = 1
 
 	@AppStorage("Midi_sInputDevice") private var midiInput = ""
+	@AppStorage("Render_bMetal") private var useMetal = true
 
 	var body: some View {
 		Form {
+			Section("Rendering") {
+				Picker("Renderer", selection: $useMetal) {
+					Text("Metal (GPU)").tag(true)
+					Text("Core Graphics (CPU)").tag(false)
+				}
+				.onChange(of: useMetal) { _, on in model.engine.preferMetal = on }
+				Text(WHEngine.metalAvailable
+					? "For the live view. Exports always use Core Graphics."
+					: "Metal needs a Mac with Apple silicon; the live view uses Core Graphics.")
+					.font(.caption)
+					.foregroundStyle(.secondary)
+			}
 			Section("MIDI") {
 				let _ = model.revision
 				Picker("Input device", selection: $midiInput) {
@@ -131,7 +151,7 @@ struct PreferencesView: View {
 			}
 		}
 		.formStyle(.grouped)
-		.frame(width: 460, height: 620)
+		.frame(width: 460, height: 700)
 		.onAppear { Preferences.register() }
 	}
 

@@ -262,12 +262,21 @@ typedef struct {
 // Movie errors from the render thread (OnMovieError), on the main thread.
 @property (nonatomic, copy, nullable) void (^movieErrorHandler)(NSString *message);
 
+// Renderer for the live view: YES for Metal (the default), NO for Core
+// Graphics. Metal falls back to Core Graphics on its own if this Mac can't
+// run it (it needs an Apple GPU) or a frame fails; setting YES retries it.
+// Exports always use Core Graphics.
+@property (nonatomic) BOOL preferMetal;
+@property (class, nonatomic, readonly) BOOL metalAvailable;
+
 // Playlist patch list editing
 - (void)setPlaylistPatches:(NSArray<NSString *> *)paths;
 
 // Statistics, updated about once a second on the main thread.
 @property (nonatomic, readonly) double framesPerSecond;	// frames delivered
-@property (nonatomic, readonly) double renderMilliseconds;	// mean draw time
+@property (nonatomic, readonly) double renderMilliseconds;	// mean draw time (CPU)
+@property (nonatomic, readonly) double gpuMilliseconds;	// mean GPU time (Metal), else 0
+@property (nonatomic, readonly) NSString *rendererName;	// "Metal" or "Core Graphics"
 @property (nonatomic, readonly) NSInteger ringCount;
 @property (nonatomic, readonly) int refreshRate;
 @property (nonatomic, readonly) NSInteger missedFrames;	// refreshes without a new frame

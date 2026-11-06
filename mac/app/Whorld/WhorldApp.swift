@@ -51,14 +51,17 @@ final class AppModel: ObservableObject {
 		engine.statsHandler = { [weak self] in
 			guard let self else { return }
 			let e = self.engine
-			self.statsText = String(format: "%.0f fps · draw %.1f ms · %d Hz · %ld missed · %ld rings",
-				e.framesPerSecond, e.renderMilliseconds, e.refreshRate, e.missedFrames, e.ringCount)
+			let gpu = e.gpuMilliseconds > 0 ? String(format: " · gpu %.1f ms", e.gpuMilliseconds) : ""
+			self.statsText = String(format: "%.0f fps · draw %.1f ms%@ · %d Hz · %ld missed · %ld rings · %@",
+				e.framesPerSecond, e.renderMilliseconds, gpu, e.refreshRate, e.missedFrames, e.ringCount,
+				e.rendererName)
 			if Self.logStats {	// WHORLD_STATS=1: also print, for measuring
 				FileHandle.standardError.write(Data((self.statsText + "\n").utf8))
 			}
 		}
 		undoManager.levelsOfUndo = 100
 		engine.setSnapshotLetterbox(Preferences.snapshotLetterbox)
+		engine.preferMetal = Preferences.preferMetal
 		engine.midiInputName = Preferences.midiInputName
 		engine.movieErrorHandler = { message in
 			let alert = NSAlert()

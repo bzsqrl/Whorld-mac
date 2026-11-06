@@ -11,6 +11,7 @@
 #import <CoreMIDI/CoreMIDI.h>
 
 #include "CGRenderer.h"
+#include "MetalRenderer.h"
 #include "VideoWriter.h"
 #include <IOSurface/IOSurface.h>
 #include "whorld/Controls.h"
@@ -24,6 +25,7 @@
 #include <cmath>
 #include <atomic>
 #include <condition_variable>
+#include <deque>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -149,6 +151,77 @@ static WHMappingData ToWHMapping(const whorld::Mapping& m)
 }
 
 @class WHEngine;
+
+// The finished frame waiting for the next refresh, and statistics of frames
+// as they finish. Both renderers put frames here; presentFrame takes them.
+// Metal completion handlers hold it too, and can run after the engine is
+// gone, hence a shared_ptr.
+struct WHHandoff {
+	std::mutex	m;
+	// Finished frames, oldest first, at most two; one is shown per refresh.
+	// A queue, not a single slot: a GPU frame can finish just after a
+	// refresh, and the next one before the following refresh; with a slot
+	// the first would be replaced unseen (a visible skip). Here it's shown a
+	// refresh late instead.
+	struct Ready {
+		IOSurfaceRef	image;	// claimed (see Release)
+		double	scale;
+	};
+	std::deque<Ready>	ready;
+	static const size_t	kMaxReady = 2;
+	double	gpuSum = 0;		// GPU milliseconds of Metal frames since the last read
+	int		gpuFrames = 0;
+	std::atomic<bool>	metalFailed{false};	// a Metal frame failed: use Core Graphics
+	std::atomic<bool>	metalActive{false};	// the last frame was drawn by Metal
+	std::atomic<int>	nDropped{0};	// frames replaced before being shown
+	std::atomic<int>	nNoSurface{0};	// frames skipped: no free surface
+	std::atomic<int>	nDone{0};		// frames finished
+
+	~WHHandoff()
+	{
+		for (const Ready& r : ready)
+			Release(r.image);
+	}
+	// A frame's surface is retained and has its use count raised from the
+	// moment it's drawn until it's dropped or replaced on the layer; the
+	// render thread reuses only surfaces not in use (IOSurfaceIsInUse, which
+	// also covers the window server). Retain counts can't tell: Metal keeps
+	// its own references to surfaces it has drawn into.
+	static void	Release(IOSurfaceRef image)
+	{
+		IOSurfaceDecrementUseCount(image);
+		CFRelease(image);
+	}
+	// takes over the caller's claim on image; if two frames are already
+	// waiting (refreshes stalled), the oldest is dropped
+	void	Put(IOSurfaceRef image, double fScale)
+	{
+		IOSurfaceRef	stale = nullptr;
+		{
+			std::lock_guard<std::mutex>	lock(m);
+			if (ready.size() >= kMaxReady) {
+				stale = ready.front().image;
+				ready.pop_front();
+			}
+			ready.push_back(Ready{image, fScale});
+		}
+		nDone++;
+		if (stale) {
+			nDropped++;
+			Release(stale);
+		}
+	}
+	IOSurfaceRef	Take(double& fScale)	// the oldest frame, claimed, or null
+	{
+		std::lock_guard<std::mutex>	lock(m);
+		if (ready.empty())
+			return nullptr;
+		Ready	r = ready.front();
+		ready.pop_front();
+		fScale = r.scale;
+		return r.image;
+	}
+};
 // Receives MidiManager output on the CoreMIDI thread.
 class WHMidiSink : public whorld::MidiManager::Sink {
 public:
@@ -202,8 +275,8 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	whorld::DPoint	_liveOrigin;	// normalized origin after the last frame
 	whorld::WhorldEngine::MovieState	_liveMovie;	// movie state after the last frame
 	whorld::SizeF	_liveTarget;	// render target size in DIPs
-	IOSurfaceRef	_readyImage;	// finished frame waiting for the next refresh, retained
-	double	_readyScale;
+	std::shared_ptr<WHHandoff>	_handoff;	// finished frames, for presentFrame
+	bool	_preferMetal;	// the Renderer setting
 	std::atomic<bool>	_cancelExport;
 	// render thread only
 	std::thread	_thread;
@@ -216,6 +289,8 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 		std::unique_ptr<whorld::CGBitmapRenderer>	renderer;
 	};
 	std::vector<Surface>	_surfaces;
+	std::unique_ptr<whorld::MetalRenderer>	_metal;	// the live view's Metal renderer, if in use
+	bool	_usingMetal;
 	int		_surfWidth, _surfHeight;
 	double	_surfScale;
 	int		_curRate;
@@ -239,6 +314,9 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	CFTimeInterval	_statStart;
 	double	_fps;
 	double	_renderMs;
+	double	_gpuMs;
+	NSString	*_rendererName;
+	IOSurfaceRef	_shownImage;	// on the layer, claimed until replaced (main thread)
 	NSInteger	_ringCount;
 	int		_refreshRate;
 	int		_missed;	// refreshes this second with no new frame
@@ -269,8 +347,12 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 		_statStart = CACurrentMediaTime();
 		_liveMovie = _engine->GetMovieState();
 		_liveTarget = whorld::SizeF{0, 0};
-		_readyImage = nullptr;
-		_readyScale = 1;
+		_handoff = std::make_shared<WHHandoff>();
+		_preferMetal = true;
+		_usingMetal = false;
+		_gpuMs = 0;
+		_rendererName = @"";
+		_shownImage = nullptr;
 		_missed = 0;
 		_missedFrames = 0;
 		_cancelExport = false;
@@ -309,9 +391,10 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 		MIDIClientDispose(_midiClient);
 	if (_thread.joinable())
 		_thread.join();
+	_metal.reset();	// waits for its frames on the GPU
 	[self releaseSurfaces];
-	if (_readyImage)
-		CFRelease(_readyImage);
+	if (_shownImage)
+		WHHandoff::Release(_shownImage);
 	for (const QueueItem& item : _queue) {	// free payloads the thread never took
 		if (item.job)
 			continue;
@@ -1118,7 +1201,7 @@ static NSString *SourceName(MIDIEndpointRef src)
 		std::vector<QueueItem>	cmds;
 		int		w, h, rate;
 		double	scale;
-		bool	bCursor, bLetterbox, bLetterboxOn;
+		bool	bCursor, bLetterbox, bLetterboxOn, bPreferMetal;
 		whorld::DPoint	cursor;
 		{
 			std::unique_lock<std::mutex>	lock(_mutex);
@@ -1137,6 +1220,7 @@ static NSString *SourceName(MIDIEndpointRef src)
 			bLetterbox = _letterboxChanged;
 			bLetterboxOn = _letterbox;
 			_letterboxChanged = false;
+			bPreferMetal = _preferMetal;
 		}
 		for (QueueItem& item : cmds) {	// ProcessCommand
 			if (item.job)
@@ -1156,22 +1240,75 @@ static NSString *SourceName(MIDIEndpointRef src)
 			continue;
 		if (w != _surfWidth || h != _surfHeight || scale != _surfScale) {	// RC_RESIZE
 			[self releaseSurfaces];
+			_metal.reset();
 			_surfWidth = w;
 			_surfHeight = h;
 			_surfScale = scale;
 			_engine->OnResize(whorld::SizeF{float(w / scale), float(h / scale)});
 		}
+		// Metal draws the live view unless the setting says Core Graphics,
+		// this Mac can't run it, or a frame has failed on the GPU
+		static const bool	bMetalOK = whorld::MetalRenderer::IsCoverageModeSupported();
+		bool	bMetal = bPreferMetal && bMetalOK && !_handoff->metalFailed;
+		if (bMetal != _usingMetal) {	// switch renderers: fresh surfaces
+			[self releaseSurfaces];
+			_metal.reset();
+			_usingMetal = bMetal;
+		}
+		if (bMetal && !_metal) {
+			_metal = std::make_unique<whorld::MetalRenderer>(w, h, scale, 0);	// coverage mode
+			if (!_metal->IsValid()) {
+				NSLog(@"Whorld: Metal renderer unavailable; using Core Graphics");
+				_metal.reset();
+				_handoff->metalFailed = true;
+				continue;	// next frame switches
+			}
+		}
 		Surface	*pSurf = [self freeSurface];
-		if (!pSurf)
+		if (!pSurf) {
+			_handoff->nNoSurface++;
 			continue;	// can't allocate; skip this frame
+		}
 		auto	t0 = std::chrono::steady_clock::now();
-		IOSurfaceLock(pSurf->surface, 0, nullptr);
-		pSurf->renderer->BeginFrame();
-		_engine->Draw(*pSurf->renderer);
-		pSurf->renderer->EndFrame();
-		IOSurfaceUnlock(pSurf->surface, 0, nullptr);
 		IOSurfaceRef	image = pSurf->surface;
+		IOSurfaceIncrementUseCount(image);	// claimed until replaced on the layer
 		CFRetain(image);
+		if (bMetal) {
+			// The frame is handed over when the GPU finishes it; until then
+			// the retain keeps the surface out of the pool.
+			_metal->SetTargetSurface(image);
+			_metal->BeginFrame();
+			_engine->Draw(*_metal);
+			std::shared_ptr<WHHandoff>	handoff = _handoff;
+			_metal->EndFrame([handoff, image, scale](bool bOk, double fGpuMs) {
+				if (bOk) {
+					{
+						std::lock_guard<std::mutex>	lock(handoff->m);
+						handoff->gpuSum += fGpuMs;
+						handoff->gpuFrames++;
+					}
+					handoff->Put(image, scale);
+				} else {
+					handoff->metalFailed = true;
+					WHHandoff::Release(image);
+				}
+			});
+			_metal->SetTargetSurface(nullptr);
+			_handoff->metalActive = true;
+		} else {
+			if (!pSurf->renderer) {
+				pSurf->renderer = std::make_unique<whorld::CGBitmapRenderer>(
+					static_cast<uint8_t *>(IOSurfaceGetBaseAddress(image)), _surfWidth, _surfHeight,
+					IOSurfaceGetBytesPerRow(image), _surfScale);
+				pSurf->renderer->SetDeferred(true);	// parallel stroking and banded rasterizing
+			}
+			IOSurfaceLock(image, 0, nullptr);
+			pSurf->renderer->BeginFrame();
+			_engine->Draw(*pSurf->renderer);
+			pSurf->renderer->EndFrame();
+			IOSurfaceUnlock(image, 0, nullptr);
+			_handoff->metalActive = false;
+		}
 		double	ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 		size_t	nRings = _engine->GetRingCount();
 		whorld::DPoint	ptOrigin = _engine->GetOrigin();
@@ -1185,29 +1322,21 @@ static NSString *SourceName(MIDIEndpointRef src)
 			_statFrames++;
 			_statRings = nRings;
 		}
-		// Hand the frame to the next refresh (presentFrame). A frame still
-		// waiting is replaced; that only happens if refreshes stalled.
-		IOSurfaceRef	stale;
-		{
-			std::lock_guard<std::mutex>	lock(_mutex);
-			stale = _readyImage;
-			_readyImage = image;
-			_readyScale = scale;
-		}
-		if (stale)
-			CFRelease(stale);
+		// Core Graphics: hand the frame to the next refresh (presentFrame)
+		if (!bMetal)
+			_handoff->Put(image, scale);
 	}
 }
 
-// Render thread: a surface of the current size the compositor isn't
-// using, creating one if needed (at most four).
+// Render thread: a surface of the current size nothing is using, creating
+// one if needed (at most six).
 - (Surface *)freeSurface
 {
 	for (Surface& s : _surfaces) {
-		if (!IOSurfaceIsInUse(s.surface) && CFGetRetainCount(s.surface) == 1)
+		if (!IOSurfaceIsInUse(s.surface))	// see WHHandoff
 			return &s;
 	}
-	if (_surfaces.size() >= 4)
+	if (_surfaces.size() >= 6)	// shown, two waiting, and up to three in flight
 		return nullptr;
 	NSDictionary	*props = @{
 		(id)kIOSurfaceWidth: @(_surfWidth),
@@ -1227,11 +1356,7 @@ static NSString *SourceName(MIDIEndpointRef src)
 	}
 	CGColorSpaceRelease(space);
 	Surface	s;
-	s.surface = surface;
-	s.renderer = std::make_unique<whorld::CGBitmapRenderer>(
-		static_cast<uint8_t *>(IOSurfaceGetBaseAddress(surface)), _surfWidth, _surfHeight,
-		IOSurfaceGetBytesPerRow(surface), _surfScale);
-	s.renderer->SetDeferred(true);	// parallel stroking and banded rasterizing
+	s.surface = surface;	// the Core Graphics renderer is made when first needed
 	_surfaces.push_back(std::move(s));
 	return &_surfaces.back();
 }
@@ -1249,14 +1374,8 @@ static NSString *SourceName(MIDIEndpointRef src)
 // refresh, if any, and updates the statistics.
 - (void)presentFrame
 {
-	IOSurfaceRef	image;
 	double	scale;
-	{
-		std::lock_guard<std::mutex>	lock(_mutex);
-		image = _readyImage;
-		scale = _readyScale;
-		_readyImage = nullptr;
-	}
+	IOSurfaceRef	image = _handoff->Take(scale);
 	if (image) {
 		CALayer	*layer = _layer;
 		if (layer) {
@@ -1266,7 +1385,9 @@ static NSString *SourceName(MIDIEndpointRef src)
 			layer.contentsScale = scale;
 			[CATransaction commit];
 		}
-		CFRelease(image);
+		if (_shownImage)	// replaced on the layer: free for reuse once the window server lets go
+			WHHandoff::Release(_shownImage);
+		_shownImage = image;
 		_deliveredFrames++;
 		_presented = YES;
 	} else if (_presented) {
@@ -1287,6 +1408,23 @@ static NSString *SourceName(MIDIEndpointRef src)
 			_statRenderSum = 0;
 			_statFrames = 0;
 		}
+		double	gpuSum;
+		int		gpuN;
+		{
+			std::lock_guard<std::mutex>	lock(_handoff->m);
+			gpuSum = _handoff->gpuSum;
+			gpuN = _handoff->gpuFrames;
+			_handoff->gpuSum = 0;
+			_handoff->gpuFrames = 0;
+		}
+		_gpuMs = gpuN ? gpuSum / gpuN : 0;
+		// WHORLD_STATS=1: where frames went, for diagnosing missed refreshes
+		static const bool	bLog = getenv("WHORLD_STATS") != nullptr;
+		int	nDone = _handoff->nDone.exchange(0), nDropped = _handoff->nDropped.exchange(0);
+		int	nNoSurface = _handoff->nNoSurface.exchange(0);
+		if (bLog)
+			NSLog(@"frames finished %d, dropped unseen %d, skipped for want of a surface %d", nDone, nDropped, nNoSurface);
+		_rendererName = _handoff->metalActive ? @"Metal" : @"Core Graphics";
 		_fps = _deliveredFrames / (now - _statStart);
 		_renderMs = n ? sum / n : 0;
 		_ringCount = (NSInteger)rings;
@@ -1302,6 +1440,25 @@ static NSString *SourceName(MIDIEndpointRef src)
 
 - (double)framesPerSecond { return _fps; }
 - (double)renderMilliseconds { return _renderMs; }
+- (double)gpuMilliseconds { return _gpuMs; }
+- (NSString *)rendererName { return _rendererName; }
++ (BOOL)metalAvailable { return whorld::MetalRenderer::IsCoverageModeSupported(); }
+
+- (BOOL)preferMetal
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	return _preferMetal;
+}
+
+- (void)setPreferMetal:(BOOL)prefer
+{
+	{
+		std::lock_guard<std::mutex>	lock(_mutex);
+		_preferMetal = prefer;
+	}
+	if (prefer)
+		_handoff->metalFailed = false;	// choosing Metal again retries it
+}
 - (NSInteger)ringCount { return _ringCount; }
 - (int)refreshRate { return _refreshRate; }
 - (NSInteger)missedFrames { return _missedFrames; }
