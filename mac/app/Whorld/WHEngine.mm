@@ -202,6 +202,8 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	whorld::DPoint	_liveOrigin;	// normalized origin after the last frame
 	whorld::WhorldEngine::MovieState	_liveMovie;	// movie state after the last frame
 	whorld::SizeF	_liveTarget;	// render target size in DIPs
+	IOSurfaceRef	_readyImage;	// finished frame waiting for the next refresh, retained
+	double	_readyScale;
 	std::atomic<bool>	_cancelExport;
 	// render thread only
 	std::thread	_thread;
@@ -239,6 +241,9 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	double	_renderMs;
 	NSInteger	_ringCount;
 	int		_refreshRate;
+	int		_missed;	// refreshes this second with no new frame
+	BOOL	_presented;	// a frame has been shown
+	NSInteger	_missedFrames;
 }
 
 - (instancetype)init
@@ -264,6 +269,10 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 		_statStart = CACurrentMediaTime();
 		_liveMovie = _engine->GetMovieState();
 		_liveTarget = whorld::SizeF{0, 0};
+		_readyImage = nullptr;
+		_readyScale = 1;
+		_missed = 0;
+		_missedFrames = 0;
 		_cancelExport = false;
 		__weak WHEngine	*weakSelf = self;
 		_engine->SetReplyCallback([weakSelf](const whorld::WhorldEngine::Reply& r) {
@@ -301,6 +310,8 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	if (_thread.joinable())
 		_thread.join();
 	[self releaseSurfaces];
+	if (_readyImage)
+		CFRelease(_readyImage);
 	for (const QueueItem& item : _queue) {	// free payloads the thread never took
 		if (item.job)
 			continue;
@@ -1174,11 +1185,17 @@ static NSString *SourceName(MIDIEndpointRef src)
 			_statFrames++;
 			_statRings = nRings;
 		}
-		__weak WHEngine	*weakSelf = self;
-		dispatch_async(dispatch_get_main_queue(), ^{
-			[weakSelf deliverImage:image scale:scale];
-			CFRelease(image);
-		});
+		// Hand the frame to the next refresh (presentFrame). A frame still
+		// waiting is replaced; that only happens if refreshes stalled.
+		IOSurfaceRef	stale;
+		{
+			std::lock_guard<std::mutex>	lock(_mutex);
+			stale = _readyImage;
+			_readyImage = image;
+			_readyScale = scale;
+		}
+		if (stale)
+			CFRelease(stale);
 	}
 }
 
@@ -1228,17 +1245,33 @@ static NSString *SourceName(MIDIEndpointRef src)
 	_surfaces.clear();
 }
 
-- (void)deliverImage:(IOSurfaceRef)image scale:(double)scale
+// Main thread, once per refresh: shows the frame finished since the last
+// refresh, if any, and updates the statistics.
+- (void)presentFrame
 {
-	CALayer	*layer = _layer;
-	if (layer) {
-		[CATransaction begin];
-		[CATransaction setDisableActions:YES];
-		layer.contents = (__bridge id)image;
-		layer.contentsScale = scale;
-		[CATransaction commit];
+	IOSurfaceRef	image;
+	double	scale;
+	{
+		std::lock_guard<std::mutex>	lock(_mutex);
+		image = _readyImage;
+		scale = _readyScale;
+		_readyImage = nullptr;
 	}
-	_deliveredFrames++;
+	if (image) {
+		CALayer	*layer = _layer;
+		if (layer) {
+			[CATransaction begin];
+			[CATransaction setDisableActions:YES];
+			layer.contents = (__bridge id)image;
+			layer.contentsScale = scale;
+			[CATransaction commit];
+		}
+		CFRelease(image);
+		_deliveredFrames++;
+		_presented = YES;
+	} else if (_presented) {
+		_missed++;	// still drawing (not counted before the first frame)
+	}
 	CFTimeInterval	now = CACurrentMediaTime();
 	if (now - _statStart >= 1) {
 		double	sum;
@@ -1258,6 +1291,8 @@ static NSString *SourceName(MIDIEndpointRef src)
 		_renderMs = n ? sum / n : 0;
 		_ringCount = (NSInteger)rings;
 		_refreshRate = rate;
+		_missedFrames = _missed;
+		_missed = 0;
 		_deliveredFrames = 0;
 		_statStart = now;
 		if (_statsHandler)
@@ -1269,6 +1304,7 @@ static NSString *SourceName(MIDIEndpointRef src)
 - (double)renderMilliseconds { return _renderMs; }
 - (NSInteger)ringCount { return _ringCount; }
 - (int)refreshRate { return _refreshRate; }
+- (NSInteger)missedFrames { return _missedFrames; }
 
 @end
 
@@ -1320,6 +1356,7 @@ static NSString *SourceName(MIDIEndpointRef src)
 	int		h = (int)std::lround(size.height * scale);
 	CFTimeInterval	period = link.targetTimestamp - link.timestamp;
 	int		rate = period > 0 ? (int)std::lround(1 / period) : 60;
+	[_engine presentFrame];
 	[_engine requestFrameWithPixelWidth:w height:h scale:scale refreshRate:rate];
 }
 

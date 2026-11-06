@@ -189,11 +189,15 @@ typedef struct {
 - (void)singleStep;
 - (void)clear;
 
-// Rendering, driven by WHRenderView. Requests a frame of the given pixel
-// size and scale (pixels per DIP) at the display's refresh rate; the frame
-// is delivered to the layer on the main thread. Requests made while a frame
-// is being drawn are coalesced.
+// Rendering, driven by WHRenderView's display link. Each refresh the view
+// calls presentFrame, which shows the frame finished since the last refresh,
+// then requests the next frame of the given pixel size and scale (pixels per
+// DIP) at the display's refresh rate. Frames are pipelined one refresh deep,
+// as with a vsync'd swap chain: a frame has a whole refresh period to draw,
+// and is shown at the start of a refresh, well before the compositor's
+// deadline. Requests made while a frame is being drawn are coalesced.
 - (void)attachLayer:(nullable CALayer *)layer;
+- (void)presentFrame;
 - (void)requestFrameWithPixelWidth:(int)width height:(int)height scale:(double)scale
 	refreshRate:(int)refreshRate;
 // Cursor position for origin drag, normalized: (0, 0) top left, (1, 1) bottom right.
@@ -266,6 +270,7 @@ typedef struct {
 @property (nonatomic, readonly) double renderMilliseconds;	// mean draw time
 @property (nonatomic, readonly) NSInteger ringCount;
 @property (nonatomic, readonly) int refreshRate;
+@property (nonatomic, readonly) NSInteger missedFrames;	// refreshes without a new frame
 @property (nonatomic, copy, nullable) void (^statsHandler)(void);
 
 @end

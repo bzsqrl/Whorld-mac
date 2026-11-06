@@ -51,8 +51,8 @@ final class AppModel: ObservableObject {
 		engine.statsHandler = { [weak self] in
 			guard let self else { return }
 			let e = self.engine
-			self.statsText = String(format: "%.0f fps · draw %.1f ms · %d Hz · %ld rings",
-				e.framesPerSecond, e.renderMilliseconds, e.refreshRate, e.ringCount)
+			self.statsText = String(format: "%.0f fps · draw %.1f ms · %d Hz · %ld missed · %ld rings",
+				e.framesPerSecond, e.renderMilliseconds, e.refreshRate, e.missedFrames, e.ringCount)
 			if Self.logStats {	// WHORLD_STATS=1: also print, for measuring
 				FileHandle.standardError.write(Data((self.statsText + "\n").utf8))
 			}

@@ -193,6 +193,8 @@ Record here anything worth telling the upstream author: suspected bugs found whi
 
 ## Port notes
 
+- **Frame pacing (2026-11-05).** Frames used to be handed to the layer whenever the render thread finished them. At a 6–8 ms draw on a 120 Hz display, most landed right at the compositor's deadline (median 7.6 ms after the vsync), so frames were shown late or repeated at random, and the animation hitched. Frames are now pipelined one refresh deep, like a vsync'd DXGI swap chain: each display-link fire first shows the frame finished since the last one (`WHEngine presentFrame`), then requests the next. This adds one refresh of latency. The stats line counts refreshes with no new frame as "missed"; those now happen only when a frame takes longer than a refresh to draw (a heavy patch in a large Retina window).
+
 Decisions made while porting that preserve Windows behavior in non-obvious ways.
 
 - **Rounding.** On x64, `Round()` and `Trunc()` (`Round.h`) use SSE `cvtsd2si` / `cvttsd2si`. Halves round to even (`Round(2.5) == 2`), and NaN or out-of-range input returns `INT_MIN`. `whorld::Round` and `whorld::Trunc` reproduce both, so don't replace them with `std::round` or `lround`.
