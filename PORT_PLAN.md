@@ -1,6 +1,6 @@
 # Whorld macOS Port Plan
 
-Status: **Phase 6 done; Phase 7 next** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
+Status: **Phase 7 done (unnotarized ad-hoc build)** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
 
 ## Goal
 
@@ -149,9 +149,16 @@ Two notes on accuracy:
 - [x] Image and image-sequence export via ImageIO; consider video export via AVFoundation (new feature — ask first). (Image export (⌘E) and movie export to `img000000.png`… are done, with the Windows options and unique timestamped names (`MakeUniqueExportPath`). Movie export moves the folder's existing PNG files to the Trash after confirming; Windows deletes them. **Video export**, approved by the user on 2026-11-05, is a Mac-only feature, described below.)
 
 ### Phase 7 — Release
-- [ ] App icon, About box with GPLv3 notice and credit to Chris Korda, help docs (adapt `docs/Help`).
-- [ ] Universal binary (Apple Silicon + Intel), code signing, notarization, DMG packaging.
-- [ ] README section for the Mac build.
+- [x] App icon, About box with GPLv3 notice and credit to Chris Korda, help docs (adapt `docs/Help`).
+  - Icon: `mac/packaging/make_icon.swift` redraws `res/Whorld.ico` (three nested pentagons) as vectors on the macOS icon grid and builds `mac/app/Whorld/AppIcon.icns`.
+  - About: the standard About panel with credits (Chris Korda, upstream baseline version, GPLv3 notice, source links).
+  - Help: `mac/app/Help/index.html` covers what differs from Windows, the shortcuts and the first-launch note. `docs/Help` (the V1 manual) is bundled unchanged as `Help/V1` by the Copy Help build phase, with `frames.html` as its frameset. Help > Whorld Help and Whorld Manual open them in the default browser.
+- [x] Universal binary (Apple Silicon + Intel), code signing, DMG packaging. Notarization skipped: it needs an Apple Developer ID, which we don't have yet.
+  - `sh mac/packaging/make_dmg.sh` builds Release for arm64 and x86_64, signs ad hoc, checks the signature and `lipo -archs`, and writes `build/dist/Whorld-<version>.dmg` (app, Applications link, license, read-me with the Gatekeeper steps). CI builds it and uploads it as an artifact.
+  - Verified: the DMG mounts with the expected contents; `codesign` reports an ad-hoc universal bundle; `spctl` rejects it, as expected without notarization. The packaged app runs natively (about 106 fps windowed) and as x86_64 under Rosetta (about 90 fps). All 14 tests also pass when built as x86_64 and run under Rosetta.
+  - To do with a Developer ID: sign with it, enable the hardened runtime, notarize with `notarytool`, and staple the DMG.
+- [x] README section for the Mac build.
+- [ ] Before a public release: measure performance on a base-model Mac (decision from Phase 3).
 
 ## Decisions (confirmed with the user 2026-11-05)
 
