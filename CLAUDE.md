@@ -23,6 +23,8 @@ These commands are created in Phase 0 of the plan. Keep this section accurate as
 - Compare images: `build/tools/whorld-render --compare a.png b.png --diff diff.png`
 - Movie to video: `build/tools/whorld-render movie.whm --video out.mov --codec prores4444` (or `--frame N --out f.png` for one frame)
 - App: `xcodebuild -project mac/app/Whorld.xcodeproj -scheme Whorld build` (run the built app with `WHORLD_STATS=1` to print frame-rate stats)
+- Release DMG: `sh mac/packaging/make_dmg.sh` (universal, ad-hoc signed, not notarized; writes `build/dist/Whorld-<version>.dmg`)
+- App icon: `xcrun swiftc mac/packaging/make_icon.swift -o /tmp/make_icon && /tmp/make_icon mac/app/Whorld/AppIcon.icns`
 
 On macOS, CMake also builds the Core Graphics renderer, the tools and the golden-image tests; on Linux it builds only the engine and its tests.
 

@@ -41,3 +41,10 @@ jobs:
         # The Xcode project arrives in Phase 3; skip until it exists.
         if: hashFiles('mac/app/Whorld.xcodeproj/project.pbxproj') != ''
         run: xcodebuild -project mac/app/Whorld.xcodeproj -scheme Whorld -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
+      - name: Package universal DMG
+        run: sh mac/packaging/make_dmg.sh
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Whorld-dmg
+          path: build/dist/*.dmg
