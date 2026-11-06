@@ -21,12 +21,7 @@ struct ContentView: View {
 			}
 			.overlay(alignment: .topLeading) {
 				if model.showFrameRate {
-					Text(model.statsText)
-						.font(.system(.caption, design: .monospaced))
-						.foregroundStyle(.white)
-						.padding(6)
-						.background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 4))
-						.padding(8)
+					StatsOverlay(stats: model.stats)
 				}
 			}
 			.onDrop(of: [.fileURL], isTargeted: nil) { providers in
@@ -45,6 +40,21 @@ struct ContentView: View {
 				}
 				return true
 			}
+	}
+}
+
+/// The frame-rate overlay. It observes only the statistics, so their update
+/// each second redraws this text and nothing else.
+struct StatsOverlay: View {
+	@ObservedObject var stats: StatsModel
+
+	var body: some View {
+		Text(stats.text)
+			.font(.system(.caption, design: .monospaced))
+			.foregroundStyle(.white)
+			.padding(6)
+			.background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 4))
+			.padding(8)
 	}
 }
 

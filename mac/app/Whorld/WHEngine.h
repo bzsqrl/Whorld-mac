@@ -189,8 +189,10 @@ typedef struct {
 - (void)singleStep;
 - (void)clear;
 
-// Rendering, driven by WHRenderView's display link. Each refresh the view
-// calls presentFrame, which shows the frame finished since the last refresh,
+// Rendering, driven by WHRenderView's display link, which runs on a thread
+// of its own (presenterRunLoop), so main-thread work can't delay frames.
+// Each refresh the view calls presentFrame, which shows the frame finished
+// since the last refresh,
 // then requests the next frame of the given pixel size and scale (pixels per
 // DIP) at the display's refresh rate. Frames are pipelined one refresh deep,
 // as with a vsync'd swap chain: a frame has a whole refresh period to draw,
@@ -199,7 +201,8 @@ typedef struct {
 - (void)attachLayer:(nullable CALayer *)layer;
 // The layer frames go to; only the view showing it drives the engine.
 @property (nonatomic, readonly, weak, nullable) CALayer *attachedLayer;
-- (void)presentFrame;
+- (void)presentFrame;	// presenter thread
+@property (class, nonatomic, readonly) NSRunLoop *presenterRunLoop;
 - (void)requestFrameWithPixelWidth:(int)width height:(int)height scale:(double)scale
 	refreshRate:(int)refreshRate;
 // Cursor position for origin drag, normalized: (0, 0) top left, (1, 1) bottom right.

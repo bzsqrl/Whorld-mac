@@ -27,6 +27,12 @@ enum MasterProp: Int {
 	case speed, zoom, damping, trail, rings, tempo, hueSpan, canvasScale, copies, spread
 }
 
+/// The frame-rate overlay's text (see AppModel.stats).
+@MainActor
+final class StatsModel: ObservableObject {
+	@Published var text = ""
+}
+
 /// App state shared by the windows, menus and app delegate. All document
 /// edits go through here so they're undoable, as in CWhorldDoc.
 @MainActor
@@ -39,7 +45,11 @@ final class AppModel: ObservableObject {
 	@Published private(set) var title = "Untitled"
 	@Published var showFrameRate = false
 	@Published var fullResolution = true
-	@Published private(set) var statsText = ""
+	/// Frame statistics, published on their own: a change to AppModel
+	/// rebuilds every open panel, which with Parameters, Master, Globals and
+	/// Properties open blocked the main thread for about 100 ms. Done once a
+	/// second, that cost several display refreshes each time (a stutter).
+	let stats = StatsModel()
 	/// Bumped after every change so views and menus refresh.
 	@Published private(set) var revision = 0
 
@@ -51,12 +61,16 @@ final class AppModel: ObservableObject {
 		engine.statsHandler = { [weak self] in
 			guard let self else { return }
 			let e = self.engine
+			guard self.showFrameRate || Self.logStats else { return }
 			let gpu = e.gpuMilliseconds > 0 ? String(format: " · gpu %.1f ms", e.gpuMilliseconds) : ""
-			self.statsText = String(format: "%.0f fps · draw %.1f ms%@ · %d Hz · %ld missed · %ld rings · %@",
+			let text = String(format: "%.0f fps · draw %.1f ms%@ · %d Hz · %ld missed · %ld rings · %@",
 				e.framesPerSecond, e.renderMilliseconds, gpu, e.refreshRate, e.missedFrames, e.ringCount,
 				e.rendererName)
+			if self.showFrameRate {
+				self.stats.text = text
+			}
 			if Self.logStats {	// WHORLD_STATS=1: also print, for measuring
-				FileHandle.standardError.write(Data((self.statsText + "\n").utf8))
+				FileHandle.standardError.write(Data((text + "\n").utf8))
 			}
 		}
 		undoManager.levelsOfUndo = 100
@@ -591,9 +605,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 				_ = AppModel.shared.mainWindow?.collectionBehavior.insert(.fullScreenNone)
 			}
 		}
+		// WHORLD_SCREEN=<display ID>: start on that display (for measuring there)
+		if let sID = ProcessInfo.processInfo.environment["WHORLD_SCREEN"], let id = UInt32(sID) {
+			DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+				MainActor.assumeIsolated {
+					let key = NSDeviceDescriptionKey("NSScreenNumber")
+					if let screen = NSScreen.screens.first(where: { ($0.deviceDescription[key] as? NSNumber)?.uint32Value == id }),
+						let w = AppModel.shared.mainWindow {
+						let f = screen.visibleFrame
+						w.setFrameOrigin(NSPoint(x: f.midX - w.frame.width / 2, y: f.midY - w.frame.height / 2))
+					}
+				}
+			}
+		}
 		// WHORLD_FULLSCREEN=1: start in full screen (for measuring there)
 		if ProcessInfo.processInfo.environment["WHORLD_FULLSCREEN"] == "1" {
-			DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+			DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
 				MainActor.assumeIsolated { AppModel.shared.toggleFullScreen() }
 			}
 		}

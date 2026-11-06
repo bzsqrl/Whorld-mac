@@ -1372,8 +1372,37 @@ static NSString *SourceName(MIDIEndpointRef src)
 	_surfaces.clear();
 }
 
-// Main thread, once per refresh: shows the frame finished since the last
-// refresh, if any, and updates the statistics.
+// The thread display links run on (WHRenderView). Frames are shown from
+// here, not the main thread: a SwiftUI update of the panels (every MIDI
+// controller message, for one) can hold the main thread for 100 ms, and
+// every refresh it held would have shown no new frame.
++ (NSRunLoop *)presenterRunLoop
+{
+	static NSRunLoop	*runLoop;
+	static dispatch_once_t	once;
+	dispatch_once(&once, ^{
+		dispatch_semaphore_t	ready = dispatch_semaphore_create(0);
+		NSThread	*thread = [[NSThread alloc] initWithBlock:^{
+			runLoop = NSRunLoop.currentRunLoop;
+			[runLoop addPort:[NSMachPort port] forMode:NSDefaultRunLoopMode];	// keeps it running
+			dispatch_semaphore_signal(ready);
+			for (;;) {
+				@autoreleasepool {
+					[runLoop runMode:NSDefaultRunLoopMode beforeDate:NSDate.distantFuture];
+				}
+			}
+		}];
+		thread.name = @"Whorld present";
+		thread.qualityOfService = NSQualityOfServiceUserInteractive;
+		[thread start];
+		dispatch_semaphore_wait(ready, DISPATCH_TIME_FOREVER);
+	});
+	return runLoop;
+}
+
+// Presenter thread (presenterRunLoop), once per refresh: shows the oldest
+// finished frame, if any, and once a second posts the statistics to the
+// main thread. The frame and statistics state here is this thread's alone.
 - (void)presentFrame
 {
 	double	scale;
@@ -1419,24 +1448,35 @@ static NSString *SourceName(MIDIEndpointRef src)
 			_handoff->gpuSum = 0;
 			_handoff->gpuFrames = 0;
 		}
-		_gpuMs = gpuN ? gpuSum / gpuN : 0;
 		// WHORLD_STATS=1: where frames went, for diagnosing missed refreshes
 		static const bool	bLog = getenv("WHORLD_STATS") != nullptr;
 		int	nDone = _handoff->nDone.exchange(0), nDropped = _handoff->nDropped.exchange(0);
 		int	nNoSurface = _handoff->nNoSurface.exchange(0);
-		if (bLog)
-			NSLog(@"frames finished %d, dropped unseen %d, skipped for want of a surface %d", nDone, nDropped, nNoSurface);
-		_rendererName = _handoff->metalActive ? @"Metal" : @"Core Graphics";
-		_fps = _deliveredFrames / (now - _statStart);
-		_renderMs = n ? sum / n : 0;
-		_ringCount = (NSInteger)rings;
-		_refreshRate = rate;
-		_missedFrames = _missed;
+		double	gpuMs = gpuN ? gpuSum / gpuN : 0;
+		double	fps = _deliveredFrames / (now - _statStart);
+		double	renderMs = n ? sum / n : 0;
+		NSInteger	missed = _missed;
+		bool	bMetal = _handoff->metalActive;
 		_missed = 0;
 		_deliveredFrames = 0;
 		_statStart = now;
-		if (_statsHandler)
-			_statsHandler();
+		__weak WHEngine	*weakSelf = self;
+		dispatch_async(dispatch_get_main_queue(), ^{
+			WHEngine	*strong = weakSelf;
+			if (!strong)
+				return;
+			if (bLog)
+				NSLog(@"frames finished %d, dropped unseen %d, skipped for want of a surface %d", nDone, nDropped, nNoSurface);
+			strong->_gpuMs = gpuMs;
+			strong->_rendererName = bMetal ? @"Metal" : @"Core Graphics";
+			strong->_fps = fps;
+			strong->_renderMs = renderMs;
+			strong->_ringCount = (NSInteger)rings;
+			strong->_refreshRate = rate;
+			strong->_missedFrames = missed;
+			if (strong->_statsHandler)
+				strong->_statsHandler();
+		});
 	}
 }
 
@@ -1472,6 +1512,13 @@ static NSString *SourceName(MIDIEndpointRef src)
 @implementation WHRenderView {
 	CADisplayLink	*_displayLink;
 	NSTrackingArea	*_tracking;
+	// for the display link on the presenter thread, which mustn't touch
+	// AppKit: the drawable's pixel size and scale, kept current on the main
+	// thread, and the layer
+	std::mutex	_sizeMutex;
+	int		_pixelWidth, _pixelHeight;
+	double	_pixelScale;
+	CALayer	*_ownLayer;
 }
 
 - (instancetype)initWithFrame:(NSRect)frame
@@ -1483,8 +1530,40 @@ static NSString *SourceName(MIDIEndpointRef src)
 		self.layer.contentsGravity = kCAGravityResize;
 		self.layer.magnificationFilter = kCAFilterLinear;
 		self.layerContentsRedrawPolicy = NSViewLayerContentsRedrawNever;
+		_ownLayer = self.layer;
+		_pixelWidth = _pixelHeight = 0;
+		_pixelScale = 1;
 	}
 	return self;
+}
+
+// Main thread: the pixel size frames are drawn at.
+- (void)updateDrawableSize
+{
+	double	scale = _fullResolution ? (self.window.backingScaleFactor ?: 1) : 1;
+	NSSize	size = self.bounds.size;
+	std::lock_guard<std::mutex>	lock(_sizeMutex);
+	_pixelWidth = (int)std::lround(size.width * scale);
+	_pixelHeight = (int)std::lround(size.height * scale);
+	_pixelScale = scale;
+}
+
+- (void)setFrameSize:(NSSize)size
+{
+	[super setFrameSize:size];
+	[self updateDrawableSize];
+}
+
+- (void)viewDidChangeBackingProperties
+{
+	[super viewDidChangeBackingProperties];
+	[self updateDrawableSize];
+}
+
+- (void)setFullResolution:(BOOL)fullResolution
+{
+	_fullResolution = fullResolution;
+	[self updateDrawableSize];
 }
 
 - (BOOL)isOpaque { return YES; }
@@ -1501,26 +1580,34 @@ static NSString *SourceName(MIDIEndpointRef src)
 	[super viewDidMoveToWindow];
 	[_displayLink invalidate];
 	_displayLink = nil;
+	[self updateDrawableSize];
 	if (self.window) {
+		// paced by this view's display, run on the presenter thread
 		_displayLink = [self displayLinkWithTarget:self selector:@selector(displayLinkFired:)];
-		[_displayLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
+		[_displayLink addToRunLoop:[WHEngine presenterRunLoop] forMode:NSRunLoopCommonModes];
 	}
 }
 
+// Presenter thread: no AppKit here.
 - (void)displayLinkFired:(CADisplayLink *)link
 {
 	// Only the view the engine draws for drives it: while the full-screen
 	// window shows the picture, the hidden main window's view stays idle.
-	if (_engine.attachedLayer != self.layer)
+	WHEngine	*engine = _engine;
+	if (!engine || engine.attachedLayer != _ownLayer)
 		return;
-	double	scale = _fullResolution ? (self.window.backingScaleFactor ?: 1) : 1;
-	NSSize	size = self.bounds.size;
-	int		w = (int)std::lround(size.width * scale);
-	int		h = (int)std::lround(size.height * scale);
+	int		w, h;
+	double	scale;
+	{
+		std::lock_guard<std::mutex>	lock(_sizeMutex);
+		w = _pixelWidth;
+		h = _pixelHeight;
+		scale = _pixelScale;
+	}
 	CFTimeInterval	period = link.targetTimestamp - link.timestamp;
 	int		rate = period > 0 ? (int)std::lround(1 / period) : 60;
-	[_engine presentFrame];
-	[_engine requestFrameWithPixelWidth:w height:h scale:scale refreshRate:rate];
+	[engine presentFrame];
+	[engine requestFrameWithPixelWidth:w height:h scale:scale refreshRate:rate];
 }
 
 - (void)updateTrackingAreas
