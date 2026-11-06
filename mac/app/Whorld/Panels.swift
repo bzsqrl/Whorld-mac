@@ -235,62 +235,74 @@ struct GlobalsPanel: View {
 
 // MARK: Properties (main properties)
 
+/// The Properties panel: the Image menu's items, in its order, compactly.
+/// Origin Center, Drag and Random are one Origin Motion menu, with Park.
 struct PropertiesPanel: View {
 	@EnvironmentObject private var model: AppModel
 
-	private func check(_ prop: MainProp) -> some View {
-		Toggle(WHControls.mainName(prop.rawValue), isOn: Binding(
-			get: { model.isOn(prop) },
-			set: { _ in model.toggle(prop) }))
+	/// Origin Motion as the panel shows it. Center isn't a motion: it's Park
+	/// with the origin in the middle (Image > Origin Center).
+	private enum OriginChoice: Hashable { case center, drag, random, park }
+
+	private func check(_ title: String, _ isOn: Bool, _ action: @escaping () -> Void) -> some View {
+		Toggle(title, isOn: Binding(get: { isOn }, set: { _ in action() }))
 			.toggleStyle(.checkbox)
+	}
+
+	private func check(_ prop: MainProp) -> some View {
+		check(WHControls.mainName(prop.rawValue), model.isOn(prop)) { model.toggle(prop) }
 	}
 
 	var body: some View {
 		let _ = model.revision
 		let e = model.engine
-		let plain = WHControlInfo(rangeMin: 0, rangeMax: 0, defaultPos: 0, pageSize: 0, editScale: 1,
-			editPrecision: -1, editMin: 0, editMax: 0, editClamp: false, spinDelta: 0)
-		Form {
-			LabeledContent(WHControls.mainName(MainProp.origin.rawValue)) {
-				HStack {
-					NumberField(value: e.origin.x,
-						format: { WHControls.format($0, control: plain) },
-						parse: { WHControls.parse($0, control: plain) },
-						commit: { model.setOrigin(CGPoint(x: $0, y: e.origin.y)) })
-					NumberField(value: e.origin.y,
-						format: { WHControls.format($0, control: plain) },
-						parse: { WHControls.parse($0, control: plain) },
-						commit: { model.setOrigin(CGPoint(x: e.origin.x, y: $0)) })
-				}
-			}
-			LabeledContent(WHControls.mainName(MainProp.drawMode.rawValue)) {
-				HStack {
-					Toggle("Fill", isOn: Binding(get: { e.fill }, set: { _ in model.toggleFill() }))
-					Toggle("Outline", isOn: Binding(get: { e.outline }, set: { _ in model.toggleOutline() }))
-				}
-			}
-			Picker(WHControls.mainName(MainProp.orgMotion.rawValue), selection: Binding(
-				get: { e.originMotion },
-				set: { model.setOriginMotion($0) })) {
-				Text("Park").tag(WHOriginMotion.park)
-				Text("Drag").tag(WHOriginMotion.drag)
-				Text("Random").tag(WHOriginMotion.random)
-			}
-			LabeledContent(WHControls.mainName(MainProp.hue.rawValue)) {
-				NumberField(value: e.hue,
-					format: { WHControls.format($0, control: plain) },
-					parse: { WHControls.parse($0, control: plain) },
-					commit: { model.setHue($0) })
-			}
+		VStack(alignment: .leading, spacing: 3) {
+			check("Fill", e.fill) { model.toggleFill() }
+			check("Outline", e.outline) { model.toggleOutline() }
 			check(.mirror)
+			Divider().padding(.vertical, 2)
 			check(.reverse)
 			check(.convex)
-			check(.invertColor)
 			check(.loopHue)
 			check(.zoomCenter)
 			check(.antialiasing)
+			check(.invertColor)
+			Divider().padding(.vertical, 2)
+			HStack(spacing: 6) {
+				Text(WHControls.mainName(MainProp.orgMotion.rawValue))
+				Picker("", selection: Binding(
+					get: { originChoice(e) },
+					set: { setOrigin($0) })) {
+					Text("Center").tag(OriginChoice.center)
+					Text("Drag").tag(OriginChoice.drag)
+					Text("Random").tag(OriginChoice.random)
+					Text("Park").tag(OriginChoice.park)
+				}
+				.labelsHidden()
+				.fixedSize()
+			}
+			Divider().padding(.vertical, 2)
+			Button("Random Phase") { e.randomPhase() }
 		}
-		.formStyle(.grouped)
-		.frame(width: 340, height: 600)
+		.controlSize(.small)
+		.padding(8)
+		.fixedSize()
+	}
+
+	private func originChoice(_ e: WHEngine) -> OriginChoice {
+		switch e.originMotion {
+		case .drag: return .drag
+		case .random: return .random
+		default: return e.origin == CGPoint(x: 0.5, y: 0.5) ? .center : .park
+		}
+	}
+
+	private func setOrigin(_ c: OriginChoice) {
+		switch c {
+		case .center: model.originCenter()
+		case .drag: model.setOriginMotion(.drag)
+		case .random: model.setOriginMotion(.random)
+		case .park: model.setOriginMotion(.park)
+		}
 	}
 }

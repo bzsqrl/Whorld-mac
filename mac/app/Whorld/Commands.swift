@@ -133,6 +133,9 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut("w", modifiers: .shift)
 			toggle("Antialiasing", e.antialiasing) { model.toggle(.antialiasing) }
 				.keyboardShortcut("a", modifiers: [.command, .option])
+			// not on Windows' Image menu (its Properties grid only); here the
+			// Properties panel mirrors this menu, so it's in both
+			toggle("Invert Color", e.invertColor) { model.toggle(.invertColor) }
 			Divider()
 			Button("Origin Center") { model.originCenter() }
 				.keyboardShortcut("0")
