@@ -9,7 +9,20 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// The main window: the workspace (Workspace.swift).
 struct ContentView: View {
+	@EnvironmentObject private var model: AppModel
+
+	var body: some View {
+		WorkspaceView(layout: model.layout)
+			.background(MainWindowObserver { model.workspaceWindowAppeared($0) })
+	}
+}
+
+/// The output: the render view with the movie bar and frame-rate overlays,
+/// taking dropped files. In the workspace's middle, or in the detached
+/// output window.
+struct OutputView: View {
 	@EnvironmentObject private var model: AppModel
 
 	var body: some View {
@@ -58,6 +71,27 @@ struct StatsOverlay: View {
 	}
 }
 
+/// Reports the window it's in, once it's in one.
+struct MainWindowObserver: NSViewRepresentable {
+	let onWindow: (NSWindow) -> Void
+
+	func makeNSView(context: Context) -> NSView { Observer(onWindow) }
+	func updateNSView(_ view: NSView, context: Context) {}
+
+	final class Observer: NSView {
+		let onWindow: (NSWindow) -> Void
+		init(_ onWindow: @escaping (NSWindow) -> Void) {
+			self.onWindow = onWindow
+			super.init(frame: .zero)
+		}
+		required init?(coder: NSCoder) { nil }
+		override func viewDidMoveToWindow() {
+			super.viewDidMoveToWindow()
+			if let window { onWindow(window) }
+		}
+	}
+}
+
 /// Hosts the AppKit render view, which drives the engine from its display link.
 struct RenderView: NSViewRepresentable {
 	let engine: WHEngine
@@ -75,5 +109,10 @@ struct RenderView: NSViewRepresentable {
 
 	func updateNSView(_ view: WHRenderView, context: Context) {
 		view.fullResolution = fullResolution
+	}
+
+	/// The render view takes the size it's offered (no fitting-size measuring).
+	func sizeThatFits(_ proposal: ProposedViewSize, nsView: WHRenderView, context: Context) -> CGSize? {
+		proposal.replacingUnspecifiedDimensions(by: CGSize(width: 320, height: 240))
 	}
 }

@@ -608,10 +608,29 @@ struct MovieBar: View {
 	@EnvironmentObject private var model: AppModel
 	@State private var scrub: Double? = nil
 
+	// The bar polls the movie ten times a second, but only while one is open:
+	// each tick lays out the window, and the workspace's panels make that
+	// expensive (an idle timer kept the main thread busy all the time).
 	var body: some View {
-		TimelineView(.periodic(from: .now, by: 0.1)) { _ in
-			let ms = model.movieState
-			if ms.io != .closed || model.movieExportProgress != nil {
+		let _ = model.revision	// movie commands call changed()
+		if isActive(model.movieState) {
+			TimelineView(.periodic(from: .now, by: 0.1)) { _ in
+				let ms = model.movieState
+				if isActive(ms) {
+					bar(ms)
+				} else {	// the movie closed by itself (at its end, or an error): stop polling
+					Color.clear.frame(width: 0, height: 0)
+						.onAppear { model.changed() }
+				}
+			}
+		}
+	}
+
+	private func isActive(_ ms: WHMovieState) -> Bool {
+		ms.io != .closed || model.movieExportProgress != nil
+	}
+
+	private func bar(_ ms: WHMovieState) -> some View {
 				HStack(spacing: 10) {
 					if let p = model.movieExportProgress {
 						Text("Exporting \(p.done) of \(p.total)")
@@ -649,8 +668,6 @@ struct MovieBar: View {
 				.padding(.vertical, 6)
 				.background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 6))
 				.padding(10)
-			}
-		}
 	}
 
 	// CMovieBar::UpdateTime

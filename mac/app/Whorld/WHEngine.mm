@@ -294,6 +294,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	int		_surfWidth, _surfHeight;
 	double	_surfScale;
 	int		_curRate;
+	int		_lastMovieIO;	// render thread: for movieStateHandler
 	// MIDI
 	WHMidiSink	_midiSink;
 	std::unique_ptr<whorld::MidiManager>	_midiMgr;
@@ -340,6 +341,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 		_statRings = 0;
 		_liveOrigin = whorld::DPoint(0.5, 0.5);
 		_curRate = 0;
+		_lastMovieIO = whorld::SnapMovie::IO_CLOSED;
 		_surfWidth = _surfHeight = 0;
 		_surfScale = 0;
 		_engine = std::make_unique<whorld::WhorldEngine>();
@@ -1315,6 +1317,15 @@ static NSString *SourceName(MIDIEndpointRef src)
 		size_t	nRings = _engine->GetRingCount();
 		whorld::DPoint	ptOrigin = _engine->GetOrigin();
 		whorld::WhorldEngine::MovieState	movieState = _engine->GetMovieState();
+		if (movieState.nIOState != _lastMovieIO) {	// tell the main thread (the movie bar)
+			_lastMovieIO = movieState.nIOState;
+			__weak WHEngine	*weakSelf = self;
+			dispatch_async(dispatch_get_main_queue(), ^{
+				WHEngine	*strong = weakSelf;
+				if (strong.movieStateHandler)
+					strong.movieStateHandler();
+			});
+		}
 		{
 			std::lock_guard<std::mutex>	lock(_mutex);
 			_liveOrigin = ptOrigin;
@@ -1582,6 +1593,11 @@ static NSString *SourceName(MIDIEndpointRef src)
 	_displayLink = nil;
 	[self updateDrawableSize];
 	if (self.window) {
+		// A view entering a window shows the output (the workspace's middle,
+		// the detached window, the full-screen window): it's where the
+		// output just moved to.
+		if (_engine)
+			[_engine attachLayer:self.layer];
 		// paced by this view's display, run on the presenter thread
 		_displayLink = [self displayLinkWithTarget:self selector:@selector(displayLinkFired:)];
 		[_displayLink addToRunLoop:[WHEngine presenterRunLoop] forMode:NSRunLoopCommonModes];

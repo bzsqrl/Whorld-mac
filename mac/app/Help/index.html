@@ -30,10 +30,11 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <p>Patches (<code>.whp</code>), playlists (<code>.whl</code>), snapshots (<code>.whs</code>) and movies (<code>.whm</code>) are the same files Windows Whorld uses, and can be moved between the two in either direction. Double-click a patch or playlist in the Finder to open it.</p>
 
 <h2>Windows and panels</h2>
-<p>The Windows dockable bars are separate windows here: Parameters, Master, Globals, Properties, Playlist and MIDI Mapping. Open them from the Window menu or with the shortcuts below. The options dialog is Whorld &gt; Settings (<kbd>⌘,</kbd>).</p>
+<p>As on Windows, the Whorld window holds the picture in the middle and the panels around it: Parameters, Master, Globals, Properties, Playlist and MIDI Mapping. Show or hide each from the View menu (shortcuts below). The panels sit in a left, a right and a bottom area; drag the dividers between them to resize. To move a panel, drag its title bar onto another panel (it goes before or after it) or near the left, right or bottom edge of the picture (it goes to that area), or use the ⋯ menu on its title bar, which can also float it in a window of its own (its Dock button puts it back). Window &gt; Show All Panels shows every panel and fits the Whorld window to its screen; Window &gt; Reset Layout puts everything back in its standard place. The arrangement is remembered between launches. The options dialog is Whorld &gt; Settings (<kbd>⌘,</kbd>).</p>
+<p>Window &gt; Detach moves the picture into a window of its own, as on Windows, and the panels then fill the Whorld window. Detach again, or close the picture's window, to put it back.</p>
 
 <h2>Full screen and projectors</h2>
-<p>View &gt; Enter Full Screen (<kbd>⌃⌘F</kbd>) fills the display the Whorld window is on; <kbd>⌃⌘F</kbd> or <kbd>Esc</kbd> returns to the window. <kbd>F11</kbd>, the Windows shortcut, works too where the keyboard sends it to apps; on most Mac keyboards F11 is a media key, and fn-F11 shows the desktop. To show Whorld on a projector or second display, drag the Whorld window onto that display, then press <kbd>⌃⌘F</kbd>. On a second display the menu bar and Dock stay on your main display, so the Parameters and other windows remain usable there while the picture fills the projector. On the main display, full screen hides the menu bar and Dock (they don't slide in; press <kbd>⌃⌘F</kbd> or <kbd>Esc</kbd> to leave). If the second display is disconnected, Whorld leaves full screen. The renderer is set in Settings &gt; Rendering: Metal (the GPU, the default) or Core Graphics.</p>
+<p>View &gt; Enter Full Screen (<kbd>⌃⌘F</kbd>) fills the display the Whorld window is on; <kbd>⌃⌘F</kbd> or <kbd>Esc</kbd> returns to the window. <kbd>F11</kbd>, the Windows shortcut, works too where the keyboard sends it to apps; on most Mac keyboards F11 is a media key, and fn-F11 shows the desktop. To show Whorld on a projector or second display, choose Window &gt; Detach, drag the picture's window onto that display, then press <kbd>⌃⌘F</kbd>. On a second display the menu bar and Dock stay on your main display, so the panels remain usable there while the picture fills the projector. On the main display, full screen hides the menu bar and Dock (they don't slide in; press <kbd>⌃⌘F</kbd> or <kbd>Esc</kbd> to leave). If the second display is disconnected, Whorld leaves full screen. The renderer is set in Settings &gt; Rendering: Metal (the GPU, the default) or Core Graphics.</p>
 
 <h2>MIDI</h2>
 <p>Whorld listens to MIDI input through Core MIDI. Choose the input device in Settings. To map a control, open MIDI Mapping, select one or more mappings, turn on MIDI Learn (<kbd>⇧⌘L</kbd>) and move the control on your device.</p>
@@ -54,8 +55,9 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <tr><td>Master panel</td><td>Shift+M</td><td>⇧⌘M</td></tr>
 <tr><td>Globals panel</td><td>Shift+G</td><td>⇧⌘G</td></tr>
 <tr><td>Properties panel</td><td>—</td><td>⇧⌘R</td></tr>
+<tr><td>Show all panels</td><td>—</td><td>⌥⌘P</td></tr>
 <tr><td>Preferences</td><td>Shift+O</td><td>⌘,</td></tr>
-<tr><td>Playlist window</td><td>Shift+A</td><td>⇧⌘A</td></tr>
+<tr><td>Playlist panel</td><td>Shift+A</td><td>⇧⌘A</td></tr>
 <tr><td>Take Snapshot</td><td>Ctrl+T</td><td>⌘T</td></tr>
 <tr><td>Load Snapshot</td><td>Ctrl+L</td><td>⌘L</td></tr>
 <tr><td>Export image</td><td>Ctrl+E</td><td>⌘E</td></tr>

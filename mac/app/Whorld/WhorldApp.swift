@@ -7,6 +7,7 @@
 // any later version. See the LICENSE file at the repository root.
 
 import AppKit
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -50,6 +51,11 @@ final class AppModel: ObservableObject {
 	/// Properties open blocked the main thread for about 100 ms. Done once a
 	/// second, that cost several display refreshes each time (a stutter).
 	let stats = StatsModel()
+	/// the workspace's panels and the output's place (Workspace.swift)
+	let layout = LayoutModel()
+	private let outputWindow = OutputWindowController()
+	private var layoutWatch: AnyCancellable?
+	private var didFitWorkspace = false
 	/// Bumped after every change so views and menus refresh.
 	@Published private(set) var revision = 0
 
@@ -74,6 +80,15 @@ final class AppModel: ObservableObject {
 			}
 		}
 		undoManager.levelsOfUndo = 100
+		// menus show the layout (they observe AppModel)
+		layoutWatch = layout.objectWillChange.sink { [weak self] _ in
+			DispatchQueue.main.async { self?.changed() }
+		}
+		outputWindow.onClose = { [weak self] in	// closing the output window docks it
+			guard let self, self.layout.layout.detached else { return }
+			self.outputWindow.hide()
+			self.layout.layout.detached = false
+		}
 		engine.setSnapshotLetterbox(Preferences.snapshotLetterbox)
 		engine.preferMetal = Preferences.preferMetal
 		engine.midiInputName = Preferences.midiInputName
@@ -83,6 +98,7 @@ final class AppModel: ObservableObject {
 			alert.informativeText = message
 			alert.runModal()
 		}
+		engine.movieStateHandler = { [weak self] in self?.changed() }	// the movie bar
 		engine.midiHandler = { [weak self] kind, value in
 			self?.onMidi(kind: kind, value: value)
 		}
@@ -575,7 +591,8 @@ final class AppModel: ObservableObject {
 		}
 	}
 
-	// CMainFrame::OnWindowFullscreen
+	// CMainFrame::OnWindowFullscreen: full screen on the display of the
+	// window that shows the output (the workspace, or the detached window)
 	private let fullScreen = FullScreenController()
 	var isFullScreen: Bool { fullScreen.isFullScreen }
 
@@ -583,11 +600,70 @@ final class AppModel: ObservableObject {
 		if fullScreen.isFullScreen {
 			fullScreen.exit(engine: engine)
 		} else {
-			fullScreen.enter(from: mainWindow, engine: engine, fullResolution: fullResolution) { [weak self] in
+			let from = layout.layout.detached ? outputWindow.window : mainWindow
+			fullScreen.enter(from: from, engine: engine, fullResolution: fullResolution) { [weak self] in
 				self?.toggleFullScreen()
 			}
 		}
 		changed()
+	}
+
+	// MARK: Workspace
+
+	var isDetached: Bool { layout.layout.detached }
+
+	/// Window > Detach (CMainFrame::OnWindowDetach): the output to a window of
+	/// its own, or back to the workspace. Not while full screen, as on Windows.
+	func toggleDetach() {
+		guard !isFullScreen else { return }
+		if layout.layout.detached {
+			outputWindow.hide()
+			layout.layout.detached = false
+		} else {
+			layout.layout.detached = true
+			outputWindow.show(model: self, near: mainWindow?.frame)
+		}
+	}
+
+	/// Window > Show All Panels: every panel in the workspace, and the
+	/// workspace filling its display. A detached output stays where it is.
+	func showAllPanels() {
+		layout.showAll()
+		fitWorkspace()
+	}
+
+	/// Window > Reset Layout (CMainFrame::OnWindowResetLayout, which asks
+	/// first, as this does).
+	func resetLayout() {
+		let alert = NSAlert()
+		alert.messageText = "Reset the layout?"
+		alert.informativeText = "All panels go back to their standard places and sizes."
+		alert.addButton(withTitle: "Reset")
+		alert.addButton(withTitle: "Cancel")
+		guard alert.runModal() == .alertFirstButtonReturn else { return }
+		layout.reset()
+		fitWorkspace()
+	}
+
+	/// The workspace fills its display's visible area, the panes at their
+	/// starting sizes.
+	private func fitWorkspace() {
+		guard let w = mainWindow, let screen = w.screen ?? NSScreen.main else { return }
+		w.setFrame(screen.visibleFrame, display: true, animate: true)
+		layout.arrangeGeneration += 1
+	}
+
+	/// The workspace window is up: restore a detached output, and on the
+	/// first launch with a workspace, fit it to its display.
+	func workspaceWindowAppeared(_ w: NSWindow) {
+		guard !didFitWorkspace else { return }
+		didFitWorkspace = true
+		if layout.layout.detached {
+			outputWindow.show(model: self, near: w.frame)
+		}
+		if layout.isFirstRun {
+			DispatchQueue.main.async { self.fitWorkspace() }
+		}
 	}
 
 	var mainWindow: NSWindow? {
@@ -678,40 +754,42 @@ struct WhorldApp: App {
 			HelpCommands()
 		}
 
+		// Floating panels (a docked panel's menu > Float in a Window). The
+		// View menu shows and hides panels, so these add no menu items.
 		Window("Parameters", id: "params") {
-			ParamsPanel().environmentObject(model)
+			FloatingPanel(id: .params).environmentObject(model)
 		}
-		.keyboardShortcut("p", modifiers: [.command, .shift])
+		.commandsRemoved()
 		.defaultPosition(.topTrailing)
 
 		Window("Master", id: "master") {
-			MasterPanel().environmentObject(model)
+			FloatingPanel(id: .master).environmentObject(model)
 		}
-		.keyboardShortcut("m", modifiers: [.command, .shift])
+		.commandsRemoved()
 		.windowResizability(.contentSize)
 
 		Window("Globals", id: "globals") {
-			GlobalsPanel().environmentObject(model)
+			FloatingPanel(id: .globals).environmentObject(model)
 		}
-		.keyboardShortcut("g", modifiers: [.command, .shift])
+		.commandsRemoved()
 		.windowResizability(.contentSize)
 
 		Window("Properties", id: "properties") {
-			PropertiesPanel().environmentObject(model)
+			FloatingPanel(id: .properties).environmentObject(model)
 		}
-		.keyboardShortcut("r", modifiers: [.command, .shift])
+		.commandsRemoved()
 		.windowResizability(.contentSize)
 
 		Window("Playlist", id: "playlist") {
-			PlaylistPanel().environmentObject(model)
+			FloatingPanel(id: .playlist).environmentObject(model)
 		}
-		.keyboardShortcut("a", modifiers: [.command, .shift])
+		.commandsRemoved()
 		.defaultSize(width: 520, height: 420)
 
 		Window("MIDI Mapping", id: "mapping") {
-			MappingPanel().environmentObject(model)
+			FloatingPanel(id: .mapping).environmentObject(model)
 		}
-		.keyboardShortcut("i", modifiers: [.command, .shift])
+		.commandsRemoved()
 		.defaultSize(width: 760, height: 420)
 
 		Settings {

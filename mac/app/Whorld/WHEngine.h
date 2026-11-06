@@ -266,6 +266,9 @@ typedef struct {
 	progress:(void (^)(int64_t done))progress completion:(void (^)(NSString * _Nullable error))completion;
 // Movie errors from the render thread (OnMovieError), on the main thread.
 @property (nonatomic, copy, nullable) void (^movieErrorHandler)(NSString *message);
+// The movie opened, closed, or changed between playing and recording (it
+// changes on the render thread, after the command), on the main thread.
+@property (nonatomic, copy, nullable) void (^movieStateHandler)(void);
 
 // Renderer for the live view: YES for Metal (the default), NO for Core
 // Graphics. Metal falls back to Core Graphics on its own if this Mac can't

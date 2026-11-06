@@ -154,6 +154,15 @@ struct WhorldCommands: Commands {
 			// Show Desktop).
 			Button(model.isFullScreen ? "Exit Full Screen" : "Enter Full Screen") { model.toggleFullScreen() }
 				.keyboardShortcut("f", modifiers: [.control, .command])
+			Divider()
+			// CMainFrame's ID_VIEW_BAR_ commands: show or hide a panel
+			ForEach(PanelID.allCases) { id in
+				Toggle(id.title, isOn: Binding(
+					get: { model.layout.isShown(id) },
+					set: { model.layout.setShown(id, $0) }))
+					.keyboardShortcut(id.shortcut, modifiers: [.command, .shift])
+			}
+			Divider()
 			Toggle("Full Resolution", isOn: $model.fullResolution)
 			Toggle("Show Frame Rate", isOn: $model.showFrameRate)
 				.keyboardShortcut("f", modifiers: [.command, .shift])
@@ -169,6 +178,13 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut(.deleteForward, modifiers: .command)
 			Button("Full Screen") { model.toggleFullScreen() }
 				.keyboardShortcut(fkey(NSF11FunctionKey), modifiers: [])
+			// CMainFrame::OnWindowDetach
+			Toggle("Detach", isOn: Binding(get: { model.isDetached }, set: { _ in model.toggleDetach() }))
+				.disabled(model.isFullScreen)
+			Divider()
+			Button("Show All Panels") { model.showAllPanels() }
+				.keyboardShortcut("p", modifiers: [.command, .option])
+			Button("Reset Layout…") { model.resetLayout() }
 			Divider()
 		}
 	}
