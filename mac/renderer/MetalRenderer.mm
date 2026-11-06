@@ -390,6 +390,22 @@ fragment FBOut fsFanFlip(VOut in [[stage_in]], uint2 m [[color(1)]] CNT_PARAM)
 	return o;
 }
 
+// Spans (see gpu::SpanContours), one instance each: two points (x0, row),
+// (x1, row) at buffer 0; the pixels x0 <= x < x1 of that row. Used in place
+// of the fan for step 1: each pixel inside is flipped once, so the cost is
+// the fill's area, not the fan's overdraw (a ring pair is the band between
+// them, not both disks; self-overlapping rings don't multiply it).
+vertex VOut vsSpan(uint vid [[vertex_id]], uint iid [[instance_id]],
+	const device float2 *v [[buffer(0)]], constant float2 &size [[buffer(1)]])
+{
+	float2 a = v[iid * 2], b = v[iid * 2 + 1];
+	const uint2 k[6] = {uint2(0, 0), uint2(1, 0), uint2(0, 1), uint2(1, 0), uint2(1, 1), uint2(0, 1)};
+	float2 p = float2(k[vid].x ? b.x : a.x, a.y + k[vid].y);
+	VOut o;
+	o.pos = float4(p.x / size.x * 2 - 1, 1 - p.y / size.y * 2, 0, 1);
+	return o;
+}
+
 // one instance per fan triangle; its edge is vertices 1 and 2
 vertex TOut vsBand(uint vid [[vertex_id]], uint iid [[instance_id]],
 	const device float2 *v [[buffer(0)]], constant float2 &size [[buffer(1)]])
@@ -591,7 +607,7 @@ struct MetalRenderer::Impl {
 	std::map<int, Pipelines>	pipes;
 	struct CovPipelines {
 		id<MTLRenderPipelineState>	maskOr, maskXor, cover, clear;
-		id<MTLRenderPipelineState>	fanFlip, band, coverRect;	// hybrid fills
+		id<MTLRenderPipelineState>	fanFlip, spanFlip, band, coverRect;	// hybrid fills
 		id<MTLRenderPipelineState>	maskOrQuad, coverQuad;	// stroke strips
 	} cov;
 	id<MTLTexture>	mask;	// coverage mode: RG32Uint, tile memory only
@@ -719,7 +735,8 @@ MetalRenderer::MetalRenderer(int nWidth, int nHeight, double fScale, int nSample
 	// 64 exact per-sample loop instead of the lookup table, 128 mask draws
 	// don't read the mask, 256 no mask computation at all, 512 no discard,
 	// 2048 fills as grown fan triangles instead of hybrid, 4096 hybrid fills
-	// without edge bands, 8192 strokes as triangles instead of strips);
+	// without edge bands, 8192 strokes as triangles instead of strips, 16384
+	// hybrid fills flip with the fan instead of spans);
 	// WHORLD_MTL_PROFILE counts pixels and fragments (and slows the GPU)
 	m_nAblate = getenv("WHORLD_MTL_ABLATE") ? atoi(getenv("WHORLD_MTL_ABLATE")) : 0;
 	m_bProfile = getenv("WHORLD_MTL_PROFILE") != nullptr;
@@ -769,6 +786,7 @@ MetalRenderer::MetalRenderer(int nWidth, int nHeight, double fScale, int nSample
 		im.cov.cover = im.MakeCovPipe(@"vsTri", @"fsCover", true);
 		im.cov.clear = im.MakeCovPipe(@"vsFull", @"fsClearCov", true);
 		im.cov.fanFlip = im.MakeCovPipe(@"vsPath", @"fsFanFlip", false);
+		im.cov.spanFlip = im.MakeCovPipe(@"vsSpan", @"fsFanFlip", false);
 		im.cov.band = im.MakeCovPipe(@"vsBand", @"fsBand", false);
 		im.cov.coverRect = im.MakeCovPipe(@"vsRect", @"fsCover", true);
 		im.cov.maskOrQuad = im.MakeCovPipe(@"vsQuad", @"fsMaskOrQuad", false);
@@ -943,10 +961,13 @@ void MetalRenderer::Tessellate()
 	const Figure	*pFig = m_aFig.data();
 	// stroke strips only in coverage mode; the stencil path draws triangles
 	const bool	bStrips = !m_nSamples && m_bAntialias && !(m_nAblate & 8192);
+	const bool	bSpans = !m_nSamples && m_bAntialias && !(m_nAblate & (2048 | 16384));
+	const int	nWidth = m_nWidth, nHeight = m_nHeight;
 	dispatch_apply(m_aOp.size(), DISPATCH_APPLY_AUTO, ^(size_t i) {
 		Op&	op = pOps[i];
 		op.tris.clear();
 		op.quads.clear();
+		op.spans.clear();
 		switch (op.type) {
 		case Op::FILL: {
 			// only figures begun FILLED take part in the fill
@@ -956,12 +977,16 @@ void MetalRenderer::Tessellate()
 				bAll = bAll && pFig[f].bFilled;
 			if (bAll) {
 				gpu::FanContours(&pCt[op.iFig], op.nFig, op.tris);
+				if (bSpans)
+					gpu::SpanContours(&pCt[op.iFig], op.nFig, nWidth, nHeight, op.spans);
 			} else {
 				for (size_t f = op.iFig; f < op.iFig + op.nFig; f++) {
 					if (pFig[f].bFilled)
 						filled.push_back(pCt[f]);
 				}
 				gpu::FanContours(filled.data(), filled.size(), op.tris);
+				if (bSpans)
+					gpu::SpanContours(filled.data(), filled.size(), nWidth, nHeight, op.spans);
 			}
 			float	x0 = HUGE_VALF, y0 = HUGE_VALF, x1 = -HUGE_VALF, y1 = -HUGE_VALF;
 			for (gpu::Vec2 p : op.tris) {
@@ -996,6 +1021,8 @@ void MetalRenderer::Encode()
 			nVert += op.tris.size();
 			op.iQuad = nVert;
 			nVert += op.quads.size();
+			op.iSpan = nVert;
+			nVert += op.spans.size();
 		}
 		m_stats.nVertices = nVert;
 		size_t	nBytes = std::max<size_t>(nVert, 1) * sizeof(gpu::Vec2);
@@ -1009,6 +1036,8 @@ void MetalRenderer::Encode()
 				std::memcpy(&pDst[op.iVert], op.tris.data(), op.tris.size() * sizeof(gpu::Vec2));
 			if (!op.quads.empty())
 				std::memcpy(&pDst[op.iQuad], op.quads.data(), op.quads.size() * sizeof(gpu::Vec2));
+			if (!op.spans.empty())
+				std::memcpy(&pDst[op.iSpan], op.spans.data(), op.spans.size() * sizeof(gpu::Vec2));
 		}
 
 		if (!m_nSamples && m_bAntialias) {
@@ -1318,8 +1347,18 @@ void MetalRenderer::EncodeCoverage()
 				if (op.type == Op::FILL && !(m_nAblate & 2048)) {	// hybrid fill
 					[enc setVertexBufferOffset:op.iVert * sizeof(gpu::Vec2) atIndex:0];
 					[enc setFragmentBufferOffset:op.iVert * sizeof(gpu::Vec2) atIndex:1];
-					[enc setRenderPipelineState:im.cov.fanFlip];
-					[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:op.tris.size()];
+					if (!(m_nAblate & 16384)) {	// spans: the fill's area once
+						if (!op.spans.empty()) {
+							[enc setVertexBufferOffset:op.iSpan * sizeof(gpu::Vec2) atIndex:0];
+							[enc setRenderPipelineState:im.cov.spanFlip];
+							[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6
+								instanceCount:op.spans.size() / 2];
+							[enc setVertexBufferOffset:op.iVert * sizeof(gpu::Vec2) atIndex:0];
+						}
+					} else {
+						[enc setRenderPipelineState:im.cov.fanFlip];
+						[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:op.tris.size()];
+					}
 					if (!(m_nAblate & 4096)) {
 						[enc setRenderPipelineState:im.cov.band];
 						[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6 instanceCount:nTri];

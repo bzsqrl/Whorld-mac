@@ -262,6 +262,78 @@ void FanContours(const Contour* pContour, size_t nContours, std::vector<Vec2>& t
 	}
 }
 
+void SpanContours(const Contour* pContour, size_t nContours, int nWidth, int nHeight,
+	std::vector<Vec2>& spans)
+{
+	if (nWidth <= 0 || nHeight <= 0)
+		return;
+	// visible rows the contours touch
+	float	y0 = HUGE_VALF, y1 = -HUGE_VALF;
+	for (size_t c = 0; c < nContours; c++) {
+		for (Vec2 p : pContour[c].pts) {
+			y0 = std::min(y0, p.y);
+			y1 = std::max(y1, p.y);
+		}
+	}
+	if (!(y1 > y0))
+		return;
+	// row r has its centers at y = r + 0.5; an edge crosses rows with
+	// ymin <= r + 0.5 < ymax
+	int	r0 = std::max(0, int(std::ceil(y0 - 0.5f))), r1 = std::min(nHeight, int(std::ceil(y1 - 0.5f)));
+	if (r1 <= r0)
+		return;
+	int	nRows = r1 - r0;
+	// count crossings per row, then place them (counting sort by row)
+	thread_local std::vector<uint32_t>	aStart;
+	thread_local std::vector<float>	aX;
+	aStart.assign(size_t(nRows) + 1, 0);
+	auto	ForCrossings = [&](auto fn) {
+		for (size_t c = 0; c < nContours; c++) {
+			const std::vector<Vec2>&	pts = pContour[c].pts;
+			size_t	n = pts.size();
+			if (n < 2)
+				continue;
+			for (size_t i = 0; i < n; i++) {
+				Vec2	a = pts[i], b = pts[(i + 1) % n];
+				if (a.y == b.y)
+					continue;
+				if (a.y > b.y)
+					std::swap(a, b);
+				int	ra = std::max(r0, int(std::ceil(a.y - 0.5f))), rb = std::min(r1, int(std::ceil(b.y - 0.5f)));
+				if (rb <= ra)
+					continue;
+				float	k = (b.x - a.x) / (b.y - a.y);
+				for (int r = ra; r < rb; r++)
+					fn(r - r0, a.x + (r + 0.5f - a.y) * k);
+			}
+		}
+	};
+	ForCrossings([&](int r, float) { aStart[size_t(r) + 1]++; });
+	for (int r = 0; r < nRows; r++)
+		aStart[size_t(r) + 1] += aStart[size_t(r)];
+	aX.resize(aStart[size_t(nRows)]);
+	{
+		thread_local std::vector<uint32_t>	aFill;
+		aFill.assign(aStart.begin(), aStart.end() - 1);
+		ForCrossings([&](int r, float x) { aX[aFill[size_t(r)]++] = x; });
+	}
+	for (int r = 0; r < nRows; r++) {
+		float	*p = aX.data() + aStart[size_t(r)], *e = aX.data() + aStart[size_t(r) + 1];
+		if (e - p < 2)
+			continue;
+		std::sort(p, e);
+		for (; p + 1 < e; p += 2) {	// even-odd: inside between crossings 2k and 2k + 1
+			// pixel x has its center at x + 0.5: inside for x0 <= x + 0.5 < x1
+			int	xa = std::max(0, int(std::ceil(p[0] - 0.5f))), xb = std::min(nWidth, int(std::ceil(p[1] - 0.5f)));
+			if (xb > xa) {
+				float	fRow = float(r0 + r);
+				spans.push_back(Vec2{float(xa), fRow});
+				spans.push_back(Vec2{float(xb), fRow});
+			}
+		}
+	}
+}
+
 void RectTriangles(float left, float top, float right, float bottom, std::vector<Vec2>& tris)
 {
 	Tri(tris, Vec2{left, top}, Vec2{right, top}, Vec2{left, bottom});

@@ -67,6 +67,16 @@ void	StrokeContours(const Contour* pContour, size_t nContours, float fWidth, flo
 // rule fills.
 void	FanContours(const Contour* pContour, size_t nContours, std::vector<Vec2>& tris);
 
+// Appends the even-odd fill of the contours as horizontal spans of pixels
+// whose centers are inside, clipped to a target of nWidth x nHeight pixels.
+// Each span is two points, (x0, row) and (x1, row): pixels x0 <= x < x1
+// (integers) in that row. A pixel center exactly on an edge counts as
+// inside to the right of the crossing and below it (half-open), as the
+// edges' crossings are taken at y in [ymin, ymax). Spans never overlap, so
+// each pixel inside is touched once, however often the contours wind.
+void	SpanContours(const Contour* pContour, size_t nContours, int nWidth, int nHeight,
+	std::vector<Vec2>& spans);
+
 // Appends the two triangles of a rectangle, in pixels.
 void	RectTriangles(float left, float top, float right, float bottom, std::vector<Vec2>& tris);
 

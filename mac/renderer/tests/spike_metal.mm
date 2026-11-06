@@ -416,8 +416,8 @@ void FillTest(float fTol, const fs::path& dirOut, bool bStroke)
 	const char	*saved = getenv("WHORLD_MTL_ABLATE");
 	std::string	sSaved = saved ? saved : "";
 	struct Run { const char *label, *ablate, *suffix; };
-	const Run	aFill[] = {{"metal hybrid", "0", "hybrid"}, {"metal fan (exact)", "2048", "fan"},
-		{"hybrid, no bands", "4096", "nobands"}};
+	const Run	aFill[] = {{"metal hybrid (spans)", "0", "hybrid"}, {"hybrid, fan flips", "16384", "fanflip"},
+		{"metal fan (exact)", "2048", "fan"}, {"hybrid, no bands", "4096", "nobands"}};
 	const Run	aStroke[] = {{"metal strips", "0", "strips"}, {"metal triangles", "8192", "tris"}};
 	std::vector<Run>	aRun = bStroke ? std::vector<Run>(std::begin(aStroke), std::end(aStroke))
 		: std::vector<Run>(std::begin(aFill), std::end(aFill));

@@ -1,6 +1,6 @@
 # Whorld macOS Port Plan
 
-Status: **Phase 7 done (unnotarized ad-hoc build); Phase 8 (Metal renderer) spike done, revised plan confirmed 2026-11-05 (coverage mode); next: fewer fan fragments (2c)** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
+Status: **Phase 7 done (unnotarized ad-hoc build); Phase 8 (Metal renderer) spike done, revised plan confirmed 2026-11-05 (coverage mode); next: boomer to 60 Hz (rest of 2c)** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
 
 ## Goal
 
@@ -197,7 +197,7 @@ Output must stay within the golden-image tolerance (mean ≤ 1.5, at most 1% of 
 - [ ] 2. `MetalRenderer`: pipelines, coverage mode for antialiased frames and stencil for aliased ones, every `IRenderer` call, antialiasing toggle, quad mirror. (The spike's version is a start; remove the profiling switches or keep them behind a debug flag.)
 - [x] 2a. CPU tessellation under 8 ms at `bloom_cvx`'s size (1.8 M vertices; 13.4 ms in the spike). *Done without code changes: 13.4 ms was a Debug build; Release takes 1.18 ms for bloom and 5.67 ms for boomer.*
 - [x] 2b. Cheaper strokes (`bloom_cvx`: about 9.5 ms of GPU). *Done: smooth stretches of a stroke are a strip of quads sharing their edges along the bisector, with no join triangles, where a miter stays within the flattening tolerance of the round join (`StrokeContours` with `pQuads`; coverage mode only). Bloom's strokes alone 7.2 → 3.1 ms of GPU (the 9.5 ms estimate was from overlapping ablations); typhoon 9.6 → 4.2 ms. Output: within 16 levels of the triangle path on the golden snapshots, identical numbers on `spike_metal --strokes`.*
-- [ ] 2c. Fewer fan fragments for self-overlapping rings (`boomer_cvx`: 641 screens of fan flips per frame), for 60 Hz on `boomer_cvx`.
+- [ ] 2c. Fewer fan fragments for self-overlapping rings (`boomer_cvx`: 641 screens of fan flips per frame), for 60 Hz on `boomer_cvx`. *Fan fragments done: hybrid fills flip spans instead of the fan (`gpu::SpanContours`: each fill's edges crossed with the visible pixel-center rows, crossings sorted and paired by even-odd), so each pixel inside is flipped once and off-screen rows cost nothing. Bloom 13 → 6.0 ms of GPU, boomer 69 → 19.3 ms. Still open: boomer at 19.3 ms is over 60 Hz's 16.7 ms.*
 - [ ] 3. Golden tests for Metal against the Windows reference PNGs, in both antialiasing modes and with mirroring. Also a Metal-vs-CG comparison across all 86 patches over many frames, to catch differences the 8 snapshots miss. The tests skip, with a message, where no Metal device exists (CI runners may have none; check).
 - [ ] 4. App: IOSurface-backed textures, completion-driven frame handoff, the Renderer setting, the fallback. Build and run, and check the "missed" count.
 - [ ] 5. Performance: time all 86 patches (`whorld-render --metal`, full screen size) and run the app full screen. Record the results here, as in the Phase 3 table. Check on a base-model Mac, and check that the Intel slice falls back to Core Graphics.
@@ -225,16 +225,18 @@ Output must stay within the golden-image tolerance (mean ≤ 1.5, at most 1% of 
   | `bloom_cvx` | 1.8 M | 1.18 ms | 0.62 ms | 18.0 ms | 24.5 ms |
   | `boomer_cvx` | 8.8 M | 5.67 ms | 2.08 ms | 82.3 ms | 72.0 ms |
 
-  After task 2b (stroke strips), same conditions (vertex counts drop because strips need fewer):
+  After tasks 2b (stroke strips) and 2c (fill spans), same conditions. Vertex counts count the buffer's points: strips need fewer, spans add two per span.
 
-  | Patch | Vertices | CPU tessellation | CPU encoding | GPU | Core Graphics (deferred) |
+  | Patch | Points | CPU tessellation | CPU encoding | GPU | Core Graphics (deferred) |
   |---|---|---|---|---|---|
-  | `default_cvx` | 21 K | 0.08 ms | 0.08 ms | 1.9 ms | 7.2 ms |
-  | `saturn_cvx` | 78 K | 0.16 ms | 0.07 ms | 1.1 ms | 8.6 ms |
-  | `fish eye_cvx` | 111 K | 0.21 ms | 0.10 ms | 6.0 ms | 34.4 ms |
-  | `typhoon_cvx` | 428 K | 0.46 ms | 0.19 ms | 4.2 ms | 20.4 ms |
-  | `bloom_cvx` | 1.1 M | 0.85 ms | 0.43 ms | 12.8–13.6 ms | 24.5 ms |
-  | `boomer_cvx` | 5.2 M | 3.79 ms | 1.68 ms | 69.0 ms | 71.6 ms |
+  | `default_cvx` | 249 K | 0.20 ms | 0.14 ms | 1.5 ms | 7.3 ms |
+  | `saturn_cvx` | 78 K | 0.16 ms | 0.07 ms | 1.1 ms | 8.5 ms |
+  | `fish eye_cvx` | 111 K | 0.21 ms | 0.09 ms | 6.0 ms | 34.1 ms |
+  | `typhoon_cvx` | 428 K | 0.47 ms | 0.19 ms | 4.2 ms | 20.3 ms |
+  | `bloom_cvx` | 1.4 M | 1.26 ms | 0.55 ms | 6.0 ms | 24.6 ms |
+  | `boomer_cvx` | 7.0 M | 6.42 ms | 1.80 ms | 19.3 ms | 71.7 ms |
+
+  All but `boomer_cvx` now fit 120 Hz. `boomer_cvx` (GPU, by turning parts off): strokes about 10 ms, fills about 8 ms (edge bands about 3, cover quads about 2.4).
 
   (Earlier Core Graphics figures in this plan, such as 14 ms for fish eye, had antialiasing off. During the spike, CPU times were first measured with the default Debug build of `build/`, about 10× slower: 13.4 ms for bloom's tessellation. Time CPU work with a Release build.)
 - **Where the time still goes.**
