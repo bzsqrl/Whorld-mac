@@ -17,6 +17,7 @@
 #include "whorld/MidiManager.h"
 #include "whorld/Playlist.h"
 #include "whorld/Patch.h"
+#include "whorld/Version.h"
 #include "whorld/WhorldEngine.h"
 
 #include <chrono>
@@ -87,6 +88,10 @@ static NSString *ToNS(const std::string& s)
 {
 	Controls::AddSpin(FromWH(c), v, (int)dir);
 	return v;
+}
+
++ (NSString *)upstreamBaseline {
+	return @(whorld::UpstreamBaseline());
 }
 @end
 

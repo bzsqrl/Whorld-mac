@@ -15,6 +15,7 @@
 		D511977115546E3D85A5B217 /* Mapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = A202931F35E73683F6ABAA98 /* Mapping.swift */; };
 		2309C1A12ADDA54BDB043D68 /* Media.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED4E027A8713B30562EE3645 /* Media.swift */; };
 		E400806317F157D60866149F /* WHEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */; };
+		7DCDC4E90CC8AD643F19711A /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 58343318BF1C025D14EA9769 /* AppIcon.icns */; };
 		4C6344BF85C28FB3A76A2C9D /* ByteIO.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9AD330ED67D25720CAF715FE /* ByteIO.cpp */; };
 		78EE3481B81BC123DC5819C2 /* Controls.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 975509B0568EFB5A359C4670 /* Controls.cpp */; };
 		41FFB717DC4AE9B25DBAA195 /* DPoint.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A25943A1CB3686F094AC5B3E /* DPoint.cpp */; };
@@ -50,6 +51,7 @@
 		CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "WHEngine.mm"; sourceTree = "<group>"; };
 		895315CF8C9F41F1630E1694 /* Whorld-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Whorld-Bridging-Header.h"; sourceTree = "<group>"; };
 		4A43C53A319CA8E90772E131 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info.plist"; sourceTree = "<group>"; };
+		58343318BF1C025D14EA9769 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "AppIcon.icns"; sourceTree = "<group>"; };
 		9AD330ED67D25720CAF715FE /* ByteIO.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "ByteIO.cpp"; sourceTree = "<group>"; };
 		975509B0568EFB5A359C4670 /* Controls.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Controls.cpp"; sourceTree = "<group>"; };
 		A25943A1CB3686F094AC5B3E /* DPoint.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "DPoint.cpp"; sourceTree = "<group>"; };
@@ -115,6 +117,7 @@
 				CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */,
 				895315CF8C9F41F1630E1694 /* Whorld-Bridging-Header.h */,
 				4A43C53A319CA8E90772E131 /* Info.plist */,
+				58343318BF1C025D14EA9769 /* AppIcon.icns */,
 			);
 			name = Whorld;
 			path = "Whorld";
@@ -165,6 +168,8 @@
 			buildPhases = (
 				F2AB5FB218DA8B84623F4557 /* Sources */,
 				4F6F5CC3FCCF73F75AE9CCF4 /* Frameworks */,
+				55B558C7EF820E6E00E5993B /* Resources */,
+				43B3C47F8E852ADB3DC0A309 /* Copy Help */,
 			);
 			buildRules = (
 			);
@@ -240,6 +245,35 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXResourcesBuildPhase section */
+		55B558C7EF820E6E00E5993B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7DCDC4E90CC8AD643F19711A /* AppIcon.icns in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		43B3C47F8E852ADB3DC0A309 /* Copy Help */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Copy Help";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "H=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Help\"\nmkdir -p \"$H/V1\" \"$H/images\"\nrsync -a --delete --exclude V1 --exclude images \"$SRCROOT/Help/\" \"$H/\"\nrsync -a --delete \"$SRCROOT/../../docs/Help/\" \"$H/V1/\"\ncp \"$SRCROOT/../../docs/images/whorld-icon-32x32.gif\" \"$H/images/\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
 		9F92596D2ACB03E6970814CB /* Debug */ = {

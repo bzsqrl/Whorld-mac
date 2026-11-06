@@ -612,6 +612,7 @@ struct WhorldApp: App {
 		.defaultSize(width: 1024, height: 768)
 		.commands {
 			WhorldCommands(model: model)
+			HelpCommands()
 		}
 
 		Window("Parameters", id: "params") {

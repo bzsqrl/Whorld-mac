@@ -165,3 +165,52 @@ struct WhorldCommands: Commands {
 		}
 	}
 }
+
+/// The About box and Help menu (kept apart: a Commands body holds at most
+/// ten groups).
+struct HelpCommands: Commands {
+	var body: some Commands {
+		CommandGroup(replacing: .appInfo) {
+			Button("About Whorld") { Self.showAbout() }
+		}
+
+		CommandGroup(replacing: .help) {
+			Button("Whorld Help") { Self.openHelp("index.html") }
+				.keyboardShortcut("?")
+			Button("Whorld Manual") { Self.openHelp("frames.html") }
+			Divider()
+			Button("Whorld for Mac on GitHub") { NSWorkspace.shared.open(Self.sourceURL) }
+			Button("Original Whorld Website") { NSWorkspace.shared.open(URL(string: "https://whorld.org")!) }
+		}
+	}
+
+	static let sourceURL = URL(string: "https://github.com/bzsqrl/Whorld")!
+
+	/// Opens a page of the bundled help (Contents/Resources/Help, copied by
+	/// the Copy Help build phase) in the default browser.
+	static func openHelp(_ page: String) {
+		guard let dir = Bundle.main.resourceURL?.appendingPathComponent("Help") else { return }
+		NSWorkspace.shared.open(dir.appendingPathComponent(page))
+	}
+
+	/// The standard About panel with the credits and license notice
+	/// (the Windows About dialog, IDD_ABOUTBOX, credits Chris Korda).
+	static func showAbout() {
+		let html = """
+			<meta charset="utf-8"><div style="font: 11px -apple-system; text-align: center">
+			<p>Whorld by Chris Korda<br>macOS port by Jeff Matson<br>
+			Based on Whorld V2 \(WHControls.upstreamBaseline())</p>
+			<p>Whorld is free software: you can redistribute it and/or modify it under the terms of the
+			<a href="https://www.gnu.org/licenses/gpl-3.0.html">GNU General Public License</a>
+			version 3 or later. It comes with ABSOLUTELY NO WARRANTY.</p>
+			<p><a href="\(sourceURL.absoluteString)">Source code</a> ·
+			<a href="https://github.com/victimofleisure/Whorld">Original Whorld</a></p>
+			</div>
+			"""
+		let credits = NSMutableAttributedString(html: Data(html.utf8), documentAttributes: nil) ?? NSMutableAttributedString()
+		credits.addAttribute(.foregroundColor, value: NSColor.labelColor,
+			range: NSRange(location: 0, length: credits.length))
+		NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
+		NSApp.activate(ignoringOtherApps: true)
+	}
+}

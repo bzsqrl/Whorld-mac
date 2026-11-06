@@ -75,6 +75,7 @@ typedef struct {
 + (double)parseMaster:(NSInteger)iProp text:(NSString *)text;
 // spin button: returns the new value, or the same value if clamped unchanged
 + (double)spin:(double)value control:(WHControlInfo)control direction:(NSInteger)direction;
++ (NSString *)upstreamBaseline;	// Windows Whorld version this port follows
 @end
 
 // Movie state for the movie bar (WhorldEngine::MovieState)

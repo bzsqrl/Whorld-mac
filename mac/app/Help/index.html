@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<!-- This file is part of Whorld for macOS, a port of Whorld by Chris Korda.
+     Copyright 2026 Jeff Matson. GNU GPL version 3 or later; see LICENSE.
+     Keep the shortcut table in step with the one in mac/app/README.md. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whorld for Mac Help</title>
+<style>
+:root { color-scheme: light dark; --fg: #1d1d1f; --bg: #fff; --muted: #6e6e73; --rule: #d2d2d7; --link: #0066cc; }
+@media (prefers-color-scheme: dark) { :root { --fg: #f5f5f7; --bg: #1d1d1f; --muted: #a1a1a6; --rule: #424245; --link: #2997ff; } }
+body { font: 15px/1.5 -apple-system, system-ui, sans-serif; color: var(--fg); background: var(--bg); max-width: 46em; margin: 2em auto; padding: 0 16px; }
+h1 { font-size: 1.8em; margin-bottom: .2em; } h2 { margin-top: 1.8em; border-bottom: 1px solid var(--rule); padding-bottom: .2em; }
+.sub { color: var(--muted); margin-top: 0; } a { color: var(--link); }
+table { border-collapse: collapse; width: 100%; font-size: .93em; }
+th, td { text-align: left; padding: .3em .6em; border-bottom: 1px solid var(--rule); vertical-align: top; }
+code, kbd { font: .92em ui-monospace, Menlo, monospace; }
+</style>
+</head>
+<body>
+<h1>Whorld for Mac</h1>
+<p class="sub">A native macOS port of <a href="https://github.com/victimofleisure/Whorld">Whorld</a>, the free sacred-geometry visualizer by Chris Korda.</p>
+
+<p>Whorld draws animated rings of polygons and stars. You change how they grow, spin, skew and color with the parameters, and play them live with the keyboard or a MIDI controller. The Mac version is based on Whorld V2 and draws a patch the same way the Windows version does.</p>
+
+<p>The detailed documentation for each parameter and feature is the <a href="frames.html">Whorld manual</a>. It was written for Whorld V1 on Windows, so some of what it says about menus, dialogs and installation differs from this app; this page lists the differences.</p>
+
+<h2>Files</h2>
+<p>Patches (<code>.whp</code>), playlists (<code>.whl</code>), snapshots (<code>.whs</code>) and movies (<code>.whm</code>) are the same files Windows Whorld uses, and can be moved between the two in either direction. Double-click a patch or playlist in the Finder to open it.</p>
+
+<h2>Windows and panels</h2>
+<p>The Windows dockable bars are separate windows here: Parameters, Master, Globals, Properties, Playlist and MIDI Mapping. Open them from the Window menu or with the shortcuts below. The options dialog is Whorld &gt; Settings (<kbd>⌘,</kbd>).</p>
+
+<h2>MIDI</h2>
+<p>Whorld listens to MIDI input through Core MIDI. Choose the input device in Settings. To map a control, open MIDI Mapping, select one or more mappings, turn on MIDI Learn (<kbd>⇧⌘L</kbd>) and move the control on your device.</p>
+
+<h2>Movies and video</h2>
+<p>Movies record every frame's geometry, so they can be replayed and exported at any size. Besides exporting an image sequence, the Mac version can export a movie straight to a QuickTime video (Movie &gt; Export Video…) as H.264, HEVC, ProRes 422 or ProRes 4444. ProRes 4444 keeps the colors nearly exactly; the other formats soften color at sharp edges.</p>
+
+<h2>Keyboard shortcuts</h2>
+<p>The Windows shortcuts, with Ctrl mapped to Command except where macOS reserves the key.</p>
+<table>
+<tr><th>Command</th><th>Windows</th><th>Mac</th></tr>
+<tr><td>New patch</td><td>Ctrl+N</td><td>⌘N</td></tr>
+<tr><td>Save</td><td>Ctrl+S</td><td>⌘S</td></tr>
+<tr><td>Save As</td><td>—</td><td>⇧⌘S</td></tr>
+<tr><td>Undo</td><td>Ctrl+Z</td><td>⌘Z</td></tr>
+<tr><td>Redo</td><td>Ctrl+Y</td><td>⇧⌘Z</td></tr>
+<tr><td>Parameters panel</td><td>Shift+P</td><td>⇧⌘P</td></tr>
+<tr><td>Master panel</td><td>Shift+M</td><td>⇧⌘M</td></tr>
+<tr><td>Globals panel</td><td>Shift+G</td><td>⇧⌘G</td></tr>
+<tr><td>Properties panel</td><td>—</td><td>⇧⌘R</td></tr>
+<tr><td>Preferences</td><td>Shift+O</td><td>⌘,</td></tr>
+<tr><td>Playlist window</td><td>Shift+A</td><td>⇧⌘A</td></tr>
+<tr><td>Take Snapshot</td><td>Ctrl+T</td><td>⌘T</td></tr>
+<tr><td>Load Snapshot</td><td>Ctrl+L</td><td>⌘L</td></tr>
+<tr><td>Export image</td><td>Ctrl+E</td><td>⌘E</td></tr>
+<tr><td>First / Previous / Next / Last snapshot</td><td>Home / Page Up / Page Down / End</td><td>same</td></tr>
+<tr><td>Record movie</td><td>Ctrl+M</td><td>⌘M</td></tr>
+<tr><td>Play movie</td><td>Ctrl+Shift+M</td><td>⇧⌘M</td></tr>
+<tr><td>Rewind movie</td><td>Ctrl+Home</td><td>⌘Home</td></tr>
+<tr><td>MIDI Mapping window</td><td>Shift+I</td><td>⇧⌘I</td></tr>
+<tr><td>MIDI Learn</td><td>Shift+L</td><td>⇧⌘L</td></tr>
+<tr><td>New Playlist</td><td>Ctrl+Shift+N</td><td>⇧⌘N</td></tr>
+<tr><td>Open Playlist</td><td>Ctrl+Shift+O</td><td>⇧⌘O</td></tr>
+<tr><td>Save Playlist</td><td>Ctrl+Shift+S</td><td>⌥⌘S (⇧⌘S is Save As)</td></tr>
+<tr><td>Open patch</td><td>Ctrl+O</td><td>⌘O</td></tr>
+<tr><td>Fill</td><td>F6</td><td>F6</td></tr>
+<tr><td>Outline</td><td>F7</td><td>F7</td></tr>
+<tr><td>Mirror</td><td>F5</td><td>F5</td></tr>
+<tr><td>Reverse</td><td>Ctrl+Backspace</td><td>⌘Delete</td></tr>
+<tr><td>Convex</td><td>Ctrl+Tab</td><td>⌃Tab (⌘Tab switches apps)</td></tr>
+<tr><td>Loop Hue</td><td>F2</td><td>F2</td></tr>
+<tr><td>Zoom Center</td><td>Shift+W</td><td>⇧W</td></tr>
+<tr><td>Antialiasing</td><td>Ctrl+Alt+A</td><td>⌥⌘A</td></tr>
+<tr><td>Origin Center</td><td>Ctrl+0</td><td>⌘0</td></tr>
+<tr><td>Origin Drag</td><td>Ctrl+D</td><td>⌘D</td></tr>
+<tr><td>Origin Random</td><td>Ctrl+R</td><td>⌘R</td></tr>
+<tr><td>Random Phase</td><td>F9</td><td>F9</td></tr>
+<tr><td>Pause</td><td>Ctrl+Space</td><td>Space (⌃Space switches input sources)</td></tr>
+<tr><td>Step</td><td>Shift+Space</td><td>⇧Space</td></tr>
+<tr><td>Clear</td><td>Ctrl+Delete</td><td>⌘⌦ (forward delete; fn+Delete on laptops)</td></tr>
+<tr><td>Full screen</td><td>F11</td><td>F11, or ⌃⌘F</td></tr>
+</table>
+
+<h2>First launch</h2>
+<p>This build is not notarized by Apple, so the first time you open it macOS says it can't check the app for malicious software. Control-click Whorld in the Applications folder, choose Open, then Open again. On macOS 15 and later, if there is no Open button, go to System Settings &gt; Privacy &amp; Security and click Open Anyway. You only need to do this once.</p>
+
+<h2>License</h2>
+<p>Whorld is free software, released under the <a href="https://www.gnu.org/licenses/gpl-3.0.html">GNU General Public License version 3</a> or later, and comes with no warranty. Whorld is copyleft Chris Korda; the macOS port is by Jeff Matson. Source code: <a href="https://github.com/bzsqrl/Whorld">github.com/bzsqrl/Whorld</a>.</p>
+</body>
+</html>

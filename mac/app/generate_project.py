@@ -18,13 +18,25 @@ def gid(name):
 
 app_files = ["WhorldApp.swift", "ContentView.swift", "Commands.swift", "Panels.swift", "Preferences.swift", "Mapping.swift", "Media.swift",
              "WHEngine.h", "WHEngine.mm",
-             "Whorld-Bridging-Header.h", "Info.plist"]
+             "Whorld-Bridging-Header.h", "Info.plist", "AppIcon.icns"]
 engine_src = sorted(f for f in os.listdir(os.path.join(root, "../engine/src")) if f.endswith(".cpp"))
 renderer_src = ["CGRenderer.mm", "VideoWriter.mm"]
 groups = [("Whorld", "Whorld", app_files), ("Engine", "../engine/src", engine_src), ("Renderer", "../renderer", renderer_src)]
 ftype = {".swift": "sourcecode.swift", ".h": "sourcecode.c.h", ".mm": "sourcecode.cpp.objcpp",
-         ".cpp": "sourcecode.cpp.cpp", ".plist": "text.plist.xml"}
+         ".cpp": "sourcecode.cpp.cpp", ".plist": "text.plist.xml", ".icns": "image.icns"}
 compiled = (".swift", ".mm", ".cpp")
+resources = (".icns",)
+# Copies the help into Contents/Resources/Help: the Mac page (mac/app/Help)
+# and the Whorld manual (docs/Help) as Help/V1, with the icon its contents
+# page links to. Opened by Help > Whorld Help.
+help_script = r'''H="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Help"
+mkdir -p "$H/V1" "$H/images"
+rsync -a --delete --exclude V1 --exclude images "$SRCROOT/Help/" "$H/"
+rsync -a --delete "$SRCROOT/../../docs/Help/" "$H/V1/"
+cp "$SRCROOT/../../docs/images/whorld-icon-32x32.gif" "$H/images/"
+'''
+def pbxstr(t):
+    return '"' + t.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n') + '"'
 
 o = []
 w = o.append
@@ -34,6 +46,8 @@ for g, path, files in groups:
     for f in files:
         if os.path.splitext(f)[1] in compiled:
             w(f"\t\t{gid('bf'+g+f)} /* {f} in Sources */ = {{isa = PBXBuildFile; fileRef = {gid('fr'+g+f)} /* {f} */; }};\n")
+        if os.path.splitext(f)[1] in resources:
+            w(f"\t\t{gid('bf'+g+f)} /* {f} in Resources */ = {{isa = PBXBuildFile; fileRef = {gid('fr'+g+f)} /* {f} */; }};\n")
 w("/* End PBXBuildFile section */\n\n/* Begin PBXFileReference section */\n")
 w(f"\t\t{gid('product')} /* Whorld.app */ = {{isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Whorld.app; sourceTree = BUILT_PRODUCTS_DIR; }};\n")
 for g, path, files in groups:
@@ -60,6 +74,8 @@ w(f"""\t\t{gid('target')} /* Whorld */ = {{
 \t\t\tbuildPhases = (
 \t\t\t\t{gid('sources')} /* Sources */,
 \t\t\t\t{gid('frameworks')} /* Frameworks */,
+\t\t\t\t{gid('resources')} /* Resources */,
+\t\t\t\t{gid('helpscript')} /* Copy Help */,
 \t\t\t);
 \t\t\tbuildRules = (
 \t\t\t);
@@ -108,7 +124,14 @@ for g, path, files in groups:
     for f in files:
         if os.path.splitext(f)[1] in compiled:
             w(f"\t\t\t\t{gid('bf'+g+f)} /* {f} in Sources */,\n")
-w("\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t};\n/* End PBXSourcesBuildPhase section */\n\n/* Begin XCBuildConfiguration section */\n")
+w("\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t};\n/* End PBXSourcesBuildPhase section */\n\n")
+w(f"/* Begin PBXResourcesBuildPhase section */\n\t\t{gid('resources')} /* Resources */ = {{\n\t\t\tisa = PBXResourcesBuildPhase;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n")
+for g, path, files in groups:
+    for f in files:
+        if os.path.splitext(f)[1] in resources:
+            w(f"\t\t\t\t{gid('bf'+g+f)} /* {f} in Resources */,\n")
+w("\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t};\n/* End PBXResourcesBuildPhase section */\n\n")
+w(f"/* Begin PBXShellScriptBuildPhase section */\n\t\t{gid('helpscript')} /* Copy Help */ = {{\n\t\t\tisa = PBXShellScriptBuildPhase;\n\t\t\talwaysOutOfDate = 1;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n\t\t\t);\n\t\t\tinputPaths = (\n\t\t\t);\n\t\t\tname = \"Copy Help\";\n\t\t\toutputPaths = (\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t\tshellPath = /bin/sh;\n\t\t\tshellScript = {pbxstr(help_script)};\n\t\t}};\n/* End PBXShellScriptBuildPhase section */\n\n/* Begin XCBuildConfiguration section */\n")
 common = """\t\t\t\tALWAYS_SEARCH_USER_PATHS = NO;
 \t\t\t\tCLANG_CXX_LANGUAGE_STANDARD = "c++17";
 \t\t\t\tCLANG_CXX_LIBRARY = "libc++";
