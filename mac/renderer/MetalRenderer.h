@@ -24,7 +24,10 @@
 #include "whorld/IRenderer.h"
 #include "gpu/Tessellator.h"
 
+#include <IOSurface/IOSurfaceRef.h>
+
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -53,10 +56,26 @@ public:
 	void	SetTolerance(float fPixels) { m_fTolerance = fPixels; }	// curve flattening
 
 	// Frame. EndFrame tessellates, encodes and commits; WaitUntilDone blocks
-	// until the GPU has finished the last committed frame.
+	// until the GPU has finished the last committed frame. Up to three frames
+	// can be in flight (the vertex buffers are a ring of three); EndFrame
+	// waits if a fourth would reuse a buffer the GPU still reads.
 	void	BeginFrame();
 	void	EndFrame();
 	void	WaitUntilDone();
+	// EndFrame that calls fnDone, on a Metal thread, when the GPU has
+	// finished the frame: bOk is false if it failed (or nothing was drawn),
+	// fGpuMs is its GPU time. Called exactly once.
+	void	EndFrame(std::function<void(bool bOk, double fGpuMs)> fnDone);
+
+	// Draws the following frames into an IOSurface (BGRA8, this renderer's
+	// pixel size) instead of the renderer's own texture; nullptr goes back to
+	// it. The texture wrapping the surface is made per frame and held only by
+	// the frame's GPU work, so the surface is retained exactly while that
+	// work is pending. Returns false if the surface can't be used.
+	bool	SetTargetSurface(IOSurfaceRef surface);
+
+	// True if this Mac's GPU can run coverage mode (nSamples 0): an Apple GPU.
+	static bool	IsCoverageModeSupported();
 
 	// Pixels of the last finished frame: BGRA, premultiplied, row 0 at top.
 	bool	ReadPixels(std::vector<uint8_t>& aPixel, size_t& nStride);
@@ -135,6 +154,8 @@ private:
 	bool	m_bAntialiasSet = false;	// first SetAntialiasing of the frame seen
 	bool	m_bMirrorPending = false;
 	int		m_nAblate = 0;		// WHORLD_MTL_ABLATE (profiling)
+	std::function<void(bool, double)>	m_fnDone;	// this frame's completion callback
+	void	Commit(void *cmd, size_t nDraws);	// id<MTLCommandBuffer>
 	bool	m_bProfile = false;	// WHORLD_MTL_PROFILE
 	void	ProfileOp(const Op& op);
 

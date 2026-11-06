@@ -17,6 +17,9 @@
 #include "MetalRenderer.h"
 #include "RenderJobs.h"
 
+#import <Foundation/Foundation.h>
+#include <IOSurface/IOSurface.h>
+
 #include <dispatch/dispatch.h>
 
 #include <algorithm>
@@ -29,6 +32,7 @@
 #include <map>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 using namespace whorld;
@@ -39,6 +43,9 @@ namespace {
 const int		kThreshold = 32;	// as test_golden
 const double	kMaxFracOver = 0.01;
 const double	kMaxMeanAbs = 1.5;
+bool	g_bSurface = false;	// perf: draw into IOSurfaces, as the app does
+bool	g_bOverlap = false;
+double	g_fPaceMs = 0;	// perf: start frames this far apart, as a display link would (0: back to back)	// perf: don't wait for each frame (up to three in flight)
 int		g_nAA = -1;	// perf: force antialiasing on (1) or off (0); -1 = as the patch says
 
 void SetAA(WhorldEngine& eng, bool b)
@@ -478,10 +485,10 @@ void Perf(const std::vector<std::string>& aPatch, const std::vector<int>& aSampl
 		// Core Graphics, deferred (the app's current renderer)
 		Timing	tCG;
 		CGBitmapRenderer	cgr(sz.cx, sz.cy, fScale);
-		cgr.SetDeferred(true);
+		cgr.SetDeferred(!getenv("SPIKE_CG_DIRECT"));	// SPIKE_CG_DIRECT: CG without deferred mode
 		{
 			WhorldEngine	eng;
-			eng.SetFrameRate(60);
+			eng.SetFrameRate(getenv("SPIKE_RATE") ? atoi(getenv("SPIKE_RATE")) : 60);
 			eng.OnResize(cgr.GetSizeDIPs());
 			eng.OnSetPatch(patch);
 			for (int i = 0; i < nWarm + nFrames; i++) {
@@ -502,18 +509,37 @@ void Perf(const std::vector<std::string>& aPatch, const std::vector<int>& aSampl
 				return;
 			mr.SetTolerance(fTol);
 			WhorldEngine	eng;
-			eng.SetFrameRate(60);
+			eng.SetFrameRate(getenv("SPIKE_RATE") ? atoi(getenv("SPIKE_RATE")) : 60);
 			eng.OnResize(mr.GetSizeDIPs());
 			eng.OnSetPatch(patch);
 			Timing	tTess, tEnc, tGpu;
 			size_t	nVertMax = 0;
+			std::vector<IOSurfaceRef>	aSurf;
+			if (g_bSurface) {
+				for (int k = 0; k < 3; k++) {
+					NSDictionary	*props = @{(id)kIOSurfaceWidth: @(sz.cx), (id)kIOSurfaceHeight: @(sz.cy),
+						(id)kIOSurfaceBytesPerElement: @4, (id)kIOSurfacePixelFormat: @((uint32_t)'BGRA')};
+					aSurf.push_back(IOSurfaceCreate((__bridge CFDictionaryRef)props));
+				}
+			}
+			auto	t0All = std::chrono::steady_clock::now();
 			for (int i = 0; i < nWarm + nFrames; i++) {
+				if (i == nWarm)
+					t0All = std::chrono::steady_clock::now();
+				if (g_fPaceMs > 0) {	// wait for the next "refresh"
+					static auto	tNext = std::chrono::steady_clock::now();
+					std::this_thread::sleep_until(tNext);
+					tNext += std::chrono::microseconds(int64_t(g_fPaceMs * 1000));
+				}
 				if (g_nAA >= 0)
 					SetAA(eng, g_nAA != 0);
+				if (g_bSurface)
+					mr.SetTargetSurface(aSurf[size_t(i) % aSurf.size()]);
 				mr.BeginFrame();
 				eng.Draw(mr);
 				mr.EndFrame();
-				mr.WaitUntilDone();
+				if (!g_bOverlap)
+					mr.WaitUntilDone();
 				if (i >= nWarm) {
 					const MetalRenderer::Stats&	st = mr.GetStats();
 					tTess.Add(st.fTessMs);
@@ -522,6 +548,13 @@ void Perf(const std::vector<std::string>& aPatch, const std::vector<int>& aSampl
 					nVertMax = std::max(nVertMax, st.nVertices);
 				}
 			}
+			mr.WaitUntilDone();
+			if (g_bSurface || g_bOverlap)
+				std::printf("  (%s%s: %.2f ms per frame, wall clock)\n", g_bSurface ? "IOSurface targets" : "",
+					g_bOverlap ? " overlapped" : "", Ms(t0All) / nFrames);
+			mr.SetTargetSurface(nullptr);
+			for (IOSurfaceRef sf : aSurf)
+				CFRelease(sf);
 			if (getenv("WHORLD_MTL_PROFILE")) {
 				const auto&	p = mr.GetStats().prof;
 				const double	fScreen = double(sz.cx) * sz.cy;
@@ -545,6 +578,10 @@ void Perf(const std::vector<std::string>& aPatch, const std::vector<int>& aSampl
 			}
 			ImageRGBA	img = MetalImage(mr);
 			ImageDiff	d = CompareImages(cg, img, kThreshold);
+			if (getenv("SPIKE_SAVE")) {	// the last frame of both renderers
+				SaveImageRGBA((dirOut / (name + "-perf-cg.png")).string(), cg);
+				SaveImageRGBA((dirOut / (name + "-perf-metal.png")).string(), img);
+			}
 			char	label[16], cell[4][32];
 			if (nSamples) std::snprintf(label, sizeof(label), "metal %dx", nSamples); else std::snprintf(label, sizeof(label), "metal cov");
 			std::snprintf(cell[0], 32, "%.2f/%.2f", tTess.Mean(), tTess.fMax);
@@ -598,6 +635,13 @@ int main(int argc, char **argv)
 			bFills = true;
 		} else if (!std::strcmp(a, "--strokes")) {
 			bStrokes = true;
+		} else if (!std::strcmp(a, "--pace")) {
+			g_fPaceMs = std::atof(v);
+			i++;
+		} else if (!std::strcmp(a, "--surface")) {
+			g_bSurface = true;
+		} else if (!std::strcmp(a, "--overlap")) {
+			g_bOverlap = true;
 		} else if (!std::strcmp(a, "--no-perf")) {
 			bPerf = false;
 		} else if (!std::strcmp(a, "--patches")) {

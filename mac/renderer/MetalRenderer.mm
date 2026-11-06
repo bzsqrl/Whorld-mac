@@ -91,8 +91,8 @@ vertex TOut vsTri(uint vid [[vertex_id]], uint iid [[instance_id]],
 	float2 a = v[iid * 3], b = v[iid * 3 + 1], c = v[iid * 3 + 2];
 	TOut o;
 	o.tri = iid;
-#if ABLATE_NOGROW
-	const float d = 0.0;
+#if ABLATE_NOGROW || CENTER_ONLY
+	const float d = 0.0;	// CENTER_ONLY: the rasterizer's own pixel-center rule
 #else
 	const float d = 0.75;
 #endif
@@ -206,6 +206,7 @@ inline float2 Sample(uint k)
 // pixel, counting crossing edges in n.
 inline bool EdgeStep(Edge e, thread uint2& m, thread int& n, texture2d<uint> lut)
 {
+
 	float v00 = e.base, v10 = e.A + e.base, v01 = e.B + e.base, v11 = e.A + e.B + e.base;
 	float lo = min(min(v00, v10), min(v01, v11)), hi = max(max(v00, v10), max(v01, v11));
 	if (e.g < 0) {
@@ -225,6 +226,9 @@ inline bool EdgeStep(Edge e, thread uint2& m, thread int& n, texture2d<uint> lut
 // Stroke strips: a convex quad (four points at buffer 1, in order)
 inline uint2 QuadMask(TOut in, const device float2 *q, texture2d<uint> lut CNT_ARG)
 {
+#if CENTER_ONLY	// ungrown: the rasterizer gave only pixels whose centers are inside
+	return uint2(0xFFFFFFFF);
+#endif
 	float2 a = q[in.tri * 4], b = q[in.tri * 4 + 1], c = q[in.tri * 4 + 2], d = q[in.tri * 4 + 3];
 	float area = (a.x * b.y - b.x * a.y) + (b.x * c.y - c.x * b.y) + (c.x * d.y - d.x * c.y) + (d.x * a.y - a.x * d.y);
 	if (area == 0)
@@ -244,6 +248,9 @@ inline uint2 QuadMask(TOut in, const device float2 *q, texture2d<uint> lut CNT_A
 
 inline uint2 TriangleMask(TOut in, const device float2 *v, texture2d<uint> lut CNT_ARG)
 {
+#if CENTER_ONLY	// ungrown: the rasterizer gave only pixels whose centers are inside
+	return uint2(0xFFFFFFFF);
+#endif
 #if ABLATE_ALL
 	return uint2(0xFFFFFFFF);	// timing only: raster and framebuffer cost
 #endif
@@ -256,6 +263,7 @@ inline uint2 TriangleMask(TOut in, const device float2 *v, texture2d<uint> lut C
 	float sg = area > 0 ? 1 : -1;
 	float2 o = floor(in.pos.xy);
 	Edge e3[3] = {PixelEdge(a, b, sg, o), PixelEdge(b, c, sg, o), PixelEdge(c, a, sg, o)};
+
 	// Classify each edge by the pixel's corners (e is linear, so the samples
 	// lie between the corner values): all outside, the pixel is empty; all
 	// inside, the edge can't exclude a sample. Only crossing edges are tested,
@@ -470,7 +478,11 @@ vertex TOut vsQuad(uint vid [[vertex_id]], uint iid [[instance_id]],
 	float2 q[4] = {v[iid * 4], v[iid * 4 + 1], v[iid * 4 + 2], v[iid * 4 + 3]};
 	TOut o;
 	o.tri = iid;
+#if CENTER_ONLY
+	const float d = 0.0;
+#else
 	const float d = 0.75;
+#endif
 	const uint fan[6] = {0, 1, 2, 0, 2, 3};
 	uint k = fan[vid];
 	float area = (q[0].x * q[1].y - q[1].x * q[0].y) + (q[1].x * q[2].y - q[2].x * q[1].y)
@@ -479,6 +491,12 @@ vertex TOut vsQuad(uint vid [[vertex_id]], uint iid [[instance_id]],
 	float2 eIn = q[k] - q[(k + 3) & 3], eOut = q[(k + 1) & 3] - q[k];
 	float2 p = q[0];
 	bool bBox = true;
+#if CENTER_ONLY
+	if (area != 0) {	// exact corners (d is 0): the rasterizer's pixel-center rule decides
+		p = q[k];
+		bBox = false;
+	}
+#endif
 	if (area != 0 && length(eIn) > 0 && length(eOut) > 0) {
 		float2 n1 = s * float2(normalize(eIn).y, -normalize(eIn).x);
 		float2 n2 = s * float2(normalize(eOut).y, -normalize(eOut).x);
@@ -609,7 +627,8 @@ struct MetalRenderer::Impl {
 		id<MTLRenderPipelineState>	maskOr, maskXor, cover, clear;
 		id<MTLRenderPipelineState>	fanFlip, spanFlip, band, coverRect;	// hybrid fills
 		id<MTLRenderPipelineState>	maskOrQuad, coverQuad;	// stroke strips
-	} cov;
+	} cov, covAliased;	// covAliased: the shaders built with CENTER_ONLY, for aliased frames
+	id<MTLLibrary>	libraryAliased;
 	id<MTLTexture>	mask;	// coverage mode: RG32Uint, tile memory only
 	id<MTLBuffer>	counts;	// coverage mode fragment counts (profiling)
 	id<MTLTexture>	maskLut;	// coverage mode: edge sample masks, RG32Uint
@@ -619,7 +638,18 @@ struct MetalRenderer::Impl {
 	id<MTLDepthStencilState>	dssStroke;		// draw where ref > stored, store ref
 	id<MTLDepthStencilState>	dssStrokeReset;	// zero the stroke bits
 	id<MTLBuffer>	vertices;
-	id<MTLCommandBuffer>	lastCmd;
+	// Command buffers are referenced weakly: a strong reference would keep
+	// a finished frame's resources, its IOSurface among them, alive, and the
+	// app reuses a surface only once nothing holds it. The queue keeps a
+	// command buffer until it completes; after that these read nil.
+	__weak id<MTLCommandBuffer>	lastCmd;
+	// vertex buffers: a ring, so the CPU can fill one while the GPU reads others
+	static const int	kRing = 3;
+	id<MTLBuffer>	ring[kRing];
+	__weak id<MTLCommandBuffer>	ringCmd[kRing];	// last frame that read ring[i]
+	int		iRing = 0;
+	id<MTLTexture>	ownTarget;	// the renderer's texture, when no surface is set
+	IOSurfaceRef	targetSurface = nullptr;	// not retained; wrapped per frame
 	bool	bMemoryless = false;
 	bool	bShared = true;
 
@@ -640,11 +670,13 @@ struct MetalRenderer::Impl {
 		return [device newTextureWithDescriptor:d];
 	}
 
-	id<MTLRenderPipelineState> MakeCovPipe(NSString *vs, NSString *fs, bool bColor)
+	id<MTLRenderPipelineState> MakeCovPipe(NSString *vs, NSString *fs, bool bColor, id<MTLLibrary> lib = nil)
 	{
+		if (!lib)
+			lib = library;
 		MTLRenderPipelineDescriptor	*d = [MTLRenderPipelineDescriptor new];
-		d.vertexFunction = [library newFunctionWithName:vs];
-		d.fragmentFunction = [library newFunctionWithName:fs];
+		d.vertexFunction = [lib newFunctionWithName:vs];
+		d.fragmentFunction = [lib newFunctionWithName:fs];
 		d.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
 		d.colorAttachments[1].pixelFormat = MTLPixelFormatRG32Uint;
 		if (!bColor)
@@ -758,6 +790,7 @@ MetalRenderer::MetalRenderer(int nWidth, int nHeight, double fScale, int nSample
 	d.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
 	d.storageMode = im.bShared ? MTLStorageModeShared : MTLStorageModeManaged;
 	im.target = [im.device newTextureWithDescriptor:d];
+	im.ownTarget = im.target;
 	im.scratch = im.MakeTexture(MTLPixelFormatBGRA8Unorm, m_nWidth, m_nHeight, 1, true);
 	im.dssNone = im.MakeDSS(MTLCompareFunctionAlways, MTLStencilOperationKeep, 0, 0);
 	im.dssFillMark = im.MakeDSS(MTLCompareFunctionAlways, MTLStencilOperationInvert, 0, kFillBit);
@@ -791,6 +824,34 @@ MetalRenderer::MetalRenderer(int nWidth, int nHeight, double fScale, int nSample
 		im.cov.coverRect = im.MakeCovPipe(@"vsRect", @"fsCover", true);
 		im.cov.maskOrQuad = im.MakeCovPipe(@"vsQuad", @"fsMaskOrQuad", false);
 		im.cov.coverQuad = im.MakeCovPipe(@"vsQuad", @"fsCover", true);
+		// Aliased frames use the same machinery with one sample, the pixel
+		// center (Direct2D's aliased rule): a pixel is all in or all out.
+		// Fills need no edge bands then; spans are exact.
+		{
+			MTLCompileOptions	*ca = [MTLCompileOptions new];
+			NSMutableDictionary	*macros = [co.preprocessorMacros mutableCopy];
+			macros[@"CENTER_ONLY"] = @1;
+			ca.preprocessorMacros = macros;
+			NSError	*errA = nil;
+			im.libraryAliased = [im.device newLibraryWithSource:@(kShaderSource) options:ca error:&errA];
+			if (!im.libraryAliased) {
+				NSLog(@"MetalRenderer: aliased shaders: %@", errA);
+				im.device = nil;
+				return;
+			}
+			id<MTLLibrary>	la = im.libraryAliased;
+			Impl::CovPipelines&	a = im.covAliased;
+			a.maskOr = im.MakeCovPipe(@"vsTri", @"fsMaskOr", false, la);
+			a.maskXor = im.MakeCovPipe(@"vsTri", @"fsMaskXor", false, la);
+			a.cover = im.MakeCovPipe(@"vsTri", @"fsCover", true, la);
+			a.clear = im.MakeCovPipe(@"vsFull", @"fsClearCov", true, la);
+			a.fanFlip = im.MakeCovPipe(@"vsPath", @"fsFanFlip", false, la);
+			a.spanFlip = im.MakeCovPipe(@"vsSpan", @"fsFanFlip", false, la);
+			a.band = nil;	// not needed
+			a.coverRect = im.MakeCovPipe(@"vsRect", @"fsCover", true, la);
+			a.maskOrQuad = im.MakeCovPipe(@"vsQuad", @"fsMaskOrQuad", false, la);
+			a.coverQuad = im.MakeCovPipe(@"vsQuad", @"fsCover", true, la);
+		}
 		MTLTextureDescriptor	*md = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRG32Uint
 			width:m_nWidth height:m_nHeight mipmapped:NO];
 		md.usage = MTLTextureUsageRenderTarget;
@@ -960,8 +1021,8 @@ void MetalRenderer::Tessellate()
 	const gpu::Contour	*pCt = m_aContour.data();
 	const Figure	*pFig = m_aFig.data();
 	// stroke strips only in coverage mode; the stencil path draws triangles
-	const bool	bStrips = !m_nSamples && m_bAntialias && !(m_nAblate & 8192);
-	const bool	bSpans = !m_nSamples && m_bAntialias && !(m_nAblate & (2048 | 16384));
+	const bool	bStrips = !m_nSamples && !(m_nAblate & 8192);
+	const bool	bSpans = !m_nSamples && !(m_nAblate & (2048 | 16384));
 	const int	nWidth = m_nWidth, nHeight = m_nHeight;
 	dispatch_apply(m_aOp.size(), DISPATCH_APPLY_AUTO, ^(size_t i) {
 		Op&	op = pOps[i];
@@ -1026,10 +1087,27 @@ void MetalRenderer::Encode()
 		}
 		m_stats.nVertices = nVert;
 		size_t	nBytes = std::max<size_t>(nVert, 1) * sizeof(gpu::Vec2);
-		if (im.lastCmd)	// the spike reuses one buffer, so wait for the previous frame
-			[im.lastCmd waitUntilCompleted];
-		if (!im.vertices || im.vertices.length < nBytes)
-			im.vertices = [im.device newBufferWithLength:nBytes * 3 / 2 options:MTLResourceStorageModeShared];
+		im.iRing = (im.iRing + 1) % Impl::kRing;
+		if (id<MTLCommandBuffer> pending = im.ringCmd[im.iRing]) {	// the GPU may still read this buffer
+			[pending waitUntilCompleted];
+			im.ringCmd[im.iRing] = nil;
+		}
+		id<MTLBuffer>	__strong &buf = im.ring[im.iRing];
+		if (!buf || buf.length < nBytes)
+			buf = [im.device newBufferWithLength:nBytes * 3 / 2 options:MTLResourceStorageModeShared];
+		im.vertices = buf;
+		// a surface target: wrap it for this frame only
+		if (im.targetSurface) {
+			MTLTextureDescriptor	*td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+				width:m_nWidth height:m_nHeight mipmapped:NO];
+			td.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+			td.storageMode = im.bShared ? MTLStorageModeShared : MTLStorageModeManaged;
+			im.target = [im.device newTextureWithDescriptor:td iosurface:im.targetSurface plane:0];
+			if (!im.target)
+				im.target = im.ownTarget;
+		} else {
+			im.target = im.ownTarget;
+		}
 		auto	*pDst = static_cast<gpu::Vec2 *>(im.vertices.contents);
 		for (const Op& op : m_aOp) {
 			if (!op.tris.empty())
@@ -1040,7 +1118,7 @@ void MetalRenderer::Encode()
 				std::memcpy(&pDst[op.iSpan], op.spans.data(), op.spans.size() * sizeof(gpu::Vec2));
 		}
 
-		if (!m_nSamples && m_bAntialias) {
+		if (!m_nSamples) {	// coverage mode: 64 samples, or the pixel center when aliased
 			EncodeCoverage();
 			return;
 		}
@@ -1182,13 +1260,7 @@ void MetalRenderer::Encode()
 			[blit synchronizeResource:im.target];
 			[blit endEncoding];
 		}
-		Stats	*pStats = &m_stats;
-		[cmd addCompletedHandler:^(id<MTLCommandBuffer> cb) {
-			pStats->fGpuMs = (cb.GPUEndTime - cb.GPUStartTime) * 1000;
-		}];
-		[cmd commit];
-		im.lastCmd = cmd;
-		m_stats.nDraws = nDraws;
+		Commit((__bridge void *)cmd, nDraws);
 	}
 }
 
@@ -1257,6 +1329,8 @@ void MetalRenderer::EncodeCoverage()
 	const float	size[2] = {float(m_nWidth), float(m_nHeight)};
 	const MTLScissorRect	rQuad = {0, 0, NSUInteger((m_nWidth + 1) / 2), NSUInteger((m_nHeight + 1) / 2)};
 	const Impl::Pipelines&	pp = im.GetPipes(1);
+	const bool	bAliased = !m_bAntialias;	// pixel centers only: see covAliased
+	const Impl::CovPipelines&	cv = bAliased ? im.covAliased : im.cov;
 	size_t	nDraws = 0;
 	m_stats.prof = Stats::Profile{};
 	if (m_bProfile) {
@@ -1301,7 +1375,7 @@ void MetalRenderer::EncodeCoverage()
 				[enc setScissorRect:rQuad];
 				break;
 			case Op::CLEAR:
-				[enc setRenderPipelineState:im.cov.clear];
+				[enc setRenderPipelineState:cv.clear];
 				[enc setFragmentBytes:clr length:sizeof(clr) atIndex:0];
 				[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
 				nDraws++;
@@ -1317,22 +1391,22 @@ void MetalRenderer::EncodeCoverage()
 					NSUInteger	nQuad = op.quads.size() / 4, nTri = op.tris.size() / 3;
 					[enc setVertexBufferOffset:op.iQuad * sizeof(gpu::Vec2) atIndex:0];
 					[enc setFragmentBufferOffset:op.iQuad * sizeof(gpu::Vec2) atIndex:1];
-					[enc setRenderPipelineState:im.cov.maskOrQuad];
+					[enc setRenderPipelineState:cv.maskOrQuad];
 					[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6 instanceCount:nQuad];
 					if (nTri) {
 						[enc setVertexBufferOffset:op.iVert * sizeof(gpu::Vec2) atIndex:0];
 						[enc setFragmentBufferOffset:op.iVert * sizeof(gpu::Vec2) atIndex:1];
-						[enc setRenderPipelineState:im.cov.maskOr];
+						[enc setRenderPipelineState:cv.maskOr];
 						[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:12 instanceCount:nTri];
 					}
 					if (!(m_nAblate & 2)) {
 						[enc setFragmentBytes:clr length:sizeof(clr) atIndex:0];
 						[enc setVertexBufferOffset:op.iQuad * sizeof(gpu::Vec2) atIndex:0];
-						[enc setRenderPipelineState:im.cov.coverQuad];
+						[enc setRenderPipelineState:cv.coverQuad];
 						[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6 instanceCount:nQuad];
 						if (nTri) {
 							[enc setVertexBufferOffset:op.iVert * sizeof(gpu::Vec2) atIndex:0];
-							[enc setRenderPipelineState:im.cov.cover];
+							[enc setRenderPipelineState:cv.cover];
 							[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:12 instanceCount:nTri];
 						}
 					}
@@ -1350,17 +1424,17 @@ void MetalRenderer::EncodeCoverage()
 					if (!(m_nAblate & 16384)) {	// spans: the fill's area once
 						if (!op.spans.empty()) {
 							[enc setVertexBufferOffset:op.iSpan * sizeof(gpu::Vec2) atIndex:0];
-							[enc setRenderPipelineState:im.cov.spanFlip];
+							[enc setRenderPipelineState:cv.spanFlip];
 							[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6
 								instanceCount:op.spans.size() / 2];
 							[enc setVertexBufferOffset:op.iVert * sizeof(gpu::Vec2) atIndex:0];
 						}
 					} else {
-						[enc setRenderPipelineState:im.cov.fanFlip];
+						[enc setRenderPipelineState:cv.fanFlip];
 						[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:op.tris.size()];
 					}
-					if (!(m_nAblate & 4096)) {
-						[enc setRenderPipelineState:im.cov.band];
+					if (!bAliased && !(m_nAblate & 4096)) {	// aliased: spans are exact
+						[enc setRenderPipelineState:cv.band];
 						[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6 instanceCount:nTri];
 					}
 					// cover the bounding box (from Tessellate), grown a pixel, clipped to the target
@@ -1368,7 +1442,7 @@ void MetalRenderer::EncodeCoverage()
 					const float	r[4] = {std::max(x0 - 1, 0.f), std::max(y0 - 1, 0.f),
 						std::min(x1 + 1, float(m_nWidth)), std::min(y1 + 1, float(m_nHeight))};
 					if (r[2] > r[0] && r[3] > r[1]) {
-						[enc setRenderPipelineState:im.cov.coverRect];
+						[enc setRenderPipelineState:cv.coverRect];
 						[enc setVertexBytes:r length:sizeof(r) atIndex:2];
 						[enc setFragmentBytes:clr length:sizeof(clr) atIndex:0];
 						[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
@@ -1378,11 +1452,11 @@ void MetalRenderer::EncodeCoverage()
 				}
 				[enc setVertexBufferOffset:op.iVert * sizeof(gpu::Vec2) atIndex:0];
 				[enc setFragmentBufferOffset:op.iVert * sizeof(gpu::Vec2) atIndex:1];
-				[enc setRenderPipelineState:op.type == Op::FILL ? im.cov.maskXor : im.cov.maskOr];
+				[enc setRenderPipelineState:op.type == Op::FILL ? cv.maskXor : cv.maskOr];
 				[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:12 instanceCount:nTri];
 				nDraws++;
 				if (!(m_nAblate & 2)) {
-					[enc setRenderPipelineState:im.cov.cover];
+					[enc setRenderPipelineState:cv.cover];
 					[enc setFragmentBytes:clr length:sizeof(clr) atIndex:0];
 					[enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:12 instanceCount:nTri];
 					nDraws++;
@@ -1419,21 +1493,68 @@ void MetalRenderer::EncodeCoverage()
 		[blit synchronizeResource:im.target];
 		[blit endEncoding];
 	}
+	Commit((__bridge void *)cmd, nDraws);
+}
+
+void MetalRenderer::Commit(void *pCmd, size_t nDraws)
+{
+	Impl&	im = *m_pImpl;
+	id<MTLCommandBuffer>	cmd = (__bridge id<MTLCommandBuffer>)pCmd;
 	Stats	*pStats = &m_stats;
+	std::function<void(bool, double)>	fnDone = std::move(m_fnDone);
+	m_fnDone = nullptr;
 	[cmd addCompletedHandler:^(id<MTLCommandBuffer> cb) {
-		pStats->fGpuMs = (cb.GPUEndTime - cb.GPUStartTime) * 1000;
+		double	fMs = (cb.GPUEndTime - cb.GPUStartTime) * 1000;
+		pStats->fGpuMs = fMs;
+		if (fnDone) {
+			bool	bOk = cb.status == MTLCommandBufferStatusCompleted;
+			if (!bOk)
+				NSLog(@"MetalRenderer: frame failed: %@", cb.error);
+			fnDone(bOk, fMs);
+		}
 	}];
 	[cmd commit];
 	im.lastCmd = cmd;
+	im.ringCmd[im.iRing] = cmd;
+	im.target = im.ownTarget;	// don't hold the frame's surface texture
 	m_stats.nDraws = nDraws;
+}
+
+void MetalRenderer::EndFrame(std::function<void(bool bOk, double fGpuMs)> fnDone)
+{
+	m_fnDone = std::move(fnDone);
+	EndFrame();
+	if (m_fnDone) {	// nothing was committed
+		auto	fn = std::move(m_fnDone);
+		m_fnDone = nullptr;
+		fn(false, 0);
+	}
+}
+
+bool MetalRenderer::SetTargetSurface(IOSurfaceRef surface)
+{
+	if (surface && (int(IOSurfaceGetWidth(surface)) != m_nWidth || int(IOSurfaceGetHeight(surface)) != m_nHeight
+		|| IOSurfaceGetPixelFormat(surface) != 'BGRA')) {
+		m_pImpl->targetSurface = nullptr;
+		return false;
+	}
+	m_pImpl->targetSurface = surface;
+	return true;
+}
+
+bool MetalRenderer::IsCoverageModeSupported()
+{
+	id<MTLDevice>	device = MTLCreateSystemDefaultDevice();
+	return device && [device supportsFamily:MTLGPUFamilyApple1];
 }
 
 void MetalRenderer::WaitUntilDone()
 {
-	if (m_pImpl && m_pImpl->lastCmd) {
-		[m_pImpl->lastCmd waitUntilCompleted];
-		m_pImpl->lastCmd = nil;
-	}
+	if (!m_pImpl)
+		return;
+	if (id<MTLCommandBuffer> cmd = m_pImpl->lastCmd)
+		[cmd waitUntilCompleted];
+	m_pImpl->lastCmd = nil;
 }
 
 bool MetalRenderer::ReadPixels(std::vector<uint8_t>& aPixel, size_t& nStride)
