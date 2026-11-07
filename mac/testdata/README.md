@@ -7,7 +7,8 @@ Reference files exported from **Windows Whorld V2 2.0.20** (the upstream baselin
 ```
 testdata/
   patches/     demo .whp patches from the Windows release
-  playlists/   one or two .whl playlists (optional, for Phase 6)
+  playlists/   one or two .whl playlists (optional, for Phase 6); the user folder
+               in their patch paths is anonymized to C:\Users\user\
   snapshots/   .whs snapshots
   golden/      PNG exports of the snapshots in snapshots/, same base name
   movies/      one short .whm movie (optional, for Phase 6)
