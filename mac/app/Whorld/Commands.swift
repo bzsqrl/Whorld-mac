@@ -175,7 +175,15 @@ struct WhorldCommands: Commands {
 		}
 
 		CommandGroup(before: .windowSize) {
-			toggle("Pause", e.paused) { e.togglePause() }
+			toggle("Pause", e.paused) {
+				// Space pressed while a Properties row has focus toggles the row
+				let ev = NSApp.currentEvent
+				if ev?.type == .keyDown, ev?.charactersIgnoringModifiers == " ",
+					let take = model.keyboardSpaceAction, take() {
+					return
+				}
+				e.togglePause()
+			}
 				.keyboardShortcut(.space, modifiers: [])
 			Button("Step") { e.singleStep() }
 				.keyboardShortcut(.space, modifiers: .shift)

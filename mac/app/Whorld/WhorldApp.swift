@@ -51,6 +51,10 @@ final class AppModel: ObservableObject {
 	/// Properties open blocked the main thread for about 100 ms. Done once a
 	/// second, that cost several display refreshes each time (a stutter).
 	let stats = StatsModel()
+	/// Set while a Properties row has focus: Space (the Pause shortcut,
+	/// which menus see before any view) goes to the row instead. Returns
+	/// false if it didn't take it (its window isn't the key window).
+	var keyboardSpaceAction: (() -> Bool)?
 	/// the workspace's panels and the output's place (Workspace.swift)
 	let layout = LayoutModel()
 	private let outputWindow = OutputWindowController()
