@@ -1,5 +1,6 @@
 // Copyleft 2005 Chris Korda (original Patch.cpp)
 // Port to macOS: Copyright 2026 Jeff Matson. Part of Whorld for macOS.
+// Written with Claude (Anthropic).
 //
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by the Free

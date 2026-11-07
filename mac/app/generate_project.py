@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # This file is part of Whorld for macOS, a port of Whorld by Chris Korda.
 # Copyright 2026 Jeff Matson.
+# Written with Claude (Anthropic).
 #
 # This program is free software: you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the Free
