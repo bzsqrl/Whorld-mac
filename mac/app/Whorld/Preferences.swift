@@ -28,6 +28,7 @@ enum Preferences {
 			"Midi_sInputDevice": "",
 			"Render_bMetal": true,
 			"General_bReopenLast": true,
+			"Render_nMaxFrameRate": 0,
 		])
 	}
 
@@ -47,6 +48,12 @@ enum Preferences {
 	static var wheelSense: Double {
 		register()
 		return defaults.double(forKey: "Input_fWheelSense")
+	}
+
+	/// Live view frame rate limit, or 0 for the display's refresh rate (new in the Mac port)
+	static var maxFrameRate: Int {
+		register()
+		return defaults.integer(forKey: "Render_nMaxFrameRate")
 	}
 
 	/// Reopen the last playlist and patch at launch (Session; new in the Mac port)
@@ -76,6 +83,7 @@ struct PreferencesView: View {
 	@AppStorage("Midi_sInputDevice") private var midiInput = ""
 	@AppStorage("Render_bMetal") private var useMetal = true
 	@AppStorage("General_bReopenLast") private var reopenLast = true
+	@AppStorage("Render_nMaxFrameRate") private var maxFrameRate = 0
 
 	var body: some View {
 		Form {
@@ -93,6 +101,15 @@ struct PreferencesView: View {
 					: "Metal needs a Mac with Apple silicon; the live view uses Core Graphics.")
 					.font(.caption)
 					.foregroundStyle(.secondary)
+				Picker("Frame rate", selection: $maxFrameRate) {
+					Text("Display refresh rate").tag(0)
+					Text("60 fps").tag(60)
+				}
+				.onChange(of: maxFrameRate) { _, rate in model.engine.maxFrameRate = rate }
+				Text("Rings move a step each frame, so at 120 Hz patches run twice as fast as on a 60 Hz display. 60 fps matches Windows on a typical monitor and uses about half the power.")
+					.font(.caption)
+					.foregroundStyle(.secondary)
+					.fixedSize(horizontal: false, vertical: true)
 			}
 			Section("MIDI") {
 				let _ = model.changes.midi.n

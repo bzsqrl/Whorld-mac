@@ -284,6 +284,10 @@ typedef struct {
 // Exports always use Core Graphics.
 @property (nonatomic) BOOL preferMetal;
 @property (class, nonatomic, readonly) BOOL metalAvailable;
+// The most frames per second the live view draws, or 0 for one per display
+// refresh (up to 120 on a ProMotion display). Ring motion is per frame, as
+// on Windows, so 60 also keeps patches at the speed of a 60 Hz monitor.
+@property (atomic) NSInteger maxFrameRate;
 
 // Playlist patch list editing
 - (void)setPlaylistPatches:(NSArray<NSString *> *)paths;

@@ -1546,6 +1546,7 @@ static NSString *SourceName(MIDIEndpointRef src)
 
 @implementation WHRenderView {
 	CADisplayLink	*_displayLink;
+	NSInteger	_linkMaxRate;	// the frame rate limit the display link was given (presenter thread)
 	NSTrackingArea	*_tracking;
 	// for the display link on the presenter thread, which mustn't touch
 	// AppKit: the drawable's pixel size and scale, kept current on the main
@@ -1627,6 +1628,7 @@ static NSString *SourceName(MIDIEndpointRef src)
 			[_engine attachLayer:self.layer];
 		// paced by this view's display, run on the presenter thread
 		_displayLink = [self displayLinkWithTarget:self selector:@selector(displayLinkFired:)];
+		_linkMaxRate = 0;	// a new link runs at the display's rate until the first callback
 		[_displayLink addToRunLoop:[WHEngine presenterRunLoop] forMode:NSRunLoopCommonModes];
 	}
 }
@@ -1639,6 +1641,12 @@ static NSString *SourceName(MIDIEndpointRef src)
 	WHEngine	*engine = _engine;
 	if (!engine || engine.attachedLayer != _ownLayer)
 		return;
+	NSInteger	maxRate = engine.maxFrameRate;
+	if (maxRate != _linkMaxRate) {	// the frame rate setting changed: takes effect from the next refresh
+		_linkMaxRate = maxRate;
+		link.preferredFrameRateRange = maxRate > 0
+			? CAFrameRateRangeMake(maxRate, maxRate, maxRate) : CAFrameRateRangeDefault;
+	}
 	int		w, h;
 	double	scale;
 	{

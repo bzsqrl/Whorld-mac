@@ -129,6 +129,7 @@ final class AppModel: ObservableObject {
 		}
 		engine.setSnapshotLetterbox(Preferences.snapshotLetterbox)
 		engine.preferMetal = Preferences.preferMetal
+		engine.maxFrameRate = Preferences.maxFrameRate
 		engine.midiInputName = Preferences.midiInputName
 		engine.movieErrorHandler = { message in
 			let alert = NSAlert()
