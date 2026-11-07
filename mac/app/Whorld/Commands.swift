@@ -81,7 +81,8 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut("m")
 				.disabled(ms.io == .reading)
 			Button(ms.io == .reading ? "Stop Playing" : "Play…") { model.togglePlayMovie() }
-				.keyboardShortcut("m", modifiers: [.command, .shift])
+				// Windows' Ctrl+Shift+M would be Shift-Cmd-M, the Master panel's
+				.keyboardShortcut("m", modifiers: [.control, .command])
 				.disabled(ms.io == .writing)
 			Button("Rewind") { model.rewindMovie() }
 				.keyboardShortcut(.home, modifiers: .command)
@@ -149,14 +150,15 @@ struct WhorldCommands: Commands {
 		}
 
 		CommandGroup(after: .toolbar) {
-			// Whorld's own full screen (FullScreen.swift) with the Mac
-			// shortcut. It replaces AppKit's automatic Enter Full Screen item,
+			// Whorld's own full screen (FullScreen.swift), on Shift-Cmd-F (the
+			// user's choice; Ctrl-Cmd-F, macOS's usual one, is Show Frame Rate).
+			// It replaces AppKit's automatic Enter Full Screen item,
 			// which drives macOS's full screen (turned off; see AppDelegate).
 			// F11, the Windows shortcut, is on the Window menu's item; on most
 			// Mac keyboards it doesn't reach apps (a media key, or fn-F11 for
 			// Show Desktop).
 			Button(model.isFullScreen ? "Exit Full Screen" : "Enter Full Screen") { model.toggleFullScreen() }
-				.keyboardShortcut("f", modifiers: [.control, .command])
+				.keyboardShortcut("f", modifiers: [.command, .shift])
 			Divider()
 			// CMainFrame's ID_VIEW_BAR_ commands: show or hide a panel
 			ForEach(PanelID.allCases) { id in
@@ -168,7 +170,7 @@ struct WhorldCommands: Commands {
 			Divider()
 			Toggle("Full Resolution", isOn: $model.fullResolution)
 			Toggle("Show Frame Rate", isOn: $model.showFrameRate)
-				.keyboardShortcut("f", modifiers: [.command, .shift])
+				.keyboardShortcut("f", modifiers: [.control, .command])
 			Divider()
 		}
 
@@ -183,6 +185,7 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut(fkey(NSF11FunctionKey), modifiers: [])
 			// CMainFrame::OnWindowDetach
 			Toggle("Detach", isOn: Binding(get: { model.isDetached }, set: { _ in model.toggleDetach() }))
+				.keyboardShortcut("d", modifiers: [.command, .shift])	// Windows: Ctrl+F12
 				.disabled(model.isFullScreen)
 			Divider()
 			Button("Show All Panels") { model.showAllPanels() }

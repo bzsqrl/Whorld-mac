@@ -31,10 +31,10 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 
 <h2>Windows and panels</h2>
 <p>As on Windows, the Whorld window holds the picture in the middle and the panels around it: Parameters, Master, Globals, Properties, Playlist and MIDI Mapping. Show or hide each from the View menu (shortcuts below). The panels sit in a left, a right and a bottom area; drag the dividers between them to resize. To move a panel, drag its title bar onto another panel (it goes before or after it) or near the left, right or bottom edge of the picture (it goes to that area), or use the ⋯ menu on its title bar, which can also float it in a window of its own (its Dock button puts it back). Window &gt; Show All Panels shows every panel and fits the Whorld window to its screen; Window &gt; Reset Layout puts everything back in its standard place. The arrangement is remembered between launches. The options dialog is Whorld &gt; Settings (<kbd>⌘,</kbd>).</p>
-<p>Window &gt; Detach moves the picture into a window of its own, as on Windows, and the panels then fill the Whorld window. Detach again, or close the picture's window, to put it back.</p>
+<p>Window &gt; Detach (<kbd>⇧⌘D</kbd>) moves the picture into a window of its own, as on Windows, and the panels then fill the Whorld window. Detach again, or close the picture's window, to put it back.</p>
 
 <h2>Full screen and projectors</h2>
-<p>View &gt; Enter Full Screen (<kbd>⌃⌘F</kbd>) fills the display the Whorld window is on; <kbd>⌃⌘F</kbd> or <kbd>Esc</kbd> returns to the window. <kbd>F11</kbd>, the Windows shortcut, works too where the keyboard sends it to apps; on most Mac keyboards F11 is a media key, and fn-F11 shows the desktop. To show Whorld on a projector or second display, choose Window &gt; Detach, drag the picture's window onto that display, then press <kbd>⌃⌘F</kbd>. On a second display the menu bar and Dock stay on your main display, so the panels remain usable there while the picture fills the projector. On the main display, full screen hides the menu bar and Dock (they don't slide in; press <kbd>⌃⌘F</kbd> or <kbd>Esc</kbd> to leave). If the second display is disconnected, Whorld leaves full screen. The renderer is set in Settings &gt; Rendering: Metal (the GPU, the default) or Core Graphics.</p>
+<p>View &gt; Enter Full Screen (<kbd>⇧⌘F</kbd>) fills the display the Whorld window is on; <kbd>⇧⌘F</kbd> or <kbd>Esc</kbd> returns to the window. <kbd>F11</kbd>, the Windows shortcut, works too where the keyboard sends it to apps; on most Mac keyboards F11 is a media key, and fn-F11 shows the desktop. To show Whorld on a projector or second display, choose Window &gt; Detach, drag the picture's window onto that display, then press <kbd>⇧⌘F</kbd>. On a second display the menu bar and Dock stay on your main display, so the panels remain usable there while the picture fills the projector. On the main display, full screen hides the menu bar and Dock (they don't slide in; press <kbd>⇧⌘F</kbd> or <kbd>Esc</kbd> to leave). If the second display is disconnected, Whorld leaves full screen. The renderer is set in Settings &gt; Rendering: Metal (the GPU, the default) or Core Graphics.</p>
 
 <h2>MIDI</h2>
 <p>Whorld listens to MIDI input through Core MIDI. Choose the input device in Settings. To map a control, open MIDI Mapping, select one or more mappings, turn on MIDI Learn (<kbd>⇧⌘L</kbd>) and move the control on your device.</p>
@@ -63,7 +63,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <tr><td>Export image</td><td>Ctrl+E</td><td>⌘E</td></tr>
 <tr><td>First / Previous / Next / Last snapshot</td><td>Home / Page Up / Page Down / End</td><td>same</td></tr>
 <tr><td>Record movie</td><td>Ctrl+M</td><td>⌘M</td></tr>
-<tr><td>Play movie</td><td>Ctrl+Shift+M</td><td>⇧⌘M</td></tr>
+<tr><td>Play movie</td><td>Ctrl+Shift+M</td><td>⌃⌘M</td></tr>
 <tr><td>Rewind movie</td><td>Ctrl+Home</td><td>⌘Home</td></tr>
 <tr><td>MIDI Mapping window</td><td>Shift+I</td><td>⇧⌘I</td></tr>
 <tr><td>MIDI Learn</td><td>Shift+L</td><td>⇧⌘L</td></tr>
@@ -86,7 +86,9 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <tr><td>Pause</td><td>Ctrl+Space</td><td>Space (⌃Space switches input sources)</td></tr>
 <tr><td>Step</td><td>Shift+Space</td><td>⇧Space</td></tr>
 <tr><td>Clear</td><td>Ctrl+Delete</td><td>⌘⌦ (forward delete; fn+Delete on laptops)</td></tr>
-<tr><td>Full screen</td><td>F11</td><td>⌃⌘F (View &gt; Enter Full Screen), or F11 if your keyboard sends it; Esc also leaves</td></tr>
+<tr><td>Full screen</td><td>F11</td><td>⇧⌘F (View &gt; Enter Full Screen), or F11 if your keyboard sends it; Esc also leaves</td></tr>
+<tr><td>Detach</td><td>Ctrl+F12</td><td>⇧⌘D</td></tr>
+<tr><td>Show frame rate</td><td>—</td><td>⌃⌘F</td></tr>
 </table>
 
 <h2>First launch</h2>
