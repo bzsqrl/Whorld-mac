@@ -47,15 +47,14 @@ enum KeyStep {
 /// parses what was typed, if anything was, as CNumEdit does (it commits only
 /// if GetModify). Committing unedited text would round the value to what's
 /// shown, and a panel's first field loses focus whenever another window
-/// opens. Optional stepper (spin control). While it has focus, the up and
-/// down arrows step the value (see KeyStep); right-clicking it restores
-/// `defaultValue`.
+/// opens. While it has focus, the up and down arrows step the value (see
+/// KeyStep), which does what Windows' spin buttons do; right-clicking it
+/// restores `defaultValue`.
 struct NumberField: View {
 	let value: Double
 	let format: (Double) -> String
 	let parse: (String) -> Double
 	let commit: (Double) -> Void
-	var spin: ((Double, Int) -> Double)? = nil	// the stepper
 	/// the arrow keys: (value, +1 or -1, step) -> new value, clamped; .end isn't passed
 	var step: ((Double, Int, KeyStep) -> Double)? = nil
 	var lo: Double? = nil	// where Command-Shift-Down goes, if the range has an end there
@@ -68,16 +67,9 @@ struct NumberField: View {
 	static let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
 
 	var body: some View {
-		HStack(spacing: 2) {
-			KeyTextField(value: value, format: format, parse: parse, commit: commit,
-				step: step, lo: lo, hi: hi, defaultValue: defaultValue)
-				.frame(width: width, height: 22)
-			if let spin {
-				Stepper("", onIncrement: { commit(spin(value, 1)) }, onDecrement: { commit(spin(value, -1)) })
-					.labelsHidden()
-					.controlSize(.mini)
-			}
-		}
+		KeyTextField(value: value, format: format, parse: parse, commit: commit,
+			step: step, lo: lo, hi: hi, defaultValue: defaultValue)
+			.frame(width: width, height: 22)
 	}
 }
 
@@ -393,14 +385,14 @@ struct ParamsPanel: View {
 	}
 }
 
-/// The Parameters panel's column widths (a number box with its stepper).
+/// The Parameters panel's column widths.
 enum ParamColumn {
 	static let spacing: CGFloat = 8
 	static let name: CGFloat = 96
 	static let slider: CGFloat = 160
-	static let field: CGFloat = 114
+	static let field: CGFloat = 96
 	static let wave: CGFloat = 104
-	static let pw: CGFloat = 88
+	static let pw: CGFloat = 70
 }
 
 struct ParamRow: View {
@@ -419,7 +411,6 @@ struct ParamRow: View {
 			format: { WHControls.format($0, control: ci) },
 			parse: { WHControls.parse($0, control: ci) },
 			commit: { model.setParam(iParam, prop, $0) },
-			spin: { WHControls.spin($0, control: ci, direction: $1) },
 			step: spinStep(ci),
 			lo: bounded ? ci.editMin : nil,
 			hi: bounded && ci.editMax < Double(Int32.max) ? ci.editMax : nil,	// not Frequency's INT_MAX
@@ -546,7 +537,6 @@ struct GlobalRow: View {
 				format: { WHControls.format($0, control: ci) },
 				parse: { WHControls.parse($0, control: ci) },
 				commit: { model.setParam(i, .global, $0) },
-				spin: { WHControls.spin($0, control: ci, direction: $1) },
 				step: spinStep(ci),
 				lo: ci.editMin,
 				hi: ci.editMax,

@@ -70,7 +70,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		switch (self, region) {
 		case (.properties, .left), (.properties, .right): 252
 		case (.master, .left), (.master, .right): 334
-		case (.params, .bottom): 880
+		case (.params, .bottom): 810
 		default: nil
 		}
 	}
@@ -306,14 +306,17 @@ struct SplitView: NSViewRepresentable {
 			needsDisplay = true
 		}
 
-		/// Redraws the whole window, once, at the next turn of the run loop.
+		/// Redraws and lays out the whole window, once, at the next turn of the run loop.
 		/// After panes are added, removed or moved, AppKit doesn't always
 		/// repaint everywhere they were: a line where a divider or a pane's
 		/// edge used to be can stay on screen until something else redraws it.
 		func redisplayWindowSoon() {
 			DispatchQueue.main.async { [weak self] in
 				guard let root = self?.window?.contentView else { return }
+				// and lays it out: a table's rows keep what they drew (a
+				// line where a pane's edge was) until their next layout
 				func mark(_ v: NSView) {
+					v.needsLayout = true
 					v.needsDisplay = true
 					v.layer?.setNeedsDisplay()
 					v.subviews.forEach(mark)
