@@ -27,6 +27,7 @@ enum Preferences {
 			"Snapshot_iLegacySize": 1,
 			"Midi_sInputDevice": "",
 			"Render_bMetal": true,
+			"General_bReopenLast": true,
 		])
 	}
 
@@ -46,6 +47,12 @@ enum Preferences {
 	static var wheelSense: Double {
 		register()
 		return defaults.double(forKey: "Input_fWheelSense")
+	}
+
+	/// Reopen the last playlist and patch at launch (Session; new in the Mac port)
+	static var reopenLast: Bool {
+		register()
+		return defaults.bool(forKey: "General_bReopenLast")
 	}
 
 	static var snapshotLetterbox: Bool {
@@ -68,9 +75,13 @@ struct PreferencesView: View {
 
 	@AppStorage("Midi_sInputDevice") private var midiInput = ""
 	@AppStorage("Render_bMetal") private var useMetal = true
+	@AppStorage("General_bReopenLast") private var reopenLast = true
 
 	var body: some View {
 		Form {
+			Section("General") {
+				Toggle("Reopen the last playlist and patch at launch", isOn: $reopenLast)
+			}
 			Section("Rendering") {
 				Picker("Renderer", selection: $useMetal) {
 					Text("Metal (GPU)").tag(true)

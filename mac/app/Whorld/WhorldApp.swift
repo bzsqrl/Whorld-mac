@@ -862,7 +862,8 @@ struct WhorldApp: App {
 /// can't be found is skipped without a word. The patch is a patch file, or
 /// the playlist entry that was playing; an untitled patch isn't kept, nor a
 /// playlist that was never saved. A file opened at launch (from the Finder)
-/// takes the place of the remembered one of its kind.
+/// takes the place of the remembered one of its kind. Settings > General
+/// can turn this off.
 @MainActor
 enum Session {
 	private static let playlistKey = "LastPlaylist"	// bookmark data
@@ -902,8 +903,10 @@ enum Session {
 		}
 	}
 
-	/// At launch.
+	/// At launch, if Settings > General says to. (What was open is kept
+	/// either way, so turning the setting on reopens the last files.)
 	static func restore(_ model: AppModel) {
+		guard Preferences.reopenLast else { return }
 		let d = UserDefaults.standard
 		var playlistOpen = false
 		if !openedPlaylist, let url = resolve(d.data(forKey: playlistKey)) {
