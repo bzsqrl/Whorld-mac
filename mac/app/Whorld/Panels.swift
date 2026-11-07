@@ -88,6 +88,39 @@ func spinStep(_ ci: WHControlInfo) -> (Double, Int, KeyStep) -> Double {
 	}
 }
 
+/// A Master row's arrow keys, for its slider and edit box alike: steps in
+/// slider positions, but a fine step is never smaller than the last digit
+/// the edit box shows (for Hue Span, Canvas, Copies and Spread one
+/// position is one whole unit, so a tenth of one would change nothing you
+/// can see), and the result is rounded to that digit.
+func masterStep(_ i: Int, _ ci: WHControlInfo, _ v: Double, _ d: Int, _ k: KeyStep) -> Double {
+	let p = WHControls.masterPosition(i, value: v)
+	let digits = ci.editPrecision >= 0 ? Double(ci.editPrecision) : nil
+	// the value of the shown last digit: the box shows value / editScale,
+	// except Damping, shown inverted as a percentage, editScale - value * editScale
+	// (Controls::FormatMaster)
+	let inverted = i == MasterProp.damping.rawValue
+	let unit = digits.map { inverted ? pow(10, -$0) / ci.editScale : pow(10, -$0) * ci.editScale }
+	var pos: Double
+	if k == .fine, let unit {
+		// the position of the next shown value that way (log sliders: it varies)
+		var next = 0.0
+		for candidate in [v + unit, v - unit] {
+			let q = WHControls.masterPosition(i, value: candidate)
+			if q.isFinite, (q - p) * Double(d) > 0, next == 0 || abs(q - p) < next {
+				next = abs(q - p)
+			}
+		}
+		pos = next > 0.1 ? p + Double(d) * next : k.apply(p, size: 1, direction: d)
+	} else {
+		pos = k.apply(p, size: 1, direction: d)
+	}
+	pos = min(max(pos, Double(ci.rangeMin)), Double(ci.rangeMax))
+	var x = WHControls.masterValue(i, position: pos)
+	if let unit { x = (x / unit).rounded() * unit }
+	return x
+}
+
 /// NumberField's edit box, on NSTextField: SwiftUI's TextField can't see the
 /// up and down arrows (its field editor takes them), and the delegate can.
 struct KeyTextField: NSViewRepresentable {
@@ -227,13 +260,16 @@ struct PositionSlider: View {
 	let denorm: (Double) -> Double
 	let commit: (Double) -> Void
 	let defaultValue: Double
+	/// the arrow keys, if not in plain positions: (value, +1 or -1, step) -> new value; .end isn't passed
+	var step: ((Double, Int, KeyStep) -> Double)? = nil
 	var width: CGFloat = 160
 
 	var body: some View {
 		let lo = Double(control.rangeMin), hi = Double(control.rangeMax)
 		KeySlider(position: min(max(norm(value), lo), hi), range: lo...hi,
 			set: { commit(denorm($0)) },
-			reset: { commit(defaultValue) })
+			reset: { commit(defaultValue) },
+			step: step.map { f in { d, k in commit(f(value, d, k)) } })
 			.frame(width: width, height: 18)
 	}
 }
@@ -243,10 +279,12 @@ struct KeySlider: NSViewRepresentable {
 	let range: ClosedRange<Double>
 	let set: (Double) -> Void
 	let reset: () -> Void
+	var step: ((Int, KeyStep) -> Void)? = nil	// replaces the plain-position step
 
 	final class Slider: NSSlider {
 		var onSet: ((Double) -> Void)?
 		var onReset: (() -> Void)?
+		var onStep: ((Int, KeyStep) -> Void)?
 
 		override var acceptsFirstResponder: Bool { true }
 		override var canBecomeKeyView: Bool { true }
@@ -271,6 +309,10 @@ struct KeySlider: NSViewRepresentable {
 				return
 			}
 			let up = event.keyCode == 124	// right arrow
+			if k != .end, let onStep {
+				onStep(up ? 1 : -1, k)	// the view then shows the new value
+				return
+			}
 			let pos = k == .end ? (up ? maxValue : minValue)
 				: min(max(k.apply(doubleValue, size: 1, direction: up ? 1 : -1), minValue), maxValue)
 			doubleValue = pos
@@ -296,6 +338,7 @@ struct KeySlider: NSViewRepresentable {
 	func updateNSView(_ s: Slider, context: Context) {
 		s.onSet = set
 		s.onReset = reset
+		s.onStep = step
 		if s.minValue != range.lowerBound || s.maxValue != range.upperBound {
 			s.minValue = range.lowerBound
 			s.maxValue = range.upperBound
@@ -408,16 +451,14 @@ struct MasterPanel: View {
 						denorm: { WHControls.masterValue(i, position: $0) },
 						commit: { model.setMaster(i, $0) },
 						defaultValue: WHControls.masterDefault(i),
+						step: { masterStep(i, ci, $0, $1, $2) },
 						width: 200)
 					NumberField(
 						value: value,
 						format: { WHControls.formatMaster(i, value: $0) },
 						parse: { WHControls.parseMaster(i, text: $0) },
 						commit: { model.setMaster(i, $0) },
-						step: { v, d, k in	// no stepper: in slider positions
-							let pos = k.apply(WHControls.masterPosition(i, value: v), size: 1, direction: d)
-							return WHControls.masterValue(i, position: min(max(pos, Double(ci.rangeMin)), Double(ci.rangeMax)))
-						},
+						step: { masterStep(i, ci, $0, $1, $2) },	// no stepper: as the slider
 						lo: WHControls.masterValue(i, position: Double(ci.rangeMin)),
 						hi: WHControls.masterValue(i, position: Double(ci.rangeMax)),
 						defaultValue: WHControls.masterDefault(i))
