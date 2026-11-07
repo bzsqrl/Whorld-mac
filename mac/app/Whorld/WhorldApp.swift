@@ -713,6 +713,11 @@ final class AppModel: ObservableObject {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
 	func applicationDidFinishLaunching(_ notification: Notification) {
+		// the playlist and patch from last time, after any files opened at
+		// launch (application(_:open:) comes first)
+		DispatchQueue.main.async {
+			MainActor.assumeIsolated { Session.restore(AppModel.shared) }
+		}
 		// One full screen, Whorld's own (FullScreen.swift): the green button
 		// zooms instead of entering macOS's full screen.
 		DispatchQueue.main.async {
@@ -742,6 +747,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 	}
 
 	func application(_ application: NSApplication, open urls: [URL]) {
+		MainActor.assumeIsolated {
+			for url in urls {
+				switch url.pathExtension.lowercased() {
+				case "whl": Session.openedPlaylist = true
+				case "whs", "whm": break
+				default: Session.openedPatch = true
+				}
+			}
+		}
 		for url in urls {
 			Task { @MainActor in
 				switch url.pathExtension.lowercased() {
@@ -759,8 +773,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 	func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
 		MainActor.assumeIsolated {
-			AppModel.shared.confirmDiscard() && AppModel.shared.confirmDiscardPlaylist()
-				? .terminateNow : .terminateCancel
+			guard AppModel.shared.confirmDiscard() && AppModel.shared.confirmDiscardPlaylist() else {
+				return .terminateCancel
+			}
+			Session.save(AppModel.shared)
+			return .terminateNow
 		}
 	}
 
@@ -833,6 +850,75 @@ struct WhorldApp: App {
 
 		Settings {
 			PreferencesView().environmentObject(model)
+		}
+	}
+}
+
+// MARK: Session
+
+/// Whorld reopens the playlist and patch it had when it quit (a Mac
+/// addition: Windows Whorld starts with an untitled patch). They're kept as
+/// bookmarks, so a file that was moved or renamed is still found; one that
+/// can't be found is skipped without a word. The patch is a patch file, or
+/// the playlist entry that was playing; an untitled patch isn't kept, nor a
+/// playlist that was never saved. A file opened at launch (from the Finder)
+/// takes the place of the remembered one of its kind.
+@MainActor
+enum Session {
+	private static let playlistKey = "LastPlaylist"	// bookmark data
+	private static let patchKey = "LastPatch"	// bookmark data
+	private static let entryKey = "LastPlaylistEntry"	// [index, stored path]
+
+	/// Set when a file of that kind was opened at launch.
+	static var openedPlaylist = false
+	static var openedPatch = false
+
+	private static func bookmark(_ url: URL) -> Data? {
+		try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
+	}
+
+	private static func resolve(_ data: Data?) -> URL? {
+		guard let data else { return nil }
+		var stale = false
+		guard let url = try? URL(resolvingBookmarkData: data, options: [.withoutUI], relativeTo: nil, bookmarkDataIsStale: &stale),
+			FileManager.default.fileExists(atPath: url.path) else { return nil }
+		return url
+	}
+
+	/// At quit, after the save prompts.
+	static func save(_ model: AppModel) {
+		let d = UserDefaults.standard
+		d.set(model.playlistURL.flatMap(bookmark), forKey: playlistKey)
+		let patches = model.engine.playlistPatches
+		if let path = model.engine.patchPath {
+			d.set(bookmark(URL(fileURLWithPath: path)), forKey: patchKey)
+			d.removeObject(forKey: entryKey)
+		} else if model.playlistURL != nil, model.playingPatch >= 0, model.playingPatch < patches.count {
+			d.removeObject(forKey: patchKey)
+			d.set([model.playingPatch, patches[model.playingPatch]] as [Any], forKey: entryKey)
+		} else {
+			d.removeObject(forKey: patchKey)
+			d.removeObject(forKey: entryKey)
+		}
+	}
+
+	/// At launch.
+	static func restore(_ model: AppModel) {
+		let d = UserDefaults.standard
+		var playlistOpen = false
+		if !openedPlaylist, let url = resolve(d.data(forKey: playlistKey)) {
+			model.openPlaylist(url)
+			playlistOpen = model.playlistURL == url
+		}
+		guard !openedPatch, !model.engine.modified else { return }
+		if let url = resolve(d.data(forKey: patchKey)) {
+			model.open(url)
+		} else if playlistOpen, let entry = d.array(forKey: entryKey), entry.count == 2,
+			let index = entry[0] as? Int, let stored = entry[1] as? String {
+			let patches = model.engine.playlistPatches
+			if index >= 0, index < patches.count, patches[index] == stored {	// the same entry
+				model.playPatch(index)
+			}
 		}
 	}
 }
