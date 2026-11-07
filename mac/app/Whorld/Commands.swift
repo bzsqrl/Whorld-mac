@@ -210,8 +210,6 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut(.space, modifiers: .shift)
 			Button("Clear") { e.clear() }
 				.keyboardShortcut(.deleteForward, modifiers: .command)
-			Button("Full Screen") { model.toggleFullScreen() }
-				.keyboardShortcut(fkey(NSF11FunctionKey), modifiers: [])
 			// CMainFrame::OnWindowDetach
 			Toggle("Detach", isOn: Binding(get: { model.isDetached }, set: { _ in model.toggleDetach() }))
 				.keyboardShortcut("d", modifiers: [.command, .shift])	// Windows: Ctrl+F12

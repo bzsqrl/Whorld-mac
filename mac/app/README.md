@@ -58,10 +58,10 @@ From the Windows accelerator table (`Whorld.rc`, `IDR_MAINFRAME`), with Ctrl map
 | Pause | Ctrl+Space | Space (⌃Space switches input sources) |
 | Step | Shift+Space | ⇧Space |
 | Clear | Ctrl+Delete | ⌘⌦ (forward delete; fn+Delete on laptops) |
-| Full screen | F11 | F11, or ⌃⌘F |
+| Full screen | F11 | ⇧⌘F (View > Enter Full Screen), or F11; Esc also leaves |
 
 Panel shortcuts add ⌘ because a plain Shift+letter would fire while typing a capital letter in a panel's text field. Space (Pause) is safe: a focused text field takes it first.
 
 The scroll wheel over the render window zooms, and Shift+wheel changes damping (`CWhorldDoc::OnMouseWheel`), scaled by Preferences > Wheel sensitivity.
 
-Function keys need fn on keyboards set to media keys. F11 is also macOS's Show Desktop shortcut by default, so the system takes it unless that shortcut is turned off in System Settings > Keyboard > Keyboard Shortcuts; ⌃⌘F always works.
+Function keys need fn on keyboards set to media keys. F11 is also macOS's Show Desktop shortcut by default, so the system takes it unless that shortcut is turned off in System Settings > Keyboard > Keyboard Shortcuts; ⇧⌘F always works.

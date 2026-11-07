@@ -825,7 +825,18 @@ final class AppModel: ObservableObject {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+	private var f11Monitor: Any?
+
 	func applicationDidFinishLaunching(_ notification: Notification) {
+		// F11, Windows Whorld's full-screen key, as a second shortcut for
+		// View > Enter Full Screen (a menu item has only one)
+		f11Monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+			guard event.keyCode == 103,	// F11
+				event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.function, .numericPad]).isEmpty
+			else { return event }
+			MainActor.assumeIsolated { AppModel.shared.toggleFullScreen() }
+			return nil
+		}
 		// the playlist and patch from last time, after any files opened at
 		// launch (application(_:open:) comes first)
 		DispatchQueue.main.async {
