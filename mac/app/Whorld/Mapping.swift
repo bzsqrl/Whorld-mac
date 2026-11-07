@@ -22,7 +22,7 @@ struct MappingPanel: View {
 	@EnvironmentObject private var model: AppModel
 
 	var body: some View {
-		let _ = model.revision
+		let _ = model.changes.mapping.n
 		let rows = model.mappings.enumerated().map { MappingRow(id: $0.offset, data: $0.element) }
 		VStack(spacing: 0) {
 			Table(rows, selection: $model.mappingSelection) {

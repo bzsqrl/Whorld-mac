@@ -612,7 +612,7 @@ struct MovieBar: View {
 	// each tick lays out the window, and the workspace's panels make that
 	// expensive (an idle timer kept the main thread busy all the time).
 	var body: some View {
-		let _ = model.revision	// movie commands call changed()
+		let _ = model.changes.media.n	// movie commands call changed()
 		if isActive(model.movieState) {
 			TimelineView(.periodic(from: .now, by: 0.1)) { _ in
 				let ms = model.movieState
@@ -620,7 +620,7 @@ struct MovieBar: View {
 					bar(ms)
 				} else {	// the movie closed by itself (at its end, or an error): stop polling
 					Color.clear.frame(width: 0, height: 0)
-						.onAppear { model.changed() }
+						.onAppear { model.changes.media.bump(); model.changes.menus.bump() }
 				}
 			}
 		}
@@ -698,7 +698,7 @@ struct PlaylistPanel: View {
 	}
 
 	var body: some View {
-		let _ = model.revision
+		let _ = model.changes.playlist.n
 		let rows = model.playlistPatches.enumerated().map { Row(id: $0.offset, path: $0.element) }
 		VStack(spacing: 0) {
 			Table(rows, selection: $model.playlistSelection) {

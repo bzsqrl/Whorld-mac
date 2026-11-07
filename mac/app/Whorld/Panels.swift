@@ -360,11 +360,17 @@ struct ParamsPanel: View {
 	@EnvironmentObject private var model: AppModel
 
 	var body: some View {
-		let _ = model.revision
 		ScrollView {
-			Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 4) {
-				GridRow {
-					Text("Name"); Text("Value"); Text(""); Text("Waveform"); Text("Amplitude"); Text("Frequency"); Text("Pulse Width")
+			// Rows of fixed-width columns, not a Grid: a Grid measures every
+			// cell again whenever one changes, about 10 ms per update here.
+			VStack(alignment: .leading, spacing: 4) {
+				HStack(spacing: ParamColumn.spacing) {
+					Text("Name").frame(width: ParamColumn.name, alignment: .leading)
+					Text("Value").frame(width: ParamColumn.slider + ParamColumn.spacing + ParamColumn.field, alignment: .leading)
+					Text("Waveform").frame(width: ParamColumn.wave, alignment: .leading)
+					Text("Amplitude").frame(width: ParamColumn.field, alignment: .leading)
+					Text("Frequency").frame(width: ParamColumn.field, alignment: .leading)
+					Text("Pulse Width").frame(width: ParamColumn.pw, alignment: .leading)
 				}
 				.font(.caption)
 				.foregroundStyle(.secondary)
@@ -376,6 +382,16 @@ struct ParamsPanel: View {
 		}
 		.frame(minWidth: 800, minHeight: 300)
 	}
+}
+
+/// The Parameters panel's column widths (a number box with its stepper).
+enum ParamColumn {
+	static let spacing: CGFloat = 8
+	static let name: CGFloat = 96
+	static let slider: CGFloat = 160
+	static let field: CGFloat = 90
+	static let wave: CGFloat = 104
+	static let pw: CGFloat = 70
 }
 
 struct ParamRow: View {
@@ -403,18 +419,22 @@ struct ParamRow: View {
 	}
 
 	var body: some View {
+		let _ = model.changes.params[iParam].n	// redraw for this row's changes only
 		let e = model.engine
-		GridRow {
+		HStack(spacing: ParamColumn.spacing) {
 			Text(WHControls.paramName(iParam))
-				.frame(minWidth: 96, alignment: .leading)
+				.lineLimit(1)
+				.frame(width: ParamColumn.name, alignment: .leading)
 			PositionSlider(
 				value: e.paramValue(iParam, property: .val),
 				control: control(0),
 				norm: { WHControls.paramPosition(iParam, value: $0) },
 				denorm: { WHControls.paramValue(iParam, position: $0) },
 				commit: { model.setParam(iParam, .val, $0) },
-				defaultValue: WHControls.paramDefault(iParam, column: 0))
+				defaultValue: WHControls.paramDefault(iParam, column: 0),
+				width: ParamColumn.slider)
 			field(.val, column: 0)
+				.frame(width: ParamColumn.field, alignment: .leading)
 			Picker("", selection: Binding(
 				get: { Int(e.paramValue(iParam, property: .wave)) },
 				set: { model.setParam(iParam, .wave, Double($0)) })) {
@@ -423,10 +443,13 @@ struct ParamRow: View {
 				}
 			}
 			.labelsHidden()
-			.frame(width: 104)
+			.frame(width: ParamColumn.wave)
 			field(.amp, column: 1)
+				.frame(width: ParamColumn.field, alignment: .leading)
 			field(.freq, column: 2)
+				.frame(width: ParamColumn.field, alignment: .leading)
 			field(.PW, column: 3, width: 52)
+				.frame(width: ParamColumn.pw, alignment: .leading)
 		}
 	}
 }
@@ -434,79 +457,92 @@ struct ParamRow: View {
 // MARK: Master
 
 struct MasterPanel: View {
-	@EnvironmentObject private var model: AppModel
-
 	var body: some View {
-		let _ = model.revision
 		Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 6) {
 			ForEach(0..<WHControls.masterCount, id: \.self) { i in
-				let ci = WHControls.masterControl(i)
-				let value = model.engine.masterValue(i)
-				GridRow {
-					Text(WHControls.masterName(i))
-						.frame(minWidth: 72, alignment: .leading)
-					PositionSlider(
-						value: value,
-						control: ci,
-						norm: { WHControls.masterPosition(i, value: $0) },
-						denorm: { WHControls.masterValue(i, position: $0) },
-						commit: { model.setMaster(i, $0) },
-						defaultValue: WHControls.masterDefault(i),
-						step: { masterStep(i, ci, $0, $1, $2) },
-						width: 200)
-					NumberField(
-						value: value,
-						format: { WHControls.formatMaster(i, value: $0) },
-						parse: { WHControls.parseMaster(i, text: $0) },
-						commit: { model.setMaster(i, $0) },
-						step: { masterStep(i, ci, $0, $1, $2) },	// no stepper: as the slider
-						lo: WHControls.masterValue(i, position: Double(ci.rangeMin)),
-						hi: WHControls.masterValue(i, position: Double(ci.rangeMax)),
-						defaultValue: WHControls.masterDefault(i))
-				}
+				MasterRow(i: i)
 			}
 		}
 		.padding(12)
 	}
 }
 
+struct MasterRow: View {
+	@EnvironmentObject private var model: AppModel
+	let i: Int
+
+	var body: some View {
+		let _ = model.changes.master[i].n	// redraw for this row's changes only
+		let ci = WHControls.masterControl(i)
+		let value = model.engine.masterValue(i)
+		GridRow {
+			Text(WHControls.masterName(i))
+				.frame(minWidth: 72, alignment: .leading)
+			PositionSlider(
+				value: value,
+				control: ci,
+				norm: { WHControls.masterPosition(i, value: $0) },
+				denorm: { WHControls.masterValue(i, position: $0) },
+				commit: { model.setMaster(i, $0) },
+				defaultValue: WHControls.masterDefault(i),
+				step: { masterStep(i, ci, $0, $1, $2) },
+				width: 200)
+			NumberField(
+				value: value,
+				format: { WHControls.formatMaster(i, value: $0) },
+				parse: { WHControls.parseMaster(i, text: $0) },
+				commit: { model.setMaster(i, $0) },
+				step: { masterStep(i, ci, $0, $1, $2) },	// no stepper: as the slider
+				lo: WHControls.masterValue(i, position: Double(ci.rangeMin)),
+				hi: WHControls.masterValue(i, position: Double(ci.rangeMax)),
+				defaultValue: WHControls.masterDefault(i))
+		}
+	}
+}
+
 // MARK: Globals
 
 struct GlobalsPanel: View {
-	@EnvironmentObject private var model: AppModel
-
 	var body: some View {
-		let _ = model.revision
 		Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 4) {
 			ForEach(0..<WHControls.globalCount, id: \.self) { g in
-				let i = WHControls.param(forGlobal: g)
-				let ci = WHControls.globalControl(i)
-				let value = model.engine.paramValue(i, property: .global)
-				GridRow {
-					Text(WHControls.paramName(i))
-						.frame(minWidth: 96, alignment: .leading)
-					PositionSlider(
-						value: value,
-						control: ci,
-						norm: { WHControls.globalPosition(i, value: $0) },
-						denorm: { WHControls.globalValue(i, position: $0) },
-						commit: { model.setParam(i, .global, $0) },
-						defaultValue: WHControls.paramDefault(i, column: 4),
-						width: 200)
-					NumberField(
-						value: value,
-						format: { WHControls.format($0, control: ci) },
-						parse: { WHControls.parse($0, control: ci) },
-						commit: { model.setParam(i, .global, $0) },
-						spin: { WHControls.spin($0, control: ci, direction: $1) },
-						step: spinStep(ci),
-						lo: ci.editMin,
-						hi: ci.editMax,
-						defaultValue: WHControls.paramDefault(i, column: 4))
-				}
+				GlobalRow(i: WHControls.param(forGlobal: g))
 			}
 		}
 		.padding(12)
+	}
+}
+
+struct GlobalRow: View {
+	@EnvironmentObject private var model: AppModel
+	let i: Int	// parameter index
+
+	var body: some View {
+		let _ = model.changes.params[i].n	// redraw for this row's changes only
+		let ci = WHControls.globalControl(i)
+		let value = model.engine.paramValue(i, property: .global)
+		GridRow {
+			Text(WHControls.paramName(i))
+				.frame(minWidth: 96, alignment: .leading)
+			PositionSlider(
+				value: value,
+				control: ci,
+				norm: { WHControls.globalPosition(i, value: $0) },
+				denorm: { WHControls.globalValue(i, position: $0) },
+				commit: { model.setParam(i, .global, $0) },
+				defaultValue: WHControls.paramDefault(i, column: 4),
+				width: 200)
+			NumberField(
+				value: value,
+				format: { WHControls.format($0, control: ci) },
+				parse: { WHControls.parse($0, control: ci) },
+				commit: { model.setParam(i, .global, $0) },
+				spin: { WHControls.spin($0, control: ci, direction: $1) },
+				step: spinStep(ci),
+				lo: ci.editMin,
+				hi: ci.editMax,
+				defaultValue: WHControls.paramDefault(i, column: 4))
+		}
 	}
 }
 
@@ -539,7 +575,7 @@ struct PropertiesPanel: View {
 	final class WeakWindow { weak var window: NSWindow? }
 
 	var body: some View {
-		let _ = model.revision
+		let _ = model.changes.main.n
 		let e = model.engine
 		VStack(alignment: .leading, spacing: 1) {
 			check(.fill, "Fill", e.fill)

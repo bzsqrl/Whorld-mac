@@ -16,6 +16,17 @@ struct ContentView: View {
 	var body: some View {
 		WorkspaceView(layout: model.layout)
 			.background(MainWindowObserver { model.workspaceWindowAppeared($0) })
+			.modifier(DocumentTitle())
+	}
+}
+
+/// The window title, in a modifier of its own: a change to it (the first
+/// edit after a save) redraws just this, not the workspace.
+private struct DocumentTitle: ViewModifier {
+	@EnvironmentObject private var model: AppModel
+
+	func body(content: Content) -> some View {
+		content.navigationTitle(model.windowTitle)
 	}
 }
 

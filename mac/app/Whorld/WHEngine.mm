@@ -1079,11 +1079,15 @@ static NSString *SourceName(MIDIEndpointRef src)
 			_doc.SetParamRC(post.iParam, post.iProp, v);
 			_modified = YES;
 		}
-		break;
+		if (_midiHandler)
+			_midiHandler(5, (uint32_t)post.iParam);	// just that row
+		return;
 	case Post::MASTER_PROP_CHANGE:
 		_doc.SetMasterProp(post.iProp, post.fVal);
 		_modified = YES;
-		break;
+		if (_midiHandler)
+			_midiHandler(6, (uint32_t)post.iProp);
+		return;
 	case Post::MAIN_PROP_CHANGE:
 		{
 			WhorldBase::VARIANT_PROP	v;

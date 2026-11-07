@@ -95,7 +95,7 @@ struct PreferencesView: View {
 					.foregroundStyle(.secondary)
 			}
 			Section("MIDI") {
-				let _ = model.revision
+				let _ = model.changes.midi.n
 				Picker("Input device", selection: $midiInput) {
 					Text("None").tag("")
 					ForEach(model.engine.midiInputNames, id: \.self) { name in

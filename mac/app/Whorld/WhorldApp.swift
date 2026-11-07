@@ -8,6 +8,7 @@
 
 import AppKit
 import Combine
+import Observation
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -26,6 +27,37 @@ enum MainProp: Int {
 /// Master property indices (WhorldBase MASTER_*)
 enum MasterProp: Int {
 	case speed, zoom, damping, trail, rings, tempo, hueSpan, canvasScale, copies, spread
+}
+
+/// A change counter a view depends on by reading `n`: SwiftUI's Observation
+/// redraws that view when it's bumped, and not for other changes.
+@Observable
+final class Tick {
+	private(set) var n = 0
+	func bump() { n &+= 1 }
+}
+
+/// What changed, by area, so an edit redraws only the views showing it.
+/// Moving one slider used to redraw every panel, the menu bar and the
+/// window title and lay out the whole window: about 30 changes a second
+/// (a MIDI knob sends more) kept the main thread 90% busy.
+@MainActor
+final class Changes {
+	let params = (0..<WHControls.paramCount).map { _ in Tick() }	// a Parameters and Globals row
+	let master = (0..<WHControls.masterCount).map { _ in Tick() }	// a Master row
+	let main = Tick()		// main properties and pause: Properties, the Image and Window menus
+	let menus = Tick()		// undo titles, files, layout and the rest of the menu bar
+	let document = Tick()	// the window title (name, edited)
+	let playlist = Tick()
+	let mapping = Tick()
+	let media = Tick()		// snapshots and movies
+	let midi = Tick()		// MIDI sources
+
+	func all() {
+		for t in params { t.bump() }
+		for t in master { t.bump() }
+		for t in [main, menus, document, playlist, mapping, media, midi] { t.bump() }
+	}
 }
 
 /// The frame-rate overlay's text (see AppModel.stats).
@@ -60,8 +92,10 @@ final class AppModel: ObservableObject {
 	private let outputWindow = OutputWindowController()
 	private var layoutWatch: AnyCancellable?
 	private var didFitWorkspace = false
-	/// Bumped after every change so views and menus refresh.
-	@Published private(set) var revision = 0
+	/// What changed (see Changes). changed() means anything may have.
+	let changes = Changes()
+	private var shownModified = false
+	private var shownUndo = ""
 
 	/// Undo coalescing key of the edit on top of the undo stack
 	/// (CUndoManager::NotifyUndoableEdit with UE_COALESCE).
@@ -86,7 +120,7 @@ final class AppModel: ObservableObject {
 		undoManager.levelsOfUndo = 100
 		// menus show the layout (they observe AppModel)
 		layoutWatch = layout.objectWillChange.sink { [weak self] _ in
-			DispatchQueue.main.async { self?.changed() }
+			DispatchQueue.main.async { self?.changes.menus.bump() }
 		}
 		outputWindow.onClose = { [weak self] in	// closing the output window docks it
 			guard let self, self.layout.layout.detached else { return }
@@ -130,7 +164,7 @@ final class AppModel: ObservableObject {
 
 	var midiLearn: Bool {
 		get { engine.midiLearn }
-		set { engine.midiLearn = newValue; changed() }
+		set { engine.midiLearn = newValue; changes.menus.bump(); changes.mapping.bump() }
 	}
 
 	var mappings: [WHMappingData] {
@@ -146,7 +180,8 @@ final class AppModel: ObservableObject {
 		}
 		new.withUnsafeBufferPointer { engine.setMappings($0.baseAddress, count: $0.count) }
 		playlistModified = true
-		changed()
+		changes.mapping.bump()
+		changes.menus.bump()
 	}
 
 	func setMapping(_ index: Int, _ m: WHMappingData, column: String) {
@@ -177,10 +212,38 @@ final class AppModel: ObservableObject {
 			playPatch(Int(value))
 		case 3:	// learn (CMappingBar::OnMidiEvent)
 			learn(value)
-		default:
-			break
+		case 4:	// MIDI sources changed
+			changes.midi.bump()
+		case 5:	// a parameter, from a mapping
+			midiPending.params.insert(Int(value))
+			scheduleMidiRefresh()
+		case 6:	// a master property
+			midiPending.master.insert(Int(value))
+			scheduleMidiRefresh()
+		default:	// 0: main properties or draw mode; 1: pause
+			midiPending.main = true
+			scheduleMidiRefresh()
 		}
-		changed()
+	}
+
+	/// Rows changed by MIDI and not yet redrawn. A knob can send hundreds of
+	/// messages a second; redrawing a row costs about 5 ms of the main
+	/// thread, so the panels catch up at most 30 times a second (the picture
+	/// follows every message regardless, on the render thread).
+	private var midiPending = (params: Set<Int>(), master: Set<Int>(), main: false, scheduled: false)
+
+	private func scheduleMidiRefresh() {
+		guard !midiPending.scheduled else { return }
+		midiPending.scheduled = true
+		DispatchQueue.main.asyncAfter(deadline: .now() + 1.0 / 30) { [weak self] in
+			guard let self else { return }
+			let p = self.midiPending
+			self.midiPending = (params: [], master: [], main: false, scheduled: false)
+			for i in p.params { self.changes.params[i].bump() }
+			for i in p.master { self.changes.master[i].bump() }
+			if p.main { self.changes.main.bump() }
+			self.noteEdit()
+		}
 	}
 
 	private func learn(_ message: UInt32) {
@@ -324,8 +387,43 @@ final class AppModel: ObservableObject {
 		}
 	}
 
+	/// Anything may have changed (a patch opened, undo, ...): refresh everything.
 	func changed() {
-		revision &+= 1
+		changes.all()
+		noteEdit()
+	}
+
+	/// An edit to parameter row iParam (any column, including Global).
+	func paramChanged(_ iParam: Int) {
+		changes.params[iParam].bump()
+		noteEdit()
+	}
+
+	func masterChanged(_ iProp: Int) {
+		changes.master[iProp].bump()
+		noteEdit()
+	}
+
+	/// main properties or pause
+	func mainChanged() {
+		changes.main.bump()
+		noteEdit()
+	}
+
+	/// After an edit: refresh the title if it went from saved to edited, and
+	/// the menu bar if the Undo or Redo item changed (coalesced edits of one
+	/// control don't change it).
+	private func noteEdit() {
+		if engine.modified != shownModified {
+			shownModified = engine.modified
+			changes.document.bump()
+		}
+		let u = undoManager
+		let undo = "\(u.canUndo) \(u.undoActionName) \(u.canRedo) \(u.redoActionName)"
+		if undo != shownUndo {
+			shownUndo = undo
+			changes.menus.bump()
+		}
 	}
 
 	// MARK: Undo
@@ -377,7 +475,7 @@ final class AppModel: ObservableObject {
 			self?.setParam(iParam, prop, old)
 		}
 		engine.setParamValue(value, param: iParam, property: prop)
-		changed()
+		paramChanged(iParam)
 	}
 
 	func setMaster(_ iProp: Int, _ value: Double) {
@@ -387,7 +485,7 @@ final class AppModel: ObservableObject {
 			self?.setMaster(iProp, old)
 		}
 		engine.setMasterValue(value, prop: iProp)
-		changed()
+		masterChanged(iProp)
 	}
 
 	// CWhorldDoc::SetZoom
@@ -398,7 +496,7 @@ final class AppModel: ObservableObject {
 			self?.setZoom(old, damping: false)
 		}
 		engine.setZoom(zoom, damping: damping)
-		changed()
+		masterChanged(MasterProp.zoom.rawValue)
 	}
 
 	// CWhorldDoc::SetOrigin: always sent, as on Windows. The document's
@@ -410,7 +508,7 @@ final class AppModel: ObservableObject {
 			self?.setOrigin(old)
 		}
 		engine.origin = pt
-		changed()
+		mainChanged()
 	}
 
 	func setHue(_ hue: Double) {
@@ -420,7 +518,7 @@ final class AppModel: ObservableObject {
 			self?.setHue(old)
 		}
 		engine.hue = hue
-		changed()
+		mainChanged()
 	}
 
 	func setDrawMode(_ mode: UInt32) {
@@ -430,7 +528,7 @@ final class AppModel: ObservableObject {
 			self?.setDrawMode(old)
 		}
 		engine.setDrawMode(mode)
-		changed()
+		mainChanged()
 	}
 
 	func setOriginMotion(_ motion: WHOriginMotion) {
@@ -440,7 +538,7 @@ final class AppModel: ObservableObject {
 			self?.setOriginMotion(old)
 		}
 		engine.setOriginMotion(motion)
-		changed()
+		mainChanged()
 	}
 
 	/// Toggles a boolean main property; undo toggles it back.
@@ -458,7 +556,7 @@ final class AppModel: ObservableObject {
 		case .antialiasing: engine.toggleAntialiasing()
 		default: assertionFailure("not a boolean main property")
 		}
-		changed()
+		mainChanged()
 	}
 
 	func isOn(_ prop: MainProp) -> Bool {
@@ -517,7 +615,7 @@ final class AppModel: ObservableObject {
 	}
 
 	var windowTitle: String {
-		_ = revision
+		_ = changes.document.n	// the name is @Published; edited comes from the engine
 		return engine.modified ? title + " — Edited" : title
 	}
 
@@ -802,7 +900,6 @@ struct WhorldApp: App {
 		Window("Whorld", id: "main") {
 			ContentView()
 				.environmentObject(model)
-				.navigationTitle(model.windowTitle)
 		}
 		.defaultSize(width: 1024, height: 768)
 		.commands {

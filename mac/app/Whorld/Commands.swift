@@ -26,13 +26,14 @@ struct WhorldCommands: Commands {
 			get: { isOn },
 			set: { _ in
 				action()
-				model.changed()
+				model.mainChanged()
 			}))
 	}
 
 	var body: some Commands {
 		let e = model.engine
-		let _ = model.revision	// refresh check marks after changes
+		// refresh check marks, titles and enabled states after changes
+		let _ = (model.changes.menus.n, model.changes.main.n, model.changes.media.n, model.changes.playlist.n)
 
 		CommandGroup(replacing: .newItem) {
 			Button("New") { model.newPatch() }
