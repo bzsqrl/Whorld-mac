@@ -255,7 +255,7 @@ struct HelpCommands: Commands {
 	static func showAbout() {
 		let html = """
 			<meta charset="utf-8"><div style="font: 11px -apple-system; text-align: center">
-			<p>Whorld by Chris Korda<br>macOS port by Jeff Matson<br>
+			<p>Whorld by Chris Korda<br>macOS port by Jeff Matson and Claude<br>
 			Based on Whorld V2 \(WHControls.upstreamBaseline())</p>
 			<p>Whorld is free software: you can redistribute it and/or modify it under the terms of the
 			<a href="https://www.gnu.org/licenses/gpl-3.0.html">GNU General Public License</a>

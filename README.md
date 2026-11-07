@@ -29,7 +29,7 @@ sh mac/packaging/make_dmg.sh
 
 `build/tools/whorld-render` renders patches, snapshots and movies from the command line (run it with no arguments for help). The source layout and the porting notes are in [CLAUDE.md](CLAUDE.md) and [PORT_PLAN.md](PORT_PLAN.md). The Windows source in `trunk/Whorld` is unchanged.
 
-The port is free software under the GNU GPL version 3 or later ([LICENSE](LICENSE)); the original Whorld source is GPL version 2 or later. Whorld is copyleft Chris Korda; the macOS port is by Jeff Matson. Each ported file names the original it comes from and keeps its copyright notice.
+The port is free software under the GNU GPL version 3 or later ([LICENSE](LICENSE)); the original Whorld source is GPL version 2 or later. Whorld is copyleft Chris Korda; the macOS port is by Jeff Matson and Claude. Each ported file names the original it comes from and keeps its copyright notice.
 
 ---
 
