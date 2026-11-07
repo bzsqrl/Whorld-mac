@@ -68,6 +68,9 @@ final class FullScreenController {
 		view.autoresizingMask = [.width, .height]
 		view.fullResolution = fullResolution
 		view.fullScreenOutput = true	// no cursor over the picture; the mouse followed for Origin Drag
+		view.mouseButtonHandler = { down in	// while pressed, the origin follows the mouse
+			MainActor.assumeIsolated { AppModel.shared.outputMouse(down: down) }	// in order: no Task
+		}
 		view.wheelHandler = { notches, shift in
 			Task { @MainActor in AppModel.shared.wheel(notches: notches, shift: shift) }
 		}

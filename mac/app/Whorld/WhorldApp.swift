@@ -605,6 +605,7 @@ final class AppModel: ObservableObject {
 	func toggleFullScreen() {
 		if fullScreen.isFullScreen {
 			fullScreen.exit(engine: engine)
+			pressDrag = nil
 			// Each time full screen ends (however: Esc, the shortcut, the
 			// display going away), the origin goes back to the middle and
 			// stays there (Image > Origin Center).
@@ -614,13 +615,36 @@ final class AppModel: ObservableObject {
 			fullScreen.enter(from: from, engine: engine, fullResolution: fullResolution) { [weak self] in
 				self?.toggleFullScreen()
 			}
-			// Each time full screen starts, the origin follows the mouse (as
-			// Image > Origin Drag; it can be changed again as usual).
-			if fullScreen.isFullScreen {
-				setOriginMotion(.drag)
-			}
 		}
 		changed()
+	}
+
+	/// Where a press on the full-screen picture started: the origin motion and
+	/// origin to restore on undo. Nil when no press is moving the origin.
+	private var pressDrag: (motion: WHOriginMotion, origin: CGPoint)?
+	private var pressCount = 0
+
+	/// The mouse button went down or up on the full-screen picture. While it's
+	/// down, the origin follows the mouse (the engine's Origin Drag, damped as
+	/// usual); when it's released, Origin Motion is Park, so the origin
+	/// settles where the mouse was let go. One undo puts back the origin and
+	/// motion from before the press. If Origin Drag was already chosen, the
+	/// origin follows the mouse anyway, and a press changes nothing.
+	func outputMouse(down: Bool) {
+		if down {
+			guard pressDrag == nil, engine.originMotion != .drag else { return }
+			pressDrag = (engine.originMotion, engine.liveOrigin)
+			engine.setOriginMotion(.drag)
+		} else if let p = pressDrag {
+			pressDrag = nil
+			engine.setOriginMotion(.park)
+			pressCount += 1
+			recordUndo(key: "origin press \(pressCount)", title: WHControls.mainName(MainProp.origin.rawValue)) { [weak self] in
+				self?.setOriginMotion(p.motion)
+				self?.setOrigin(p.origin)
+			}
+			changed()
+		}
 	}
 
 	// MARK: Workspace

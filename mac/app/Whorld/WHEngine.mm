@@ -1737,4 +1737,24 @@ static NSString *SourceName(MIDIEndpointRef src)
 }
 - (void)mouseDragged:(NSEvent *)event { [self reportMouse:event]; }
 
+- (BOOL)acceptsFirstMouse:(NSEvent *)event { return _mouseButtonHandler != nil; }
+
+- (void)mouseDown:(NSEvent *)event
+{
+	[self reportMouse:event];
+	if (_mouseButtonHandler)
+		_mouseButtonHandler(YES);
+	else
+		[super mouseDown:event];
+}
+
+- (void)mouseUp:(NSEvent *)event
+{
+	[self reportMouse:event];
+	if (_mouseButtonHandler)
+		_mouseButtonHandler(NO);
+	else
+		[super mouseUp:event];
+}
+
 @end

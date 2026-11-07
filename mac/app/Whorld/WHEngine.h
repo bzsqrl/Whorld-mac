@@ -312,6 +312,10 @@ typedef struct {
 // Scroll wheel over the view (CRenderWnd::OnMouseWheel): delta in wheel
 // notches, positive away from the user; shift if the Shift key is down.
 @property (nonatomic, copy, nullable) void (^wheelHandler)(double notches, BOOL shift);
+// The left mouse button went down (YES) or up (NO) over the view; the
+// cursor position has already been reported. With a handler, the first
+// click on the view's window counts too.
+@property (nonatomic, copy, nullable) void (^mouseButtonHandler)(BOOL down);
 @end
 
 NS_ASSUME_NONNULL_END
