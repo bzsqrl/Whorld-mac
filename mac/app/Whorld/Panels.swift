@@ -15,25 +15,58 @@ import SwiftUI
 
 // MARK: Components
 
+/// How far an arrow key moves a focused slider or edit box, from its
+/// modifiers: plain arrows a tenth of the control's own step (a slider
+/// position, or the edit box's stepper increment), Shift ten steps, and
+/// Command-Shift all the way to the end of the range.
+enum KeyStep {
+	case fine, coarse, end
+
+	init?(_ flags: NSEvent.ModifierFlags) {
+		let f = flags.intersection([.shift, .command, .option, .control])
+		switch f {
+		case []: self = .fine
+		case [.shift]: self = .coarse
+		case [.shift, .command]: self = .end
+		default: return nil
+		}
+	}
+
+	/// the step's size in the control's own steps (not for .end)
+	var scale: Double { self == .fine ? 0.1 : 10 }
+
+	/// base moved `direction` steps of `size` (scaled), on a grid of tenths
+	/// of a step so repeated fine steps don't gather rounding error
+	func apply(_ base: Double, size: Double, direction: Int) -> Double {
+		let tenth = size / 10
+		return ((base / tenth).rounded() + Double(direction) * scale * 10) * tenth
+	}
+}
+
 /// An edit box: shows the formatted value, and on Return or losing focus
 /// parses what was typed, if anything was, as CNumEdit does (it commits only
 /// if GetModify). Committing unedited text would round the value to what's
 /// shown, and a panel's first field loses focus whenever another window
 /// opens. Optional stepper (spin control). While it has focus, the up and
-/// down arrows step the value: by the stepper's increment, or by `step`.
+/// down arrows step the value (see KeyStep); right-clicking it restores
+/// `defaultValue`.
 struct NumberField: View {
 	let value: Double
 	let format: (Double) -> String
 	let parse: (String) -> Double
 	let commit: (Double) -> Void
-	var spin: ((Double, Int) -> Double)? = nil
-	/// the arrow keys' step where there's no stepper: (value, +1 or -1) -> new value
-	var step: ((Double, Int) -> Double)? = nil
+	var spin: ((Double, Int) -> Double)? = nil	// the stepper
+	/// the arrow keys: (value, +1 or -1, step) -> new value, clamped; .end isn't passed
+	var step: ((Double, Int, KeyStep) -> Double)? = nil
+	var lo: Double? = nil	// where Command-Shift-Down goes, if the range has an end there
+	var hi: Double? = nil
+	var defaultValue: Double? = nil
 	var width: CGFloat = 72
 
 	var body: some View {
 		HStack(spacing: 2) {
-			KeyTextField(value: value, format: format, parse: parse, commit: commit, step: spin ?? step)
+			KeyTextField(value: value, format: format, parse: parse, commit: commit,
+				step: step, lo: lo, hi: hi, defaultValue: defaultValue)
 				.frame(width: width, height: 22)
 			if let spin {
 				Stepper("", onIncrement: { commit(spin(value, 1)) }, onDecrement: { commit(spin(value, -1)) })
@@ -44,6 +77,17 @@ struct NumberField: View {
 	}
 }
 
+/// An edit box's arrow keys for a control with a stepper increment
+/// (fSpinDelta), clamped to its edit range if it has one, as CNumEdit::AddSpin.
+func spinStep(_ ci: WHControlInfo) -> (Double, Int, KeyStep) -> Double {
+	{ v, d, k in
+		var x = k.apply(v, size: ci.spinDelta, direction: d)
+		if abs(x) < 1e-10 { x = 0 }	// as AddSpin: infinitesimal is zero
+		if ci.editClamp.boolValue { x = min(max(x, ci.editMin), ci.editMax) }
+		return x
+	}
+}
+
 /// NumberField's edit box, on NSTextField: SwiftUI's TextField can't see the
 /// up and down arrows (its field editor takes them), and the delegate can.
 struct KeyTextField: NSViewRepresentable {
@@ -51,7 +95,32 @@ struct KeyTextField: NSViewRepresentable {
 	let format: (Double) -> String
 	let parse: (String) -> Double
 	let commit: (Double) -> Void
-	let step: ((Double, Int) -> Double)?
+	let step: ((Double, Int, KeyStep) -> Double)?
+	let lo: Double?
+	let hi: Double?
+	let defaultValue: Double?
+
+	/// Right-clicking (or Control-clicking) restores the default, whether or
+	/// not the box is being edited (then the field editor gets the click, and
+	/// asks its delegate, this field, for a context menu).
+	final class Field: NSTextField {
+		var onReset: (() -> Bool)?
+
+		override func rightMouseDown(with event: NSEvent) {
+			if onReset?() != true { super.rightMouseDown(with: event) }
+		}
+
+		override func mouseDown(with event: NSEvent) {
+			if event.modifierFlags.contains(.control), onReset?() == true { return }
+			super.mouseDown(with: event)
+		}
+
+		// NSTextViewDelegate, asked by the field editor
+		@objc(textView:menu:forEvent:atIndex:)
+		func textView(_ view: NSTextView, menu: NSMenu, for event: NSEvent, at index: Int) -> NSMenu? {
+			onReset?() == true ? nil : menu
+		}
+	}
 
 	final class Coordinator: NSObject, NSTextFieldDelegate {
 		var parent: KeyTextField
@@ -72,6 +141,19 @@ struct KeyTextField: NSViewRepresentable {
 			show(field, v)
 		}
 
+		/// commit v and show it, keeping the text selected if editing
+		func set(_ field: NSTextField, _ v: Double) {
+			parent.commit(v)
+			show(field, v)
+			(field.currentEditor() as? NSTextView)?.selectAll(nil)
+		}
+
+		func reset(_ field: NSTextField) -> Bool {
+			guard let v = parent.defaultValue else { return false }
+			set(field, v)
+			return true
+		}
+
 		func controlTextDidEndEditing(_ note: Notification) {
 			if let field = note.object as? NSTextField {
 				apply(field)
@@ -80,29 +162,30 @@ struct KeyTextField: NSViewRepresentable {
 
 		func control(_ control: NSControl, textView: NSTextView, doCommandBy sel: Selector) -> Bool {
 			guard let field = control as? NSTextField else { return false }
-			switch sel {
-			case #selector(NSResponder.insertNewline(_:)):	// Return: apply, keep editing
+			if sel == #selector(NSResponder.insertNewline(_:)) {	// Return: apply, keep editing
 				apply(field)
 				textView.selectAll(nil)
 				return true
-			case #selector(NSResponder.moveUp(_:)), #selector(NSResponder.moveDown(_:)):
-				guard let step = parent.step else { return false }
-				let base = field.stringValue != shown ? parent.parse(field.stringValue) : parent.value
-				let v = step(base, sel == #selector(NSResponder.moveUp(_:)) ? 1 : -1)
-				parent.commit(v)
-				show(field, v)
-				textView.selectAll(nil)
-				return true
-			default:
-				return false
 			}
+			// the up and down arrows, whatever the modifiers bind them to
+			guard let step = parent.step, let e = NSApp.currentEvent, e.type == .keyDown,
+				e.keyCode == 126 || e.keyCode == 125, let k = KeyStep(e.modifierFlags) else { return false }
+			let up = e.keyCode == 126
+			if k == .end {
+				guard let v = up ? parent.hi : parent.lo else { NSSound.beep(); return true }
+				set(field, v)
+			} else {
+				let base = field.stringValue != shown ? parent.parse(field.stringValue) : parent.value
+				set(field, step(base, up ? 1 : -1, k))
+			}
+			return true
 		}
 	}
 
 	func makeCoordinator() -> Coordinator { Coordinator(self) }
 
 	func makeNSView(context: Context) -> NSTextField {
-		let f = NSTextField()
+		let f = Field()
 		f.bezelStyle = .roundedBezel
 		f.isBezeled = true
 		f.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
@@ -110,6 +193,11 @@ struct KeyTextField: NSViewRepresentable {
 		f.delegate = context.coordinator
 		f.cell?.isScrollable = true
 		f.cell?.lineBreakMode = .byClipping
+		let c = context.coordinator
+		f.onReset = { [weak f, weak c] in
+			guard let f, let c else { return false }
+			return c.reset(f)
+		}
 		context.coordinator.show(f, value)
 		return f
 	}
@@ -127,23 +215,25 @@ struct KeyTextField: NSViewRepresentable {
 	}
 }
 
-/// A slider in integer positions, like a Win32 trackbar: it shows
-/// Round(norm(value)) and sets denorm(position). Clicking it gives it focus
-/// (with the system focus ring); then the left and right arrows move it a
-/// position at a time (a trackbar's line size).
+/// A slider in positions, like a Win32 trackbar: it shows norm(value) and
+/// dragging sets denorm(Round(position)). Clicking it gives it focus (with
+/// the system focus ring); then the left and right arrows move it (see
+/// KeyStep: a tenth of a position, ten with Shift, to either end with
+/// Command-Shift). Right-clicking it restores `defaultValue`.
 struct PositionSlider: View {
 	let value: Double
 	let control: WHControlInfo
 	let norm: (Double) -> Double
 	let denorm: (Double) -> Double
 	let commit: (Double) -> Void
+	let defaultValue: Double
 	var width: CGFloat = 160
 
 	var body: some View {
 		let lo = Double(control.rangeMin), hi = Double(control.rangeMax)
-		KeySlider(position: min(max(norm(value).rounded(.toNearestOrEven), lo), hi), range: lo...hi,
+		KeySlider(position: min(max(norm(value), lo), hi), range: lo...hi,
 			set: { commit(denorm($0)) },
-			reset: { commit(denorm(Double(control.defaultPos))) })
+			reset: { commit(defaultValue) })
 			.frame(width: width, height: 18)
 	}
 }
@@ -163,29 +253,32 @@ struct KeySlider: NSViewRepresentable {
 
 		override func mouseDown(with event: NSEvent) {
 			window?.makeFirstResponder(self)	// clicking gives it focus
+			if event.modifierFlags.contains(.control) {	// Control-click is a right click
+				onReset?()
+				return
+			}
 			super.mouseDown(with: event)
 		}
 
-		override func keyDown(with event: NSEvent) {
-			switch event.keyCode {
-			case 123: step(-1)	// left arrow
-			case 124: step(1)	// right arrow
-			default: super.keyDown(with: event)
-			}
+		override func rightMouseDown(with event: NSEvent) {
+			window?.makeFirstResponder(self)
+			onReset?()
 		}
 
-		private func step(_ d: Double) {
-			let pos = min(max(doubleValue.rounded() + d, minValue), maxValue)
+		override func keyDown(with event: NSEvent) {
+			guard event.keyCode == 123 || event.keyCode == 124, let k = KeyStep(event.modifierFlags) else {
+				super.keyDown(with: event)
+				return
+			}
+			let up = event.keyCode == 124	// right arrow
+			let pos = k == .end ? (up ? maxValue : minValue)
+				: min(max(k.apply(doubleValue, size: 1, direction: up ? 1 : -1), minValue), maxValue)
 			doubleValue = pos
 			onSet?(pos)
 		}
 
 		@objc func changed(_ sender: Any?) {
-			onSet?(doubleValue.rounded())
-		}
-
-		@objc func resetToDefault(_ sender: Any?) {
-			onReset?()
+			onSet?(doubleValue.rounded())	// dragging: whole positions
 		}
 	}
 
@@ -196,11 +289,6 @@ struct KeySlider: NSViewRepresentable {
 		s.target = s
 		s.action = #selector(Slider.changed(_:))
 		s.focusRingType = .exterior
-		let menu = NSMenu()
-		let item = NSMenuItem(title: "Reset to Default", action: #selector(Slider.resetToDefault(_:)), keyEquivalent: "")
-		item.target = s
-		menu.addItem(item)
-		s.menu = menu
 		updateNSView(s, context: context)
 		return s
 	}
@@ -212,7 +300,7 @@ struct KeySlider: NSViewRepresentable {
 			s.minValue = range.lowerBound
 			s.maxValue = range.upperBound
 		}
-		if s.doubleValue.rounded() != position {
+		if abs(s.doubleValue - position) > 1e-6 {
 			s.doubleValue = position
 		}
 	}
@@ -256,12 +344,17 @@ struct ParamRow: View {
 
 	private func field(_ prop: WHParamProperty, column: Int, width: CGFloat = 72) -> some View {
 		let ci = control(column)
+		let bounded = ci.editClamp.boolValue
 		return NumberField(
 			value: model.engine.paramValue(iParam, property: prop),
 			format: { WHControls.format($0, control: ci) },
 			parse: { WHControls.parse($0, control: ci) },
 			commit: { model.setParam(iParam, prop, $0) },
 			spin: { WHControls.spin($0, control: ci, direction: $1) },
+			step: spinStep(ci),
+			lo: bounded ? ci.editMin : nil,
+			hi: bounded && ci.editMax < Double(Int32.max) ? ci.editMax : nil,	// not Frequency's INT_MAX
+			defaultValue: WHControls.paramDefault(iParam, column: column),
 			width: width)
 	}
 
@@ -275,7 +368,8 @@ struct ParamRow: View {
 				control: control(0),
 				norm: { WHControls.paramPosition(iParam, value: $0) },
 				denorm: { WHControls.paramValue(iParam, position: $0) },
-				commit: { model.setParam(iParam, .val, $0) })
+				commit: { model.setParam(iParam, .val, $0) },
+				defaultValue: WHControls.paramDefault(iParam, column: 0))
 			field(.val, column: 0)
 			Picker("", selection: Binding(
 				get: { Int(e.paramValue(iParam, property: .wave)) },
@@ -313,16 +407,20 @@ struct MasterPanel: View {
 						norm: { WHControls.masterPosition(i, value: $0) },
 						denorm: { WHControls.masterValue(i, position: $0) },
 						commit: { model.setMaster(i, $0) },
+						defaultValue: WHControls.masterDefault(i),
 						width: 200)
 					NumberField(
 						value: value,
 						format: { WHControls.formatMaster(i, value: $0) },
 						parse: { WHControls.parseMaster(i, text: $0) },
 						commit: { model.setMaster(i, $0) },
-						step: { v, d in	// no stepper: a slider position
-							let pos = WHControls.masterPosition(i, value: v).rounded() + Double(d)
+						step: { v, d, k in	// no stepper: in slider positions
+							let pos = k.apply(WHControls.masterPosition(i, value: v), size: 1, direction: d)
 							return WHControls.masterValue(i, position: min(max(pos, Double(ci.rangeMin)), Double(ci.rangeMax)))
-						})
+						},
+						lo: WHControls.masterValue(i, position: Double(ci.rangeMin)),
+						hi: WHControls.masterValue(i, position: Double(ci.rangeMax)),
+						defaultValue: WHControls.masterDefault(i))
 				}
 			}
 		}
@@ -351,13 +449,18 @@ struct GlobalsPanel: View {
 						norm: { WHControls.globalPosition(i, value: $0) },
 						denorm: { WHControls.globalValue(i, position: $0) },
 						commit: { model.setParam(i, .global, $0) },
+						defaultValue: WHControls.paramDefault(i, column: 4),
 						width: 200)
 					NumberField(
 						value: value,
 						format: { WHControls.format($0, control: ci) },
 						parse: { WHControls.parse($0, control: ci) },
 						commit: { model.setParam(i, .global, $0) },
-						spin: { WHControls.spin($0, control: ci, direction: $1) })
+						spin: { WHControls.spin($0, control: ci, direction: $1) },
+						step: spinStep(ci),
+						lo: ci.editMin,
+						hi: ci.editMax,
+						defaultValue: WHControls.paramDefault(i, column: 4))
 				}
 			}
 		}

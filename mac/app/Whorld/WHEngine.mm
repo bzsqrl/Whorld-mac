@@ -77,6 +77,20 @@ static NSString *ToNS(const std::string& s)
 + (double)globalValue:(NSInteger)i position:(double)p { return Controls::GlobalDenorm((int)i, p); }
 + (double)masterPosition:(NSInteger)i value:(double)v { return Controls::MasterNorm((int)i, v); }
 + (double)masterValue:(NSInteger)i position:(double)p { return Controls::MasterDenorm((int)i, p); }
++ (double)paramDefault:(NSInteger)i column:(NSInteger)col
+{
+	whorld::WhorldBase::PARAM_TABLE	t;
+	whorld::WhorldBase::SetParamDefaults(t);
+	const auto&	row = t.row[i];
+	switch (col) {
+	case 0: return row.fVal;
+	case 1: return row.fAmp;
+	case 2: return row.fFreq;
+	case 3: return row.fPW;
+	default: return row.fGlobal;
+	}
+}
++ (double)masterDefault:(NSInteger)i { return whorld::WhorldBase::m_masterDefault.a[i]; }
 + (NSString *)format:(double)v control:(WHControlInfo)c { return ToNS(Controls::FormatValue(FromWH(c), v)); }
 + (double)parse:(NSString *)t control:(WHControlInfo)c { return Controls::ParseValue(FromWH(c), t.UTF8String); }
 + (NSString *)formatMaster:(NSInteger)i value:(double)v { return ToNS(Controls::FormatMaster((int)i, v)); }

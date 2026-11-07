@@ -69,6 +69,9 @@ typedef struct {
 + (double)globalValue:(NSInteger)iParam position:(double)position;
 + (double)masterPosition:(NSInteger)iProp value:(double)value;
 + (double)masterValue:(NSInteger)iProp position:(double)position;
+// a new patch's values (CPatch::SetDefaults): what right-clicking a control restores
++ (double)paramDefault:(NSInteger)iParam column:(NSInteger)column;	// column as paramControl:
++ (double)masterDefault:(NSInteger)iProp;
 + (NSString *)format:(double)value control:(WHControlInfo)control;
 + (double)parse:(NSString *)text control:(WHControlInfo)control;
 + (NSString *)formatMaster:(NSInteger)iProp value:(double)value;
