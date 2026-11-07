@@ -304,6 +304,7 @@ struct KeySlider: NSViewRepresentable {
 		}
 
 		override func keyDown(with event: NSEvent) {
+			if event.keyCode == 125 || event.keyCode == 126 { return }	// up/down: sliders move with left/right only
 			guard event.keyCode == 123 || event.keyCode == 124, let k = KeyStep(event.modifierFlags) else {
 				super.keyDown(with: event)
 				return
