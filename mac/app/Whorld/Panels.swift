@@ -61,7 +61,11 @@ struct NumberField: View {
 	var lo: Double? = nil	// where Command-Shift-Down goes, if the range has an end there
 	var hi: Double? = nil
 	var defaultValue: Double? = nil
-	var width: CGFloat = 72
+	var width: CGFloat = NumberField.standardWidth
+
+	/// fits ten characters of %g (such as -0.0132785) in the box's font
+	static let standardWidth: CGFloat = 96
+	static let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
 
 	var body: some View {
 		HStack(spacing: 2) {
@@ -164,6 +168,11 @@ struct KeyTextField: NSViewRepresentable {
 		func show(_ field: NSTextField, _ v: Double) {
 			shown = parent.format(v)
 			field.stringValue = shown
+			// the whole value, if the box is too narrow for it
+			// (before the first layout, the box is assumed to hold eight characters)
+			let room = field.bounds.width > 0 ? field.bounds.width - 22 : 8 * 7.2
+			let fits = (shown as NSString).size(withAttributes: [.font: NumberField.font]).width <= room
+			field.toolTip = fits ? nil : shown
 		}
 
 		// ported from NumEdit.cpp CNumEdit::OnKillfocus: commit only if modified
@@ -221,7 +230,7 @@ struct KeyTextField: NSViewRepresentable {
 		let f = Field()
 		f.bezelStyle = .roundedBezel
 		f.isBezeled = true
-		f.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+		f.font = NumberField.font
 		f.alignment = .right
 		f.delegate = context.coordinator
 		f.cell?.isScrollable = true
@@ -244,7 +253,7 @@ struct KeyTextField: NSViewRepresentable {
 	}
 
 	func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSTextField, context: Context) -> CGSize? {
-		CGSize(width: proposal.width ?? 72, height: 22)
+		CGSize(width: proposal.width ?? NumberField.standardWidth, height: 22)
 	}
 }
 
@@ -389,9 +398,9 @@ enum ParamColumn {
 	static let spacing: CGFloat = 8
 	static let name: CGFloat = 96
 	static let slider: CGFloat = 160
-	static let field: CGFloat = 90
+	static let field: CGFloat = 114
 	static let wave: CGFloat = 104
-	static let pw: CGFloat = 70
+	static let pw: CGFloat = 88
 }
 
 struct ParamRow: View {
@@ -402,7 +411,7 @@ struct ParamRow: View {
 		WHControls.paramControl(iParam, column: col)
 	}
 
-	private func field(_ prop: WHParamProperty, column: Int, width: CGFloat = 72) -> some View {
+	private func field(_ prop: WHParamProperty, column: Int, width: CGFloat = NumberField.standardWidth) -> some View {
 		let ci = control(column)
 		let bounded = ci.editClamp.boolValue
 		return NumberField(
@@ -448,7 +457,7 @@ struct ParamRow: View {
 				.frame(width: ParamColumn.field, alignment: .leading)
 			field(.freq, column: 2)
 				.frame(width: ParamColumn.field, alignment: .leading)
-			field(.PW, column: 3, width: 52)
+			field(.PW, column: 3, width: 70)
 				.frame(width: ParamColumn.pw, alignment: .leading)
 		}
 	}

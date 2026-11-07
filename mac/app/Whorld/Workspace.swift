@@ -70,7 +70,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		switch (self, region) {
 		case (.properties, .left), (.properties, .right): 252
 		case (.master, .left), (.master, .right): 334
-		case (.params, .bottom): 800
+		case (.params, .bottom): 880
 		default: nil
 		}
 	}
