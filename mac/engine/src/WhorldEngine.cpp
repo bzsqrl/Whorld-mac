@@ -988,11 +988,20 @@ void WhorldEngine::OnSetMainProp(int iProp, const VARIANT_PROP& prop)
 // ported from WhorldThread.cpp CWhorldThread::OnSetPatch
 void WhorldEngine::OnSetPatch(const Patch& patch)
 {
-	// Upstream behavior: only the patch data is copied. Oscillator waveforms
-	// and pulse widths are NOT updated from the patch (only OnSetWaveform and
-	// OnSetPulseWidth do that). See PORT_PLAN.md "Upstream notes".
 	Patch&	self = *this;	// upcast to patch data base class
 	self = patch;	// copy patch data to base class
+	// Fix (not in the original; confirmed with Chris Korda, 2026-11-07):
+	// give each oscillator the patch's waveform and pulse width, as
+	// OnSetWaveform and OnSetPulseWidth do when a row is edited. The
+	// original copies only the patch data, so a loaded patch animated with
+	// the previous patch's waveforms (TRIANGLE at startup) until each row
+	// was edited. Frequencies need nothing here: TimerHook reads them from
+	// the rows each frame. See PORT_PLAN.md "Upstream notes".
+	for (int iParam = 0; iParam < PARAM_COUNT; iParam++) {	// for each parameter
+		const PARAM_ROW&	row = GetParamRow(iParam);
+		m_aOsc[iParam].SetWaveform(row.iWave);
+		m_aOsc[iParam].SetPulseWidth(row.fPW);
+	}
 	OnMasterPropChange();	// handle master property changes
 	OnMainPropChange();	// handle main property changes
 	OnGlobalsChange();	// handle global parameter changes

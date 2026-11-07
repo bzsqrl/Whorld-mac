@@ -251,22 +251,35 @@ TEST(Determinism) {
 	CHECK(bSame);
 }
 
-TEST(PatchDoesNotSetOscillatorWaveform) {
-	// Upstream behavior: OnSetPatch copies the patch but leaves each
-	// oscillator's waveform alone (TRIANGLE by default) until OnSetWaveform.
+TEST(PatchSetsOscillatorWaveformAndPulseWidth) {
+	// Fix (not in the original, which left each oscillator's waveform and
+	// pulse width as they were until the row was edited): a loaded patch's
+	// oscillators use its waveforms and pulse widths from the first frame.
 	auto	eng = MakeEngine();
 	Patch	p = DefaultPatch();
-	auto&	row = p.GetParamRow(Patch::PARAM_LineWidth);
-	row.iWave = Patch::WAVEFORM_SINE;
-	row.fAmp = 1;
-	row.fFreq = 1;
+	auto&	rowLW = p.GetParamRow(Patch::PARAM_LineWidth);
+	rowLW.iWave = Patch::WAVEFORM_SINE;
+	rowLW.fAmp = 1;
+	rowLW.fFreq = 1;
+	auto&	rowPS = p.GetParamRow(Patch::PARAM_PolySides);
+	rowPS.fVal = 5;
+	rowPS.iWave = Patch::WAVEFORM_PULSE;
+	rowPS.fAmp = 1;
+	rowPS.fFreq = 1;
+	rowPS.fPW = 0.01;	// high only for the first 1% of each cycle
 	eng->OnSetPatch(p);
 	RunFrames(*eng, 1);	// clock 1 at 60 Hz: phase 1/60
-	double	fTri = std::fmod(2.0 / 60 + 0.5, 2) * 2 - 1;	// triangle at phase 1/60
-	CHECK_NEAR(eng->GetParamValues().fLineWidth, 1 + fTri, 1e-12);
-	eng->OnSetWaveform(Patch::PARAM_LineWidth, Patch::WAVEFORM_SINE);
-	RunFrames(*eng, 1);	// clock 2
-	CHECK_NEAR(eng->GetParamValues().fLineWidth, 1 + std::sin(2 * kPi * 2 / 60), 1e-12);
+	CHECK_NEAR(eng->GetParamValues().fLineWidth, 1 + std::sin(2 * kPi / 60), 1e-12);	// not the triangle
+	CHECK_NEAR(eng->GetParamValues().fPolySides, 5 - 1, 1e-12);	// phase 1/60 is past 0.01; at 0.5 it would be high
+	// a second patch replaces them, as opening another file does
+	Patch	q = DefaultPatch();
+	auto&	rowQ = q.GetParamRow(Patch::PARAM_LineWidth);
+	rowQ.iWave = Patch::WAVEFORM_SQUARE;
+	rowQ.fAmp = 1;
+	rowQ.fFreq = 1;
+	eng->OnSetPatch(q);
+	RunFrames(*eng, 1);
+	CHECK_NEAR(eng->GetParamValues().fLineWidth, 1 + 1, 1e-12);	// square, first half of its cycle
 }
 
 TEST(RandomOriginUsesMsvcSequence) {
