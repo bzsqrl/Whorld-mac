@@ -67,6 +67,7 @@ final class FullScreenController {
 		let view = WHRenderView(frame: Self.pictureFrame(screen))
 		view.autoresizingMask = [.width, .height]
 		view.fullResolution = fullResolution
+		view.fullScreenOutput = true	// no cursor over the picture; the mouse followed for Origin Drag
 		view.wheelHandler = { notches, shift in
 			Task { @MainActor in AppModel.shared.wheel(notches: notches, shift: shift) }
 		}

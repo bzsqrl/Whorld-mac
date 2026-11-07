@@ -604,6 +604,11 @@ final class AppModel: ObservableObject {
 			fullScreen.enter(from: from, engine: engine, fullResolution: fullResolution) { [weak self] in
 				self?.toggleFullScreen()
 			}
+			// Each time full screen starts, the origin follows the mouse (as
+			// Image > Origin Drag; it can be changed again as usual).
+			if fullScreen.isFullScreen {
+				setOriginMotion(.drag)
+			}
 		}
 		changed()
 	}

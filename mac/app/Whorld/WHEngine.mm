@@ -1530,6 +1530,7 @@ static NSString *SourceName(MIDIEndpointRef src)
 	int		_pixelWidth, _pixelHeight;
 	double	_pixelScale;
 	CALayer	*_ownLayer;
+	BOOL	_cursorHidden;	// fullScreenOutput: this view has hidden the cursor
 }
 
 - (instancetype)initWithFrame:(NSRect)frame
@@ -1592,6 +1593,8 @@ static NSString *SourceName(MIDIEndpointRef src)
 	[_displayLink invalidate];
 	_displayLink = nil;
 	[self updateDrawableSize];
+	if (_fullScreenOutput)	// hidden if the pointer is already over it; shown again on leaving the window
+		[self setCursorHidden:self.window != nil && [self mouseIsInside]];
 	if (self.window) {
 		// A view entering a window shows the output (the workspace's middle,
 		// the detached window, the full-screen window): it's where the
@@ -1631,10 +1634,55 @@ static NSString *SourceName(MIDIEndpointRef src)
 	[super updateTrackingAreas];
 	if (_tracking)
 		[self removeTrackingArea:_tracking];
-	_tracking = [[NSTrackingArea alloc] initWithRect:NSZeroRect
-		options:NSTrackingMouseMoved | NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect
-		owner:self userInfo:nil];
+	NSTrackingAreaOptions	opt = NSTrackingMouseMoved | NSTrackingInVisibleRect;
+	if (_fullScreenOutput)
+		opt |= NSTrackingActiveAlways | NSTrackingMouseEnteredAndExited | NSTrackingCursorUpdate;
+	else
+		opt |= NSTrackingActiveInKeyWindow;
+	_tracking = [[NSTrackingArea alloc] initWithRect:NSZeroRect options:opt owner:self userInfo:nil];
 	[self addTrackingArea:_tracking];
+}
+
+// fullScreenOutput: ported from RenderWnd.cpp CRenderWnd::OnSetCursor, which
+// loads a null cursor over the full-screen render window
+- (void)setCursorHidden:(BOOL)hide
+{
+	if (hide == _cursorHidden)
+		return;
+	_cursorHidden = hide;
+	if (hide)
+		[NSCursor hide];	// counted: each hide is matched by one unhide
+	else
+		[NSCursor unhide];
+}
+
+- (BOOL)mouseIsInside	// in screen coordinates, so it's right whichever display the pointer is on
+{
+	if (!self.window)
+		return NO;
+	NSRect	r = [self.window convertRectToScreen:[self convertRect:self.bounds toView:nil]];
+	return NSMouseInRect(NSEvent.mouseLocation, r, NO);
+}
+
+- (void)mouseEntered:(NSEvent *)event
+{
+	if (_fullScreenOutput)
+		[self setCursorHidden:YES];
+}
+
+- (void)mouseExited:(NSEvent *)event
+{
+	if (_fullScreenOutput)
+		[self setCursorHidden:NO];
+}
+
+// cursor updates can also come as the pointer leaves: decide by where it is
+- (void)cursorUpdate:(NSEvent *)event
+{
+	if (_fullScreenOutput)
+		[self setCursorHidden:[self mouseIsInside]];
+	else
+		[super cursorUpdate:event];
 }
 
 - (void)reportMouse:(NSEvent *)event
@@ -1661,7 +1709,12 @@ static NSString *SourceName(MIDIEndpointRef src)
 		_wheelHandler(notches, shift);
 }
 
-- (void)mouseMoved:(NSEvent *)event { [self reportMouse:event]; }
+- (void)mouseMoved:(NSEvent *)event
+{
+	if (_fullScreenOutput)
+		[self setCursorHidden:YES];	// moves come only while it's over the view
+	[self reportMouse:event];
+}
 - (void)mouseDragged:(NSEvent *)event { [self reportMouse:event]; }
 
 @end

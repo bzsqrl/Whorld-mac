@@ -298,6 +298,11 @@ typedef struct {
 @property (nonatomic, strong, nullable) WHEngine *engine;
 // If NO, render at one pixel per point and let the layer scale it up.
 @property (nonatomic) BOOL fullResolution;
+// The full-screen output (FullScreen.swift): the cursor is hidden while it's
+// over the view (CRenderWnd::OnSetCursor), and the mouse is followed even
+// when another window has the keyboard (Origin Drag with the panels in use
+// on another display). Set before the view goes into its window.
+@property (nonatomic) BOOL fullScreenOutput;
 // Scroll wheel over the view (CRenderWnd::OnMouseWheel): delta in wheel
 // notches, positive away from the user; shift if the Shift key is down.
 @property (nonatomic, copy, nullable) void (^wheelHandler)(double notches, BOOL shift);
