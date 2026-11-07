@@ -19,6 +19,13 @@ struct WhorldCommands: Commands {
 		KeyEquivalent(Character(UnicodeScalar(UInt32(code))!))
 	}
 
+	/// A recent file's name, with its folder if another recent file has the same name.
+	static func recentTitle(_ url: URL, in all: [URL]) -> String {
+		let name = url.lastPathComponent
+		let same = all.filter { $0.lastPathComponent == name }.count > 1
+		return same ? "\(name) — \(url.deletingLastPathComponent().lastPathComponent)" : name
+	}
+
 	/// A menu item with a standard check mark, reading its state from the
 	/// engine's document and toggling it through the given action.
 	private func toggle(_ title: String, _ isOn: Bool, _ action: @escaping () -> Void) -> some View {
@@ -40,6 +47,19 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut("n")
 			Button("Open…") { model.showOpenPanel() }
 				.keyboardShortcut("o")
+			// CWinApp's recent file list (Windows' File menu MRU)
+			Menu("Open Recent") {
+				let recent = NSDocumentController.shared.recentDocumentURLs
+				ForEach(recent, id: \.self) { url in
+					Button(Self.recentTitle(url, in: recent)) { model.openFile(url) }
+				}
+				Divider()
+				Button("Clear Menu") {
+					NSDocumentController.shared.clearRecentDocuments(nil)
+					model.changes.menus.bump()
+				}
+				.disabled(recent.isEmpty)
+			}
 		}
 
 		CommandGroup(replacing: .saveItem) {

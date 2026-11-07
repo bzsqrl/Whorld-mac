@@ -328,6 +328,7 @@ final class AppModel: ObservableObject {
 	private func writePlaylist(to url: URL) -> Bool {
 		do {
 			try engine.savePlaylist(toPath: url.path)
+			NSDocumentController.shared.noteNewRecentDocumentURL(url)
 			playlistURL = url
 			playlistTitle = url.deletingPathExtension().lastPathComponent
 			playlistModified = false
@@ -641,6 +642,19 @@ final class AppModel: ObservableObject {
 		changed()
 	}
 
+	/// Opens any Whorld file by its kind: from the Finder, or File > Open Recent.
+	func openFile(_ url: URL) {
+		switch url.pathExtension.lowercased() {
+		case "whl":
+			if confirmDiscardPlaylist() {
+				openPlaylist(url)
+			}
+		case "whs": loadSnapshots([url])
+		case "whm": playMovie(url)
+		default: open(url)
+		}
+	}
+
 	func showOpenPanel() {
 		let panel = NSOpenPanel()
 		panel.allowedContentTypes = [.whorldPatch]
@@ -856,17 +870,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 			}
 		}
 		for url in urls {
-			Task { @MainActor in
-				switch url.pathExtension.lowercased() {
-				case "whl":
-					if AppModel.shared.confirmDiscardPlaylist() {
-						AppModel.shared.openPlaylist(url)
-					}
-				case "whs": AppModel.shared.loadSnapshots([url])
-				case "whm": AppModel.shared.playMovie(url)
-				default: AppModel.shared.open(url)
-				}
-			}
+			Task { @MainActor in AppModel.shared.openFile(url) }
 		}
 	}
 
