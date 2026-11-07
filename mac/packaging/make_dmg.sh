@@ -47,7 +47,7 @@ Security and click Open Anyway. You only need to do this once.
 
 Whorld is free software under the GNU General Public License version 3 or
 later (License.txt), and comes with no warranty.
-Source code: https://github.com/bzsqrl/Whorld
+Source code: https://github.com/bzsqrl/Whorld-mac
 TXT
 
 dmg="$out/Whorld-$version.dmg"

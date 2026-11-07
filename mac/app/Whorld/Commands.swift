@@ -241,7 +241,7 @@ struct HelpCommands: Commands {
 		}
 	}
 
-	static let sourceURL = URL(string: "https://github.com/bzsqrl/Whorld")!
+	static let sourceURL = URL(string: "https://github.com/bzsqrl/Whorld-mac")!
 
 	/// Opens a page of the bundled help (Contents/Resources/Help, copied by
 	/// the Copy Help build phase) in the default browser.

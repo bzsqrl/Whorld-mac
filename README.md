@@ -1,14 +1,16 @@
 ## Whorld for macOS
 
-This fork is a native macOS port of Whorld V2. It runs on macOS 14 (Sonoma) or later, on Apple silicon and Intel Macs, and draws patches the same way the Windows version does. Patches, playlists, snapshots and movies are the same files on both, so you can share them across platforms. The Mac version adds video export (H.264, HEVC and ProRes) and takes MIDI input through Core MIDI.
+A native macOS port of [Whorld](https://github.com/victimofleisure/Whorld) V2, the free sacred-geometry visualizer by Chris Korda. This is an unofficial port, made with Chris's blessing; the official Whorld, for Windows, is at [victimofleisure/Whorld](https://github.com/victimofleisure/Whorld). This repository keeps Whorld's full history, and the original Windows source in `trunk/Whorld` is unchanged.
+
+Whorld for macOS runs on macOS 14 (Sonoma) or later, on Apple silicon and Intel Macs, and draws patches the same way the Windows version does. Patches, playlists, snapshots and movies are the same files on both, so you can share them across platforms. The Mac version adds video export (H.264, HEVC and ProRes) and takes MIDI input through Core MIDI.
 
 ### Install
 
-Download `Whorld-<version>.dmg`, open it and drag Whorld to Applications.
+Download `Whorld-<version>.dmg` from [Releases](https://github.com/bzsqrl/Whorld-mac/releases), open it and drag Whorld to Applications. Releases marked *pre-release* are betas.
 
 The app is signed ad hoc but not notarized by Apple, so the first time you open it macOS says it can't check it for malicious software. Control-click Whorld in Applications, choose **Open**, then **Open** again. On macOS 15 and later, if there is no Open button, go to **System Settings > Privacy & Security** and click **Open Anyway**. You only need to do this once.
 
-Help > Whorld Help explains what differs from Windows and lists the keyboard shortcuts.
+Help > Whorld Help explains what differs from Windows and lists the keyboard shortcuts. Please report bugs and suggestions in [Issues](https://github.com/bzsqrl/Whorld-mac/issues), not on the original Whorld's repository.
 
 ### Build from source
 
@@ -27,9 +29,11 @@ sh mac/packaging/make_dmg.sh
 
 `build/tools/whorld-render` renders patches, snapshots and movies from the command line (run it with no arguments for help). The source layout and the porting notes are in [CLAUDE.md](CLAUDE.md) and [PORT_PLAN.md](PORT_PLAN.md). The Windows source in `trunk/Whorld` is unchanged.
 
-The port is free software under the GNU GPL version 3 or later, like Whorld itself. Whorld is copyleft Chris Korda; the macOS port is by Jeff Matson.
+The port is free software under the GNU GPL version 3 or later ([LICENSE](LICENSE)); the original Whorld source is GPL version 2 or later. Whorld is copyleft Chris Korda; the macOS port is by Jeff Matson. Each ported file names the original it comes from and keeps its copyright notice.
 
 ---
+
+*The original Whorld README follows.*
 
 ## Version 2 of [Whorld](https://victimofleisure.github.io/Whorld/) is available! See below.
 

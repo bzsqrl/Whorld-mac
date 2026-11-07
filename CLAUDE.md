@@ -1,6 +1,6 @@
 # Whorld for macOS
 
-This repository is a fork of [victimofleisure/Whorld](https://github.com/victimofleisure/Whorld) (Chris Korda's sacred-geometry visualizer, V2). The goal is a native macOS port. The full plan, with phases and status, is in `PORT_PLAN.md`. Read it before starting work, and update its status checkboxes when a task is finished.
+This repository, [bzsqrl/Whorld-mac](https://github.com/bzsqrl/Whorld-mac) (branch `main`), is derived from [victimofleisure/Whorld](https://github.com/victimofleisure/Whorld) (Chris Korda's sacred-geometry visualizer, V2) and keeps its full history; it's a standalone repository, not a GitHub fork, published with Chris's blessing. The goal is a native macOS port. Remotes: `origin` is Whorld-mac, `upstream` is victimofleisure/Whorld, and the local `master` branch is the upstream baseline the port started from. The full plan, with phases and status, is in `PORT_PLAN.md`. Read it before starting work, and update its status checkboxes when a task is finished.
 
 License: GPLv3. Every new file gets a GPLv3 header and keeps the original copyright notice where code is derived from Whorld.
 
