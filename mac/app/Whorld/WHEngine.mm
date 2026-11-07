@@ -552,6 +552,12 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	return CGPointMake(_doc.m_main.dptOrigin.x, _doc.m_main.dptOrigin.y);
 }
 
+- (CGPoint)liveOrigin
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	return CGPointMake(_liveOrigin.x, _liveOrigin.y);
+}
+
 - (void)setOrigin:(CGPoint)pt
 {
 	_doc.m_main.dptOrigin = whorld::DPoint(pt.x, pt.y);

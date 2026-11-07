@@ -397,9 +397,11 @@ final class AppModel: ObservableObject {
 		changed()
 	}
 
+	// CWhorldDoc::SetOrigin: always sent, as on Windows. The document's
+	// origin doesn't follow Drag or Random, so an equality test against it
+	// skipped Origin Center after dragging; undo restores the live origin.
 	func setOrigin(_ pt: CGPoint) {
-		let old = engine.origin
-		guard old != pt else { return }
+		let old = engine.liveOrigin
 		recordUndo(key: "main \(MainProp.origin.rawValue)", title: WHControls.mainName(MainProp.origin.rawValue)) { [weak self] in
 			self?.setOrigin(old)
 		}
@@ -599,6 +601,10 @@ final class AppModel: ObservableObject {
 	func toggleFullScreen() {
 		if fullScreen.isFullScreen {
 			fullScreen.exit(engine: engine)
+			// Each time full screen ends (however: Esc, the shortcut, the
+			// display going away), the origin goes back to the middle and
+			// stays there (Image > Origin Center).
+			originCenter()
 		} else {
 			let from = layout.layout.detached ? outputWindow.window : mainWindow
 			fullScreen.enter(from: from, engine: engine, fullResolution: fullResolution) { [weak self] in

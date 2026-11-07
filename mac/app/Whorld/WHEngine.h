@@ -150,6 +150,9 @@ typedef struct {
 - (double)masterValue:(NSInteger)iProp;
 - (void)setMasterValue:(double)value prop:(NSInteger)iProp;
 @property (nonatomic) CGPoint origin;	// normalized; setting it moves the origin without damping
+// The origin as the render thread last drew it: where Drag or Random have
+// moved it, which `origin` (the document's) doesn't follow.
+@property (nonatomic, readonly) CGPoint liveOrigin;
 @property (nonatomic) double hue;
 @property (nonatomic) BOOL invertColor;
 - (void)setOriginMotion:(WHOriginMotion)motion;
