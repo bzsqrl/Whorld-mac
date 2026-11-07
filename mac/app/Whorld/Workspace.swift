@@ -62,6 +62,19 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		}
 	}
 
+	/// The starting size along a region's split that shows all of a form
+	/// (with its title bar): the height of a side panel, the width of a
+	/// bottom one. Nil for the panels that share what's left and scroll:
+	/// with every panel shown, the forms are whole and the lists give way.
+	func preferredLength(in region: Region) -> CGFloat? {
+		switch (self, region) {
+		case (.properties, .left), (.properties, .right): 252
+		case (.master, .left), (.master, .right): 334
+		case (.params, .bottom): 800
+		default: nil
+		}
+	}
+
 	/// Tables and lists scroll themselves; the others are fixed-size forms.
 	var scrollsItself: Bool { self == .params || self == .playlist || self == .mapping }
 }
@@ -615,8 +628,14 @@ struct WorkspaceView: View {
 
 	private func region(_ r: Region) -> some View {
 		let ids = layout.layout.panels(in: r)
+		// a lone panel fills its region; otherwise the forms start whole
+		let sized = ids.count > 1 ? ids.filter { $0.preferredLength(in: r) != nil } : []
 		return SplitView(vertical: r == .bottom, items: ids.map(\.rawValue),
 			autosave: "Whorld.\(r.rawValue)." + ids.map(\.rawValue).joined(separator: "|"),
+			initialSize: { s in
+				PanelID(rawValue: s).flatMap { sized.contains($0) && sized.count < ids.count ? $0.preferredLength(in: r) : nil }
+			},
+			flexible: ids.first { !sized.contains($0) }?.rawValue,
 			arrangeGeneration: layout.arrangeGeneration) { s in
 			AnyView(DockedPanel(id: PanelID(rawValue: s)!, region: r, layout: layout).environmentObject(model))
 		}
