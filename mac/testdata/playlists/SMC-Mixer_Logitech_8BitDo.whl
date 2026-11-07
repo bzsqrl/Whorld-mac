@@ -4,169 +4,169 @@ FileVersion=1
 [Patch]
 Count=82
 [Patch\0]
-Path=/Users/user/Whorld/mac/testdata/patches/default_cvx.whp
+Path=C:\Users\user\Documents\Whorld\default_cvx.whp
 [Patch\1]
-Path=/Users/user/Whorld/mac/testdata/patches/stainedGlass.whp
+Path=C:\Users\user\Documents\Whorld\stainedGlass.whp
 [Patch\2]
-Path=/Users/user/Whorld/mac/testdata/patches/glassFlower.whp
+Path=C:\Users\user\Documents\Whorld\glassFlower.whp
 [Patch\3]
-Path=/Users/user/Whorld/mac/testdata/patches/bloom_cvx.whp
+Path=C:\Users\user\Documents\Whorld\bloom_cvx.whp
 [Patch\4]
-Path=/Users/user/Whorld/mac/testdata/patches/boomer_cvx.whp
+Path=C:\Users\user\Documents\Whorld\boomer_cvx.whp
 [Patch\5]
-Path=/Users/user/Whorld/mac/testdata/patches/anemone_cvx.whp
+Path=C:\Users\user\Documents\Whorld\anemone_cvx.whp
 [Patch\6]
-Path=/Users/user/Whorld/mac/testdata/patches/backspin coarse_cvx.whp
+Path=C:\Users\user\Documents\Whorld\backspin coarse_cvx.whp
 [Patch\7]
-Path=/Users/user/Whorld/mac/testdata/patches/bands_cvx.whp
+Path=C:\Users\user\Documents\Whorld\bands_cvx.whp
 [Patch\8]
-Path=/Users/user/Whorld/mac/testdata/patches/billowing tunnel_cvx.whp
+Path=C:\Users\user\Documents\Whorld\billowing tunnel_cvx.whp
 [Patch\9]
-Path=/Users/user/Whorld/mac/testdata/patches/boxy_cvx.whp
+Path=C:\Users\user\Documents\Whorld\boxy_cvx.whp
 [Patch\10]
-Path=/Users/user/Whorld/mac/testdata/patches/boxy_good2_cvx.whp
+Path=C:\Users\user\Documents\Whorld\boxy_good2_cvx.whp
 [Patch\11]
-Path=/Users/user/Whorld/mac/testdata/patches/boxy_good2_stars_cvx.whp
+Path=C:\Users\user\Documents\Whorld\boxy_good2_stars_cvx.whp
 [Patch\12]
-Path=/Users/user/Whorld/mac/testdata/patches/bull lotus2_cvx.whp
+Path=C:\Users\user\Documents\Whorld\bull lotus2_cvx.whp
 [Patch\13]
-Path=/Users/user/Whorld/mac/testdata/patches/bull lotus5 edit_cvx.whp
+Path=C:\Users\user\Documents\Whorld\bull lotus5 edit_cvx.whp
 [Patch\14]
-Path=/Users/user/Whorld/mac/testdata/patches/bullseye_cvx.whp
+Path=C:\Users\user\Documents\Whorld\bullseye_cvx.whp
 [Patch\15]
-Path=/Users/user/Whorld/mac/testdata/patches/cloud tunnel_cvx.whp
+Path=C:\Users\user\Documents\Whorld\cloud tunnel_cvx.whp
 [Patch\16]
-Path=/Users/user/Whorld/mac/testdata/patches/cross_cvx.whp
+Path=C:\Users\user\Documents\Whorld\cross_cvx.whp
 [Patch\17]
-Path=/Users/user/Whorld/mac/testdata/patches/cutouts_cvx.whp
+Path=C:\Users\user\Documents\Whorld\cutouts_cvx.whp
 [Patch\18]
-Path=/Users/user/Whorld/mac/testdata/patches/digi smoke 5-50_cvx.whp
+Path=C:\Users\user\Documents\Whorld\digi smoke 5-50_cvx.whp
 [Patch\19]
-Path=/Users/user/Whorld/mac/testdata/patches/digi smoke_cvx.whp
+Path=C:\Users\user\Documents\Whorld\digi smoke_cvx.whp
 [Patch\20]
-Path=/Users/user/Whorld/mac/testdata/patches/digi smoke2_cvx.whp
+Path=C:\Users\user\Documents\Whorld\digi smoke2_cvx.whp
 [Patch\21]
-Path=/Users/user/Whorld/mac/testdata/patches/digi smoke3_cvx.whp
+Path=C:\Users\user\Documents\Whorld\digi smoke3_cvx.whp
 [Patch\22]
-Path=/Users/user/Whorld/mac/testdata/patches/fireworks_cvx.whp
+Path=C:\Users\user\Documents\Whorld\fireworks_cvx.whp
 [Patch\23]
-Path=/Users/user/Whorld/mac/testdata/patches/fireworks2_cvx.whp
+Path=C:\Users\user\Documents\Whorld\fireworks2_cvx.whp
 [Patch\24]
-Path=/Users/user/Whorld/mac/testdata/patches/fish eye_cvx.whp
+Path=C:\Users\user\Documents\Whorld\fish eye_cvx.whp
 [Patch\25]
-Path=/Users/user/Whorld/mac/testdata/patches/flowing veins_cvx.whp
+Path=C:\Users\user\Documents\Whorld\flowing veins_cvx.whp
 [Patch\26]
-Path=/Users/user/Whorld/mac/testdata/patches/fog lights_cvx.whp
+Path=C:\Users\user\Documents\Whorld\fog lights_cvx.whp
 [Patch\27]
-Path=/Users/user/Whorld/mac/testdata/patches/frosty_cvx.whp
+Path=C:\Users\user\Documents\Whorld\frosty_cvx.whp
 [Patch\28]
-Path=/Users/user/Whorld/mac/testdata/patches/gas mirror_cvx.whp
+Path=C:\Users\user\Documents\Whorld\gas mirror_cvx.whp
 [Patch\29]
-Path=/Users/user/Whorld/mac/testdata/patches/good2_cvx.whp
+Path=C:\Users\user\Documents\Whorld\good2_cvx.whp
 [Patch\30]
-Path=/Users/user/Whorld/mac/testdata/patches/horn fest_cvx.whp
+Path=C:\Users\user\Documents\Whorld\horn fest_cvx.whp
 [Patch\31]
-Path=/Users/user/Whorld/mac/testdata/patches/horn smoke_cvx.whp
+Path=C:\Users\user\Documents\Whorld\horn smoke_cvx.whp
 [Patch\32]
-Path=/Users/user/Whorld/mac/testdata/patches/horn worm_cvx.whp
+Path=C:\Users\user\Documents\Whorld\horn worm_cvx.whp
 [Patch\33]
-Path=/Users/user/Whorld/mac/testdata/patches/horn_cvx.whp
+Path=C:\Users\user\Documents\Whorld\horn_cvx.whp
 [Patch\34]
-Path=/Users/user/Whorld/mac/testdata/patches/kaleid_cvx.whp
+Path=C:\Users\user\Documents\Whorld\kaleid_cvx.whp
 [Patch\35]
-Path=/Users/user/Whorld/mac/testdata/patches/lotus light_cvx.whp
+Path=C:\Users\user\Documents\Whorld\lotus light_cvx.whp
 [Patch\36]
-Path=/Users/user/Whorld/mac/testdata/patches/louvers coarse_cvx.whp
+Path=C:\Users\user\Documents\Whorld\louvers coarse_cvx.whp
 [Patch\37]
-Path=/Users/user/Whorld/mac/testdata/patches/louvers_cvx.whp
+Path=C:\Users\user\Documents\Whorld\louvers_cvx.whp
 [Patch\38]
-Path=/Users/user/Whorld/mac/testdata/patches/lw lotus cross_cvx.whp
+Path=C:\Users\user\Documents\Whorld\lw lotus cross_cvx.whp
 [Patch\39]
-Path=/Users/user/Whorld/mac/testdata/patches/lw lotus cross2_cvx.whp
+Path=C:\Users\user\Documents\Whorld\lw lotus cross2_cvx.whp
 [Patch\40]
-Path=/Users/user/Whorld/mac/testdata/patches/lw pinwheel fab color_cvx.whp
+Path=C:\Users\user\Documents\Whorld\lw pinwheel fab color_cvx.whp
 [Patch\41]
-Path=/Users/user/Whorld/mac/testdata/patches/lw pinwheel fab color2_cvx.whp
+Path=C:\Users\user\Documents\Whorld\lw pinwheel fab color2_cvx.whp
 [Patch\42]
-Path=/Users/user/Whorld/mac/testdata/patches/mercedes bent_cvx.whp
+Path=C:\Users\user\Documents\Whorld\mercedes bent_cvx.whp
 [Patch\43]
-Path=/Users/user/Whorld/mac/testdata/patches/mercedes xray_cvx.whp
+Path=C:\Users\user\Documents\Whorld\mercedes xray_cvx.whp
 [Patch\44]
-Path=/Users/user/Whorld/mac/testdata/patches/mercedes_cvx.whp
+Path=C:\Users\user\Documents\Whorld\mercedes_cvx.whp
 [Patch\45]
-Path=/Users/user/Whorld/mac/testdata/patches/neural leaves_cvx.whp
+Path=C:\Users\user\Documents\Whorld\neural leaves_cvx.whp
 [Patch\46]
-Path=/Users/user/Whorld/mac/testdata/patches/oil sheen_cvx.whp
+Path=C:\Users\user\Documents\Whorld\oil sheen_cvx.whp
 [Patch\47]
-Path=/Users/user/Whorld/mac/testdata/patches/orbital_cvx.whp
+Path=C:\Users\user\Documents\Whorld\orbital_cvx.whp
 [Patch\48]
-Path=/Users/user/Whorld/mac/testdata/patches/pinwheel fab color_cvx.whp
+Path=C:\Users\user\Documents\Whorld\pinwheel fab color_cvx.whp
 [Patch\49]
-Path=/Users/user/Whorld/mac/testdata/patches/pinwheel_cvx.whp
+Path=C:\Users\user\Documents\Whorld\pinwheel_cvx.whp
 [Patch\50]
-Path=/Users/user/Whorld/mac/testdata/patches/pulsar bows_cvx.whp
+Path=C:\Users\user\Documents\Whorld\pulsar bows_cvx.whp
 [Patch\51]
-Path=/Users/user/Whorld/mac/testdata/patches/raindrops_cvx.whp
+Path=C:\Users\user\Documents\Whorld\raindrops_cvx.whp
 [Patch\52]
-Path=/Users/user/Whorld/mac/testdata/patches/ramps_cvx.whp
+Path=C:\Users\user\Documents\Whorld\ramps_cvx.whp
 [Patch\53]
-Path=/Users/user/Whorld/mac/testdata/patches/rays1_cvx.whp
+Path=C:\Users\user\Documents\Whorld\rays1_cvx.whp
 [Patch\54]
-Path=/Users/user/Whorld/mac/testdata/patches/rays2_cvx.whp
+Path=C:\Users\user\Documents\Whorld\rays2_cvx.whp
 [Patch\55]
-Path=/Users/user/Whorld/mac/testdata/patches/real pinwheel_cvx.whp
+Path=C:\Users\user\Documents\Whorld\real pinwheel_cvx.whp
 [Patch\56]
-Path=/Users/user/Whorld/mac/testdata/patches/saturn_cvx.whp
+Path=C:\Users\user\Documents\Whorld\saturn_cvx.whp
 [Patch\57]
-Path=/Users/user/Whorld/mac/testdata/patches/seed bubbles_cvx.whp
+Path=C:\Users\user\Documents\Whorld\seed bubbles_cvx.whp
 [Patch\58]
-Path=/Users/user/Whorld/mac/testdata/patches/seed mill 1_cvx.whp
+Path=C:\Users\user\Documents\Whorld\seed mill 1_cvx.whp
 [Patch\59]
-Path=/Users/user/Whorld/mac/testdata/patches/seed mill 2_cvx.whp
+Path=C:\Users\user\Documents\Whorld\seed mill 2_cvx.whp
 [Patch\60]
-Path=/Users/user/Whorld/mac/testdata/patches/seed mill 3_cvx.whp
+Path=C:\Users\user\Documents\Whorld\seed mill 3_cvx.whp
 [Patch\61]
-Path=/Users/user/Whorld/mac/testdata/patches/seed of life at 25 fps 6 colors_cvx.whp
+Path=C:\Users\user\Documents\Whorld\seed of life at 25 fps 6 colors_cvx.whp
 [Patch\62]
-Path=/Users/user/Whorld/mac/testdata/patches/sharp cave_cvx.whp
+Path=C:\Users\user\Documents\Whorld\sharp cave_cvx.whp
 [Patch\63]
-Path=/Users/user/Whorld/mac/testdata/patches/shimmer_cvx.whp
+Path=C:\Users\user\Documents\Whorld\shimmer_cvx.whp
 [Patch\64]
-Path=/Users/user/Whorld/mac/testdata/patches/smoke signals_cvx.whp
+Path=C:\Users\user\Documents\Whorld\smoke signals_cvx.whp
 [Patch\65]
-Path=/Users/user/Whorld/mac/testdata/patches/stars_cvx.whp
+Path=C:\Users\user\Documents\Whorld\stars_cvx.whp
 [Patch\66]
-Path=/Users/user/Whorld/mac/testdata/patches/streaming cardioid in reverse_cvx.whp
+Path=C:\Users\user\Documents\Whorld\streaming cardioid in reverse_cvx.whp
 [Patch\67]
-Path=/Users/user/Whorld/mac/testdata/patches/streaming_cvx.whp
+Path=C:\Users\user\Documents\Whorld\streaming_cvx.whp
 [Patch\68]
-Path=/Users/user/Whorld/mac/testdata/patches/sunburst jagged_cvx.whp
+Path=C:\Users\user\Documents\Whorld\sunburst jagged_cvx.whp
 [Patch\69]
-Path=/Users/user/Whorld/mac/testdata/patches/sunburst rainbows_cvx.whp
+Path=C:\Users\user\Documents\Whorld\sunburst rainbows_cvx.whp
 [Patch\70]
-Path=/Users/user/Whorld/mac/testdata/patches/tentacles_cvx.whp
+Path=C:\Users\user\Documents\Whorld\tentacles_cvx.whp
 [Patch\71]
-Path=/Users/user/Whorld/mac/testdata/patches/thorny vortex_cvx.whp
+Path=C:\Users\user\Documents\Whorld\thorny vortex_cvx.whp
 [Patch\72]
-Path=/Users/user/Whorld/mac/testdata/patches/throwing triangles_cvx.whp
+Path=C:\Users\user\Documents\Whorld\throwing triangles_cvx.whp
 [Patch\73]
-Path=/Users/user/Whorld/mac/testdata/patches/triple eddies_cvx.whp
+Path=C:\Users\user\Documents\Whorld\triple eddies_cvx.whp
 [Patch\74]
-Path=/Users/user/Whorld/mac/testdata/patches/triple rotor_cvx.whp
+Path=C:\Users\user\Documents\Whorld\triple rotor_cvx.whp
 [Patch\75]
-Path=/Users/user/Whorld/mac/testdata/patches/tunnel burst_cvx.whp
+Path=C:\Users\user\Documents\Whorld\tunnel burst_cvx.whp
 [Patch\76]
-Path=/Users/user/Whorld/mac/testdata/patches/ultraspike wiggler_cvx.whp
+Path=C:\Users\user\Documents\Whorld\ultraspike wiggler_cvx.whp
 [Patch\77]
-Path=/Users/user/Whorld/mac/testdata/patches/vortex_cvx.whp
+Path=C:\Users\user\Documents\Whorld\vortex_cvx.whp
 [Patch\78]
-Path=/Users/user/Whorld/mac/testdata/patches/white star xray freeze_cvx.whp
+Path=C:\Users\user\Documents\Whorld\white star xray freeze_cvx.whp
 [Patch\79]
-Path=/Users/user/Whorld/mac/testdata/patches/wiggler_cvx.whp
+Path=C:\Users\user\Documents\Whorld\wiggler_cvx.whp
 [Patch\80]
-Path=/Users/user/Whorld/mac/testdata/patches/wormhole_cvx.whp
+Path=C:\Users\user\Documents\Whorld\wormhole_cvx.whp
 [Patch\81]
-Path=/Users/user/Whorld/mac/testdata/patches/yin yang_cvx.whp
+Path=C:\Users\user\Documents\Whorld\yin yang_cvx.whp
 [Mapping]
 Count=105
 [Mapping\0]
