@@ -1028,7 +1028,7 @@ void WhorldEngine::OnSetPatch(const Patch& patch)
 {
 	Patch&	self = *this;	// upcast to patch data base class
 	self = patch;	// copy patch data to base class
-	// Fix (not in the original; confirmed with Chris Korda, 2026-11-07):
+	// Fix (not in the original, 2026-11-07):
 	// give each oscillator the patch's waveform and pulse width, as
 	// OnSetWaveform and OnSetPulseWidth do when a row is edited. The
 	// original copies only the patch data, so a loaded patch animated with
