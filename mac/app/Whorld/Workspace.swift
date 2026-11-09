@@ -11,11 +11,11 @@
 // CMainFrame, whose dockable bars sit around the render view. The output is
 // in the middle; the panels are in a left, a right and a bottom region, each
 // an arrangement of split views (DockNode) whose dividers can be dragged. A
-// panel moves by dragging its title bar onto another panel (it goes above,
-// below, left or right of it, by the nearest edge, splitting that panel's
-// pane) or near an edge of the output (it joins that region), or with its
-// menu; it can also
-// float as a window of its own. Window > Detach (CWhorldApp::SetDetached)
+// panel moves by dragging its title bar onto another panel (near an edge it
+// goes above, below, left or right of it, splitting that panel's pane; on
+// the title bar or in the middle it joins that panel's tabs, as Windows'
+// docking bars stack) or near an edge of the output (it joins that region),
+// or with its menu; it can also float as a window of its own. Window > Detach (CWhorldApp::SetDetached)
 // moves the output to a window of its own, for a projector; the panels then
 // fill the workspace. The arrangement and the divider positions persist.
 
@@ -136,18 +136,27 @@ enum DockEdge {
 	}
 }
 
-/// A region's arrangement: one panel, or panes split one above another or
+/// A region's arrangement: one panel, panels stacked as tabs in one pane
+/// (as Windows' docking bars can be), or panes split one above another or
 /// side by side, each of which can be split again, so a panel can go above,
-/// below, left or right of any other.
+/// below, left or right of any other, or join its tabs.
 indirect enum DockNode: Codable, Equatable {
 	case panel(PanelID)
+	case tabs([PanelID], selected: PanelID)	// two or more; `selected` is the one showing
 	case split(SplitAxis, [DockNode])
 
 	var panels: [PanelID] {
 		switch self {
 		case .panel(let id): [id]
+		case .tabs(let ids, _): ids
 		case .split(_, let kids): kids.flatMap(\.panels)
 		}
+	}
+
+	/// a pane of its own: a panel or a tab stack, not a split
+	var isPane: Bool {
+		if case .split = self { return false }
+		return true
 	}
 
 	func contains(_ id: PanelID) -> Bool { panels.contains(id) }
@@ -157,6 +166,7 @@ indirect enum DockNode: Codable, Equatable {
 	var key: String {
 		switch self {
 		case .panel(let id): id.rawValue
+		case .tabs(let ids, _): "tabs(" + ids.map(\.rawValue).joined(separator: ",") + ")"	// not the selection
 		case .split(let axis, let kids): "\(axis.rawValue)(" + kids.map(\.key).joined(separator: ",") + ")"
 		}
 	}
@@ -165,6 +175,11 @@ indirect enum DockNode: Codable, Equatable {
 	func removing(_ id: PanelID) -> DockNode? {
 		switch self {
 		case .panel(let p): return p == id ? nil : self
+		case .tabs(let ids, let sel):
+			guard let i = ids.firstIndex(of: id) else { return self }
+			let rest = ids.filter { $0 != id }
+			// the tab beside it shows when the showing one goes
+			return Self.makeTabs(rest, selected: sel == id ? rest[min(i, rest.count - 1)] : sel)
 		case .split(let axis, let kids): return Self.make(axis, kids.compactMap { $0.removing(id) })
 		}
 	}
@@ -173,17 +188,57 @@ indirect enum DockNode: Codable, Equatable {
 	func inserting(_ id: PanelID, at edge: DockEdge, of target: PanelID) -> DockNode {
 		let new = DockNode.panel(id)
 		switch self {
-		case .panel(let p):
-			guard p == target else { return self }
+		case .panel, .tabs:	// splits the pane (a whole tab stack moves over)
+			guard contains(target) else { return self }
 			return .split(edge.axis, edge.isAfter ? [self, new] : [new, self])
 		case .split(let axis, var kids):
 			guard let i = kids.firstIndex(where: { $0.contains(target) }) else { return self }
-			if axis == edge.axis, kids[i] == .panel(target) {	// a sibling in this split
+			if axis == edge.axis, kids[i].isPane {	// a sibling in this split
 				kids.insert(new, at: edge.isAfter ? i + 1 : i)
 			} else {
 				kids[i] = kids[i].inserting(id, at: edge, of: target)
 			}
 			return Self.make(axis, kids)!
+		}
+	}
+
+	/// With `id` as a tab beside `target`, showing.
+	func tabbing(_ id: PanelID, with target: PanelID) -> DockNode {
+		switch self {
+		case .panel(let p):
+			return p == target ? .tabs([p, id], selected: id) : self
+		case .tabs(let ids, _):
+			return ids.contains(target) ? .tabs(ids + [id], selected: id) : self
+		case .split(let axis, let kids):
+			return .split(axis, kids.map { $0.tabbing(id, with: target) })
+		}
+	}
+
+	/// With the tab showing (if it's in a stack).
+	func selecting(_ id: PanelID) -> DockNode {
+		switch self {
+		case .panel: return self
+		case .tabs(let ids, _): return ids.contains(id) ? .tabs(ids, selected: id) : self
+		case .split(let axis, let kids): return .split(axis, kids.map { $0.selecting(id) })
+		}
+	}
+
+	/// True if the panel is a tab that isn't showing.
+	func isHiddenTab(_ id: PanelID) -> Bool {
+		switch self {
+		case .panel: false
+		case .tabs(let ids, let sel): ids.contains(id) && sel != id
+		case .split(_, let kids): kids.contains { $0.isHiddenTab(id) }
+		}
+	}
+
+	/// A tab stack, tidied: one tab left is a plain panel. (Not named
+	/// `tabs`: inside it, `.tabs(…)` would call itself, not make the case.)
+	private static func makeTabs(_ ids: [PanelID], selected: PanelID) -> DockNode? {
+		switch ids.count {
+		case 0: return nil
+		case 1: return .panel(ids[0])
+		default: return .tabs(ids, selected: ids.contains(selected) ? selected : ids[0])
 		}
 	}
 
@@ -324,6 +379,12 @@ final class LayoutModel: ObservableObject {
 	func isFloating(_ id: PanelID) -> Bool { layout.floating.contains(id) }
 
 	func setShown(_ id: PanelID, _ show: Bool) {
+		// a tab that isn't showing is brought forward rather than hidden
+		// (View menu shortcuts reveal a panel stacked behind another)
+		if !show, let r = layout.region(of: id), layout.root(r)?.isHiddenTab(id) == true {
+			select(id)
+			return
+		}
 		if show == isShown(id) { return }
 		if show {
 			move(id, to: layout.lastRegion[id] ?? id.defaultRegion)
@@ -365,6 +426,29 @@ final class LayoutModel: ObservableObject {
 		layout = l
 		if wasFloating {
 			closeFloating?(id)
+		}
+	}
+
+	/// Stacks the panel as a tab with another (or its tab stack), showing it.
+	func tab(_ id: PanelID, with other: PanelID) {
+		guard id != other, layout.region(of: other) != nil else { return }
+		let wasFloating = isFloating(id)
+		var l = layout
+		l.remove(id)
+		guard let r = l.region(of: other), let root = l.root(r) else { return }
+		l.setRoot(root.tabbing(id, with: other), r)
+		layout = l
+		if wasFloating {
+			closeFloating?(id)
+		}
+	}
+
+	/// Shows a tab of a stack.
+	func select(_ id: PanelID) {
+		guard let r = layout.region(of: id), let root = layout.root(r) else { return }
+		let new = root.selecting(id)
+		if new != root {
+			layout.setRoot(new, r)
 		}
 	}
 
@@ -636,19 +720,30 @@ private func loadPanel(_ providers: [NSItemProvider], _ done: @escaping @MainAct
 	return true
 }
 
-/// A docked panel: a slim title bar to drag it by, with its menu, over the
-/// panel, which scrolls if its pane is smaller than it is.
+/// Where a panel being dragged over a pane would go: beside it (above,
+/// below, left or right) or into its tabs.
+enum DropSpot: Equatable {
+	case edge(DockEdge)
+	case tab
+}
+
+/// A docked pane: one panel, or a stack of tabs showing one of them, under
+/// a slim title bar (the tabs, when stacked) to drag it by, with its menu.
+/// The panel scrolls if its pane is smaller than it is.
 struct DockedPanel: View {
-	let id: PanelID
+	let tabs: [PanelID]	// the panels in this pane; one unless stacked
+	let id: PanelID	// the one showing
 	let region: Region
 	@ObservedObject var layout: LayoutModel
-	@State private var dropEdge: DockEdge? = nil	// where a panel dropped now would go
+	@State private var spot: DropSpot? = nil	// where a panel dropped now would go
+
+	static let headerHeight: CGFloat = 24
 
 	var body: some View {
 		GeometryReader { g in
 			chrome
 				.onDrop(of: [.whorldPanel], delegate: PanelDropDelegate(id: id, size: g.size,
-					layout: layout, edge: $dropEdge))
+					layout: layout, spot: $spot))
 		}
 	}
 
@@ -657,13 +752,17 @@ struct DockedPanel: View {
 			HStack(spacing: 6) {
 				Image(systemName: "line.3.horizontal")
 					.foregroundStyle(.tertiary)
-				Text(id.title)
-					.font(.caption.weight(.semibold))
-				Spacer()
+				if tabs.count > 1 {
+					tabStrip
+				} else {
+					Text(id.title)
+						.font(.caption.weight(.semibold))
+				}
+				Spacer(minLength: 0)
 				Menu {
 					ForEach(Region.allCases, id: \.self) { r in
 						Button("Move to \(r.title)") { layout.move(id, to: r) }
-							.disabled(r == region)
+							.disabled(r == region && tabs.count == 1)
 					}
 					Button("Float in a Window") { layout.float(id) }
 					Divider()
@@ -674,6 +773,7 @@ struct DockedPanel: View {
 				.menuStyle(.borderlessButton)
 				.menuIndicator(.hidden)
 				.fixedSize()
+				.help("\(id.title): move, float or hide")
 				Button { layout.hide(id) } label: {
 					Image(systemName: "xmark").font(.caption2)
 				}
@@ -681,29 +781,64 @@ struct DockedPanel: View {
 				.help("Hide \(id.title)")
 			}
 			.padding(.horizontal, 8)
-			.frame(height: 24)
+			.frame(height: Self.headerHeight)
 			.background(.bar)
 			.contentShape(Rectangle())
 			.onDrag { panelProvider(id) }
 			Divider()
 			content
 				.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+				.id(id)	// a different tab is a different panel
 		}
 		.background(Color(nsColor: .windowBackgroundColor))	// opaque over the split view
-		.overlay {
-			if let e = dropEdge {	// the side the dropped panel will take: a tinted half with a bar on its edge
-				GeometryReader { g in
-					let rowAxis = e.axis == .row
-					ZStack(alignment: e.alignment) {
-						Rectangle().fill(Color.accentColor.opacity(0.18))
-						Rectangle().fill(Color.accentColor)
-							.frame(width: rowAxis ? 3 : nil, height: rowAxis ? nil : 3)
-					}
-					.frame(width: rowAxis ? g.size.width / 2 : g.size.width, height: rowAxis ? g.size.height : g.size.height / 2)
-					.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: e.alignment)
-				}
-				.allowsHitTesting(false)
+		.overlay { dropHighlight }
+	}
+
+	/// The stacked panels' tabs: click one to show it, drag one to move it.
+	private var tabStrip: some View {
+		HStack(spacing: 2) {
+			ForEach(tabs, id: \.self) { t in
+				Text(t.title)
+					.font(.caption.weight(t == id ? .semibold : .regular))
+					.foregroundStyle(t == id ? .primary : .secondary)
+					.lineLimit(1)
+					.padding(.horizontal, 7)
+					.frame(height: 19)
+					.background(t == id ? Color.accentColor.opacity(0.25) : Color.primary.opacity(0.06),
+						in: RoundedRectangle(cornerRadius: 4))
+					.contentShape(Rectangle())
+					.onTapGesture { layout.select(t) }
+					.onDrag { panelProvider(t) }
+					.help(t == id ? t.title : "Show \(t.title)")
 			}
+		}
+	}
+
+	/// What a drop now would do: the half of the pane a panel beside it
+	/// would take, or the whole pane outlined for a new tab.
+	@ViewBuilder private var dropHighlight: some View {
+		switch spot {
+		case .edge(let e)?:
+			GeometryReader { g in
+				let rowAxis = e.axis == .row
+				ZStack(alignment: e.alignment) {
+					Rectangle().fill(Color.accentColor.opacity(0.18))
+					Rectangle().fill(Color.accentColor)
+						.frame(width: rowAxis ? 3 : nil, height: rowAxis ? nil : 3)
+				}
+				.frame(width: rowAxis ? g.size.width / 2 : g.size.width, height: rowAxis ? g.size.height : g.size.height / 2)
+				.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: e.alignment)
+			}
+			.allowsHitTesting(false)
+		case .tab?:
+			ZStack(alignment: .top) {
+				Rectangle().fill(Color.accentColor.opacity(0.12))
+				Rectangle().fill(Color.accentColor.opacity(0.35)).frame(height: Self.headerHeight)
+			}
+			.overlay(Rectangle().stroke(Color.accentColor, lineWidth: 2))
+			.allowsHitTesting(false)
+		case nil:
+			EmptyView()
 		}
 	}
 
@@ -717,38 +852,44 @@ struct DockedPanel: View {
 	}
 }
 
-/// Dropping a panel's title bar on a panel: it goes on the side of it whose
-/// edge the pointer is nearest (above, below, left or right).
+/// Dropping a panel's title bar (or tab) on a pane: on its title bar or in
+/// its middle, the panel joins the pane's tabs; nearer an edge, it goes on
+/// that side (above, below, left or right).
 private struct PanelDropDelegate: DropDelegate {
 	let id: PanelID
 	let size: CGSize
 	let layout: LayoutModel
-	@Binding var edge: DockEdge?
+	@Binding var spot: DropSpot?
 
-	private func nearestEdge(_ p: CGPoint) -> DockEdge {
+	private func spot(at p: CGPoint) -> DropSpot {
+		if p.y <= DockedPanel.headerHeight { return .tab }
 		let w = max(size.width, 1), h = max(size.height, 1)
 		// distances to each edge as a fraction of the pane, so a wide pane
 		// doesn't favour top and bottom
 		let d: [(DockEdge, CGFloat)] = [(.top, p.y / h), (.bottom, (h - p.y) / h),
 			(.leading, p.x / w), (.trailing, (w - p.x) / w)]
-		return d.min { $0.1 < $1.1 }!.0
+		let nearest = d.min { $0.1 < $1.1 }!
+		return nearest.1 > 0.3 ? .tab : .edge(nearest.0)	// the middle of the pane: a tab
 	}
 
 	func validateDrop(info: DropInfo) -> Bool { info.hasItemsConforming(to: [.whorldPanel]) }
 
 	func dropUpdated(info: DropInfo) -> DropProposal? {
-		edge = nearestEdge(info.location)
+		spot = spot(at: info.location)
 		return DropProposal(operation: .move)
 	}
 
-	func dropExited(info: DropInfo) { edge = nil }
+	func dropExited(info: DropInfo) { spot = nil }
 
 	func performDrop(info: DropInfo) -> Bool {
-		let e = nearestEdge(info.location)
-		edge = nil
+		let s = spot(at: info.location)
+		spot = nil
 		let target = id, layout = layout
 		return loadPanel(info.itemProviders(for: [.whorldPanel])) { dragged in
-			layout.move(dragged, to: e, of: target)
+			switch s {
+			case .tab: layout.tab(dragged, with: target)
+			case .edge(let e): layout.move(dragged, to: e, of: target)
+			}
 		}
 	}
 }
@@ -843,7 +984,9 @@ struct WorkspaceView: View {
 		case nil:
 			return AnyView(Color.clear)
 		case .panel(let id)?:
-			return AnyView(DockedPanel(id: id, region: r, layout: layout).environmentObject(model))
+			return AnyView(DockedPanel(tabs: [id], id: id, region: r, layout: layout).environmentObject(model))
+		case .tabs(let ids, let sel)?:
+			return AnyView(DockedPanel(tabs: ids, id: sel, region: r, layout: layout).environmentObject(model))
 		case .split(let axis, let kids)?:
 			// the forms start whole (their preferred size along the split) and
 			// the rest share what's left, unless every pane is a form
