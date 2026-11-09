@@ -362,7 +362,8 @@ struct ParamsPanel: View {
 	@EnvironmentObject private var model: AppModel
 
 	var body: some View {
-		ScrollView {
+		// The workspace (or a floating window) scrolls it, both ways.
+		Group {
 			// Rows of fixed-width columns, not a Grid: a Grid measures every
 			// cell again whenever one changes, about 10 ms per update here.
 			VStack(alignment: .leading, spacing: 4) {
@@ -382,7 +383,6 @@ struct ParamsPanel: View {
 			}
 			.padding(10)
 		}
-		.frame(minWidth: 800, minHeight: 300)
 	}
 }
 

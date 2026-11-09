@@ -10,9 +10,11 @@
 // The workspace: the main window as one container, after Windows Whorld's
 // CMainFrame, whose dockable bars sit around the render view. The output is
 // in the middle; the panels are in a left, a right and a bottom region, each
-// a split view whose dividers can be dragged. A panel moves by dragging its
-// title bar onto another panel (it goes before or after it) or near an edge
-// of the output (it goes to that region), or with its menu; it can also
+// an arrangement of split views (DockNode) whose dividers can be dragged. A
+// panel moves by dragging its title bar onto another panel (it goes above,
+// below, left or right of it, by the nearest edge, splitting that panel's
+// pane) or near an edge of the output (it joins that region), or with its
+// menu; it can also
 // float as a window of its own. Window > Detach (CWhorldApp::SetDetached)
 // moves the output to a window of its own, for a projector; the panels then
 // fill the workspace. The arrangement and the divider positions persist.
@@ -67,38 +69,150 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 	/// (with its title bar): the height of a side panel, the width of a
 	/// bottom one. Nil for the panels that share what's left and scroll:
 	/// with every panel shown, the forms are whole and the lists give way.
-	func preferredLength(in region: Region) -> CGFloat? {
-		switch (self, region) {
-		case (.properties, .left), (.properties, .right): 252
-		case (.master, .left), (.master, .right): 334
-		case (.params, .bottom): 810
+	func preferredLength(along axis: SplitAxis) -> CGFloat? {
+		switch (self, axis) {
+		case (.properties, .column): 252
+		case (.master, .column): 334
+		case (.params, .row): 810
 		default: nil
 		}
 	}
 
-	/// Tables and lists scroll themselves; the others are fixed-size forms.
-	var scrollsItself: Bool { self == .params || self == .playlist || self == .mapping }
+	/// Tables scroll themselves (both ways); the others are forms the
+	/// workspace scrolls.
+	var scrollsItself: Bool { self == .playlist || self == .mapping }
+
+	/// a floating window's smallest content size
+	var floatingMinSize: CGSize {
+		switch self {
+		case .params: CGSize(width: 800, height: 300)
+		case .mapping: CGSize(width: 680, height: 240)
+		case .playlist: CGSize(width: 360, height: 200)
+		default: CGSize(width: 0, height: 0)
+		}
+	}
 }
 
 enum Region: String, Codable, CaseIterable {
 	case left, right, bottom
 
 	var title: String { rawValue.capitalized }
+
+	/// how a region lines up panels added to it: the sides top to bottom,
+	/// the bottom side by side
+	var axis: SplitAxis { self == .bottom ? .row : .column }
+}
+
+/// A split's direction: panes one above another, or side by side.
+enum SplitAxis: String, Codable {
+	case column, row
+}
+
+/// Where a dropped panel goes, relative to the panel it's dropped on.
+enum DockEdge {
+	case top, bottom, leading, trailing
+
+	var axis: SplitAxis { self == .top || self == .bottom ? .column : .row }
+	var isAfter: Bool { self == .bottom || self == .trailing }
+
+	var alignment: Alignment {
+		switch self {
+		case .top: .top
+		case .bottom: .bottom
+		case .leading: .leading
+		case .trailing: .trailing
+		}
+	}
+}
+
+/// A region's arrangement: one panel, or panes split one above another or
+/// side by side, each of which can be split again, so a panel can go above,
+/// below, left or right of any other.
+indirect enum DockNode: Codable, Equatable {
+	case panel(PanelID)
+	case split(SplitAxis, [DockNode])
+
+	var panels: [PanelID] {
+		switch self {
+		case .panel(let id): [id]
+		case .split(_, let kids): kids.flatMap(\.panels)
+		}
+	}
+
+	func contains(_ id: PanelID) -> Bool { panels.contains(id) }
+
+	/// Names the subtree: a split view's pane, and (with the region) where
+	/// its divider positions are saved, so each arrangement keeps its own.
+	var key: String {
+		switch self {
+		case .panel(let id): id.rawValue
+		case .split(let axis, let kids): "\(axis.rawValue)(" + kids.map(\.key).joined(separator: ",") + ")"
+		}
+	}
+
+	/// Without the panel; nil if nothing is left.
+	func removing(_ id: PanelID) -> DockNode? {
+		switch self {
+		case .panel(let p): return p == id ? nil : self
+		case .split(let axis, let kids): return Self.make(axis, kids.compactMap { $0.removing(id) })
+		}
+	}
+
+	/// With `id` on the given side of `target` (which must be here).
+	func inserting(_ id: PanelID, at edge: DockEdge, of target: PanelID) -> DockNode {
+		let new = DockNode.panel(id)
+		switch self {
+		case .panel(let p):
+			guard p == target else { return self }
+			return .split(edge.axis, edge.isAfter ? [self, new] : [new, self])
+		case .split(let axis, var kids):
+			guard let i = kids.firstIndex(where: { $0.contains(target) }) else { return self }
+			if axis == edge.axis, kids[i] == .panel(target) {	// a sibling in this split
+				kids.insert(new, at: edge.isAfter ? i + 1 : i)
+			} else {
+				kids[i] = kids[i].inserting(id, at: edge, of: target)
+			}
+			return Self.make(axis, kids)!
+		}
+	}
+
+	/// With `id` added at the end along `axis` (a region's own direction).
+	func appending(_ id: PanelID, along axis: SplitAxis) -> DockNode {
+		if case .split(let a, let kids) = self, a == axis {
+			return .split(a, kids + [.panel(id)])
+		}
+		return .split(axis, [self, .panel(id)])
+	}
+
+	/// A split, tidied: a lone pane stands for itself, and a pane split the
+	/// same way as its parent joins the parent's panes.
+	private static func make(_ axis: SplitAxis, _ kids: [DockNode]) -> DockNode? {
+		let flat = kids.flatMap { k -> [DockNode] in
+			if case .split(let a, let inner) = k, a == axis { return inner }
+			return [k]
+		}
+		switch flat.count {
+		case 0: return nil
+		case 1: return flat[0]
+		default: return .split(axis, flat)
+		}
+	}
 }
 
 struct Layout: Codable, Equatable {
-	var left: [PanelID] = []
-	var right: [PanelID] = []
-	var bottom: [PanelID] = []
+	var left: DockNode?
+	var right: DockNode?
+	var bottom: DockNode?
 	var floating: [PanelID] = []
 	var detached = false
 	/// where a hidden or floating panel goes back to
 	var lastRegion: [PanelID: Region] = [:]
 
 	/// what a new install shows; Playlist and MIDI Mapping start hidden
-	static let standard = Layout(left: [.properties], right: [.master, .globals], bottom: [.params])
+	static let standard = Layout(left: .panel(.properties), right: .split(.column, [.panel(.master), .panel(.globals)]),
+		bottom: .panel(.params))
 
-	func panels(in r: Region) -> [PanelID] {
+	func root(_ r: Region) -> DockNode? {
 		switch r {
 		case .left: left
 		case .right: right
@@ -106,31 +220,60 @@ struct Layout: Codable, Equatable {
 		}
 	}
 
-	mutating func setPanels(_ ids: [PanelID], in r: Region) {
+	mutating func setRoot(_ node: DockNode?, _ r: Region) {
 		switch r {
-		case .left: left = ids
-		case .right: right = ids
-		case .bottom: bottom = ids
+		case .left: left = node
+		case .right: right = node
+		case .bottom: bottom = node
 		}
 	}
 
+	func panels(in r: Region) -> [PanelID] { root(r)?.panels ?? [] }
+
 	func region(of id: PanelID) -> Region? {
-		Region.allCases.first { panels(in: $0).contains(id) }
+		Region.allCases.first { root($0)?.contains(id) == true }
 	}
 
 	/// takes the panel out of wherever it is
 	mutating func remove(_ id: PanelID) {
 		if let r = region(of: id) {
 			lastRegion[id] = r
-			setPanels(panels(in: r).filter { $0 != id }, in: r)
+			setRoot(root(r)?.removing(id), r)
 		}
 		floating.removeAll { $0 == id }
+	}
+
+	/// The first version's layout (Layout_v1): each region a list of panels.
+	struct V1: Codable {
+		var left: [PanelID] = []
+		var right: [PanelID] = []
+		var bottom: [PanelID] = []
+		var floating: [PanelID] = []
+		var detached = false
+		var lastRegion: [PanelID: Region] = [:]
+	}
+
+	init(left: DockNode? = nil, right: DockNode? = nil, bottom: DockNode? = nil) {
+		self.left = left
+		self.right = right
+		self.bottom = bottom
+	}
+
+	init(_ v1: V1) {
+		func node(_ ids: [PanelID], _ axis: SplitAxis) -> DockNode? {
+			ids.count > 1 ? .split(axis, ids.map { .panel($0) }) : ids.first.map { .panel($0) }
+		}
+		self.init(left: node(v1.left, .column), right: node(v1.right, .column), bottom: node(v1.bottom, .row))
+		floating = v1.floating
+		detached = v1.detached
+		lastRegion = v1.lastRegion
 	}
 }
 
 @MainActor
 final class LayoutModel: ObservableObject {
-	private static let key = "Layout_v1"
+	private static let key = "Layout_v2"
+	private static let keyV1 = "Layout_v1"	// regions as lists, before panels could split each other
 	private static let splitPrefix = "NSSplitView Subview Frames Whorld."
 
 	@Published var layout: Layout {
@@ -150,9 +293,14 @@ final class LayoutModel: ObservableObject {
 	var closeFloating: ((PanelID) -> Void)?
 
 	init() {
-		if let data = UserDefaults.standard.data(forKey: Self.key),
+		let defaults = UserDefaults.standard
+		if let data = defaults.data(forKey: Self.key),
 			let saved = try? JSONDecoder().decode(Layout.self, from: data) {
 			layout = saved
+			isFirstRun = false
+		} else if let data = defaults.data(forKey: Self.keyV1),
+			let old = try? JSONDecoder().decode(Layout.V1.self, from: data) {
+			layout = Layout(old)	// saved under Layout_v2 from now on; v1 is left for an older build
 			isFirstRun = false
 		} else {
 			layout = .standard
@@ -181,31 +329,32 @@ final class LayoutModel: ObservableObject {
 		}
 	}
 
-	/// Docks the panel in a region, before the given panel (or at the end).
-	func move(_ id: PanelID, to r: Region, before other: PanelID? = nil) {
+	/// Docks the panel at the end of a region (below or to the right of
+	/// what's there).
+	func move(_ id: PanelID, to r: Region) {
 		let wasFloating = isFloating(id)
 		var l = layout
 		l.remove(id)
-		var ids = l.panels(in: r)
-		if let other, let i = ids.firstIndex(of: other) {
-			ids.insert(id, at: i)
-		} else {
-			ids.append(id)
-		}
-		l.setPanels(ids, in: r)
+		l.setRoot(l.root(r)?.appending(id, along: r.axis) ?? .panel(id), r)
 		layout = l
 		if wasFloating {
 			closeFloating?(id)
 		}
 	}
 
-	/// Docks the panel next to another, before or after it.
-	func move(_ id: PanelID, nextTo other: PanelID, after: Bool) {
-		guard id != other, let r = layout.region(of: other) else { return }
-		let ids = layout.panels(in: r).filter { $0 != id }
-		guard let i = ids.firstIndex(of: other) else { return }
-		let next = after ? (i + 1 < ids.count ? ids[i + 1] : nil) : other
-		move(id, to: r, before: next)
+	/// Docks the panel above, below, left or right of another, splitting
+	/// that panel's pane.
+	func move(_ id: PanelID, to edge: DockEdge, of other: PanelID) {
+		guard id != other, layout.region(of: other) != nil else { return }
+		let wasFloating = isFloating(id)
+		var l = layout
+		l.remove(id)
+		guard let r = l.region(of: other), let root = l.root(r) else { return }
+		l.setRoot(root.inserting(id, at: edge, of: other), r)
+		layout = l
+		if wasFloating {
+			closeFloating?(id)
+		}
 	}
 
 	func float(_ id: PanelID) {
@@ -431,16 +580,28 @@ struct PanelBody: View {
 	}
 }
 
-/// The panel's identity for dragging, as plain text.
+extension UTType {
+	/// A panel being dragged by its title bar. A type of its own, not plain
+	/// text: a text field or table under the pointer would take text itself,
+	/// so the drop never reached the panel.
+	static let whorldPanel = UTType(exportedAs: "io.github.bzsqrl.whorld.panel")
+}
+
+/// The panel's identity for dragging, within Whorld only.
 private func panelProvider(_ id: PanelID) -> NSItemProvider {
-	NSItemProvider(object: ("whorld-panel:" + id.rawValue) as NSString)
+	let p = NSItemProvider()
+	p.registerDataRepresentation(forTypeIdentifier: UTType.whorldPanel.identifier, visibility: .ownProcess) { done in
+		done(Data(id.rawValue.utf8), nil)
+		return nil
+	}
+	return p
 }
 
 private func loadPanel(_ providers: [NSItemProvider], _ done: @escaping @MainActor (PanelID) -> Void) -> Bool {
-	guard let p = providers.first(where: { $0.canLoadObject(ofClass: NSString.self) }) else { return false }
-	_ = p.loadObject(ofClass: NSString.self) { obj, _ in
-		guard let s = obj as? String, s.hasPrefix("whorld-panel:"),
-			let id = PanelID(rawValue: String(s.dropFirst("whorld-panel:".count))) else { return }
+	let type = UTType.whorldPanel.identifier
+	guard let p = providers.first(where: { $0.hasItemConformingToTypeIdentifier(type) }) else { return false }
+	_ = p.loadDataRepresentation(forTypeIdentifier: type) { data, _ in
+		guard let data, let id = PanelID(rawValue: String(decoding: data, as: UTF8.self)) else { return }
 		Task { @MainActor in done(id) }
 	}
 	return true
@@ -452,12 +613,12 @@ struct DockedPanel: View {
 	let id: PanelID
 	let region: Region
 	@ObservedObject var layout: LayoutModel
-	@State private var dropEdge: Bool? = nil	// true: after, false: before
+	@State private var dropEdge: DockEdge? = nil	// where a panel dropped now would go
 
 	var body: some View {
 		GeometryReader { g in
 			chrome
-				.onDrop(of: [.plainText], delegate: PanelDropDelegate(id: id, region: region, size: g.size,
+				.onDrop(of: [.whorldPanel], delegate: PanelDropDelegate(id: id, size: g.size,
 					layout: layout, edge: $dropEdge))
 		}
 	}
@@ -500,23 +661,27 @@ struct DockedPanel: View {
 				.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 		}
 		.background(Color(nsColor: .windowBackgroundColor))	// opaque over the split view
-		.overlay(alignment: dropEdge == true ? (region == .bottom ? .trailing : .bottom)
-			: (region == .bottom ? .leading : .top)) {
-			if dropEdge != nil {
-				Rectangle().fill(Color.accentColor)
-					.frame(width: region == .bottom ? 3 : nil, height: region == .bottom ? nil : 3)
+		.overlay {
+			if let e = dropEdge {	// the side the dropped panel will take: a tinted half with a bar on its edge
+				GeometryReader { g in
+					let rowAxis = e.axis == .row
+					ZStack(alignment: e.alignment) {
+						Rectangle().fill(Color.accentColor.opacity(0.18))
+						Rectangle().fill(Color.accentColor)
+							.frame(width: rowAxis ? 3 : nil, height: rowAxis ? nil : 3)
+					}
+					.frame(width: rowAxis ? g.size.width / 2 : g.size.width, height: rowAxis ? g.size.height : g.size.height / 2)
+					.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: e.alignment)
+				}
+				.allowsHitTesting(false)
 			}
 		}
 	}
 
 	@ViewBuilder private var content: some View {
-		if id.scrollsItself {	// a table or list: as tall as the pane, scrolling sideways if narrower
-			GeometryReader { g in
-				ScrollView(.horizontal) {
-					PanelBody(id: id)
-						.frame(height: g.size.height)
-				}
-			}
+		if id.scrollsItself {	// a table: fills the pane and scrolls itself, sideways too if narrower
+			PanelBody(id: id)
+				.frame(maxWidth: .infinity, maxHeight: .infinity)
 		} else {	// a form: top left in a bigger pane, scrolling in a smaller one
 			GeometryReader { g in
 				ScrollView([.horizontal, .vertical]) {
@@ -528,31 +693,38 @@ struct DockedPanel: View {
 	}
 }
 
-/// Dropping a panel's title bar on a panel: before it (top or left half) or after it.
+/// Dropping a panel's title bar on a panel: it goes on the side of it whose
+/// edge the pointer is nearest (above, below, left or right).
 private struct PanelDropDelegate: DropDelegate {
 	let id: PanelID
-	let region: Region
 	let size: CGSize
 	let layout: LayoutModel
-	@Binding var edge: Bool?
+	@Binding var edge: DockEdge?
 
-	private func after(_ info: DropInfo) -> Bool {
-		region == .bottom ? info.location.x > size.width / 2 : info.location.y > size.height / 2
+	private func nearestEdge(_ p: CGPoint) -> DockEdge {
+		let w = max(size.width, 1), h = max(size.height, 1)
+		// distances to each edge as a fraction of the pane, so a wide pane
+		// doesn't favour top and bottom
+		let d: [(DockEdge, CGFloat)] = [(.top, p.y / h), (.bottom, (h - p.y) / h),
+			(.leading, p.x / w), (.trailing, (w - p.x) / w)]
+		return d.min { $0.1 < $1.1 }!.0
 	}
 
+	func validateDrop(info: DropInfo) -> Bool { info.hasItemsConforming(to: [.whorldPanel]) }
+
 	func dropUpdated(info: DropInfo) -> DropProposal? {
-		edge = after(info)
+		edge = nearestEdge(info.location)
 		return DropProposal(operation: .move)
 	}
 
 	func dropExited(info: DropInfo) { edge = nil }
 
 	func performDrop(info: DropInfo) -> Bool {
-		let isAfter = after(info)
+		let e = nearestEdge(info.location)
 		edge = nil
 		let target = id, layout = layout
-		return loadPanel(info.itemProviders(for: [.plainText])) { dragged in
-			layout.move(dragged, nextTo: target, after: isAfter)
+		return loadPanel(info.itemProviders(for: [.whorldPanel])) { dragged in
+			layout.move(dragged, to: e, of: target)
 		}
 	}
 }
@@ -564,7 +736,14 @@ struct FloatingPanel: View {
 	@Environment(\.dismissWindow) private var dismissWindow
 
 	var body: some View {
-		PanelBody(id: id)
+		Group {
+			if id.scrollsItself {
+				PanelBody(id: id)
+			} else {	// docked, the workspace scrolls a form
+				ScrollView([.horizontal, .vertical]) { PanelBody(id: id) }
+			}
+		}
+			.frame(minWidth: id.floatingMinSize.width, minHeight: id.floatingMinSize.height)
 			.toolbar {
 				ToolbarItem {
 					Button("Dock") { model.layout.move(id, to: model.layout.layout.lastRegion[id] ?? id.defaultRegion) }
@@ -590,8 +769,8 @@ struct WorkspaceView: View {
 
 	var body: some View {
 		let l = layout.layout
-		let top = (l.left.isEmpty ? [] : ["left"]) + (l.detached ? [] : ["center"]) + (l.right.isEmpty ? [] : ["right"])
-		let rows = (top.isEmpty ? [] : ["top"]) + (l.bottom.isEmpty ? [] : ["bottom"])
+		let top = (l.left == nil ? [] : ["left"]) + (l.detached ? [] : ["center"]) + (l.right == nil ? [] : ["right"])
+		let rows = (top.isEmpty ? [] : ["top"]) + (l.bottom == nil ? [] : ["bottom"])
 		Group {
 			if rows.isEmpty {
 				VStack(spacing: 8) {
@@ -631,17 +810,32 @@ struct WorkspaceView: View {
 	}
 
 	private func region(_ r: Region) -> some View {
-		let ids = layout.layout.panels(in: r)
-		// a lone panel fills its region; otherwise the forms start whole
-		let sized = ids.count > 1 ? ids.filter { $0.preferredLength(in: r) != nil } : []
-		return SplitView(vertical: r == .bottom, items: ids.map(\.rawValue),
-			autosave: "Whorld.\(r.rawValue)." + ids.map(\.rawValue).joined(separator: "|"),
-			initialSize: { s in
-				PanelID(rawValue: s).flatMap { sized.contains($0) && sized.count < ids.count ? $0.preferredLength(in: r) : nil }
-			},
-			flexible: ids.first { !sized.contains($0) }?.rawValue,
-			arrangeGeneration: layout.arrangeGeneration) { s in
-			AnyView(DockedPanel(id: PanelID(rawValue: s)!, region: r, layout: layout).environmentObject(model))
+		node(layout.layout.root(r), region: r)
+	}
+
+	/// A region's arrangement, drawn as split views inside split views.
+	private func node(_ n: DockNode?, region r: Region) -> AnyView {
+		switch n {
+		case nil:
+			return AnyView(Color.clear)
+		case .panel(let id)?:
+			return AnyView(DockedPanel(id: id, region: r, layout: layout).environmentObject(model))
+		case .split(let axis, let kids)?:
+			// the forms start whole (their preferred size along the split) and
+			// the rest share what's left, unless every pane is a form
+			let lengths = kids.map { k -> CGFloat? in
+				if case .panel(let id) = k { return id.preferredLength(along: axis) }
+				return nil
+			}
+			let sizedAll = lengths.allSatisfy { $0 != nil }
+			let size = Dictionary(uniqueKeysWithValues: zip(kids.map(\.key), lengths))
+			return AnyView(SplitView(vertical: axis == .row, items: kids.map(\.key),
+				autosave: "Whorld.\(r.rawValue).\(n!.key)",
+				initialSize: { key in sizedAll ? nil : size[key] ?? nil },
+				flexible: kids.first { k in size[k.key] ?? nil == nil }?.key,
+				arrangeGeneration: layout.arrangeGeneration) { key in
+				node(kids.first { $0.key == key }, region: r)
+			})
 		}
 	}
 }
@@ -666,7 +860,7 @@ struct OutputArea: View {
 							.allowsHitTesting(false)
 					}
 				}
-				.onDrop(of: [.plainText], delegate: EdgeDropDelegate(size: g.size, layout: layout, target: $target))
+				.onDrop(of: [.whorldPanel], delegate: EdgeDropDelegate(size: g.size, layout: layout, target: $target))
 		}
 	}
 }
@@ -683,7 +877,7 @@ private struct EdgeDropDelegate: DropDelegate {
 		return nil
 	}
 
-	func validateDrop(info: DropInfo) -> Bool { info.hasItemsConforming(to: [.plainText]) }
+	func validateDrop(info: DropInfo) -> Bool { info.hasItemsConforming(to: [.whorldPanel]) }
 
 	func dropUpdated(info: DropInfo) -> DropProposal? {
 		target = region(info.location)
@@ -696,7 +890,7 @@ private struct EdgeDropDelegate: DropDelegate {
 		guard let r = region(info.location) else { target = nil; return false }
 		target = nil
 		let layout = layout
-		return loadPanel(info.itemProviders(for: [.plainText])) { id in layout.move(id, to: r) }
+		return loadPanel(info.itemProviders(for: [.whorldPanel])) { id in layout.move(id, to: r) }
 	}
 }
 

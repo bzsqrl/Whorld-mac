@@ -747,7 +747,6 @@ struct PlaylistPanel: View {
 			}
 			.padding(8)
 		}
-		.frame(minWidth: 360, minHeight: 200)
 	}
 
 	private func playSelected() {

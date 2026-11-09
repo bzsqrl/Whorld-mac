@@ -121,7 +121,6 @@ struct MappingPanel: View {
 			}
 			.padding(8)
 		}
-		.frame(minWidth: 680, minHeight: 240)
 		.background(KeyWindowObserver { model.mappingWindowIsKey = $0 })
 	}
 
