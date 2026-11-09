@@ -29,6 +29,7 @@ enum Preferences {
 			"Midi_sInputDevice": "",
 			"Render_bMetal": true,
 			"General_bReopenLast": true,
+			"General_bCheckUpdates": true,
 			"Render_nMaxFrameRate": 0,
 		])
 	}
@@ -55,6 +56,12 @@ enum Preferences {
 	static var maxFrameRate: Int {
 		register()
 		return defaults.integer(forKey: "Render_nMaxFrameRate")
+	}
+
+	/// Check GitHub for a newer release once a day (Updates.swift; new in the Mac port)
+	static var checkForUpdates: Bool {
+		register()
+		return defaults.bool(forKey: "General_bCheckUpdates")
 	}
 
 	/// Reopen the last playlist and patch at launch (Session; new in the Mac port)
@@ -84,12 +91,22 @@ struct PreferencesView: View {
 	@AppStorage("Midi_sInputDevice") private var midiInput = ""
 	@AppStorage("Render_bMetal") private var useMetal = true
 	@AppStorage("General_bReopenLast") private var reopenLast = true
+	@AppStorage("General_bCheckUpdates") private var checkUpdates = true
 	@AppStorage("Render_nMaxFrameRate") private var maxFrameRate = 0
 
 	var body: some View {
 		Form {
 			Section("General") {
 				Toggle("Reopen the last playlist and patch at launch", isOn: $reopenLast)
+				HStack {
+					Toggle("Check for updates automatically", isOn: $checkUpdates)
+					Spacer()
+					Button("Check Now") { UpdateChecker.shared.checkNow() }
+				}
+				Text("Once a day, Whorld asks GitHub whether a newer version has been released; only Whorld's version number is sent. Updates are never installed by themselves, and never announced in full screen.")
+					.font(.caption)
+					.foregroundStyle(.secondary)
+					.fixedSize(horizontal: false, vertical: true)
 			}
 			Section("Rendering") {
 				Picker("Renderer", selection: $useMetal) {

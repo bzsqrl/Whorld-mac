@@ -230,6 +230,7 @@ struct HelpCommands: Commands {
 	var body: some Commands {
 		CommandGroup(replacing: .appInfo) {
 			Button("About Whorld") { Self.showAbout() }
+			Button("Check for Updates…") { UpdateChecker.shared.checkNow() }
 		}
 
 		CommandGroup(replacing: .help) {

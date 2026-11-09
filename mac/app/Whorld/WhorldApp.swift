@@ -720,6 +720,7 @@ final class AppModel: ObservableObject {
 		if fullScreen.isFullScreen {
 			fullScreen.exit(engine: engine)
 			pressDrag = nil
+			defer { UpdateChecker.shared.showPending() }	// an update found while full screen
 			// Each time full screen ends (however: Esc, the shortcut, the
 			// display going away), the origin goes back to the middle and
 			// stays there (Image > Origin Center).
@@ -838,6 +839,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 			MainActor.assumeIsolated { AppModel.shared.toggleFullScreen() }
 			return nil
 		}
+		UpdateChecker.shared.checkAtLaunch()
 		// the playlist and patch from last time, after any files opened at
 		// launch (application(_:open:) comes first)
 		DispatchQueue.main.async {

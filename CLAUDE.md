@@ -25,6 +25,7 @@ These commands are created in Phase 0 of the plan. Keep this section accurate as
 - Movie to video: `build/tools/whorld-render movie.whm --video out.mov --codec prores4444` (or `--frame N --out f.png` for one frame)
 - App: `xcodebuild -project mac/app/Whorld.xcodeproj -scheme Whorld build` (run the built app with `WHORLD_STATS=1` to print frame-rate stats)
 - Release DMG: `sh mac/packaging/make_dmg.sh` (universal, ad-hoc signed, not notarized; writes `build/dist/Whorld-<version>.dmg`)
+- Making a release: in `mac/app/Whorld/Info.plist` set `WhorldReleaseVersion` to the new tag without the `v` (e.g. `0.1.0-beta.3`; the update checker, `Updates.swift`, compares it with the release tags) and raise `CFBundleVersion`, also `CURRENT_PROJECT_VERSION` in the Xcode project and `mac/app/generate_project.py`; then test, build the DMG, tag `v<WhorldReleaseVersion>`, and publish the GitHub release (`--prerelease` for betas) with the DMG and its SHA-256
 - App icon: `xcrun swiftc mac/packaging/make_icon.swift -o /tmp/make_icon && /tmp/make_icon mac/app/Whorld/AppIcon.icns`
 
 On macOS, CMake also builds the Core Graphics and Metal renderers, the tools and the golden-image tests; on Linux it builds only the engine, the GPU renderer's portable geometry (`mac/renderer/gpu`) and their tests.
