@@ -27,7 +27,7 @@ enum MainProp: Int {
 
 /// Master property indices (WhorldBase MASTER_*)
 enum MasterProp: Int {
-	case speed, zoom, damping, trail, rings, tempo, hueSpan, canvasScale, copies, spread
+	case speed, zoom, damping, trail, rings, tempo, hueSpan, canvasScale, copies, spread, fade
 }
 
 /// A change counter a view depends on by reading `n`: SwiftUI's Observation
@@ -131,8 +131,7 @@ final class AppModel: ObservableObject {
 		engine.setSnapshotLetterbox(Preferences.snapshotLetterbox)
 		engine.preferMetal = Preferences.preferMetal
 		engine.maxFrameRate = Preferences.maxFrameRate
-		let fade = Preferences.ringFade
-		engine.setRingFade(fade.rings, eased: fade.eased)
+		engine.setRingFadeEased(Preferences.ringFadeEased)
 		engine.midiInputName = Preferences.midiInputName
 		engine.movieErrorHandler = { message in
 			let alert = NSAlert()

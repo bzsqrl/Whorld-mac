@@ -283,8 +283,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	bool	_cursorChanged;
 	bool	_letterbox;
 	bool	_letterboxChanged;
-	int		_ringFade;	// rings to fade over; 0 = off
-	bool	_ringFadeEased;
+	bool	_ringFadeEased;	// the ring fade curve setting
 	bool	_ringFadeChanged;
 	whorld::DPoint	_cursor;
 	double	_statRenderSum;
@@ -354,7 +353,6 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 		_cursorChanged = false;
 		_letterbox = true;
 		_letterboxChanged = false;
-		_ringFade = 0;
 		_ringFadeEased = false;
 		_ringFadeChanged = false;
 		_statRenderSum = 0;
@@ -611,10 +609,9 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	_modified = YES;
 }
 
-- (void)setRingFade:(NSInteger)rings eased:(BOOL)eased
+- (void)setRingFadeEased:(BOOL)eased
 {
 	std::lock_guard<std::mutex>	lock(_mutex);
-	_ringFade = (int)std::max<NSInteger>(rings, 0);
 	_ringFadeEased = eased;
 	_ringFadeChanged = true;
 	_frameRequested = true;	// show it now, even paused
@@ -1248,7 +1245,6 @@ static NSString *SourceName(MIDIEndpointRef src)
 		double	scale;
 		bool	bCursor, bLetterbox, bLetterboxOn, bPreferMetal;
 		bool	bRingFade, bRingFadeEased;
-		int		nRingFade;
 		whorld::DPoint	cursor;
 		{
 			std::unique_lock<std::mutex>	lock(_mutex);
@@ -1268,7 +1264,6 @@ static NSString *SourceName(MIDIEndpointRef src)
 			bLetterboxOn = _letterbox;
 			_letterboxChanged = false;
 			bRingFade = _ringFadeChanged;
-			nRingFade = _ringFade;
 			bRingFadeEased = _ringFadeEased;
 			_ringFadeChanged = false;
 			bPreferMetal = _preferMetal;
@@ -1288,7 +1283,7 @@ static NSString *SourceName(MIDIEndpointRef src)
 		if (bLetterbox)
 			_engine->SetSnapshotLetterbox(bLetterboxOn);
 		if (bRingFade)
-			_engine->SetRingFade(nRingFade, bRingFadeEased);
+			_engine->SetRingFadeEased(bRingFadeEased);
 		if (w <= 0 || h <= 0)
 			continue;
 		if (w != _surfWidth || h != _surfHeight || scale != _surfScale) {	// RC_RESIZE

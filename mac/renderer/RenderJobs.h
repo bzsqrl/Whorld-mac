@@ -45,7 +45,7 @@ struct PatchRenderOptions {
 	int		nFrames = 300;			// frames to run; the last one is kept
 	uint32_t	nFrameRate = 60;	// engine frame rate in Hz
 	bool	bDeferred = false;		// CGBitmapRenderer deferred mode
-	int		nRingFade = 0;			// ring fade length in rings (Mac port); 0 = off
+	int		nRingFade = 0;			// ring fade length (Mac port), overriding the patch's Fade if > 0
 	bool	bRingFadeEased = false;
 };
 

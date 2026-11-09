@@ -30,7 +30,7 @@ struct BaseProbe : WhorldBase {
 TEST(Counts) {
 	CHECK_EQ(int(WhorldBase::PARAM_COUNT), 22);
 	CHECK_EQ(int(WhorldBase::PARAM_PROP_COUNT), 6);
-	CHECK_EQ(int(WhorldBase::MASTER_COUNT), 10);
+	CHECK_EQ(int(WhorldBase::MASTER_COUNT), 11);	// Windows' 10, plus Fade (Mac port)
 	CHECK_EQ(int(WhorldBase::MAIN_COUNT), 11);
 	CHECK_EQ(int(WhorldBase::GLOBAL_COUNT), 12);
 	CHECK_EQ(int(WhorldBase::WAVEFORM_COUNT), 8);

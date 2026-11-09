@@ -296,7 +296,7 @@ static std::vector<float> RingAlphas(WhorldEngine& eng)
 }
 
 TEST(RingFadeFadesTheOldestRings) {
-	// default patch: a ring every 5 frames, lines; limit 10 rings, fade over 4
+	// default patch: a ring every 5 frames, lines; limit 10 rings, Fade 4
 	auto	eng = MakeEngine();
 	eng->OnSetMasterProp(Patch::MASTER_Rings, 10);
 	RunFrames(*eng, 201);	// full: 10 rings
@@ -306,7 +306,7 @@ TEST(RingFadeFadesTheOldestRings) {
 	for (float x : off)
 		allOpaque = allOpaque && x == 1.0f;
 	CHECK(allOpaque);	// off by default: unchanged from Windows
-	eng->SetRingFade(4, false);
+	eng->OnSetMasterProp(Patch::MASTER_Fade, 4);
 	RunFrames(*eng, 1);
 	auto	lin = RingAlphas(*eng);
 	CHECK_EQ(lin.size(), size_t(10));
@@ -328,8 +328,9 @@ TEST(RingFadeFadesTheOldestRings) {
 		e->OnSetMasterProp(Patch::MASTER_Rings, 10);
 		RunFrames(*e, 203);
 	}
-	engL->SetRingFade(4, false);
-	engE->SetRingFade(4, true);
+	for (auto* x : {engL.get(), engE.get()})
+		x->OnSetMasterProp(Patch::MASTER_Fade, 4);
+	engE->SetRingFadeEased(true);
 	auto	l = RingAlphas(*engL), e = RingAlphas(*engE);
 	CHECK_EQ(e.size(), l.size());
 	for (size_t i = 0; i < l.size() && i < e.size(); i++) {

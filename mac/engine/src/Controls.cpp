@@ -48,7 +48,9 @@ const SLIDER_INFO kMasterSlider[WhorldBase::MASTER_COUNT] = {
 	{100,	300,	0,		100,	140,	0,		.01f,	0},	// Canvas
 	{1,		20,		0,		1,		0,		0,		1,		0},	// Copies
 	{0,		600,	0,		1,		100,	0,		1,		0},	// Spread
+	{0,		200,	0,		1,		0,		0,		1,		0},	// Fade (Mac port): rings, 0 = off
 };
+static_assert(sizeof(kMasterSlider) / sizeof(kMasterSlider[0]) == WhorldBase::MASTER_COUNT, "one row per master property");
 
 // ported from MasterRowDlg.cpp CMasterRowDlg::m_arrEditRange; rows not
 // listed are zero, meaning "use the slider range times the edit scale"

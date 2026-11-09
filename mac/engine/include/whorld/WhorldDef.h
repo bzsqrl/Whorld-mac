@@ -125,6 +125,7 @@ MASTERDEF(	HueSpan,		DOUBLE,	f,		30			)	// if looping hue, loop length in degree
 MASTERDEF(	CanvasScale,	DOUBLE,	f,		1.4			)	// canvas size, as fraction of window size
 MASTERDEF(	Copies,			DOUBLE,	f,		1			)	// number of instances
 MASTERDEF(	Spread,			DOUBLE,	f,		100			)	// radius of instance origins, in pixels
+MASTERDEF(	Fade,			DOUBLE,	f,		0			)	// Mac port: rings over which old rings fade out before the Rings limit removes them; 0 = off
 
 #undef MASTERDEF
 #endif // MASTERDEF

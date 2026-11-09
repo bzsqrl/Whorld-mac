@@ -75,7 +75,6 @@ WhorldEngine::WhorldEngine()
 	m_rCanvas = RectF{0, 0, 0, 0};	// SetRectEmpty
 	m_fNewGrowth = 0;
 	m_nMaxRings = INT_MAX;
-	m_nRingFade = 0;
 	m_bRingFadeEased = false;
 	m_bIsPaused = false;
 	m_bSnapshotMode = false;
@@ -528,9 +527,9 @@ inline void WhorldEngine::DrawOutline(IRenderer& renderer, const RING& ring, flo
 // Ring fade (new in the Mac port): the alpha factor for a ring the Rings
 // limit removes after fRingsLeft more rings are added (fractional, so the
 // fade is smooth between ring additions).
-float WhorldEngine::RingFadeFactor(double fRingsLeft) const
+float WhorldEngine::RingFadeFactor(double fRingsLeft, int nFadeRings) const
 {
-	double	f = Clamp(fRingsLeft / m_nRingFade, 0, 1);
+	double	f = Clamp(fRingsLeft / nFadeRings, 0, 1);
 	if (m_bRingFadeEased)
 		f = f * f * (3 - 2 * f);	// smoothstep: slow to start, slow to finish
 	return DTOF(f);
@@ -585,14 +584,15 @@ bool WhorldEngine::Draw(IRenderer& renderer)
 		fSnapshotScale = fZoom;
 		fZoom *= m_dsSnapshot.fZoom;
 	}
-	// Ring fade (Mac port; see SetRingFade): live, a ring is removed when it
+	// Ring fade (Mac port; the Fade master property): live, a ring is removed when it
 	// becomes ring number m_nMaxRings counting from the newest, at the next
 	// ring addition, which is fPhase of a ring spacing away. A snapshot or
 	// movie frame doesn't record the limit, so its own ring count stands in,
 	// and the rings are taken to grow outward (newest first in the list).
 	const int	nRingCount = static_cast<int>(m_aRing.size());
 	int		nFadeLimit = m_bSnapshotMode ? nRingCount : m_nMaxRings;
-	bool	bFade = m_nRingFade > 0 && nFadeLimit != INT_MAX && nRingCount > 0;
+	const int	nFadeRings = Clamp(Round(m_master.fFade), 0, 200);
+	bool	bFade = nFadeRings > 0 && nFadeLimit != INT_MAX && nRingCount > 0;
 	bool	bNewestFirst = m_bSnapshotMode || m_params.fRingGrowth >= 0;	// AddRing: push_front unless reverse
 	double	fPhase = 0;	// progress toward the next ring addition, 0..1
 	if (bFade && !m_bSnapshotMode && m_params.fRingSpacing > 0)
@@ -605,7 +605,7 @@ bool WhorldEngine::Draw(IRenderer& renderer)
 		if (bFade) {
 			int	iFront = bConvex ? nRingCount - 1 - iRingDrawn : iRingDrawn;	// place from the list's front
 			int	iNewest = bNewestFirst ? iFront : nRingCount - 1 - iFront;	// 0 = newest
-			fFade = RingFadeFactor(nFadeLimit - iNewest - fPhase);
+			fFade = RingFadeFactor(nFadeLimit - iNewest - fPhase, nFadeRings);
 		}
 		iRingDrawn++;
 		double	fLineWidth = ring.fLineWidth + m_globRing.fLineWidth;

@@ -55,6 +55,7 @@
 #define IDS_MASTER_CanvasScale	"Canvas"
 #define IDS_MASTER_Copies		"Copies"
 #define IDS_MASTER_Spread		"Spread"
+#define IDS_MASTER_Fade		"Fade"	// Mac port
 
 #define IDS_MAIN_Origin			"Origin"
 #define IDS_MAIN_DrawMode		"Draw Mode"

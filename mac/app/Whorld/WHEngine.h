@@ -164,10 +164,9 @@ typedef struct {
 - (void)setZoom:(double)zoom damping:(BOOL)damping;
 // snapshot letterbox option (COptions m_Snapshot_bLetterbox)
 - (void)setSnapshotLetterbox:(BOOL)enable;
-// Ring fade (Settings > Rings; WhorldEngine::SetRingFade): rings the Rings
-// limit is about to remove fade out over their last `rings` rings (0 = off),
-// eased along an S-curve or linearly. Live, snapshots, movies and exports.
-- (void)setRingFade:(NSInteger)rings eased:(BOOL)eased;
+// Ring fade curve (Settings > Rings; WhorldEngine::SetRingFadeEased): the
+// Fade master property's fade follows an S-curve if YES, else a line.
+- (void)setRingFadeEased:(BOOL)eased;
 - (void)setDrawMode:(uint32_t)drawMode;
 @property (nonatomic, readonly) uint32_t drawMode;
 

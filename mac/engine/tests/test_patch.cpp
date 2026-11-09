@@ -199,6 +199,29 @@ TEST(WriteRoundsToSixSignificantDigits) {
 	CHECK_EQ(WriteToString(q), text);
 }
 
+TEST(FadeIsWrittenOnlyWhenOn) {
+	// Fade is a Mac addition: off, a patch is exactly the Windows format;
+	// on, a Fade line is added (Windows Whorld skips lines it doesn't know)
+	Patch	p;
+	p.SetDefaults();
+	std::ostringstream	off;
+	p.Write(off);
+	CHECK(off.str().find("Fade") == std::string::npos);
+	p.m_master.fFade = 24;
+	std::ostringstream	on;
+	p.Write(on);
+	CHECK(on.str().find("Fade\t24") != std::string::npos);
+	Patch	q;
+	std::istringstream	in(on.str());
+	CHECK(q.Read(in));
+	CHECK_EQ(q.m_master.fFade, 24.0);
+	// a Windows patch (no Fade line) reads as Fade 0: off
+	Patch	w;
+	std::istringstream	win(off.str());
+	CHECK(w.Read(win));
+	CHECK_EQ(w.m_master.fFade, 0.0);
+}
+
 TEST(BadHeaderFails) {
 	Patch	p;
 	std::string	err;

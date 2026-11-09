@@ -240,6 +240,10 @@ bool Patch::Write(std::ostream& out) const
 		out << sLine << kNewline;
 	}
 	for (int iMaster = 0; iMaster < MASTER_COUNT; iMaster++) {	// for each master property
+		// Fade is a Mac addition: written only when on, so a patch without it
+		// is byte for byte what Windows Whorld writes (which ignores the line)
+		if (iMaster == MASTER_Fade && m_master.fFade == 0)
+			continue;
 		const MASTER_INFO& info = GetMasterInfo(iMaster);
 		sLine = detail::FormatMsvc("%s\t%g", info.pszTag, m_master.a[iMaster]);
 		out << sLine << kNewline;

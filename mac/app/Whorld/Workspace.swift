@@ -72,7 +72,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 	func preferredLength(along axis: SplitAxis) -> CGFloat? {
 		switch (self, axis) {
 		case (.properties, .column): 252
-		case (.master, .column): 334
+		case (.master, .column): 358
 		case (.params, .row): 810
 		default: nil
 		}
