@@ -158,7 +158,7 @@ for cfg in ("Debug", "Release"):
 \t\t\t\tCODE_SIGN_IDENTITY = "-";
 \t\t\t\tCODE_SIGN_STYLE = Manual;
 \t\t\t\tCOMBINE_HIDPI_IMAGES = YES;
-\t\t\t\tCURRENT_PROJECT_VERSION = 4;
+\t\t\t\tCURRENT_PROJECT_VERSION = 5;
 \t\t\t\tENABLE_HARDENED_RUNTIME = NO;
 \t\t\t\tHEADER_SEARCH_PATHS = (
 \t\t\t\t\t"$(SRCROOT)/../engine/include",
