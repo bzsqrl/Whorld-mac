@@ -273,20 +273,27 @@ void MidiManager::OnMidiEvent(uint32_t dwEvent)
 			double	fEnd = map.m_fEnd / 100;	// and must be converted to normalized coords
 			double	fRange = fEnd - fStart;	// range can be negative if start > end
 			fNormVal = fNormVal * fRange + fStart;	// apply range to normalized value
-			// order must match order of ranges in mapping target enumeration
-			int	iTarget = map.m_iTarget;
-			if (iTarget < PARAM_COUNT) {	// if target is parameter
-				PushParameter(iTarget, map.m_iProp, fNormVal);
-			} else {	// target isn't parameter
-				iTarget -= PARAM_COUNT;
-				if (iTarget < MASTER_COUNT) {	// if target is master property
-					PushMasterProperty(iTarget, fNormVal);
-				} else {	// target isn't master property
-					iTarget -= MASTER_COUNT;
-					if (iTarget < MISC_TARGETS) {	// if miscellanous target
-						PushMiscTarget(iTarget, fNormVal);
-					}
-				}
+			DispatchTarget(map.m_iTarget, map.m_iProp, fNormVal);
+		}
+	}
+}
+
+// ported from MidiManager.cpp CMidiManager::OnMidiEvent (the dispatch, factored out)
+void MidiManager::DispatchTarget(int iTarget, int iProp, double fNormVal)
+{
+	// order must match order of ranges in mapping target enumeration
+	if (iTarget < 0)
+		return;
+	if (iTarget < PARAM_COUNT) {	// if target is parameter
+		PushParameter(iTarget, iProp, fNormVal);
+	} else {	// target isn't parameter
+		iTarget -= PARAM_COUNT;
+		if (iTarget < MASTER_COUNT) {	// if target is master property
+			PushMasterProperty(iTarget, fNormVal);
+		} else {	// target isn't master property
+			iTarget -= MASTER_COUNT;
+			if (iTarget < MISC_TARGETS) {	// if miscellanous target
+				PushMiscTarget(iTarget, fNormVal);
 			}
 		}
 	}

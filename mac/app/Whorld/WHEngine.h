@@ -233,6 +233,26 @@ typedef struct {
 // change (kind 4).
 @property (nonatomic, copy, nullable) void (^midiHandler)(NSInteger kind, uint32_t value);
 
+// OSC remote control (new in the Mac port; WHOscServer, whorld::OscRemote):
+// every MIDI mapping target has an address (/w/...), taking the values a
+// mapping sends it. Incoming changes reach the document and the panels the
+// way MIDI's do (midiHandler kinds 0, 1, 2, 5, 6). Whorld sends the same
+// addresses back with their values as they change, and monitoring.
+- (BOOL)startOSCOnPort:(NSInteger)inPort sendPort:(NSInteger)outPort host:(NSString *)host
+	error:(NSError * _Nullable * _Nullable)error;
+- (void)stopOSC;
+@property (nonatomic, readonly) BOOL oscRunning;
+@property (nonatomic, readonly) NSInteger oscClientCount;	// devices heard from lately (and the fixed host)
+@property (nonatomic, readonly) NSArray<NSString *> *oscClients;
+@property (class, nonatomic, readonly) NSArray<NSString *> *localIPv4Addresses;	// this Mac's, for "send to"
+// Main thread, about 10 times a second: sends whatever changed (the
+// patch's controls, pause, the playing patch, names, full screen).
+- (void)oscSendStateWithPatch:(NSInteger)playingPatch patchName:(NSString *)patchName
+	playlistName:(NSString *)playlistName fullScreen:(BOOL)fullScreen;
+// Main thread, once a second: the frame statistics (Show Frame Rate's), as
+// numbers and as that line of text.
+- (void)oscSendStats:(NSString *)text;
+
 // Playlist (.whl): patch paths as stored, and mappings
 - (void)newPlaylist;
 - (BOOL)openPlaylistAtPath:(NSString *)path error:(NSError **)error;

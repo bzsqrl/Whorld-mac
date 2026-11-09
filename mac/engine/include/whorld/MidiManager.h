@@ -68,6 +68,11 @@ public:
 // Operations
 	void	OnMidiEvent(uint32_t dwEvent);	// MIDI thread
 	static double	NormalizeMidiValue(int iEvent, int nMidiVal);
+	// Sends a mapping target its value, as a mapping does once it has applied
+	// its range (the series of target ranges in MappingBase). OnMidiEvent's
+	// dispatch, factored out so OSC (OscRemote) shares it; any thread that
+	// may push render commands and post to the main thread.
+	void	DispatchTarget(int iTarget, int iProp, double fNormVal);
 
 // Public data
 	SafeMapping	m_midiMaps;		// MIDI mappings

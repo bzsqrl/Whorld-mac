@@ -106,7 +106,8 @@ final class AppModel: ObservableObject {
 		engine.statsHandler = { [weak self] in
 			guard let self else { return }
 			let e = self.engine
-			guard self.showFrameRate || Self.logStats else { return }
+			let osc = e.oscClientCount > 0	// OSC monitoring: /w/stat/...
+			guard self.showFrameRate || Self.logStats || osc else { return }
 			let gpu = e.gpuMilliseconds > 0 ? String(format: " · gpu %.1f ms", e.gpuMilliseconds) : ""
 			let text = String(format: "%.0f fps · draw %.1f ms%@ · %d Hz · %ld missed · %ld rings · %@",
 				e.framesPerSecond, e.renderMilliseconds, gpu, e.refreshRate, e.missedFrames, e.ringCount,
@@ -116,6 +117,9 @@ final class AppModel: ObservableObject {
 			}
 			if Self.logStats {	// WHORLD_STATS=1: also print, for measuring
 				FileHandle.standardError.write(Data((text + "\n").utf8))
+			}
+			if osc {
+				e.oscSendStats(text)
 			}
 		}
 		undoManager.levelsOfUndo = 100
@@ -132,6 +136,7 @@ final class AppModel: ObservableObject {
 		engine.preferMetal = Preferences.preferMetal
 		engine.maxFrameRate = Preferences.maxFrameRate
 		engine.setRingFadeEased(Preferences.ringFadeEased)
+		restartOSC()
 		engine.midiInputName = Preferences.midiInputName
 		engine.movieErrorHandler = { message in
 			let alert = NSAlert()
@@ -761,6 +766,40 @@ final class AppModel: ObservableObject {
 			}
 			changed()
 		}
+	}
+
+	// MARK: OSC
+
+	/// Why OSC isn't running (a port in use, a bad host), or nil.
+	@Published private(set) var oscError: String?
+	private var oscTimer: Timer?
+
+	/// Starts (or stops) OSC remote control as Settings > OSC says. Whorld
+	/// sends what changed about 10 times a second, but only while some
+	/// device is listening (WHEngine oscSendState returns at once otherwise).
+	func restartOSC() {
+		oscTimer?.invalidate()
+		oscTimer = nil
+		engine.stopOSC()
+		oscError = nil
+		let o = Preferences.osc
+		guard o.enabled else { return }
+		do {
+			try engine.startOSC(onPort: o.receivePort, sendPort: o.sendPort, host: o.host)
+		} catch {
+			oscError = error.localizedDescription
+			return
+		}
+		let t = Timer(timeInterval: 0.1, repeats: true) { _ in
+			MainActor.assumeIsolated { AppModel.shared.oscTick() }
+		}
+		RunLoop.main.add(t, forMode: .common)
+		oscTimer = t
+	}
+
+	private func oscTick() {
+		engine.oscSendState(withPatch: playingPatch, patchName: title, playlistName: playlistTitle,
+			fullScreen: isFullScreen)
 	}
 
 	// MARK: Workspace

@@ -158,6 +158,8 @@ struct KeyTextField: NSViewRepresentable {
 
 		init(_ parent: KeyTextField) { self.parent = parent }
 
+		func format(_ v: Double) -> String { parent.format(v) }
+
 		func show(_ field: NSTextField, _ v: Double) {
 			shown = parent.format(v)
 			field.stringValue = shown
@@ -240,7 +242,15 @@ struct KeyTextField: NSViewRepresentable {
 	func updateNSView(_ f: NSTextField, context: Context) {
 		let c = context.coordinator
 		c.parent = self
-		if f.currentEditor() == nil, f.stringValue == c.shown || c.shown.isEmpty {	// not being edited
+		if let editor = f.currentEditor() as? NSTextView {
+			// focused: follow outside changes (MIDI, OSC, undo) unless something
+			// has been typed, keeping the text selected as focus leaves it
+			if editor.string == c.shown && c.format(value) != c.shown {
+				c.show(f, value)
+				editor.string = c.shown
+				editor.selectAll(nil)
+			}
+		} else if f.stringValue == c.shown || c.shown.isEmpty {	// not being edited
 			c.show(f, value)
 		}
 	}

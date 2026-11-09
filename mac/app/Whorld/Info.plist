@@ -57,6 +57,8 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Whorld uses the local network for OSC remote control, such as TouchOSC on a phone or tablet.</string>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>

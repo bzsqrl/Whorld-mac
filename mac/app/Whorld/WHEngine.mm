@@ -10,6 +10,12 @@
 #import "WHEngine.h"
 
 #import <CoreMIDI/CoreMIDI.h>
+#import "WHOscServer.h"
+#include "whorld/OscRemote.h"
+#include <arpa/inet.h>
+#include <ifaddrs.h>
+#include <net/if.h>
+#include <map>
 
 #include "CGRenderer.h"
 #include "MetalRenderer.h"
@@ -315,6 +321,10 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	// MIDI
 	WHMidiSink	_midiSink;
 	std::unique_ptr<whorld::MidiManager>	_midiMgr;
+	// OSC (main thread, except where the server's queue says)
+	std::unique_ptr<WHOscServer>	_osc;
+	std::map<std::string, whorld::OscArg>	_oscSent;	// last value sent (or received) per address
+	NSInteger	_oscLastClients;
 	MIDIClientRef	_midiClient;
 	MIDIPortRef	_midiPort;
 	MIDIEndpointRef	_midiSource;	// connected source, or 0
@@ -401,6 +411,8 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 
 - (void)dealloc
 {
+	if (_osc)
+		_osc->Stop();	// before the MIDI manager it dispatches through goes
 	{
 		std::lock_guard<std::mutex>	lock(_mutex);
 		_quit = true;
@@ -1132,6 +1144,222 @@ static NSString *SourceName(MIDIEndpointRef src)
 	}
 	if (_midiHandler)
 		_midiHandler(0, 0);
+}
+
+#pragma mark - OSC
+
+// The address Whorld reports a target's value on: the input address (for a
+// parameter, with its column), so a control and its feedback share one.
+static const std::map<std::pair<int, int>, std::string>& OscPathByTarget()
+{
+	static const std::map<std::pair<int, int>, std::string>	m = [] {
+		std::map<std::pair<int, int>, std::string>	r;
+		for (const auto& a : whorld::OscRemote::Inputs())
+			r[{a.iTarget, a.iProp}] = a.path;
+		return r;
+	}();
+	return m;
+}
+
+static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
+{
+	if (a.IsNumber() && b.IsNumber())	// the round trip through float32 and back isn't exact
+		return std::fabs(a.Number() - b.Number()) < 1e-6;
+	return a.type == b.type && a.s == b.s;
+}
+
++ (NSArray<NSString *> *)localIPv4Addresses
+{
+	NSMutableArray	*out = [NSMutableArray array];
+	ifaddrs	*list = nullptr;
+	if (getifaddrs(&list) != 0)
+		return out;
+	for (ifaddrs *p = list; p; p = p->ifa_next) {
+		if (!p->ifa_addr || p->ifa_addr->sa_family != AF_INET || !(p->ifa_flags & IFF_UP)
+			|| (p->ifa_flags & IFF_LOOPBACK))
+			continue;
+		char	s[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, &reinterpret_cast<sockaddr_in*>(p->ifa_addr)->sin_addr, s, sizeof(s));
+		NSString	*a = @(s);
+		if (![a hasPrefix:@"169.254."] && ![out containsObject:a])	// not link-local
+			[out addObject:a];
+	}
+	freeifaddrs(list);
+	return out;
+}
+
+- (BOOL)startOSCOnPort:(NSInteger)inPort sendPort:(NSInteger)outPort host:(NSString *)host error:(NSError **)error
+{
+	[self stopOSC];
+	auto	osc = std::make_unique<WHOscServer>();
+	__weak WHEngine	*weakSelf = self;
+	whorld::MidiManager	*pMgr = _midiMgr.get();
+	WHOscServer	*pServer = osc.get();
+	std::string	err;
+	bool	ok = osc->Start((int)inPort, (int)outPort, host.UTF8String ?: "",
+		[weakSelf, pMgr, pServer](const std::vector<whorld::OscMessage>& msgs, in_addr_t sender) {
+		// the server's queue: requests that only push render commands and
+		// post to the main thread are done here, as MIDI's are
+		using R = whorld::OscRemote::Request;
+		for (const whorld::OscMessage& msg : msgs) {
+			R	req = whorld::OscRemote::Handle(msg, *pMgr);
+			switch (req.type) {
+			case R::NONE:
+				break;
+			case R::PING:
+				{
+					whorld::OscMessage	pong;
+					pong.path = std::string(whorld::OscRemote::PREFIX) + "/pong";
+					NSArray	*ips = [WHEngine localIPv4Addresses];
+					pong.args.push_back(whorld::OscArg::String(ips.count ? [ips.firstObject UTF8String] : ""));
+					pServer->SendTo(sender, pong);
+				}
+				break;
+			case R::DISPATCHED:
+				if (!msg.args.empty() && msg.args[0].IsNumber() && req.iTarget >= 0) {
+					// what this device just set: don't send it back to it
+					// (a fader being dragged would jump to an older value)
+					int	iProp;
+					whorld::OscRemote::Find(msg.path, iProp);
+					whorld::OscArg	arg = msg.args[0];
+					dispatch_async(dispatch_get_main_queue(), ^{
+						WHEngine	*strong = weakSelf;
+						auto	it = OscPathByTarget().find({req.iTarget, iProp});
+						if (strong && strong->_osc && it != OscPathByTarget().end()) {
+							whorld::OscArg	state;
+							if (whorld::OscRemote::StateValue(strong->_doc, req.iTarget, iProp, state))
+								strong->_oscSent[it->second] = state;	// the value it now has
+						}
+					});
+				}
+				break;
+			default:	// the app's: on the main thread
+				dispatch_async(dispatch_get_main_queue(), ^{
+					[weakSelf oscRequest:req.type target:req.iTarget value:req.iVal];
+				});
+			}
+		}
+	}, err);
+	if (!ok) {
+		if (error)
+			*error = [NSError errorWithDomain:@"Whorld" code:10 userInfo:@{NSLocalizedDescriptionKey: @(err.c_str())}];
+		return NO;
+	}
+	_osc = std::move(osc);
+	_oscSent.clear();
+	_oscLastClients = 0;
+	return YES;
+}
+
+- (void)stopOSC
+{
+	if (_osc) {
+		_osc->Stop();
+		_osc.reset();
+	}
+	_oscSent.clear();
+}
+
+- (BOOL)oscRunning { return _osc && _osc->IsRunning(); }
+- (NSInteger)oscClientCount { return _osc ? _osc->ClientCount() : 0; }
+
+- (NSArray<NSString *> *)oscClients
+{
+	NSMutableArray	*a = [NSMutableArray array];
+	if (_osc)
+		for (const std::string& s : _osc->ClientNames())
+			[a addObject:@(s.c_str())];
+	return a;
+}
+
+// Main thread: what OscRemote leaves to the app.
+- (void)oscRequest:(int)type target:(int)iTarget value:(int)iVal
+{
+	using R = whorld::OscRemote::Request;
+	switch (type) {
+	case R::TOGGLE:	// a switch with no argument: the other way from now
+		{
+			whorld::OscArg	cur;
+			if (whorld::OscRemote::StateValue(_doc, iTarget, -1, cur))
+				_midiMgr->DispatchTarget(iTarget, -1, cur.Number() != 0 ? 0 : 1);
+		}
+		break;
+	case R::PAUSE:
+		if (iVal < 0 || (iVal != 0) != (_paused != NO)) {
+			[self togglePause];
+			if (_midiHandler)
+				_midiHandler(1, 0);
+		}
+		break;
+	case R::PATCH:
+		if (_midiHandler)
+			_midiHandler(2, (uint32_t)std::max(iVal, 0));
+		break;
+	case R::SYNC:	// everything again
+		_oscSent.clear();
+		break;
+	}
+}
+
+- (void)oscSend:(const std::string&)path arg:(const whorld::OscArg&)arg
+{
+	auto	it = _oscSent.find(path);
+	if (it != _oscSent.end() && OscSame(it->second, arg))
+		return;
+	_oscSent[path] = arg;
+	whorld::OscMessage	msg;
+	msg.path = path;
+	msg.args.push_back(arg);
+	_osc->Send(msg);
+}
+
+- (void)oscSendStateWithPatch:(NSInteger)playingPatch patchName:(NSString *)patchName
+	playlistName:(NSString *)playlistName fullScreen:(BOOL)fullScreen
+{
+	if (!_osc)
+		return;
+	NSInteger	nClients = _osc->ClientCount();
+	if (nClients == 0) {
+		_oscLastClients = 0;
+		return;	// nobody listening
+	}
+	if (nClients > _oscLastClients)
+		_oscSent.clear();	// someone new: everything
+	_oscLastClients = nClients;
+	using whorld::OscArg;
+	for (const auto& a : whorld::OscRemote::Inputs()) {
+		OscArg	arg;
+		if (whorld::OscRemote::StateValue(_doc, a.iTarget, a.iProp, arg))
+			[self oscSend:a.path arg:arg];
+	}
+	std::string	p = whorld::OscRemote::PREFIX;
+	[self oscSend:p + "/pause" arg:OscArg::Float(_paused ? 1 : 0)];
+	[self oscSend:p + "/patch" arg:OscArg::Int(playingPatch)];
+	[self oscSend:p + "/patch/name" arg:OscArg::String(patchName.UTF8String ?: "")];
+	[self oscSend:p + "/playlist/name" arg:OscArg::String(playlistName.UTF8String ?: "")];
+	[self oscSend:p + "/fs" arg:OscArg::Float(fullScreen ? 1 : 0)];
+}
+
+- (void)oscSendStats:(NSString *)text
+{
+	if (!_osc || _osc->ClientCount() == 0)
+		return;
+	using whorld::OscArg;
+	std::string	p = std::string(whorld::OscRemote::PREFIX) + "/stat/";
+	auto	send = [&](const char* name, OscArg arg) {
+		whorld::OscMessage	msg;
+		msg.path = p + name;
+		msg.args.push_back(arg);
+		_osc->Send(msg);
+	};
+	send("fps", OscArg::Float(self.framesPerSecond));
+	send("draw", OscArg::Float(self.renderMilliseconds));
+	send("gpu", OscArg::Float(self.gpuMilliseconds));
+	send("hz", OscArg::Int(self.refreshRate));
+	send("missed", OscArg::Int(self.missedFrames));
+	send("rings", OscArg::Int(self.ringCount));
+	send("renderer", OscArg::String(self.rendererName.UTF8String ?: ""));
+	send("text", OscArg::String(text.UTF8String ?: ""));
 }
 
 #pragma mark - Playlist

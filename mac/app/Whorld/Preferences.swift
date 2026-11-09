@@ -32,6 +32,10 @@ enum Preferences {
 			"General_bCheckUpdates": true,
 			"Render_nMaxFrameRate": 0,
 			"Rings_bFadeEased": false,
+			"OSC_bEnabled": true,
+			"OSC_nReceivePort": 8000,
+			"OSC_nSendPort": 8001,
+			"OSC_sHost": "",
 		])
 	}
 
@@ -63,6 +67,16 @@ enum Preferences {
 	static var checkForUpdates: Bool {
 		register()
 		return defaults.bool(forKey: "General_bCheckUpdates")
+	}
+
+	/// OSC remote control (new in the Mac port): on, the port Whorld listens
+	/// on, the port it sends to, and a host it always sends to ("" for none;
+	/// it also answers every device that has sent it something lately)
+	static var osc: (enabled: Bool, receivePort: Int, sendPort: Int, host: String) {
+		register()
+		return (defaults.bool(forKey: "OSC_bEnabled"), defaults.integer(forKey: "OSC_nReceivePort"),
+			defaults.integer(forKey: "OSC_nSendPort"),
+			(defaults.string(forKey: "OSC_sHost") ?? "").trimmingCharacters(in: .whitespaces))
 	}
 
 	/// Ring fade curve (new in the Mac port): eased (an S-curve) or linear.
@@ -102,6 +116,10 @@ struct PreferencesView: View {
 	@AppStorage("General_bCheckUpdates") private var checkUpdates = true
 	@AppStorage("Render_nMaxFrameRate") private var maxFrameRate = 0
 	@AppStorage("Rings_bFadeEased") private var ringFadeEased = false
+	@AppStorage("OSC_bEnabled") private var oscEnabled = true
+	@AppStorage("OSC_nReceivePort") private var oscReceivePort = 8000
+	@AppStorage("OSC_nSendPort") private var oscSendPort = 8001
+	@AppStorage("OSC_sHost") private var oscHost = ""
 
 	var body: some View {
 		Form {
@@ -164,6 +182,39 @@ struct PreferencesView: View {
 					model.engine.midiInputName = name.isEmpty ? nil : name
 				}
 			}
+			Section("OSC") {
+				Toggle("OSC remote control", isOn: $oscEnabled)
+				LabeledContent("Receive port") {
+					TextField("", value: $oscReceivePort, format: .number.grouping(.never))
+						.labelsHidden()
+						.multilineTextAlignment(.trailing)
+						.frame(width: 70)
+				}
+				.disabled(!oscEnabled)
+				LabeledContent("Send port") {
+					TextField("", value: $oscSendPort, format: .number.grouping(.never))
+						.labelsHidden()
+						.multilineTextAlignment(.trailing)
+						.frame(width: 70)
+				}
+				.disabled(!oscEnabled)
+				LabeledContent("Also send to") {
+					TextField("host (optional)", text: $oscHost)
+						.labelsHidden()
+						.multilineTextAlignment(.trailing)
+						.frame(width: 160)
+						.onSubmit { model.restartOSC() }
+				}
+				.disabled(!oscEnabled)
+				OSCStatus()
+				Text("Every control MIDI can map has an OSC address, such as /w/m/sp for Speed; see Help > Whorld Help. Whorld answers each device that has sent it something in the last 30 seconds, on the send port, with the values as they change and the frame statistics (/w/stat/...); \"Also send to\" adds a fixed address, for a monitor that never sends. TouchOSC: open Whorld.tosc, set a connection to this Mac's address, send port \(oscReceivePort), receive port \(oscSendPort).")
+					.font(.caption)
+					.foregroundStyle(.secondary)
+					.fixedSize(horizontal: false, vertical: true)
+			}
+			.onChange(of: oscEnabled) { model.restartOSC() }
+			.onChange(of: oscReceivePort) { model.restartOSC() }
+			.onChange(of: oscSendPort) { model.restartOSC() }
 			Section("Input") {
 				LabeledContent("Wheel sensitivity") {
 					HStack {
@@ -228,6 +279,30 @@ struct PreferencesView: View {
 		panel.canCreateDirectories = true
 		if panel.runModal() == .OK, let url = panel.url {
 			imageFolder = url.path
+		}
+	}
+}
+
+/// Settings > OSC's status line: listening where, and who's connected,
+/// checked once a second while Settings is open.
+private struct OSCStatus: View {
+	@EnvironmentObject private var model: AppModel
+
+	var body: some View {
+		TimelineView(.periodic(from: .now, by: 1)) { _ in
+			let e = model.engine
+			let ips = WHEngine.localIPv4Addresses.joined(separator: ", ")
+			let text: String = {
+				if let err = model.oscError { return "Not running: " + err }
+				guard e.oscRunning else { return "Off" }
+				let here = "Listening on " + (ips.isEmpty ? "this Mac" : ips) + ", port \(Preferences.osc.receivePort)"
+				let clients = e.oscClients
+				return here + (clients.isEmpty ? " · no devices yet" : " · sending to " + clients.joined(separator: ", "))
+			}()
+			Text(text)
+				.font(.caption)
+				.foregroundStyle(model.oscError == nil ? Color.secondary : Color.red)
+				.textSelection(.enabled)
 		}
 	}
 }
