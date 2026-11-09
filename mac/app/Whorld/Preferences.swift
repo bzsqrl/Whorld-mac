@@ -31,6 +31,9 @@ enum Preferences {
 			"General_bReopenLast": true,
 			"General_bCheckUpdates": true,
 			"Render_nMaxFrameRate": 0,
+			"Rings_bFade": false,
+			"Rings_nFadeLength": 20,
+			"Rings_bFadeEased": false,
 		])
 	}
 
@@ -64,6 +67,15 @@ enum Preferences {
 		return defaults.bool(forKey: "General_bCheckUpdates")
 	}
 
+	/// Ring fade (new in the Mac port): the number of rings old rings fade
+	/// over before the Rings limit removes them, or 0 if off
+	static var ringFade: (rings: Int, eased: Bool) {
+		register()
+		let on = defaults.bool(forKey: "Rings_bFade")
+		let n = min(max(defaults.integer(forKey: "Rings_nFadeLength"), 1), 200)
+		return (on ? n : 0, defaults.bool(forKey: "Rings_bFadeEased"))
+	}
+
 	/// Reopen the last playlist and patch at launch (Session; new in the Mac port)
 	static var reopenLast: Bool {
 		register()
@@ -93,6 +105,9 @@ struct PreferencesView: View {
 	@AppStorage("General_bReopenLast") private var reopenLast = true
 	@AppStorage("General_bCheckUpdates") private var checkUpdates = true
 	@AppStorage("Render_nMaxFrameRate") private var maxFrameRate = 0
+	@AppStorage("Rings_bFade") private var ringFade = false
+	@AppStorage("Rings_nFadeLength") private var ringFadeLength = 20
+	@AppStorage("Rings_bFadeEased") private var ringFadeEased = false
 
 	var body: some View {
 		Form {
@@ -129,6 +144,34 @@ struct PreferencesView: View {
 					.foregroundStyle(.secondary)
 					.fixedSize(horizontal: false, vertical: true)
 			}
+			Section("Rings") {
+				Toggle("Fade out old rings", isOn: $ringFade)
+				LabeledContent("Fade over") {
+					HStack(spacing: 8) {
+						Slider(value: Binding(get: { Double(ringFadeLength) },
+							set: { ringFadeLength = Int($0.rounded()) }), in: 1...200)
+						TextField("", value: $ringFadeLength, format: .number)
+							.labelsHidden()
+							.multilineTextAlignment(.trailing)
+							.frame(width: 44)
+						Text(ringFadeLength == 1 ? "ring" : "rings")
+							.foregroundStyle(.secondary)
+					}
+				}
+				.disabled(!ringFade)
+				Picker("Fade curve", selection: $ringFadeEased) {
+					Text("Linear").tag(false)
+					Text("Eased").tag(true)
+				}
+				.disabled(!ringFade)
+				Text("When the Rings limit is about to remove a ring, it fades from its own transparency to nothing over its last rings, instead of vanishing. Eased starts and ends the fade gently. Applies to the picture, snapshots, movies and exports. With Rings at its maximum (unlimited), rings only leave the screen, so nothing fades.")
+					.font(.caption)
+					.foregroundStyle(.secondary)
+					.fixedSize(horizontal: false, vertical: true)
+			}
+			.onChange(of: ringFade) { applyRingFade() }
+			.onChange(of: ringFadeLength) { applyRingFade() }
+			.onChange(of: ringFadeEased) { applyRingFade() }
 			Section("MIDI") {
 				let _ = model.changes.midi.n
 				Picker("Input device", selection: $midiInput) {
@@ -209,5 +252,11 @@ struct PreferencesView: View {
 		if panel.runModal() == .OK, let url = panel.url {
 			imageFolder = url.path
 		}
+	}
+
+	private func applyRingFade() {
+		ringFadeLength = min(max(ringFadeLength, 1), 200)
+		let f = Preferences.ringFade
+		model.engine.setRingFade(f.rings, eased: f.eased)
 	}
 }

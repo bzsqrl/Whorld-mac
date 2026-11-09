@@ -283,6 +283,68 @@ TEST(PatchSetsOscillatorWaveformAndPulseWidth) {
 	CHECK_NEAR(eng->GetParamValues().fLineWidth, 1 + 1, 1e-12);	// square, first half of its cycle
 }
 
+// Ring fade (Mac port): alpha of each ring's stroke, newest first.
+static std::vector<float> RingAlphas(WhorldEngine& eng)
+{
+	RecordingRenderer	rec;
+	RunFrames(eng, 1, &rec);
+	std::vector<float>	a;
+	for (const auto& c : rec.calls)
+		if (c.type == RC::STROKE_PATH)
+			a.push_back(c.clr.a);
+	return a;
+}
+
+TEST(RingFadeFadesTheOldestRings) {
+	// default patch: a ring every 5 frames, lines; limit 10 rings, fade over 4
+	auto	eng = MakeEngine();
+	eng->OnSetMasterProp(Patch::MASTER_Rings, 10);
+	RunFrames(*eng, 201);	// full: 10 rings
+	auto	off = RingAlphas(*eng);
+	CHECK_EQ(off.size(), size_t(10));
+	bool	allOpaque = true;
+	for (float x : off)
+		allOpaque = allOpaque && x == 1.0f;
+	CHECK(allOpaque);	// off by default: unchanged from Windows
+	eng->SetRingFade(4, false);
+	RunFrames(*eng, 1);
+	auto	lin = RingAlphas(*eng);
+	CHECK_EQ(lin.size(), size_t(10));
+	if (lin.size() != 10)
+		return;
+	for (int i = 0; i < 6; i++)
+		CHECK_EQ(lin[i], 1.0f);	// more than 4 rings from the limit: their own alpha
+	for (int i = 6; i < 10; i++)
+		CHECK(lin[i] < lin[i - 1]);	// the last 4 fade, oldest faintest
+	CHECK(lin[9] <= 0.25f && lin[9] > 0);	// under one ring from removal
+	// smooth: one frame later (no ring added in between) the oldest is 1/(4 * 5) fainter
+	auto	next = RingAlphas(*eng);
+	if (next.size() == 10 && next[0] == lin[0])
+		CHECK_NEAR(lin[9] - next[9], 1.0 / 20, 1e-5);
+	// eased: two identical engines in step, one linear and one eased; each
+	// eased alpha is the S-curve (smoothstep) of the linear one
+	auto	engL = MakeEngine(), engE = MakeEngine();
+	for (auto* e : {engL.get(), engE.get()}) {
+		e->OnSetMasterProp(Patch::MASTER_Rings, 10);
+		RunFrames(*e, 203);
+	}
+	engL->SetRingFade(4, false);
+	engE->SetRingFade(4, true);
+	auto	l = RingAlphas(*engL), e = RingAlphas(*engE);
+	CHECK_EQ(e.size(), l.size());
+	for (size_t i = 0; i < l.size() && i < e.size(); i++) {
+		double	f = l[i];
+		CHECK_NEAR(e[i], f * f * (3 - 2 * f), 1e-6);
+	}
+	// unlimited rings (the Rings maximum): nothing fades
+	eng->OnSetMasterProp(Patch::MASTER_Rings, Patch::MAX_RINGS);
+	auto	unl = RingAlphas(*eng);
+	bool	none = true;
+	for (float x : unl)
+		none = none && x == 1.0f;
+	CHECK(none);
+}
+
 TEST(RandomOriginUsesMsvcSequence) {
 	auto	eng = MakeEngine(800, 600);
 	Patch::VARIANT_PROP	prop;

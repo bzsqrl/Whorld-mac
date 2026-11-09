@@ -288,6 +288,8 @@ Record here anything worth telling the upstream author: suspected bugs found whi
 
 ## Port notes
 
+- **Ring fade (2026-11-09, a Mac addition at the user's request).** Settings > Rings > Fade out old rings: a ring the Rings limit (`m_nMaxRings`) is about to remove fades from its own alpha to zero over its last N rings (1–200, linear or smoothstep), continuously between ring additions (`m_fRingOffset`). Fills, strokes and background-colored outlines fade together (`WhorldEngine::Draw`, `RingFadeFactor`, `DrawOutline`). It applies live and in snapshot mode (snapshots, movies, exports), where the snapshot's ring count stands in for the limit and rings are taken to grow outward. Off by default, so output matches Windows unless it's turned on; the golden tests and `whorld-render` (unless `--ring-fade N [--eased]`) run with it off.
+
 - **Frame pacing (2026-11-05).** Frames used to be handed to the layer whenever the render thread finished them. At a 6–8 ms draw on a 120 Hz display, most landed right at the compositor's deadline (median 7.6 ms after the vsync), so frames were shown late or repeated at random, and the animation hitched. Frames are now pipelined one refresh deep, like a vsync'd DXGI swap chain: each display-link fire first shows the frame finished since the last one (`WHEngine presentFrame`), then requests the next. This adds one refresh of latency. The stats line counts refreshes with no new frame as "missed"; those now happen only when a frame takes longer than a refresh to draw (a heavy patch in a large Retina window).
 
 Decisions made while porting that preserve Windows behavior in non-obvious ways.

@@ -47,6 +47,7 @@ std::unique_ptr<CGBitmapRenderer> RenderPatch(const Patch& patch, const PatchRen
 	pRenderer->SetDeferred(opts.bDeferred);
 	WhorldEngine	eng;
 	eng.SetFrameRate(opts.nFrameRate);
+	eng.SetRingFade(opts.nRingFade, opts.bRingFadeEased);
 	eng.OnResize(pRenderer->GetSizeDIPs());
 	eng.OnSetPatch(patch);
 	for (int i = 0; i < opts.nFrames; i++) {

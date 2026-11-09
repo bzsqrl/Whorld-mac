@@ -32,7 +32,8 @@ int Usage()
 {
 	std::fprintf(stderr,
 		"usage:\n"
-		"  whorld-render <patch.whp> [--frames N] [--size WxH] [--scale S] [--deferred] --out frame.png\n"
+		"  whorld-render <patch.whp> [--frames N] [--size WxH] [--scale S] [--deferred]\n"
+		"                [--ring-fade N [--eased]] --out frame.png\n"
 		"  whorld-render <snapshot.whs> [--size WxH] [--view WxH] [--fit none|width|height|both]\n"
 		"                [--use-view-size] [--no-letterbox] --out frame.png\n"
 		"  whorld-render --compare a.png b.png [--threshold T] [--diff diff.png] [--region X,Y,W,H]\n"
@@ -108,6 +109,8 @@ int main(int argc, char** argv)
 	uint32_t	nFlags = 0;
 	bool	bLetterbox = true;
 	bool	bDeferred = false;
+	int		nRingFade = 0;
+	bool	bRingFadeEased = false;
 	std::string	sVideo;
 	VideoWriter::Codec	codec = VideoWriter::CODEC_H264;
 	long long	nStart = 0, nEnd = -1, nFrame = -1;
@@ -143,6 +146,10 @@ int main(int argc, char** argv)
 			bLetterbox = false;
 		else if (!std::strcmp(a, "--deferred"))
 			bDeferred = true;
+		else if (!std::strcmp(a, "--ring-fade") && bHasArg)
+			nRingFade = std::atoi(argv[++i]);
+		else if (!std::strcmp(a, "--eased"))
+			bRingFadeEased = true;
 		else if (!std::strcmp(a, "--video") && bHasArg)
 			sVideo = argv[++i];
 		else if (!std::strcmp(a, "--codec") && bHasArg) {
@@ -234,6 +241,8 @@ int main(int argc, char** argv)
 		opts.fScale = fScale;
 		opts.nFrames = nFrames;
 		opts.bDeferred = bDeferred;
+		opts.nRingFade = nRingFade;
+		opts.bRingFadeEased = bRingFadeEased;
 		pRenderer = RenderPatch(patch, opts);
 	}
 	if (!pRenderer) {

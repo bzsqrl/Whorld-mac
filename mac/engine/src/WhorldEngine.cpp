@@ -75,6 +75,8 @@ WhorldEngine::WhorldEngine()
 	m_rCanvas = RectF{0, 0, 0, 0};	// SetRectEmpty
 	m_fNewGrowth = 0;
 	m_nMaxRings = INT_MAX;
+	m_nRingFade = 0;
+	m_bRingFadeEased = false;
 	m_bIsPaused = false;
 	m_bSnapshotMode = false;
 	m_bFlushHistory = false;
@@ -509,17 +511,29 @@ inline void WhorldEngine::DrawRing(IRenderer& renderer, bool bFilled,
 }
 
 // ported from WhorldDraw.cpp CWhorldDraw::DrawOutline
-inline void WhorldEngine::DrawOutline(IRenderer& renderer, const RING& ring, float fLineWidth) const
+inline void WhorldEngine::DrawOutline(IRenderer& renderer, const RING& ring, float fLineWidth, float fFade) const
 {
 	ColorF	clrBrush;
 	if (ring.nDrawMode & DM_OUTLINE) {	// if ring is outlined
 		clrBrush = m_clrBkgndBrush;	// use background color
+		clrBrush.a *= fFade;	// ring fade (Mac port): the outline fades with its ring
 	} else {	// ring isn't outlined
 		// outline anyway to ensure rings overlap completely
 		fLineWidth = 1;	// override line width
-		clrBrush = m_clrDrawBrush;	// use fill color
+		clrBrush = m_clrDrawBrush;	// use fill color (already faded)
 	}
 	renderer.StrokePath(clrBrush, fLineWidth);
+}
+
+// Ring fade (new in the Mac port): the alpha factor for a ring the Rings
+// limit removes after fRingsLeft more rings are added (fractional, so the
+// fade is smooth between ring additions).
+float WhorldEngine::RingFadeFactor(double fRingsLeft) const
+{
+	double	f = Clamp(fRingsLeft / m_nRingFade, 0, 1);
+	if (m_bRingFadeEased)
+		f = f * f * (3 - 2 * f);	// smoothstep: slow to start, slow to finish
+	return DTOF(f);
 }
 
 // ported from WhorldDraw.cpp CWhorldDraw::OnDraw
@@ -571,9 +585,29 @@ bool WhorldEngine::Draw(IRenderer& renderer)
 		fSnapshotScale = fZoom;
 		fZoom *= m_dsSnapshot.fZoom;
 	}
+	// Ring fade (Mac port; see SetRingFade): live, a ring is removed when it
+	// becomes ring number m_nMaxRings counting from the newest, at the next
+	// ring addition, which is fPhase of a ring spacing away. A snapshot or
+	// movie frame doesn't record the limit, so its own ring count stands in,
+	// and the rings are taken to grow outward (newest first in the list).
+	const int	nRingCount = static_cast<int>(m_aRing.size());
+	int		nFadeLimit = m_bSnapshotMode ? nRingCount : m_nMaxRings;
+	bool	bFade = m_nRingFade > 0 && nFadeLimit != INT_MAX && nRingCount > 0;
+	bool	bNewestFirst = m_bSnapshotMode || m_params.fRingGrowth >= 0;	// AddRing: push_front unless reverse
+	double	fPhase = 0;	// progress toward the next ring addition, 0..1
+	if (bFade && !m_bSnapshotMode && m_params.fRingSpacing > 0)
+		fPhase = Clamp(1 + m_fRingOffset / m_params.fRingSpacing, 0, 1);
+	int		iRingDrawn = 0;	// rings drawn so far, for the ring's place in the list
 	while (HasNext()) {	// ring loop
 		RING&	ring = GetNextRing();
 		bool	bLast = !HasNext();
+		float	fFade = 1;	// ring fade: this ring's alpha factor
+		if (bFade) {
+			int	iFront = bConvex ? nRingCount - 1 - iRingDrawn : iRingDrawn;	// place from the list's front
+			int	iNewest = bNewestFirst ? iFront : nRingCount - 1 - iFront;	// 0 = newest
+			fFade = RingFadeFactor(nFadeLimit - iNewest - fPhase);
+		}
+		iRingDrawn++;
 		double	fLineWidth = ring.fLineWidth + m_globRing.fLineWidth;
 		DPoint	ptOrg(ring.ptOrigin);
 		if (m_bSnapshotMode) {	// if we're displaying a snapshot
@@ -670,16 +704,18 @@ bool WhorldEngine::Draw(IRenderer& renderer)
 					}
 					renderer.EndPath();	// CLOSE_GEOMETRY_SINK
 					m_clrDrawBrush = bConvex ? clrPrev : ring.clrCur;
+					m_clrDrawBrush.a *= fFade;
 					renderer.FillPath(m_clrDrawBrush);
-					DrawOutline(renderer, ring, DTOF(fLineWidth));
+					DrawOutline(renderer, ring, DTOF(fLineWidth), fFade);
 				}
 				if (bConvex && bLast) {	// if convex and last ring, draw bullseye
 					renderer.BeginPath();
 					DrawRing(renderer, true, 0, nPoints, nVertices, bCurved);
 					renderer.EndPath();
 					m_clrDrawBrush = ring.clrCur;
+					m_clrDrawBrush.a *= fFade;
 					renderer.FillPath(m_clrDrawBrush);
-					DrawOutline(renderer, ring, DTOF(fLineWidth));
+					DrawOutline(renderer, ring, DTOF(fLineWidth), fFade);
 				}
 			}
 		} else {	// ring is line
@@ -687,6 +723,7 @@ bool WhorldEngine::Draw(IRenderer& renderer)
 			DrawRing(renderer, false, 0, nPoints, nVertices, bCurved);
 			renderer.EndPath();
 			m_clrDrawBrush = ring.clrCur;
+			m_clrDrawBrush.a *= fFade;
 			renderer.StrokePath(m_clrDrawBrush, DTOF(fLineWidth));
 		}
 		nPrevPoints = nPoints;

@@ -283,6 +283,9 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	bool	_cursorChanged;
 	bool	_letterbox;
 	bool	_letterboxChanged;
+	int		_ringFade;	// rings to fade over; 0 = off
+	bool	_ringFadeEased;
+	bool	_ringFadeChanged;
 	whorld::DPoint	_cursor;
 	double	_statRenderSum;
 	int		_statFrames;
@@ -351,6 +354,9 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 		_cursorChanged = false;
 		_letterbox = true;
 		_letterboxChanged = false;
+		_ringFade = 0;
+		_ringFadeEased = false;
+		_ringFadeChanged = false;
 		_statRenderSum = 0;
 		_statFrames = 0;
 		_statRings = 0;
@@ -603,6 +609,16 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	[self pushCommand:cmd];
 	_doc.m_master.fZoom = zoom;
 	_modified = YES;
+}
+
+- (void)setRingFade:(NSInteger)rings eased:(BOOL)eased
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	_ringFade = (int)std::max<NSInteger>(rings, 0);
+	_ringFadeEased = eased;
+	_ringFadeChanged = true;
+	_frameRequested = true;	// show it now, even paused
+	_cv.notify_one();
 }
 
 - (void)setSnapshotLetterbox:(BOOL)enable
@@ -1231,6 +1247,8 @@ static NSString *SourceName(MIDIEndpointRef src)
 		int		w, h, rate;
 		double	scale;
 		bool	bCursor, bLetterbox, bLetterboxOn, bPreferMetal;
+		bool	bRingFade, bRingFadeEased;
+		int		nRingFade;
 		whorld::DPoint	cursor;
 		{
 			std::unique_lock<std::mutex>	lock(_mutex);
@@ -1249,6 +1267,10 @@ static NSString *SourceName(MIDIEndpointRef src)
 			bLetterbox = _letterboxChanged;
 			bLetterboxOn = _letterbox;
 			_letterboxChanged = false;
+			bRingFade = _ringFadeChanged;
+			nRingFade = _ringFade;
+			bRingFadeEased = _ringFadeEased;
+			_ringFadeChanged = false;
 			bPreferMetal = _preferMetal;
 		}
 		for (QueueItem& item : cmds) {	// ProcessCommand
@@ -1265,6 +1287,8 @@ static NSString *SourceName(MIDIEndpointRef src)
 			_engine->SetCursorPosition(cursor);
 		if (bLetterbox)
 			_engine->SetSnapshotLetterbox(bLetterboxOn);
+		if (bRingFade)
+			_engine->SetRingFade(nRingFade, bRingFadeEased);
 		if (w <= 0 || h <= 0)
 			continue;
 		if (w != _surfWidth || h != _surfHeight || scale != _surfScale) {	// RC_RESIZE

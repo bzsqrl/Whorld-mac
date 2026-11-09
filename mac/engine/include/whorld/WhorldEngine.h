@@ -81,6 +81,13 @@ public:
 	// (1, 1) bottom right; values outside are clamped by the engine.
 	void	SetCursorPosition(DPoint ptNormalized);
 	void	SetSnapshotLetterbox(bool bEnable) { m_bSnapshotLetterbox = bEnable; }
+	// Ring fade (new in the Mac port, not in Windows Whorld): when the Rings
+	// limit is about to remove a ring, it fades out over its last nRings
+	// rings, from its own alpha to zero, instead of vanishing. 0 turns it
+	// off. bEased: an S-curve instead of a straight line. Snapshots and
+	// movie frames, which don't record the limit, fade toward their own
+	// ring count.
+	void	SetRingFade(int nRings, bool bEased) { m_nRingFade = nRings > 0 ? nRings : 0; m_bRingFadeEased = bEased; }
 	// Bitmap capture (CWhorldDraw::CaptureBitmap). GetCaptureSize applies
 	// EF_USE_VIEW_SIZE; the host creates an offscreen renderer of that many
 	// pixels at scale 1 and calls DrawCapture, which renders the frozen
@@ -165,6 +172,8 @@ protected:
 	RectF	m_rCanvas;		// ring dies when ALL its vertices are off canvas
 	double	m_fNewGrowth;	// new ring growth, computed at start of TimerHook
 	int		m_nMaxRings;	// maximum number of rings
+	int		m_nRingFade;	// rings over which a ring fades before the limit removes it; 0 = off
+	bool	m_bRingFadeEased;	// fade along an S-curve instead of a line
 	bool	m_bIsPaused;	// if true, we're paused
 	bool	m_bSnapshotMode;	// if true, we're displaying a snapshot
 	bool	m_bFlushHistory;	// if true, next TimerHook won't interpolate oscillators
@@ -216,7 +225,8 @@ protected:
 	void	TimerHook();
 	void	DrawRing(IRenderer& renderer, bool bFilled,
 		int iFirstPoint, int nPoints, int nVertices, bool bCurved) const;
-	void	DrawOutline(IRenderer& renderer, const RING& ring, float fLineWidth) const;
+	void	DrawOutline(IRenderer& renderer, const RING& ring, float fLineWidth, float fFade = 1) const;
+	float	RingFadeFactor(double fRingsLeft) const;
 	std::unique_ptr<Snapshot>	GetSnapshot() const;
 	void	SetSnapshot(const Snapshot& snapshot);
 	void	EnterSnapshotMode();
