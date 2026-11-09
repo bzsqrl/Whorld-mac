@@ -82,6 +82,17 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 	/// workspace scrolls.
 	var scrollsItself: Bool { self == .playlist || self == .mapping }
 
+	/// A form's narrowest width: it stretches to fill a wider pane (its
+	/// sliders widen) and scrolls sideways in a narrower one.
+	var formMinWidth: CGFloat {
+		switch self {
+		case .params: ParamColumn.panelMin
+		case .master: MasterPanel.minWidth
+		case .globals: GlobalsPanel.minWidth
+		default: 190
+		}
+	}
+
 	/// a floating window's smallest content size
 	var floatingMinSize: CGSize {
 		switch self {
@@ -587,6 +598,24 @@ extension UTType {
 	static let whorldPanel = UTType(exportedAs: "io.github.bzsqrl.whorld.panel")
 }
 
+/// A form panel in its pane or window: as wide as the pane, so its sliders
+/// stretch to fill it (as a table's columns do), down to the form's
+/// narrowest width, below which it scrolls sideways; rows keep their height
+/// from the top and scroll if the pane is shorter.
+struct FormScroller: View {
+	let id: PanelID
+
+	var body: some View {
+		GeometryReader { g in
+			ScrollView([.horizontal, .vertical]) {
+				PanelBody(id: id)
+					.frame(width: max(g.size.width, id.formMinWidth), alignment: .topLeading)
+					.frame(minHeight: g.size.height, alignment: .top)
+			}
+		}
+	}
+}
+
 /// The panel's identity for dragging, within Whorld only.
 private func panelProvider(_ id: PanelID) -> NSItemProvider {
 	let p = NSItemProvider()
@@ -682,13 +711,8 @@ struct DockedPanel: View {
 		if id.scrollsItself {	// a table: fills the pane and scrolls itself, sideways too if narrower
 			PanelBody(id: id)
 				.frame(maxWidth: .infinity, maxHeight: .infinity)
-		} else {	// a form: top left in a bigger pane, scrolling in a smaller one
-			GeometryReader { g in
-				ScrollView([.horizontal, .vertical]) {
-					PanelBody(id: id)
-						.frame(minWidth: g.size.width, minHeight: g.size.height, alignment: .topLeading)
-				}
-			}
+		} else {
+			FormScroller(id: id)
 		}
 	}
 }
@@ -739,8 +763,8 @@ struct FloatingPanel: View {
 		Group {
 			if id.scrollsItself {
 				PanelBody(id: id)
-			} else {	// docked, the workspace scrolls a form
-				ScrollView([.horizontal, .vertical]) { PanelBody(id: id) }
+			} else {
+				FormScroller(id: id)
 			}
 		}
 			.frame(minWidth: id.floatingMinSize.width, minHeight: id.floatingMinSize.height)

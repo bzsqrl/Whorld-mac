@@ -264,7 +264,10 @@ struct PositionSlider: View {
 	let defaultValue: Double
 	/// the arrow keys, if not in plain positions: (value, +1 or -1, step) -> new value; .end isn't passed
 	var step: ((Double, Int, KeyStep) -> Double)? = nil
-	var width: CGFloat = 160
+	/// the narrowest it gets; it widens to fill its row
+	var width: CGFloat = PositionSlider.minWidth
+
+	static let minWidth: CGFloat = 120
 
 	var body: some View {
 		let lo = Double(control.rangeMin), hi = Double(control.rangeMax)
@@ -272,7 +275,7 @@ struct PositionSlider: View {
 			set: { commit(denorm($0)) },
 			reset: { commit(defaultValue) },
 			step: step.map { f in { d, k in commit(f(value, d, k)) } })
-			.frame(width: width, height: 18)
+			.frame(minWidth: width, maxWidth: .infinity, minHeight: 18, maxHeight: 18)
 	}
 }
 
@@ -352,7 +355,7 @@ struct KeySlider: NSViewRepresentable {
 	}
 
 	func sizeThatFits(_ proposal: ProposedViewSize, nsView: Slider, context: Context) -> CGSize? {
-		CGSize(width: proposal.width ?? 160, height: 18)
+		CGSize(width: proposal.width ?? PositionSlider.minWidth, height: 18)
 	}
 }
 
@@ -369,7 +372,8 @@ struct ParamsPanel: View {
 			VStack(alignment: .leading, spacing: 4) {
 				HStack(spacing: ParamColumn.spacing) {
 					Text("Name").frame(width: ParamColumn.name, alignment: .leading)
-					Text("Value").frame(width: ParamColumn.slider + ParamColumn.spacing + ParamColumn.field, alignment: .leading)
+					Text("Value").frame(minWidth: ParamColumn.slider, maxWidth: .infinity, alignment: .leading)	// over the slider, which stretches
+					Color.clear.frame(width: ParamColumn.field, height: 1)
 					Text("Waveform").frame(width: ParamColumn.wave, alignment: .leading)
 					Text("Amplitude").frame(width: ParamColumn.field, alignment: .leading)
 					Text("Frequency").frame(width: ParamColumn.field, alignment: .leading)
@@ -386,14 +390,17 @@ struct ParamsPanel: View {
 	}
 }
 
-/// The Parameters panel's column widths.
+/// The Parameters panel's column widths. The slider stretches to fill the
+/// pane; the rest keep these widths.
 enum ParamColumn {
 	static let spacing: CGFloat = 8
 	static let name: CGFloat = 96
-	static let slider: CGFloat = 160
+	static let slider: CGFloat = PositionSlider.minWidth	// the narrowest; it stretches
 	static let field: CGFloat = 96
 	static let wave: CGFloat = 104
 	static let pw: CGFloat = 70
+	/// the narrowest the panel gets: every column, the gaps, the padding
+	static let panelMin: CGFloat = name + slider + field + wave + field + field + pw + 6 * spacing + 20
 }
 
 struct ParamRow: View {
@@ -458,8 +465,11 @@ struct ParamRow: View {
 // MARK: Master
 
 struct MasterPanel: View {
+	/// the narrowest the panel gets (name, slider, number box, gaps, padding)
+	static let minWidth: CGFloat = 72 + PositionSlider.minWidth + NumberField.standardWidth + 16 + 24
+
 	var body: some View {
-		Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 6) {
+		VStack(alignment: .leading, spacing: 6) {	// rows of fixed columns around a stretching slider
 			ForEach(0..<WHControls.masterCount, id: \.self) { i in
 				MasterRow(i: i)
 			}
@@ -476,9 +486,10 @@ struct MasterRow: View {
 		let _ = model.changes.master[i].n	// redraw for this row's changes only
 		let ci = WHControls.masterControl(i)
 		let value = model.engine.masterValue(i)
-		GridRow {
+		HStack(spacing: 8) {
 			Text(WHControls.masterName(i))
-				.frame(minWidth: 72, alignment: .leading)
+				.lineLimit(1)
+				.frame(width: 72, alignment: .leading)
 			PositionSlider(
 				value: value,
 				control: ci,
@@ -486,8 +497,7 @@ struct MasterRow: View {
 				denorm: { WHControls.masterValue(i, position: $0) },
 				commit: { model.setMaster(i, $0) },
 				defaultValue: WHControls.masterDefault(i),
-				step: { masterStep(i, ci, $0, $1, $2) },
-				width: 200)
+				step: { masterStep(i, ci, $0, $1, $2) })
 			NumberField(
 				value: value,
 				format: { WHControls.formatMaster(i, value: $0) },
@@ -504,8 +514,11 @@ struct MasterRow: View {
 // MARK: Globals
 
 struct GlobalsPanel: View {
+	/// the narrowest the panel gets (name, slider, number box, gaps, padding)
+	static let minWidth: CGFloat = 96 + PositionSlider.minWidth + NumberField.standardWidth + 16 + 24
+
 	var body: some View {
-		Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 4) {
+		VStack(alignment: .leading, spacing: 4) {	// rows of fixed columns around a stretching slider
 			ForEach(0..<WHControls.globalCount, id: \.self) { g in
 				GlobalRow(i: WHControls.param(forGlobal: g))
 			}
@@ -522,17 +535,17 @@ struct GlobalRow: View {
 		let _ = model.changes.params[i].n	// redraw for this row's changes only
 		let ci = WHControls.globalControl(i)
 		let value = model.engine.paramValue(i, property: .global)
-		GridRow {
+		HStack(spacing: 8) {
 			Text(WHControls.paramName(i))
-				.frame(minWidth: 96, alignment: .leading)
+				.lineLimit(1)
+				.frame(width: 96, alignment: .leading)
 			PositionSlider(
 				value: value,
 				control: ci,
 				norm: { WHControls.globalPosition(i, value: $0) },
 				denorm: { WHControls.globalValue(i, position: $0) },
 				commit: { model.setParam(i, .global, $0) },
-				defaultValue: WHControls.paramDefault(i, column: 4),
-				width: 200)
+				defaultValue: WHControls.paramDefault(i, column: 4))
 			NumberField(
 				value: value,
 				format: { WHControls.format($0, control: ci) },
@@ -611,7 +624,7 @@ struct PropertiesPanel: View {
 		}
 		.controlSize(.small)
 		.padding(6)
-		.fixedSize()
+		.fixedSize(horizontal: false, vertical: true)	// as wide as its pane (rows and dividers stretch); compact in height
 		.background(MainWindowObserver { window.window = $0 })
 		.onChange(of: focus) { _, row in	// Space: see AppModel.keyboardSpaceAction
 			if row == nil {
