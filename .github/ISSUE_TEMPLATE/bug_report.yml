@@ -1,0 +1,61 @@
+# This file is part of Whorld for macOS. GPLv3; see LICENSE.
+# Written with Claude (Anthropic).
+name: Bug report
+description: Something in Whorld for macOS doesn't work as it should.
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem with **Whorld for macOS**. If it also happens in Whorld for Windows, mention that below.
+        Help > Report a Bug in the app opens this form with your Whorld version, macOS version and Mac already filled in.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you see, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can it be made to happen again? Which patch or playlist, if any?
+      placeholder: |
+        1. Open the patch …
+        2. Choose View > Enter Full Screen
+        3. …
+  - type: input
+    id: version
+    attributes:
+      label: Whorld version
+      description: Whorld > About Whorld.
+      placeholder: "0.1 (1)"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "15.1"
+    validations:
+      required: true
+  - type: input
+    id: mac
+    attributes:
+      label: Mac
+      description: The chip or model, such as "Apple M1 Max" or "Intel Core i7".
+  - type: dropdown
+    id: renderer
+    attributes:
+      label: Renderer
+      description: Whorld > Settings > Rendering.
+      options:
+        - Metal (GPU)
+        - Core Graphics (CPU)
+        - Don't know
+  - type: textarea
+    id: files
+    attributes:
+      label: Files and screenshots
+      description: Drag in the patch (.whp), a screenshot or a short screen recording if they help show the problem.

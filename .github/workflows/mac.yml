@@ -3,9 +3,9 @@ name: mac
 
 on:
   push:
-    branches: [mac-port]
+    branches: [main]
   pull_request:
-    branches: [mac-port]
+    branches: [main]
 
 jobs:
   engine-macos:

@@ -1,0 +1,44 @@
+# This file is part of Whorld for macOS. GPLv3; see LICENSE.
+# Written with Claude (Anthropic).
+name: Feature request
+description: An idea for something Whorld for macOS could do, or do better.
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea! Please check the [existing requests](https://github.com/bzsqrl/Whorld-mac/issues?q=label%3Aenhancement) first; if yours is there, add a 👍 to it instead.
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like Whorld to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: What would it help you with?
+      description: The situation or problem behind the idea. This often matters more than the exact solution.
+  - type: dropdown
+    id: usage
+    attributes:
+      label: How do you use Whorld?
+      multiple: true
+      options:
+        - Live visuals (VJing, projection)
+        - Recording or exporting video
+        - Making still images
+        - With a MIDI controller
+        - Watching it, like a screensaver
+        - Something else
+  - type: input
+    id: windows
+    attributes:
+      label: Does Whorld for Windows do this?
+      description: If it does, how does it work there?
+  - type: input
+    id: version
+    attributes:
+      label: Whorld version
+      description: Whorld > About Whorld.
+      placeholder: "0.1 (1)"

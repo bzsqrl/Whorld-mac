@@ -237,12 +237,45 @@ struct HelpCommands: Commands {
 				.keyboardShortcut("?")
 			Button("Whorld Manual") { Self.openHelp("frames.html") }
 			Divider()
+			Button("Report a Bug…") { Self.openIssueForm("bug_report.yml") }
+			Button("Request a Feature…") { Self.openIssueForm("feature_request.yml") }
+			Divider()
 			Button("Whorld for Mac on GitHub") { NSWorkspace.shared.open(Self.sourceURL) }
 			Button("Original Whorld Website") { NSWorkspace.shared.open(URL(string: "https://whorld.org")!) }
 		}
 	}
 
 	static let sourceURL = URL(string: "https://github.com/bzsqrl/Whorld-mac")!
+
+	/// Opens one of the repository's issue forms (.github/ISSUE_TEMPLATE) in
+	/// the browser, with the Whorld version, macOS version and Mac filled in
+	/// (a form's fields take their values from URL parameters named by id).
+	static func openIssueForm(_ template: String) {
+		let info = Bundle.main.infoDictionary ?? [:]
+		let version = "\(info["CFBundleShortVersionString"] as? String ?? "?") (\(info["CFBundleVersion"] as? String ?? "?"))"
+		let os = ProcessInfo.processInfo.operatingSystemVersion
+		let macos = os.patchVersion > 0
+			? "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)" : "\(os.majorVersion).\(os.minorVersion)"
+		var c = URLComponents(url: sourceURL.appendingPathComponent("issues/new"), resolvingAgainstBaseURL: false)!
+		c.queryItems = [
+			URLQueryItem(name: "template", value: template),
+			URLQueryItem(name: "version", value: version),
+			URLQueryItem(name: "macos", value: macos),
+			URLQueryItem(name: "mac", value: chipName()),
+		]
+		if let url = c.url {
+			NSWorkspace.shared.open(url)
+		}
+	}
+
+	/// The processor, such as "Apple M1 Max" or "Intel(R) Core(TM) i7-…".
+	private static func chipName() -> String {
+		var size = 0
+		guard sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0) == 0, size > 0 else { return "" }
+		var buf = [CChar](repeating: 0, count: size)
+		guard sysctlbyname("machdep.cpu.brand_string", &buf, &size, nil, 0) == 0 else { return "" }
+		return String(cString: buf)
+	}
 
 	/// Opens a page of the bundled help (Contents/Resources/Help, copied by
 	/// the Copy Help build phase) in the default browser.

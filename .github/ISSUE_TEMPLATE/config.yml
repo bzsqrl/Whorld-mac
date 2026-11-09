@@ -1,0 +1,10 @@
+# This file is part of Whorld for macOS. GPLv3; see LICENSE.
+# Written with Claude (Anthropic).
+blank_issues_enabled: false
+contact_links:
+  - name: Installing and using Whorld for macOS
+    url: https://github.com/bzsqrl/Whorld-mac#readme
+    about: How to install the app and get past macOS's first-launch warning. In the app, Help > Whorld Help covers the rest.
+  - name: The original Whorld (Windows)
+    url: https://github.com/victimofleisure/Whorld
+    about: For Whorld for Windows, Chris Korda's original.

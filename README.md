@@ -10,7 +10,7 @@ Download `Whorld-<version>.dmg` from [Releases](https://github.com/bzsqrl/Whorld
 
 The app is signed ad hoc but not notarized by Apple, so the first time you open it macOS says it can't check it for malicious software. Control-click Whorld in Applications, choose **Open**, then **Open** again. On macOS 15 and later, if there is no Open button, go to **System Settings > Privacy & Security** and click **Open Anyway**. You only need to do this once.
 
-Help > Whorld Help explains what differs from Windows and lists the keyboard shortcuts. Please report bugs and suggestions in [Issues](https://github.com/bzsqrl/Whorld-mac/issues), not on the original Whorld's repository.
+Help > Whorld Help explains what differs from Windows and lists the keyboard shortcuts. To report a bug or request a feature, choose Help > Report a Bug or Help > Request a Feature in the app, or open a [new issue](https://github.com/bzsqrl/Whorld-mac/issues/new/choose) here; please not on the original Whorld's repository. Before requesting a feature, check the [existing requests](https://github.com/bzsqrl/Whorld-mac/issues?q=label%3Aenhancement) and add a 👍 to one you'd like too.
 
 ### Build from source
 
