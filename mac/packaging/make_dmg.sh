@@ -33,6 +33,8 @@ rm -rf "$stage"; mkdir -p "$stage"
 ditto "$app" "$stage/Whorld.app"
 ln -s /Applications "$stage/Applications"
 cp "$repo/LICENSE" "$stage/License.txt"
+mkdir -p "$stage/TouchOSC"
+cp "$repo/mac/touchosc/Whorld.tosc" "$stage/TouchOSC/Whorld.tosc"	# OSC remote control layout
 cat > "$stage/Read Me.txt" <<TXT
 Whorld $version for macOS
 A port of Whorld, the free sacred-geometry visualizer by Chris Korda.

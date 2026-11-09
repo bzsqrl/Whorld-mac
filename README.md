@@ -2,7 +2,7 @@
 
 A native macOS port of [Whorld](https://github.com/victimofleisure/Whorld) V2, the free sacred-geometry visualizer by Chris Korda. This is an unofficial port; the official Whorld, for Windows, is at [victimofleisure/Whorld](https://github.com/victimofleisure/Whorld). This repository keeps Whorld's full history, and the original Windows source in `trunk/Whorld` is unchanged.
 
-Whorld for macOS runs on macOS 14 (Sonoma) or later, on Apple silicon and Intel Macs, and draws patches the same way the Windows version does. Patches, playlists, snapshots and movies are the same files on both, so you can share them across platforms. The Mac version adds video export (H.264, HEVC and ProRes) and takes MIDI input through Core MIDI.
+Whorld for macOS runs on macOS 14 (Sonoma) or later, on Apple silicon and Intel Macs, and draws patches the same way the Windows version does. Patches, playlists, snapshots and movies are the same files on both, so you can share them across platforms. The Mac version adds video export (H.264, HEVC and ProRes) and takes MIDI input through Core MIDI. It can also be controlled and monitored over the network with OSC, and a TouchOSC layout is included (Help > Whorld Help lists the addresses).
 
 ### Install
 
@@ -27,7 +27,7 @@ xcodebuild -project mac/app/Whorld.xcodeproj -scheme Whorld build
 sh mac/packaging/make_dmg.sh
 ```
 
-`build/tools/whorld-render` renders patches, snapshots and movies from the command line (run it with no arguments for help). The source layout and the porting notes are in [CLAUDE.md](CLAUDE.md) and [PORT_PLAN.md](PORT_PLAN.md). The Windows source in `trunk/Whorld` is unchanged.
+`python3 mac/tools/build_touchosc.py` rebuilds the TouchOSC layout, `mac/touchosc/Whorld.tosc`. `build/tools/whorld-render` renders patches, snapshots and movies from the command line (run it with no arguments for help). The source layout and the porting notes are in [CLAUDE.md](CLAUDE.md) and [PORT_PLAN.md](PORT_PLAN.md). The Windows source in `trunk/Whorld` is unchanged.
 
 The port is free software under the GNU GPL version 3 or later ([LICENSE](LICENSE)); the original Whorld source is GPL version 2 or later. Whorld is copyleft Chris Korda; the macOS port is by Jeff Matson and Claude. Each ported file names the original it comes from and keeps its copyright notice.
 
