@@ -381,14 +381,14 @@ final class AppModel: ObservableObject {
 		return nil
 	}
 
-	// CPlaylistBar::Play (from the MIDI Patch target)
+	// CPlaylistBar::Play (also from the MIDI and OSC Patch target). Unlike
+	// Windows, which asks to save an edited patch first (except in full
+	// screen), this never asks: playing through a playlist live shouldn't
+	// be interrupted, and unsaved edits are simply let go (the user's choice,
+	// 2026-11-09). File > New, Open and Quit still ask.
 	func playPatch(_ index: Int) {
 		let paths = engine.playlistPatches
 		guard index >= 0, index < paths.count, let url = resolvePatchPath(paths[index]) else { return }
-		// read first; then the save prompt, unless full screen
-		if !isFullScreen && !confirmDiscard() {
-			return
-		}
 		if engine.playPatch(atPath: url.path) {
 			playingPatch = index
 			resetUndo()
