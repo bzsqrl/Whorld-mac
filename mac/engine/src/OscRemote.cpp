@@ -85,6 +85,9 @@ const char* const	kMiscName[] = {
 	"clear",	// Clear
 	"pause",	// Pause
 	"patch",	// Patch
+	"hue",		// Hue (Mac addition)
+	"rothue",	// RotateHue
+	"invert",	// InvertColor
 };
 static_assert(sizeof(kMiscName) / sizeof(kMiscName[0]) == MappingBase::MISC_TARGETS, "a name per miscellaneous target");
 
@@ -271,6 +274,8 @@ bool OscRemote::StateValue(const Patch& doc, int iTarget, int iProp, OscArg& arg
 	case MT_LoopHue: arg = OscArg::Float(m.bLoopHue); return true;
 	case MT_ZoomCenter: arg = OscArg::Float(m.bZoomCenter); return true;
 	case MT_Antialiasing: arg = OscArg::Float(m.bAntialiasing); return true;
+	case MT_Hue: arg = OscArg::Float(m.fHue / 360); return true;
+	case MT_InvertColor: arg = OscArg::Float(m.bInvertColor); return true;
 	default: return false;	// actions, pause and patch
 	}
 }

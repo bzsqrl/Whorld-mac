@@ -88,6 +88,9 @@ public:
 	// line (an app setting, not part of the patch). Snapshots and movie
 	// frames, which don't record the limit, fade toward their own ring count.
 	void	SetRingFadeEased(bool bEased) { m_bRingFadeEased = bEased; }
+	// Mac addition: a loaded patch starts the hue from its own Hue (the
+	// running hue resets), instead of carrying on from the previous patch
+	void	SetHueFromPatch(bool bEnable) { m_bHueFromPatch = bEnable; }
 	// Bitmap capture (CWhorldDraw::CaptureBitmap). GetCaptureSize applies
 	// EF_USE_VIEW_SIZE; the host creates an offscreen renderer of that many
 	// pixels at scale 1 and calls DrawCapture, which renders the frozen
@@ -127,6 +130,7 @@ public:
 	void	OnSetDampedGlobal(int iParam, double fGlobal);
 	void	OnSetDrawMode(uint32_t nMask, uint32_t nVal);
 	void	OnSetSnapshotSize(IntSize szSnapshot);
+	void	OnRotateHue(double fDegrees);	// Mac addition (V1's Rotate Hue)
 	void	OnMovieRecord(const std::string* psPath);	// null stops recording
 	void	OnMoviePlay(const std::string* psPath, bool bPaused);	// null stops playback
 	void	OnMoviePause(bool bEnable);
@@ -176,6 +180,7 @@ protected:
 	double	m_fNewGrowth;	// new ring growth, computed at start of TimerHook
 	int		m_nMaxRings;	// maximum number of rings
 	bool	m_bRingFadeEased;	// ring fade along an S-curve instead of a line
+	bool	m_bHueFromPatch;	// see SetHueFromPatch
 	bool	m_bIsPaused;	// if true, we're paused
 	bool	m_bRedrawing;	// Mac port: in DrawAtSize, which mustn't read a movie frame
 	bool	m_bSnapshotMode;	// if true, we're displaying a snapshot
@@ -229,6 +234,7 @@ protected:
 	void	DrawRing(IRenderer& renderer, bool bFilled,
 		int iFirstPoint, int nPoints, int nVertices, bool bCurved) const;
 	void	DrawOutline(IRenderer& renderer, const RING& ring, float fLineWidth, float fFade = 1) const;
+	ColorF	RingBrush(const ColorF& clr, float fFade) const;	// Mac: ring fade and Invert Color
 	float	RingFadeFactor(double fRingsLeft, int nFadeRings) const;
 	std::unique_ptr<Snapshot>	GetSnapshot() const;
 	void	SetSnapshot(const Snapshot& snapshot);

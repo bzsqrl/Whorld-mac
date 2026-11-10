@@ -174,6 +174,30 @@ void MidiManager::PushMiscTarget(int iMiscTarget, double fNormVal)
 			m_sink.PostToMain(post);
 		}
 		break;
+	// Mac additions (V1's hue controls)
+	case MT_Hue:	// 0 to 1 covers the hue wheel
+		{
+			VARIANT_PROP	prop;
+			prop.llVal = 0;
+			prop.dblVal = fNormVal * 360;
+			PushCmd(RC_SET_MAIN, MAIN_Hue, prop);
+			Post	post;
+			post.type = Post::MAIN_PROP_CHANGE;
+			post.iProp = MAIN_Hue;
+			post.fVal = prop.dblVal;	// a double, unlike the other main properties
+			m_sink.PostToMain(post);
+		}
+		break;
+	case MT_RotateHue:
+		{	// the main thread owns the Hue it adds to
+			Post	post;
+			post.type = Post::ROTATE_HUE;
+			m_sink.PostToMain(post);
+		}
+		break;
+	case MT_InvertColor:
+		PushMainBool(MAIN_InvertColor, fNormVal != 0);
+		break;
 	}
 }
 

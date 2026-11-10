@@ -76,6 +76,7 @@ WhorldEngine::WhorldEngine()
 	m_fNewGrowth = 0;
 	m_nMaxRings = INT_MAX;
 	m_bRingFadeEased = false;
+	m_bHueFromPatch = false;
 	m_bIsPaused = false;
 	m_bRedrawing = false;
 	m_bSnapshotMode = false;
@@ -327,7 +328,11 @@ void WhorldEngine::AddRing()
 	m_params.fLightness = Clamp(m_params.fLightness, 0, 1);
 	m_params.fSaturation = Clamp(m_params.fSaturation, 0, 1);
 	double	fR, fG, fB;
-	HLS::hls2rgb(m_fHue, m_params.fLightness, m_params.fSaturation, fR, fG, fB);
+	// Mac addition (V1's Hue): the main property Hue offsets the hue of new
+	// rings, shifting the looped range too; existing rings keep theirs.
+	// Unused on Windows V2. Wrap leaves the hue unchanged when Hue is 0.
+	double	fHue = Wrap(m_fHue + m_main.fHue, 360);
+	HLS::hls2rgb(fHue, m_params.fLightness, m_params.fSaturation, fR, fG, fB);
 	m_clrRing = MakeColor(DTOF(fR), DTOF(fG), DTOF(fB), DTOF(m_params.fAlpha));
 	RING	ring;
 	std::memset(&ring, 0, sizeof(ring));	// every member is set below; zeroed for tidiness
@@ -366,7 +371,7 @@ void WhorldEngine::AddRing()
 	ring.fStarRatio = std::cos(M_PI_ / ring.nSides) * fRad;
 	ring.fPinwheel = M_PI_ / ring.nSides * m_params.fPinwheel;
 	ring.fLineWidth = DTOF(m_params.fLineWidth);
-	ring.fHue = m_fHue;
+	ring.fHue = fHue;
 	ring.fLightness = m_params.fLightness;
 	ring.fSaturation = m_params.fSaturation;
 	ring.ptOrigin = m_ptOrigin;
@@ -508,6 +513,25 @@ inline void WhorldEngine::DrawRing(IRenderer& renderer, bool bFilled,
 {
 	// BeginFigure, then AddBeziers(nVertices) or AddLines(nPoints - 1), EndFigure(closed)
 	renderer.AddFigure(&m_aPt[iFirstPoint], bCurved ? nVertices : nPoints - 1, bCurved, bFilled);
+}
+
+// A ring's brush: its color with the ring fade (Mac port), inverted in RGB
+// while Invert Color is on (Mac addition, V1's WhorldView.cpp
+// CWhorldView::InvertColor, which XORs ring colors with 0xffffff: lightness
+// flips as well as hue). V1 inverts the stored colors of existing rings;
+// inverting as drawn does the same for live rings, and keeps snapshots and
+// movie frames (which carry their own ring colors) consistent with the
+// switch. The background, and outlines in its color, aren't affected.
+inline ColorF WhorldEngine::RingBrush(const ColorF& clr, float fFade) const
+{
+	ColorF	c = clr;
+	if (m_main.bInvertColor) {
+		c.r = 1 - c.r;
+		c.g = 1 - c.g;
+		c.b = 1 - c.b;
+	}
+	c.a *= fFade;
+	return c;
 }
 
 // ported from WhorldDraw.cpp CWhorldDraw::DrawOutline
@@ -704,8 +728,7 @@ bool WhorldEngine::Draw(IRenderer& renderer)
 						DrawRing(renderer, true, nPoints, nPrevPoints, nPrevVertices, bPrevCurved);
 					}
 					renderer.EndPath();	// CLOSE_GEOMETRY_SINK
-					m_clrDrawBrush = bConvex ? clrPrev : ring.clrCur;
-					m_clrDrawBrush.a *= fFade;
+					m_clrDrawBrush = RingBrush(bConvex ? clrPrev : ring.clrCur, fFade);
 					renderer.FillPath(m_clrDrawBrush);
 					DrawOutline(renderer, ring, DTOF(fLineWidth), fFade);
 				}
@@ -713,8 +736,7 @@ bool WhorldEngine::Draw(IRenderer& renderer)
 					renderer.BeginPath();
 					DrawRing(renderer, true, 0, nPoints, nVertices, bCurved);
 					renderer.EndPath();
-					m_clrDrawBrush = ring.clrCur;
-					m_clrDrawBrush.a *= fFade;
+					m_clrDrawBrush = RingBrush(ring.clrCur, fFade);
 					renderer.FillPath(m_clrDrawBrush);
 					DrawOutline(renderer, ring, DTOF(fLineWidth), fFade);
 				}
@@ -723,8 +745,7 @@ bool WhorldEngine::Draw(IRenderer& renderer)
 			renderer.BeginPath();
 			DrawRing(renderer, false, 0, nPoints, nVertices, bCurved);
 			renderer.EndPath();
-			m_clrDrawBrush = ring.clrCur;
-			m_clrDrawBrush.a *= fFade;
+			m_clrDrawBrush = RingBrush(ring.clrCur, fFade);
 			renderer.StrokePath(m_clrDrawBrush, DTOF(fLineWidth));
 		}
 		nPrevPoints = nPoints;
@@ -1059,6 +1080,11 @@ void WhorldEngine::OnSetPatch(const Patch& patch)
 		m_aOsc[iParam].SetWaveform(row.iWave);
 		m_aOsc[iParam].SetPulseWidth(row.fPW);
 	}
+	if (m_bHueFromPatch) {	// Mac addition: start from the patch's Hue (V1's SetMainInfo)
+		m_fHue = 0;	// new rings then get the patch's Hue, which offsets them
+		m_fHueLoopPos = 0;
+		m_fHueLoopBase = 0;	// and a looped range starts there (OnHueSpanChange below)
+	}
 	OnMasterPropChange();	// handle master property changes
 	OnMainPropChange();	// handle main property changes
 	OnGlobalsChange();	// handle global parameter changes
@@ -1197,6 +1223,20 @@ void WhorldEngine::OnSetDrawMode(uint32_t nMask, uint32_t nVal)
 {
 	m_main.nDrawMode &= ~nMask;	// clear specified bits
 	m_main.nDrawMode |= (nVal & nMask);	// set specified bits
+}
+
+// Mac addition, ported from V1's WhorldView.cpp CWhorldView::RotateHue:
+// rotates the hue of existing rings, keeping their lightness, saturation and
+// alpha. (V1 also adds the degrees to the hue of new rings; here the main
+// thread adds them to the Hue property, which offsets new rings.)
+void WhorldEngine::OnRotateHue(double fDegrees)
+{
+	for (RING& ring : m_aRing) {
+		ring.fHue = Wrap(ring.fHue + fDegrees, 360);
+		double	fR, fG, fB;
+		HLS::hls2rgb(ring.fHue, ring.fLightness, ring.fSaturation, fR, fG, fB);
+		ring.clrCur = MakeColor(DTOF(fR), DTOF(fG), DTOF(fB), ring.clrCur.a);
+	}
 }
 
 // ported from WhorldThread.cpp CWhorldThread::OnSetSnapshotSize
@@ -1415,6 +1455,9 @@ void WhorldEngine::OnRenderCommand(const RenderCmd& cmd)
 		break;
 	case RC_SET_DRAW_MODE:
 		OnSetDrawMode(cmd.m_nParam, cmd.m_prop.uintVal);
+		break;
+	case RC_ROTATE_HUE:	// Mac addition
+		OnRotateHue(cmd.m_prop.dblVal);
 		break;
 	case RC_SET_SNAPSHOT_SIZE:
 		OnSetSnapshotSize(cmd.m_prop.szVal);

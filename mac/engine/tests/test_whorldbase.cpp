@@ -132,7 +132,8 @@ TEST(RenderCommands) {
 	CHECK_EQ(int(WhorldBase::RC_SET_PARAM_Val), 2);
 	CHECK_EQ(int(WhorldBase::RC_SET_PARAM_LAST), int(WhorldBase::RC_SET_PARAM_Global));
 	CHECK_EQ(int(WhorldBase::RC_SET_MASTER), 8);
-	CHECK_EQ(int(WhorldBase::RENDER_COMMANDS), 35);
+	CHECK_EQ(int(WhorldBase::RENDER_COMMANDS), 36);	// 35 on Windows, plus the Mac's ROTATE_HUE
+	CHECK_EQ(std::string(WhorldBase::GetRenderCmdName(WhorldBase::RC_ROTATE_HUE)), std::string("ROTATE_HUE"));
 	CHECK_EQ(std::string(WhorldBase::GetRenderCmdName(0)), std::string("RESIZE"));
 	CHECK_EQ(std::string(WhorldBase::GetRenderCmdName(WhorldBase::RC_SET_PARAM_PW)), std::string("SET_PARAM_PW"));
 	CHECK_EQ(std::string(WhorldBase::GetRenderCmdName(WhorldBase::RC_SET_MASTER)), std::string("SET_MASTER"));

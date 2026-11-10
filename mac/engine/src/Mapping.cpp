@@ -44,6 +44,7 @@ const char* const kMiscTargetName[MappingBase::MISC_TARGETS] = {
 	"Origin X", "Origin Y", "Fill", "Outline", "Mirror", "Origin Drag", "Origin Random", "Reverse",
 	"Convex", "Loop Hue", "Zoom Center", "Antialiasing", "Random Phase", "Random Origin", "Clear",
 	"Pause", "Patch",
+	"Hue", "Rotate Hue", "Invert Color",	// Mac additions
 };
 
 const int kMiscTargetType[MappingBase::MISC_TARGETS] = {

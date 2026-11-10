@@ -225,6 +225,8 @@ RENDERCMDDEF(MOVIE_PLAY,		byref	)	// plays a movie; m_nParam: bPaused, m_prop: L
 RENDERCMDDEF(MOVIE_PAUSE,		intVal	)	// pauses movie playback; m_nParam: bool bEnable, m_prop: none
 RENDERCMDDEF(MOVIE_SEEK,		intVal	)	// seeks movie playback; m_nParam: none, m_prop: frame index
 RENDERCMDDEF(MOVIE_EXPORT,		byref	)	// exports movie as image sequence; m_nParam: nTaskID, m_prop: LPCTSTR pszPath
+// Mac additions (restoring V1's Rotate Hue)
+RENDERCMDDEF(ROTATE_HUE,		dblVal	)	// rotates the hue of existing rings; m_nParam: unused, m_prop: double degrees
 
 #undef RENDERCMDDEF
 #endif // RENDERCMDDEF

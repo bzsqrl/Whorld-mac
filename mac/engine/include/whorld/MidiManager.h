@@ -40,6 +40,7 @@ public:
 			PAUSE,				// WM_COMMAND ID_WINDOW_PAUSE: toggle pause
 			PLAY_PATCH,			// UWM_PLAY_PATCH: iVal is the playlist index
 			MIDI_EVENT,			// UWM_MIDI_EVENT to the mapping bar (learn mode): nMsg
+			ROTATE_HUE,			// Mac addition: the main thread rotates the hue 90 degrees
 		};
 		Type	type;
 		int		iParam = 0;

@@ -166,7 +166,13 @@ TEST(MappingDefaultsAndNames) {
 	CHECK_EQ(m.m_iEvent, int(MIDI_CVM_CONTROL));
 	CHECK_EQ(m.m_iControl, 1);
 	CHECK_EQ(m.m_fEnd, 100.0);
-	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 17);
+	// 17 miscellaneous targets on Windows, plus the Mac's Hue, Rotate Hue and Invert Color
+	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 20);
+	CHECK_EQ(std::string(MB::GetTargetTag(MB::TARGET_RotateHue)), std::string("RotateHue"));
+	CHECK_EQ(MB::GetTargetName(MB::TARGET_InvertColor), std::string("Invert Color"));
+	CHECK_EQ(MB::GetTargetType(MB::TARGET_Hue), int(MB::TT_RANGE));
+	CHECK_EQ(MB::GetTargetType(MB::TARGET_RotateHue), int(MB::TT_ACTION));
+	CHECK_EQ(MB::GetTargetType(MB::TARGET_InvertColor), int(MB::TT_BOOL));
 	CHECK_EQ(std::string(MB::GetTargetTag(MB::TARGET_Patch)), std::string("Patch"));
 	CHECK_EQ(MB::GetTargetName(MB::TARGET_OriginX), std::string("Origin X"));
 	CHECK_EQ(MB::GetTargetName(MB::TARGET_CanvasScale), std::string("Canvas"));

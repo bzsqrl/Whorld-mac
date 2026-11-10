@@ -567,3 +567,146 @@ TEST(SamplePatchesRunCleanly) {
 }
 
 int main() { return RunAllTests(); }
+
+// V1's hue controls (Mac additions)
+
+namespace {
+
+// a patch whose running hue stays put (Color Speed 0), with the given Hue
+Patch StillHuePatch(double fHue = 0, double fAlpha = 1)
+{
+	Patch	p = DefaultPatch();
+	p.GetParamRow(Patch::PARAM_ColorSpeed).fVal = 0;
+	p.GetParamRow(Patch::PARAM_ColorSpeed).fAmp = 0;
+	p.GetParamRow(Patch::PARAM_Alpha).fVal = fAlpha;
+	p.m_main.fHue = fHue;
+	return p;
+}
+
+WhorldBase::VARIANT_PROP DoubleProp(double f)
+{
+	WhorldBase::VARIANT_PROP	prop;
+	prop.llVal = 0;
+	prop.dblVal = f;
+	return prop;
+}
+
+WhorldBase::VARIANT_PROP BoolProp(bool b)
+{
+	WhorldBase::VARIANT_PROP	prop;
+	prop.llVal = 0;
+	prop.boolVal = b;
+	return prop;
+}
+
+ColorF HueColor(double fHue, double fLightness, double fSaturation, float fAlpha)
+{
+	double	r, g, b;
+	HLS::hls2rgb(fHue, fLightness, fSaturation, r, g, b);
+	return ColorF{float(r), float(g), float(b), fAlpha};
+}
+
+} // namespace
+
+TEST(HueOffsetsNewRingsOnly) {
+	auto	eng = MakeEngine();
+	eng->OnSetPatch(StillHuePatch());
+	RunFrames(*eng, 50);
+	CHECK(eng->GetRingCount() > 0);
+	for (const auto& ring : eng->GetRings())
+		CHECK_EQ(ring.fHue, 0.0);
+	eng->OnSetMainProp(Patch::MAIN_Hue, DoubleProp(90));	// rings made from now on
+	RunFrames(*eng, 50);
+	int	nNew = 0, nOld = 0;
+	for (const auto& ring : eng->GetRings()) {
+		if (ring.fHue == 90) {
+			nNew++;
+			ColorF	c = HueColor(90, ring.fLightness, ring.fSaturation, 1);
+			CHECK_NEAR(ring.clrCur.r, c.r, 1e-6);
+			CHECK_NEAR(ring.clrCur.g, c.g, 1e-6);
+			CHECK_NEAR(ring.clrCur.b, c.b, 1e-6);
+		} else {
+			CHECK_EQ(ring.fHue, 0.0);	// existing rings keep theirs
+			nOld++;
+		}
+	}
+	CHECK(nNew > 0);
+	CHECK(nOld > 0);
+}
+
+TEST(RotateHueRotatesExistingRings) {
+	auto	eng = MakeEngine();
+	eng->OnSetPatch(StillHuePatch(0, 0.5));
+	RunFrames(*eng, 50);
+	WhorldBase::RenderCmd	cmd(WhorldBase::RC_ROTATE_HUE);
+	cmd.m_prop.dblVal = 90;
+	eng->OnRenderCommand(cmd);
+	for (const auto& ring : eng->GetRings()) {
+		CHECK_EQ(ring.fHue, 90.0);
+		ColorF	c = HueColor(90, ring.fLightness, ring.fSaturation, 0.5f);
+		CHECK_NEAR(ring.clrCur.r, c.r, 1e-6);
+		CHECK_NEAR(ring.clrCur.g, c.g, 1e-6);
+		CHECK_NEAR(ring.clrCur.b, c.b, 1e-6);
+		CHECK_EQ(ring.clrCur.a, 0.5f);	// alpha kept
+	}
+	for (int i = 0; i < 3; i++)	// cumulative: four rotations are a full turn
+		eng->OnRenderCommand(cmd);
+	for (const auto& ring : eng->GetRings())
+		CHECK_NEAR(ring.fHue, 0.0, 1e-9);
+}
+
+TEST(InvertColorInvertsRingsNotBackground) {
+	auto	eng = MakeEngine();
+	eng->OnSetPatch(StillHuePatch(0, 0.5));
+	RunFrames(*eng, 50);
+	SizeF	sz{800, 600};
+	RecordingRenderer	plain, inverted, again;
+	eng->DrawAtSize(plain, sz);	// the same frame each time
+	eng->OnSetMainProp(Patch::MAIN_InvertColor, BoolProp(true));
+	eng->DrawAtSize(inverted, sz);
+	CHECK_EQ(plain.calls.size(), inverted.calls.size());
+	int	nStrokes = 0;
+	for (size_t i = 0; i < plain.calls.size() && i < inverted.calls.size(); i++) {
+		const auto&	a = plain.calls[i];
+		const auto&	b = inverted.calls[i];
+		if (a.type == RC::CLEAR) {
+			CHECK_EQ(b.clr.r, a.clr.r);	// background unchanged
+			CHECK_EQ(b.clr.g, a.clr.g);
+			CHECK_EQ(b.clr.b, a.clr.b);
+		} else if (a.type == RC::STROKE_PATH || a.type == RC::FILL_PATH) {
+			nStrokes++;
+			CHECK_NEAR(b.clr.r, 1 - a.clr.r, 1e-6);	// RGB inversion, as V1
+			CHECK_NEAR(b.clr.g, 1 - a.clr.g, 1e-6);
+			CHECK_NEAR(b.clr.b, 1 - a.clr.b, 1e-6);
+			CHECK_EQ(b.clr.a, a.clr.a);	// alpha kept
+		}
+	}
+	CHECK(nStrokes > 0);
+	for (const auto& ring : eng->GetRings())	// stored colors untouched: inverted as drawn
+		CHECK_EQ(ring.clrCur.a, 0.5f);
+	eng->OnSetMainProp(Patch::MAIN_InvertColor, BoolProp(false));
+	eng->DrawAtSize(again, sz);
+	CHECK_EQ(again.calls.size(), plain.calls.size());
+	for (size_t i = 0; i < plain.calls.size() && i < again.calls.size(); i++)
+		CHECK_EQ(again.calls[i].clr.r, plain.calls[i].clr.r);
+}
+
+TEST(HueFromPatchSettingResetsRunningHue) {
+	for (bool bFromPatch : {false, true}) {
+		auto	eng = MakeEngine();
+		eng->OnSetPatch(DefaultPatch());	// Color Speed 0.5: the running hue moves
+		RunFrames(*eng, 101);
+		eng->SetHueFromPatch(bFromPatch);
+		eng->OnSetPatch(StillHuePatch(30));
+		size_t	nBefore = eng->GetRingCount();
+		RunFrames(*eng, 50);
+		CHECK(eng->GetRingCount() > nBefore);
+		int	nAt30 = 0;
+		for (const auto& ring : eng->GetRings())
+			nAt30 += ring.fHue == 30;
+		if (bFromPatch)
+			CHECK(nAt30 > 0);	// new rings start at the patch's Hue
+		else
+			CHECK_EQ(nAt30, 0);	// carried on: the old running hue plus 30
+	}
+}
