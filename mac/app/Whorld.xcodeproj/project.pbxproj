@@ -18,6 +18,7 @@
 		E7B28A61CD907482207C07C6 /* Workspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1CF5BDDD9EA8A698C909CA9 /* Workspace.swift */; };
 		A0883CEF81765C1DC2F976A3 /* Updates.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1DD95180BE960B3C477BC23 /* Updates.swift */; };
 		DDE83BE642A6C2E166A02FE8 /* WHOscServer.mm in Sources */ = {isa = PBXBuildFile; fileRef = B79F32EE812D66FF9DAB8B80 /* WHOscServer.mm */; };
+		96F024843412E664FD58F31C /* WHSyphon.mm in Sources */ = {isa = PBXBuildFile; fileRef = CE5309039327473BFF495142 /* WHSyphon.mm */; };
 		E400806317F157D60866149F /* WHEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */; };
 		7DCDC4E90CC8AD643F19711A /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 58343318BF1C025D14EA9769 /* AppIcon.icns */; };
 		4C6344BF85C28FB3A76A2C9D /* ByteIO.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9AD330ED67D25720CAF715FE /* ByteIO.cpp */; };
@@ -60,6 +61,8 @@
 		C1DD95180BE960B3C477BC23 /* Updates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Updates.swift"; sourceTree = "<group>"; };
 		F85FF2ED078A1C77D49A3452 /* WHOscServer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "WHOscServer.h"; sourceTree = "<group>"; };
 		B79F32EE812D66FF9DAB8B80 /* WHOscServer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "WHOscServer.mm"; sourceTree = "<group>"; };
+		E092543CD4E3164F37586311 /* WHSyphon.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "WHSyphon.h"; sourceTree = "<group>"; };
+		CE5309039327473BFF495142 /* WHSyphon.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "WHSyphon.mm"; sourceTree = "<group>"; };
 		34488F6B7AD3E8B693BF38A2 /* WHEngine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "WHEngine.h"; sourceTree = "<group>"; };
 		CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "WHEngine.mm"; sourceTree = "<group>"; };
 		895315CF8C9F41F1630E1694 /* Whorld-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Whorld-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -135,6 +138,8 @@
 				C1DD95180BE960B3C477BC23 /* Updates.swift */,
 				F85FF2ED078A1C77D49A3452 /* WHOscServer.h */,
 				B79F32EE812D66FF9DAB8B80 /* WHOscServer.mm */,
+				E092543CD4E3164F37586311 /* WHSyphon.h */,
+				CE5309039327473BFF495142 /* WHSyphon.mm */,
 				34488F6B7AD3E8B693BF38A2 /* WHEngine.h */,
 				CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */,
 				895315CF8C9F41F1630E1694 /* Whorld-Bridging-Header.h */,
@@ -192,8 +197,10 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 7CFCAAA280ADA50A774EA8B7 /* Build configuration list for PBXNativeTarget "Whorld" */;
 			buildPhases = (
+				FB3C88D0AAD1354A2C08F68D /* Build Syphon */,
 				F2AB5FB218DA8B84623F4557 /* Sources */,
 				4F6F5CC3FCCF73F75AE9CCF4 /* Frameworks */,
+				19529AF009CDA27A307CF7E1 /* Embed Syphon */,
 				55B558C7EF820E6E00E5993B /* Resources */,
 				43B3C47F8E852ADB3DC0A309 /* Copy Help */,
 			);
@@ -250,6 +257,7 @@
 				E7B28A61CD907482207C07C6 /* Workspace.swift in Sources */,
 				A0883CEF81765C1DC2F976A3 /* Updates.swift in Sources */,
 				DDE83BE642A6C2E166A02FE8 /* WHOscServer.mm in Sources */,
+				96F024843412E664FD58F31C /* WHSyphon.mm in Sources */,
 				E400806317F157D60866149F /* WHEngine.mm in Sources */,
 				4C6344BF85C28FB3A76A2C9D /* ByteIO.cpp in Sources */,
 				78EE3481B81BC123DC5819C2 /* Controls.cpp in Sources */,
@@ -292,6 +300,36 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		FB3C88D0AAD1354A2C08F68D /* Build Syphon */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Build Syphon";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "SY=\"$SRCROOT/../third_party/Syphon-Framework\"\nif [ ! -f \"$SY/Syphon.xcodeproj/project.pbxproj\" ]; then\n  echo \"error: Syphon is missing: run 'git submodule update --init' in the repository\"\n  exit 1\nfi\nOUT=\"$PROJECT_TEMP_DIR/SyphonBuild\"\nenv -i PATH=\"$PATH\" HOME=\"$HOME\" DEVELOPER_DIR=\"$DEVELOPER_DIR\" xcodebuild -quiet \\\n  -project \"$SY/Syphon.xcodeproj\" -scheme Syphon -configuration Release \\\n  ARCHS=\"$ARCHS\" ONLY_ACTIVE_ARCH=NO MACOSX_DEPLOYMENT_TARGET=\"$MACOSX_DEPLOYMENT_TARGET\" \\\n  CODE_SIGNING_ALLOWED=NO SYMROOT=\"$OUT\" OBJROOT=\"$OUT/obj\" build || exit 1\nmkdir -p \"$BUILT_PRODUCTS_DIR\"\nrsync -a --delete \"$OUT/Release/Syphon.framework/\" \"$BUILT_PRODUCTS_DIR/Syphon.framework/\"\n";
+		};
+		19529AF009CDA27A307CF7E1 /* Embed Syphon */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Embed Syphon";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "F=\"$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH\"\nmkdir -p \"$F\"\nrsync -a --delete \"$BUILT_PRODUCTS_DIR/Syphon.framework/\" \"$F/Syphon.framework/\"\ncodesign --force --sign - --timestamp=none \"$F/Syphon.framework\"\n";
+		};
 		43B3C47F8E852ADB3DC0A309 /* Copy Help */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -371,6 +409,11 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 7;
 				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(BUILT_PRODUCTS_DIR)",
+				);
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../engine/include",
 					"$(SRCROOT)/../engine/src",
@@ -401,6 +444,8 @@
 					Metal,
 					"-framework",
 					IOSurface,
+					"-framework",
+					Syphon,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "io.github.bzsqrl.Whorld";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -417,6 +462,11 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 7;
 				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(BUILT_PRODUCTS_DIR)",
+				);
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../engine/include",
 					"$(SRCROOT)/../engine/src",
@@ -447,6 +497,8 @@
 					Metal,
 					"-framework",
 					IOSurface,
+					"-framework",
+					Syphon,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "io.github.bzsqrl.Whorld";
 				PRODUCT_NAME = "$(TARGET_NAME)";

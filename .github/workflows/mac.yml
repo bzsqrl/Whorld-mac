@@ -37,6 +37,8 @@ jobs:
     needs: engine-macos
     steps:
       - uses: actions/checkout@v5
+        with:
+          submodules: true  # Syphon-Framework, built by the app
       - name: Build app
         # The Xcode project arrives in Phase 3; skip until it exists.
         if: hashFiles('mac/app/Whorld.xcodeproj/project.pbxproj') != ''

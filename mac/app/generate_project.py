@@ -18,7 +18,7 @@ def gid(name):
     return hashlib.md5(name.encode()).hexdigest()[:24].upper()
 
 app_files = ["WhorldApp.swift", "ContentView.swift", "Commands.swift", "Panels.swift", "Preferences.swift", "Mapping.swift", "Media.swift", "FullScreen.swift", "Workspace.swift", "Updates.swift",
-             "WHOscServer.h", "WHOscServer.mm",
+             "WHOscServer.h", "WHOscServer.mm", "WHSyphon.h", "WHSyphon.mm",
              "WHEngine.h", "WHEngine.mm",
              "Whorld-Bridging-Header.h", "Info.plist", "AppIcon.icns"]
 engine_src = sorted(f for f in os.listdir(os.path.join(root, "../engine/src")) if f.endswith(".cpp"))
@@ -37,6 +37,31 @@ rsync -a --delete --exclude V1 --exclude images "$SRCROOT/Help/" "$H/"
 rsync -a --delete "$SRCROOT/../../docs/Help/" "$H/V1/"
 cp "$SRCROOT/../../docs/images/whorld-icon-32x32.gif" "$H/images/"
 '''
+# Builds Syphon.framework (the mac/third_party/Syphon-Framework submodule,
+# BSD license) for this build's architectures into the products folder,
+# where the app links it; a clean environment keeps this build's settings
+# out of Syphon's. Quick when nothing changed.
+syphon_build_script = r'''SY="$SRCROOT/../third_party/Syphon-Framework"
+if [ ! -f "$SY/Syphon.xcodeproj/project.pbxproj" ]; then
+  echo "error: Syphon is missing: run 'git submodule update --init' in the repository"
+  exit 1
+fi
+OUT="$PROJECT_TEMP_DIR/SyphonBuild"
+env -i PATH="$PATH" HOME="$HOME" DEVELOPER_DIR="$DEVELOPER_DIR" xcodebuild -quiet \
+  -project "$SY/Syphon.xcodeproj" -scheme Syphon -configuration Release \
+  ARCHS="$ARCHS" ONLY_ACTIVE_ARCH=NO MACOSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET" \
+  CODE_SIGNING_ALLOWED=NO SYMROOT="$OUT" OBJROOT="$OUT/obj" build || exit 1
+mkdir -p "$BUILT_PRODUCTS_DIR"
+rsync -a --delete "$OUT/Release/Syphon.framework/" "$BUILT_PRODUCTS_DIR/Syphon.framework/"
+'''
+# Puts Syphon.framework in the app's Frameworks folder, signed (ad hoc, as
+# the app is) so the app's signature covers it.
+syphon_embed_script = r'''F="$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH"
+mkdir -p "$F"
+rsync -a --delete "$BUILT_PRODUCTS_DIR/Syphon.framework/" "$F/Syphon.framework/"
+codesign --force --sign - --timestamp=none "$F/Syphon.framework"
+'''
+
 def pbxstr(t):
     return '"' + t.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n') + '"'
 
@@ -74,8 +99,10 @@ w(f"""\t\t{gid('target')} /* Whorld */ = {{
 \t\t\tisa = PBXNativeTarget;
 \t\t\tbuildConfigurationList = {gid('targetconfigs')} /* Build configuration list for PBXNativeTarget "Whorld" */;
 \t\t\tbuildPhases = (
+\t\t\t\t{gid('syphonbuild')} /* Build Syphon */,
 \t\t\t\t{gid('sources')} /* Sources */,
 \t\t\t\t{gid('frameworks')} /* Frameworks */,
+\t\t\t\t{gid('syphonembed')} /* Embed Syphon */,
 \t\t\t\t{gid('resources')} /* Resources */,
 \t\t\t\t{gid('helpscript')} /* Copy Help */,
 \t\t\t);
@@ -133,7 +160,12 @@ for g, path, files in groups:
         if os.path.splitext(f)[1] in resources:
             w(f"\t\t\t\t{gid('bf'+g+f)} /* {f} in Resources */,\n")
 w("\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t};\n/* End PBXResourcesBuildPhase section */\n\n")
-w(f"/* Begin PBXShellScriptBuildPhase section */\n\t\t{gid('helpscript')} /* Copy Help */ = {{\n\t\t\tisa = PBXShellScriptBuildPhase;\n\t\t\talwaysOutOfDate = 1;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n\t\t\t);\n\t\t\tinputPaths = (\n\t\t\t);\n\t\t\tname = \"Copy Help\";\n\t\t\toutputPaths = (\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t\tshellPath = /bin/sh;\n\t\t\tshellScript = {pbxstr(help_script)};\n\t\t}};\n/* End PBXShellScriptBuildPhase section */\n\n/* Begin XCBuildConfiguration section */\n")
+def script_phase(key, name, script):
+    w(f"\t\t{gid(key)} /* {name} */ = {{\n\t\t\tisa = PBXShellScriptBuildPhase;\n\t\t\talwaysOutOfDate = 1;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n\t\t\t);\n\t\t\tinputPaths = (\n\t\t\t);\n\t\t\tname = \"{name}\";\n\t\t\toutputPaths = (\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t\tshellPath = /bin/sh;\n\t\t\tshellScript = {pbxstr(script)};\n\t\t}};\n")
+w("/* Begin PBXShellScriptBuildPhase section */\n")
+script_phase('syphonbuild', 'Build Syphon', syphon_build_script)
+script_phase('syphonembed', 'Embed Syphon', syphon_embed_script)
+w(f"\t\t{gid('helpscript')} /* Copy Help */ = {{\n\t\t\tisa = PBXShellScriptBuildPhase;\n\t\t\talwaysOutOfDate = 1;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n\t\t\t);\n\t\t\tinputPaths = (\n\t\t\t);\n\t\t\tname = \"Copy Help\";\n\t\t\toutputPaths = (\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t\tshellPath = /bin/sh;\n\t\t\tshellScript = {pbxstr(help_script)};\n\t\t}};\n/* End PBXShellScriptBuildPhase section */\n\n/* Begin XCBuildConfiguration section */\n")
 common = """\t\t\t\tALWAYS_SEARCH_USER_PATHS = NO;
 \t\t\t\tCLANG_CXX_LANGUAGE_STANDARD = "c++17";
 \t\t\t\tCLANG_CXX_LIBRARY = "libc++";
@@ -161,6 +193,11 @@ for cfg in ("Debug", "Release"):
 \t\t\t\tCOMBINE_HIDPI_IMAGES = YES;
 \t\t\t\tCURRENT_PROJECT_VERSION = 7;
 \t\t\t\tENABLE_HARDENED_RUNTIME = NO;
+\t\t\t\tENABLE_USER_SCRIPT_SANDBOXING = NO;
+\t\t\t\tFRAMEWORK_SEARCH_PATHS = (
+\t\t\t\t\t"$(inherited)",
+\t\t\t\t\t"$(BUILT_PRODUCTS_DIR)",
+\t\t\t\t);
 \t\t\t\tHEADER_SEARCH_PATHS = (
 \t\t\t\t\t"$(SRCROOT)/../engine/include",
 \t\t\t\t\t"$(SRCROOT)/../engine/src",
@@ -191,6 +228,8 @@ for cfg in ("Debug", "Release"):
 \t\t\t\t\tMetal,
 \t\t\t\t\t"-framework",
 \t\t\t\t\tIOSurface,
+\t\t\t\t\t"-framework",
+\t\t\t\t\tSyphon,
 \t\t\t\t);
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = "io.github.bzsqrl.Whorld";
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";

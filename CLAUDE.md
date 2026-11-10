@@ -12,6 +12,7 @@ License: GPLv3. Every new file gets a GPLv3 header and keeps the original copyri
 - `mac/renderer/` — the Core Graphics drawing backend (Objective-C++, `.mm`), implementing the engine's renderer interface.
 - `mac/tools/` — command-line tools: `whorld-render` renders a patch or snapshot to PNG and compares images.
 - `mac/app/` — the macOS app (Swift / SwiftUI, Xcode project), talking to the engine through a thin Objective-C++ bridge.
+- `mac/third_party/Syphon-Framework` — git submodule (BSD), built from source and embedded by the app's Build Syphon and Embed Syphon phases. Don't edit it; update it by moving the submodule to a tested commit.
 - `mac/testdata/` — sample `.whp` patches, `.whs` snapshots and reference PNGs exported from Windows Whorld.
 
 ## Build and test
@@ -23,7 +24,7 @@ These commands are created in Phase 0 of the plan. Keep this section accurate as
 - Render a frame: `build/tools/whorld-render <file.whp|file.whs> --out frame.png` (run with no arguments for options)
 - Compare images: `build/tools/whorld-render --compare a.png b.png --diff diff.png`
 - Movie to video: `build/tools/whorld-render movie.whm --video out.mov --codec prores4444` (or `--frame N --out f.png` for one frame)
-- App: `xcodebuild -project mac/app/Whorld.xcodeproj -scheme Whorld build` (run the built app with `WHORLD_STATS=1` to print frame-rate stats)
+- App: `xcodebuild -project mac/app/Whorld.xcodeproj -scheme Whorld build` (needs the submodule: `git submodule update --init`) (run the built app with `WHORLD_STATS=1` to print frame-rate stats)
 - Release DMG: `sh mac/packaging/make_dmg.sh` (universal, ad-hoc signed, not notarized; writes `build/dist/Whorld-<version>.dmg`)
 - Making a release: in `mac/app/Whorld/Info.plist` set `WhorldReleaseVersion` to the new tag without the `v` (e.g. `0.1.0-beta.3`; the update checker, `Updates.swift`, compares it with the release tags) and raise `CFBundleVersion`, also `CURRENT_PROJECT_VERSION` in the Xcode project and `mac/app/generate_project.py`; then test, build the DMG, tag `v<WhorldReleaseVersion>`, and publish the GitHub release (`--prerelease` for betas) with the DMG and its SHA-256
 - App icon: `xcrun swiftc mac/packaging/make_icon.swift -o /tmp/make_icon && /tmp/make_icon mac/app/Whorld/AppIcon.icns`

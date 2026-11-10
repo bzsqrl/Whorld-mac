@@ -33,6 +33,7 @@ rm -rf "$stage"; mkdir -p "$stage"
 ditto "$app" "$stage/Whorld.app"
 ln -s /Applications "$stage/Applications"
 cp "$repo/LICENSE" "$stage/License.txt"
+cp "$repo/mac/third_party/Syphon-Framework/License.txt" "$stage/Syphon License.txt"	# embedded Syphon.framework (BSD)
 mkdir -p "$stage/TouchOSC"
 cp "$repo/mac/touchosc/Whorld.tosc" "$stage/TouchOSC/Whorld.tosc"	# OSC remote control layout
 cat > "$stage/Read Me.txt" <<TXT
@@ -50,6 +51,8 @@ Security and click Open Anyway. You only need to do this once.
 
 Whorld is free software under the GNU General Public License version 3 or
 later (License.txt), and comes with no warranty.
+It includes Syphon.framework, copyright 2010 bangnoise (Tom Butterworth) &
+vade (Anton Marini), under its own license (Syphon License.txt).
 Source code: https://github.com/bzsqrl/Whorld-mac
 TXT
 

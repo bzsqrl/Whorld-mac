@@ -308,6 +308,16 @@ typedef struct {
 // Exports always use Core Graphics.
 @property (nonatomic) BOOL preferMetal;
 @property (class, nonatomic, readonly) BOOL metalAvailable;
+
+// Syphon output (new in the Mac port; WHSyphon): a Syphon server other apps
+// list as "Whorld". With width and height 0 it publishes the output's own
+// frames as shown; otherwise each frame is drawn a second time at that size
+// in pixels: the view's picture scaled to fit, with more of the pattern on
+// the longer side. A fixed-size frame is drawn only while a client is
+// receiving.
+- (void)setSyphonEnabled:(BOOL)enabled width:(NSInteger)width height:(NSInteger)height;
+@property (nonatomic, readonly) BOOL syphonRunning;
+@property (nonatomic, readonly) BOOL syphonHasClients;
 // The most frames per second the live view draws, or 0 for one per display
 // refresh (up to 120 on a ProMotion display). Ring motion is per frame, as
 // on Windows, so 60 also keeps patches at the speed of a 60 Hz monitor.

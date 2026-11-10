@@ -137,6 +137,7 @@ final class AppModel: ObservableObject {
 		engine.maxFrameRate = Preferences.maxFrameRate
 		engine.setRingFadeEased(Preferences.ringFadeEased)
 		restartOSC()
+		applySyphon()
 		engine.midiInputName = Preferences.midiInputName
 		engine.movieErrorHandler = { message in
 			let alert = NSAlert()
@@ -800,6 +801,23 @@ final class AppModel: ObservableObject {
 	private func oscTick() {
 		engine.oscSendState(withPatch: playingPatch, patchName: title, playlistName: playlistTitle,
 			fullScreen: isFullScreen)
+	}
+
+	// MARK: Syphon
+
+	/// Syphon output is on (View > Syphon Output and Settings > Syphon)
+	@Published private(set) var syphonEnabled = false
+
+	/// Starts, stops or resizes Syphon output as Settings > Syphon says.
+	func applySyphon() {
+		let s = Preferences.syphon
+		syphonEnabled = s.enabled
+		engine.setSyphonEnabled(s.enabled, width: s.fixedSize?.width ?? 0, height: s.fixedSize?.height ?? 0)
+	}
+
+	func setSyphonEnabled(_ on: Bool) {
+		UserDefaults.standard.set(on, forKey: "Syphon_bEnabled")
+		applySyphon()
 	}
 
 	// MARK: Workspace

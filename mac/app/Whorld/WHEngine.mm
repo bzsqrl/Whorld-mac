@@ -11,6 +11,7 @@
 
 #import <CoreMIDI/CoreMIDI.h>
 #import "WHOscServer.h"
+#import "WHSyphon.h"
 #include "whorld/OscRemote.h"
 #include <arpa/inet.h>
 #include <ifaddrs.h>
@@ -316,6 +317,17 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	bool	_usingMetal;
 	int		_surfWidth, _surfHeight;
 	double	_surfScale;
+	// Syphon's fixed-size frames (render thread)
+	std::vector<Surface>	_syphonSurfaces;
+	std::unique_ptr<whorld::MetalRenderer>	_syphonMetal;
+	int		_syphonSurfWidth, _syphonSurfHeight;
+	double	_syphonSurfScale;
+	bool	_syphonUsingMetal;
+	// Syphon output: set on the main thread, read by the render and
+	// presenter threads, guarded by _syphonMutex
+	std::mutex	_syphonMutex;
+	WHSyphon	*_syphon;		// nil when off
+	int		_syphonWidth, _syphonHeight;	// fixed size in pixels, or 0: the output's own
 	int		_curRate;
 	int		_lastMovieIO;	// render thread: for movieStateHandler
 	// MIDI
@@ -426,6 +438,9 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 		_thread.join();
 	_metal.reset();	// waits for its frames on the GPU
 	[self releaseSurfaces];
+	_syphonMetal.reset();
+	[self releaseSyphonSurfaces];
+	[_syphon stop];
 	if (_shownImage)
 		WHHandoff::Release(_shownImage);
 	for (const QueueItem& item : _queue) {	// free payloads the thread never took
@@ -1610,22 +1625,158 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		// Core Graphics: hand the frame to the next refresh (presentFrame)
 		if (!bMetal)
 			_handoff->Put(image, scale);
+		[self drawSyphonFrameForWidth:w height:h scale:scale metal:bMetal];
 	}
+}
+
+// Any thread: the Syphon server, if on, and its fixed size (0: none)
+- (WHSyphon *)syphonServerWidth:(int *)pWidth height:(int *)pHeight
+{
+	std::lock_guard<std::mutex>	lock(_syphonMutex);
+	*pWidth = _syphonWidth;
+	*pHeight = _syphonHeight;
+	return _syphon;
+}
+
+- (void)releaseSyphonSurfaces
+{
+	for (Surface& s : _syphonSurfaces) {
+		s.renderer.reset();
+		CFRelease(s.surface);
+	}
+	_syphonSurfaces.clear();
+}
+
+// Render thread, after the live frame: Syphon's fixed size. The same frame
+// again (DrawAtSize doesn't advance), into a pool of its own, drawn as if
+// the view were the fixed size divided by a scale that fits the view's
+// picture in it, much as a Retina display draws a window's DIPs.
+- (void)drawSyphonFrameForWidth:(int)w height:(int)h scale:(double)scale metal:(bool)bMetal
+{
+	int		fw, fh;
+	WHSyphon	*syphon = [self syphonServerWidth:&fw height:&fh];
+	if (!syphon || fw <= 0 || fh <= 0) {	// off, or the output's own size
+		if (!_syphonSurfaces.empty() || _syphonMetal) {
+			_syphonMetal.reset();
+			[self releaseSyphonSurfaces];
+		}
+		return;
+	}
+	if (!syphon.hasClients)
+		return;	// nobody receiving: don't draw
+	double	fViewW = w / scale, fViewH = h / scale;	// the view in DIPs
+	double	fScale = std::min(fw / fViewW, fh / fViewH);
+	if (fw != _syphonSurfWidth || fh != _syphonSurfHeight || fScale != _syphonSurfScale
+	|| bMetal != _syphonUsingMetal) {
+		_syphonMetal.reset();
+		[self releaseSyphonSurfaces];
+		_syphonSurfWidth = fw;
+		_syphonSurfHeight = fh;
+		_syphonSurfScale = fScale;
+		_syphonUsingMetal = bMetal;
+	}
+	if (bMetal && !_syphonMetal) {
+		_syphonMetal = std::make_unique<whorld::MetalRenderer>(fw, fh, fScale, 0);	// coverage mode, as live
+		if (!_syphonMetal->IsValid()) {
+			_syphonMetal.reset();
+			return;
+		}
+	}
+	// drawing, and up to three waiting for Syphon's copy
+	Surface	*pSurf = [self freeSurfaceIn:_syphonSurfaces width:fw height:fh max:4];
+	if (!pSurf)
+		return;
+	IOSurfaceRef	image = pSurf->surface;
+	IOSurfaceIncrementUseCount(image);	// claimed until published
+	CFRetain(image);
+	whorld::SizeF	szTarget{float(fw / fScale), float(fh / fScale)};
+	if (bMetal) {
+		_syphonMetal->SetTargetSurface(image);
+		_syphonMetal->BeginFrame();
+		_engine->DrawAtSize(*_syphonMetal, szTarget);
+		_syphonMetal->EndFrame([syphon, image](bool bOk, double) {
+			if (bOk)
+				[syphon publishSurface:image];	// claims it again for the copy
+			WHHandoff::Release(image);
+		});
+		_syphonMetal->SetTargetSurface(nullptr);
+	} else {
+		if (!pSurf->renderer) {
+			pSurf->renderer = std::make_unique<whorld::CGBitmapRenderer>(
+				static_cast<uint8_t *>(IOSurfaceGetBaseAddress(image)), fw, fh,
+				IOSurfaceGetBytesPerRow(image), fScale);
+			pSurf->renderer->SetDeferred(true);
+		}
+		IOSurfaceLock(image, 0, nullptr);
+		pSurf->renderer->BeginFrame();
+		_engine->DrawAtSize(*pSurf->renderer, szTarget);
+		pSurf->renderer->EndFrame();
+		IOSurfaceUnlock(image, 0, nullptr);
+		[syphon publishSurface:image];
+		WHHandoff::Release(image);
+	}
+}
+
+// Main thread
+- (void)setSyphonEnabled:(BOOL)enabled width:(NSInteger)width height:(NSInteger)height
+{
+	int		fw = 0, fh = 0;
+	if (width > 0 && height > 0) {	// keep it to what Metal can draw into
+		fw = int(std::clamp<NSInteger>(width, 16, 16384));
+		fh = int(std::clamp<NSInteger>(height, 16, 16384));
+	}
+	WHSyphon	*made = nil, *old = nil;
+	if (enabled && !self.syphonRunning) {
+		made = [[WHSyphon alloc] initWithName:@""];	// clients list it by the app's name
+		if (!made)
+			NSLog(@"Whorld: can't start the Syphon server");
+	}
+	{
+		std::lock_guard<std::mutex>	lock(_syphonMutex);
+		if (!enabled) {
+			old = _syphon;
+			_syphon = nil;
+		} else if (made) {
+			_syphon = made;
+		}
+		_syphonWidth = fw;
+		_syphonHeight = fh;
+	}
+	[old stop];
+}
+
+- (BOOL)syphonRunning
+{
+	std::lock_guard<std::mutex>	lock(_syphonMutex);
+	return _syphon != nil;
+}
+
+- (BOOL)syphonHasClients
+{
+	int		fw, fh;
+	WHSyphon	*syphon = [self syphonServerWidth:&fw height:&fh];
+	return syphon.hasClients;
 }
 
 // Render thread: a surface of the current size nothing is using, creating
 // one if needed (at most six).
 - (Surface *)freeSurface
 {
-	for (Surface& s : _surfaces) {
+	// shown, two waiting, and up to three in flight
+	return [self freeSurfaceIn:_surfaces width:_surfWidth height:_surfHeight max:6];
+}
+
+- (Surface *)freeSurfaceIn:(std::vector<Surface> &)pool width:(int)width height:(int)height max:(size_t)nMax
+{
+	for (Surface& s : pool) {
 		if (!IOSurfaceIsInUse(s.surface))	// see WHHandoff
 			return &s;
 	}
-	if (_surfaces.size() >= 6)	// shown, two waiting, and up to three in flight
+	if (pool.size() >= nMax)
 		return nullptr;
 	NSDictionary	*props = @{
-		(id)kIOSurfaceWidth: @(_surfWidth),
-		(id)kIOSurfaceHeight: @(_surfHeight),
+		(id)kIOSurfaceWidth: @(width),
+		(id)kIOSurfaceHeight: @(height),
 		(id)kIOSurfaceBytesPerElement: @4,
 		(id)kIOSurfacePixelFormat: @((uint32_t)'BGRA'),
 	};
@@ -1642,8 +1793,8 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	CGColorSpaceRelease(space);
 	Surface	s;
 	s.surface = surface;	// the Core Graphics renderer is made when first needed
-	_surfaces.push_back(std::move(s));
-	return &_surfaces.back();
+	pool.push_back(std::move(s));
+	return &pool.back();
 }
 
 - (void)releaseSurfaces
@@ -1699,6 +1850,10 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 			layer.contentsScale = scale;
 			[CATransaction commit];
 		}
+		int		fw, fh;
+		WHSyphon	*syphon = [self syphonServerWidth:&fw height:&fh];
+		if (syphon && !fw && syphon.hasClients)	// Syphon at the output's own size: this frame
+			[syphon publishSurface:image];
 		if (_shownImage)	// replaced on the layer: free for reuse once the window server lets go
 			WHHandoff::Release(_shownImage);
 		_shownImage = image;

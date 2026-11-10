@@ -2,7 +2,7 @@
 
 A native macOS port of [Whorld](https://github.com/victimofleisure/Whorld) V2, the free sacred-geometry visualizer by Chris Korda. This is an unofficial port; the official Whorld, for Windows, is at [victimofleisure/Whorld](https://github.com/victimofleisure/Whorld). This repository keeps Whorld's full history, and the original Windows source in `trunk/Whorld` is unchanged.
 
-Whorld for macOS runs on macOS 14 (Sonoma) or later, on Apple silicon and Intel Macs, and draws patches the same way the Windows version does. Patches, playlists, snapshots and movies are the same files on both, so you can share them across platforms. The Mac version adds video export (H.264, HEVC and ProRes) and takes MIDI input through Core MIDI. It can also be controlled and monitored over the network with OSC, and a TouchOSC layout is included (Help > Whorld Help lists the addresses).
+Whorld for macOS runs on macOS 14 (Sonoma) or later, on Apple silicon and Intel Macs, and draws patches the same way the Windows version does. Patches, playlists, snapshots and movies are the same files on both, so you can share them across platforms. The Mac version adds video export (H.264, HEVC and ProRes) and takes MIDI input through Core MIDI. It can also be controlled and monitored over the network with OSC, and a TouchOSC layout is included (Help > Whorld Help lists the addresses). Syphon output sends its picture, with transparency, to VJ apps such as Resolume, MadMapper and OBS.
 
 ### Install
 
@@ -14,7 +14,7 @@ Help > Whorld Help explains what differs from Windows and lists the keyboard sho
 
 ### Build from source
 
-You need Xcode 16.2 or later and CMake 3.20 or later.
+You need Xcode 16.2 or later and CMake 3.20 or later. Clone with `git clone --recursive` (or run `git submodule update --init` in an existing clone): the app builds [Syphon-Framework](https://github.com/Syphon/Syphon-Framework) (BSD license), a submodule in `mac/third_party`, and embeds it.
 
 ```sh
 # engine, Core Graphics renderer, tools and tests

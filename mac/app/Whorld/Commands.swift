@@ -193,6 +193,7 @@ struct WhorldCommands: Commands {
 			Toggle("Full Resolution", isOn: $model.fullResolution)
 			Toggle("Show Frame Rate", isOn: $model.showFrameRate)
 				.keyboardShortcut("f", modifiers: [.control, .command])
+			Toggle("Syphon Output", isOn: Binding(get: { model.syphonEnabled }, set: { model.setSyphonEnabled($0) }))
 			Divider()
 		}
 
@@ -297,6 +298,9 @@ struct HelpCommands: Commands {
 			version 3 or later. It comes with ABSOLUTELY NO WARRANTY.</p>
 			<p><a href="\(sourceURL.absoluteString)">Source code</a> ·
 			<a href="https://github.com/victimofleisure/Whorld">Original Whorld</a></p>
+			<p>Syphon output uses Syphon.framework, copyright 2010 bangnoise (Tom Butterworth)
+			&amp; vade (Anton Marini), under its
+			<a href="https://github.com/Syphon/Syphon-Framework/blob/main/License.txt">BSD license</a>.</p>
 			</div>
 			"""
 		let credits = NSMutableAttributedString(html: Data(html.utf8), documentAttributes: nil) ?? NSMutableAttributedString()

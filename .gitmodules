@@ -1,0 +1,3 @@
+[submodule "mac/third_party/Syphon-Framework"]
+	path = mac/third_party/Syphon-Framework
+	url = https://github.com/Syphon/Syphon-Framework.git

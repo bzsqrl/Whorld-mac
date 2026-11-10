@@ -36,6 +36,10 @@ enum Preferences {
 			"OSC_nReceivePort": 8000,
 			"OSC_nSendPort": 8001,
 			"OSC_sHost": "",
+			"Syphon_bEnabled": false,
+			"Syphon_bFixedSize": false,
+			"Syphon_nWidth": 1920,
+			"Syphon_nHeight": 1080,
 		])
 	}
 
@@ -79,6 +83,15 @@ enum Preferences {
 			(defaults.string(forKey: "OSC_sHost") ?? "").trimmingCharacters(in: .whitespaces))
 	}
 
+	/// Syphon output (new in the Mac port): on, and a fixed size in pixels
+	/// (nil: the output's own size)
+	static var syphon: (enabled: Bool, fixedSize: (width: Int, height: Int)?) {
+		register()
+		let fixed = defaults.bool(forKey: "Syphon_bFixedSize")
+		return (defaults.bool(forKey: "Syphon_bEnabled"),
+			fixed ? (defaults.integer(forKey: "Syphon_nWidth"), defaults.integer(forKey: "Syphon_nHeight")) : nil)
+	}
+
 	/// Ring fade curve (new in the Mac port): eased (an S-curve) or linear.
 	/// How far rings fade is the patch's Fade (Master pane).
 	static var ringFadeEased: Bool {
@@ -120,6 +133,10 @@ struct PreferencesView: View {
 	@AppStorage("OSC_nReceivePort") private var oscReceivePort = 8000
 	@AppStorage("OSC_nSendPort") private var oscSendPort = 8001
 	@AppStorage("OSC_sHost") private var oscHost = ""
+	@AppStorage("Syphon_bEnabled") private var syphonEnabled = false
+	@AppStorage("Syphon_bFixedSize") private var syphonFixedSize = false
+	@AppStorage("Syphon_nWidth") private var syphonWidth = 1920
+	@AppStorage("Syphon_nHeight") private var syphonHeight = 1080
 
 	var body: some View {
 		Form {
@@ -156,6 +173,37 @@ struct PreferencesView: View {
 					.foregroundStyle(.secondary)
 					.fixedSize(horizontal: false, vertical: true)
 			}
+			Section("Syphon") {
+				Toggle("Syphon output", isOn: $syphonEnabled)
+				Picker("Size", selection: $syphonFixedSize) {
+					Text("Same as the output").tag(false)
+					Text("Fixed size").tag(true)
+				}
+				.disabled(!syphonEnabled)
+				LabeledContent("Fixed size") {
+					HStack {
+						TextField("Width", value: $syphonWidth, format: .number.grouping(.never))
+							.labelsHidden()
+							.multilineTextAlignment(.trailing)
+							.frame(width: 72)
+						Text("×")
+						TextField("Height", value: $syphonHeight, format: .number.grouping(.never))
+							.labelsHidden()
+							.multilineTextAlignment(.trailing)
+							.frame(width: 72)
+					}
+				}
+				.disabled(!syphonEnabled || !syphonFixedSize)
+				SyphonStatus()
+				Text("Sends Whorld's output to other apps (Resolume, MadMapper, OBS, TouchDesigner…), where it's listed as Whorld, with transparency where the patch has any. Same as the output: the frames Whorld shows. Fixed size: each frame drawn again at that size in pixels, the picture scaled to fit, with more of the pattern on the longer side; it's drawn only while an app is receiving.")
+					.font(.caption)
+					.foregroundStyle(.secondary)
+					.fixedSize(horizontal: false, vertical: true)
+			}
+			.onChange(of: syphonEnabled) { model.applySyphon() }
+			.onChange(of: syphonFixedSize) { model.applySyphon() }
+			.onChange(of: syphonWidth) { model.applySyphon() }
+			.onChange(of: syphonHeight) { model.applySyphon() }
 			Section("Rings") {
 				Picker("Fade curve", selection: $ringFadeEased) {
 					Text("Linear").tag(false)
@@ -279,6 +327,23 @@ struct PreferencesView: View {
 		panel.canCreateDirectories = true
 		if panel.runModal() == .OK, let url = panel.url {
 			imageFolder = url.path
+		}
+	}
+}
+
+/// Settings > Syphon's status line, checked once a second while Settings is
+/// open.
+private struct SyphonStatus: View {
+	@EnvironmentObject private var model: AppModel
+
+	var body: some View {
+		TimelineView(.periodic(from: .now, by: 1)) { _ in
+			let e = model.engine
+			Text(!e.syphonRunning ? "Off"
+				: e.syphonHasClients ? "Publishing as Whorld · an app is receiving"
+				: "Publishing as Whorld · no app receiving yet")
+				.font(.caption)
+				.foregroundStyle(.secondary)
 		}
 	}
 }
