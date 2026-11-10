@@ -292,6 +292,8 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	bool	_letterboxChanged;
 	bool	_ringFadeEased;	// the ring fade curve setting
 	bool	_ringFadeChanged;
+	bool	_hueFromPatch;	// the patch colors on load setting
+	bool	_hueFromPatchChanged;
 	whorld::DPoint	_cursor;
 	double	_statRenderSum;
 	int		_statFrames;
@@ -377,6 +379,8 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 		_letterboxChanged = false;
 		_ringFadeEased = false;
 		_ringFadeChanged = false;
+		_hueFromPatch = false;
+		_hueFromPatchChanged = false;
 		_statRenderSum = 0;
 		_statFrames = 0;
 		_statRings = 0;
@@ -635,6 +639,27 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 {
 	_doc.m_main.fHue = hue;
 	[self pushMainProp:WhorldBase::MAIN_Hue];
+}
+
+- (void)rotateHue
+{
+	// V1's CWhorldView::RotateHue(90): new rings follow through Hue, which
+	// offsets them; existing rings are rotated on the render thread
+	_doc.m_main.fHue = std::fmod(_doc.m_main.fHue + 90, 360);
+	[self pushMainProp:WhorldBase::MAIN_Hue];
+	RenderCmd	cmd(WhorldBase::RC_ROTATE_HUE);
+	cmd.m_prop.dblVal = 90;
+	[self pushCommand:cmd];
+	_modified = YES;
+}
+
+- (void)setHueFromPatch:(BOOL)fromPatch
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	_hueFromPatch = fromPatch;
+	_hueFromPatchChanged = true;
+	_frameRequested = true;
+	_cv.notify_one();
 }
 
 - (BOOL)invertColor { return _doc.m_main.bInvertColor; }
@@ -1152,6 +1177,8 @@ static NSString *SourceName(MIDIEndpointRef src)
 		{
 			WhorldBase::VARIANT_PROP	v;
 			v.llVal = post.iVal;	// VARIANT_PROP prop = {lParam}
+			if (post.iProp == WhorldBase::MAIN_Hue)	// Mac addition: Hue is a double
+				v.dblVal = post.fVal;
 			_doc.SetMainProp(post.iProp, v);
 			_modified = YES;
 		}
@@ -1175,6 +1202,9 @@ static NSString *SourceName(MIDIEndpointRef src)
 		if (_midiHandler)
 			_midiHandler(3, post.nMsg);
 		return;
+	case Post::ROTATE_HUE:	// Mac addition
+		[self rotateHue];
+		break;
 	}
 	if (_midiHandler)
 		_midiHandler(0, 0);
@@ -1508,6 +1538,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		double	scale;
 		bool	bCursor, bLetterbox, bLetterboxOn, bPreferMetal;
 		bool	bRingFade, bRingFadeEased;
+		bool	bHueFromPatchChanged, bHueFromPatch;
 		whorld::DPoint	cursor;
 		{
 			std::unique_lock<std::mutex>	lock(_mutex);
@@ -1529,6 +1560,9 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 			bRingFade = _ringFadeChanged;
 			bRingFadeEased = _ringFadeEased;
 			_ringFadeChanged = false;
+			bHueFromPatchChanged = _hueFromPatchChanged;
+			bHueFromPatch = _hueFromPatch;
+			_hueFromPatchChanged = false;
 			bPreferMetal = _preferMetal;
 		}
 		for (QueueItem& item : cmds) {	// ProcessCommand
@@ -1547,6 +1581,8 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 			_engine->SetSnapshotLetterbox(bLetterboxOn);
 		if (bRingFade)
 			_engine->SetRingFadeEased(bRingFadeEased);
+		if (bHueFromPatchChanged)
+			_engine->SetHueFromPatch(bHueFromPatch);
 		if (w <= 0 || h <= 0)
 			continue;
 		if (w != _surfWidth || h != _surfHeight || scale != _surfScale) {	// RC_RESIZE

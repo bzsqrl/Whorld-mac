@@ -153,6 +153,8 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut(.tab, modifiers: .control)
 			toggle("Loop Hue", e.loopHue) { model.toggle(.loopHue) }
 				.keyboardShortcut(fkey(NSF2FunctionKey), modifiers: [])
+			Button("Rotate Hue") { model.rotateHue() }	// V1's (Mac addition)
+				.keyboardShortcut(fkey(NSF3FunctionKey), modifiers: [])
 			toggle("Zoom Center", e.zoomCenter) { model.toggle(.zoomCenter) }
 				.keyboardShortcut("w", modifiers: .shift)
 			toggle("Antialiasing", e.antialiasing) { model.toggle(.antialiasing) }
@@ -160,6 +162,7 @@ struct WhorldCommands: Commands {
 			// not on Windows' Image menu (its Properties grid only); here the
 			// Properties panel mirrors this menu, so it's in both
 			toggle("Invert Color", e.invertColor) { model.toggle(.invertColor) }
+				.keyboardShortcut(fkey(NSF4FunctionKey), modifiers: [])	// V1's
 			Divider()
 			Button("Origin Center") { model.originCenter() }
 				.keyboardShortcut("0")

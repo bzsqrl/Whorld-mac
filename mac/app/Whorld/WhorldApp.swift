@@ -136,6 +136,7 @@ final class AppModel: ObservableObject {
 		engine.preferMetal = Preferences.preferMetal
 		engine.maxFrameRate = Preferences.maxFrameRate
 		engine.setRingFadeEased(Preferences.ringFadeEased)
+		engine.setHueFromPatch(Preferences.hueFromPatch)
 		restartOSC()
 		applySyphon()
 		engine.midiInputName = Preferences.midiInputName
@@ -529,6 +530,18 @@ final class AppModel: ObservableObject {
 			self?.setHue(old)
 		}
 		engine.hue = hue
+		mainChanged()
+	}
+
+	/// Image > Rotate Hue (V1's, F3): existing rings turn 90 degrees and
+	/// Hue goes up 90 so new rings follow. Undo restores Hue; colors already
+	/// given to existing rings stay, as in V1.
+	func rotateHue() {
+		let old = engine.hue
+		recordUndo(key: "rotate hue", title: "Rotate Hue") { [weak self] in
+			self?.setHue(old)
+		}
+		engine.rotateHue()
 		mainChanged()
 	}
 

@@ -616,6 +616,9 @@ struct MasterPanel: View {
 		VStack(alignment: .leading, spacing: 6) {	// rows of fixed columns around a stretching slider
 			ForEach(0..<WHControls.masterCount, id: \.self) { i in
 				MasterRow(i: i)
+				if i == MasterProp.hueSpan.rawValue {
+					HueRow()	// after Hue Span: the two shape the colors
+				}
 			}
 		}
 		.padding(12)
@@ -652,6 +655,41 @@ struct MasterRow: View {
 				hi: WHControls.masterValue(i, position: Double(ci.rangeMax)),
 				defaultValue: WHControls.masterDefault(i))
 		}
+	}
+}
+
+/// Master's Hue row (Mac addition, V1's Hue): the patch's Hue main
+/// property, 0 to 360 degrees, offsetting the hue of new rings. Image >
+/// Rotate Hue adds 90 to it.
+struct HueRow: View {
+	@EnvironmentObject private var model: AppModel
+
+	var body: some View {
+		let _ = model.changes.main.n
+		let value = model.engine.hue
+		let step: (Double, Int, KeyStep) -> Double = { v, d, k in
+			min(max(k.apply(v, size: 10, direction: d), 0), 360)	// a degree, ten with Shift
+		}
+		HStack(spacing: 8) {
+			Text("Hue")
+				.lineLimit(1)
+				.frame(width: 72, alignment: .leading)
+			KeySlider(position: min(max(value, 0), 360), range: 0...360,
+				set: { model.setHue($0) },
+				reset: { model.setHue(0) },
+				step: { d, k in model.setHue(step(value, d, k)) })
+				.frame(minWidth: PositionSlider.minWidth, maxWidth: .infinity, minHeight: 18, maxHeight: 18)
+			NumberField(
+				value: value,
+				format: { String(format: "%.1f", $0) },
+				parse: { min(max(Double($0.trimmingCharacters(in: .whitespaces)) ?? value, 0), 360) },
+				commit: { model.setHue($0) },
+				step: step,
+				lo: 0,
+				hi: 360,
+				defaultValue: 0)
+		}
+		.help("Hue: shifts the colors of new rings, in degrees (and the looped range, with Loop Hue). Image > Rotate Hue (F3) also turns existing rings.")
 	}
 }
 

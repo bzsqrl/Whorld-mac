@@ -173,6 +173,12 @@ typedef struct {
 // Ring fade curve (Settings > Rings; WhorldEngine::SetRingFadeEased): the
 // Fade master property's fade follows an S-curve if YES, else a line.
 - (void)setRingFadeEased:(BOOL)eased;
+// Settings > Rendering > Patch colors on load (Mac addition): a loaded patch
+// starts the hue from its own Hue, or carries on from the previous patch
+- (void)setHueFromPatch:(BOOL)fromPatch;
+// Image > Rotate Hue (V1's, Mac addition): existing rings' hues turn 90
+// degrees, and Hue goes up 90 (wrapping at 360) so new rings follow
+- (void)rotateHue;
 - (void)setDrawMode:(uint32_t)drawMode;
 @property (nonatomic, readonly) uint32_t drawMode;
 

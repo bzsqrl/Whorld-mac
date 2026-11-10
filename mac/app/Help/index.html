@@ -48,8 +48,9 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <tr><th>Address</th><th>What</th></tr>
 <tr><td><code>/w/p/&lt;param&gt;/&lt;column&gt;</code></td><td>A parameter's column: <code>v</code> value, <code>w</code> waveform (a whole number picks it by index), <code>a</code> amplitude, <code>f</code> frequency (in Hz), <code>p</code> pulse width, <code>g</code> global. <code>/w/p/&lt;param&gt;</code> alone is the value. Parameters: <code>rg</code> Ring Growth, <code>rs</code> Ring Spacing, <code>lw</code> Line Width, <code>sd</code> Ring Sides, <code>rt</code> Rotate Speed, <code>ar</code> Aspect Ratio, <code>kr</code> Skew Radius, <code>ka</code> Skew Angle, <code>sf</code> Star Factor, <code>pn</code> Pinwheel, <code>cs</code> Color Speed, <code>lt</code> Lightness, <code>st</code> Saturation, <code>al</code> Alpha, <code>bh</code> Bk Hue, <code>bl</code> Bk Lightness, <code>bs</code> Bk Saturation, <code>ba</code> Bk Alpha, <code>ec</code> Even Curve, <code>oc</code> Odd Curve, <code>es</code> Even Shear, <code>os</code> Odd Shear.</td></tr>
 <tr><td><code>/w/m/&lt;master&gt;</code></td><td>Master: <code>sp</code> Speed, <code>zm</code> Zoom, <code>dp</code> Damping, <code>tr</code> Trail, <code>rn</code> Rings, <code>tp</code> Tempo, <code>hs</code> Hue Span, <code>cv</code> Canvas, <code>cp</code> Copies, <code>sr</code> Spread, <code>fd</code> Fade.</td></tr>
-<tr><td><code>/w/fill</code>, <code>/w/outline</code>, <code>/w/mirror</code>, <code>/w/reverse</code>, <code>/w/convex</code>, <code>/w/loophue</code>, <code>/w/zoomctr</code>, <code>/w/aa</code>, <code>/w/drag</code>, <code>/w/random</code>, <code>/w/pause</code></td><td>Switches (the last three: Origin Drag, Origin Random, Pause)</td></tr>
-<tr><td><code>/w/rndphase</code>, <code>/w/rndorg</code>, <code>/w/clear</code></td><td>Random Phase, Random Origin, Clear</td></tr>
+<tr><td><code>/w/fill</code>, <code>/w/outline</code>, <code>/w/mirror</code>, <code>/w/reverse</code>, <code>/w/convex</code>, <code>/w/loophue</code>, <code>/w/zoomctr</code>, <code>/w/aa</code>, <code>/w/drag</code>, <code>/w/random</code>, <code>/w/pause</code>, <code>/w/invert</code></td><td>Switches (the last four: Origin Drag, Origin Random, Pause, Invert Color)</td></tr>
+<tr><td><code>/w/hue</code></td><td>Hue (0 to 1 covers 0 to 360 degrees)</td></tr>
+<tr><td><code>/w/rndphase</code>, <code>/w/rndorg</code>, <code>/w/clear</code>, <code>/w/rothue</code></td><td>Random Phase, Random Origin, Clear, Rotate Hue</td></tr>
 <tr><td><code>/w/org/x</code>, <code>/w/org/y</code>, <code>/w/org x y</code></td><td>The origin, 0 to 1 (y down)</td></tr>
 <tr><td><code>/w/patch</code></td><td>Play the playlist's patch (a whole number is its index)</td></tr>
 <tr><td><code>/w/ping</code>, <code>/w/sync</code></td><td>Whorld answers <code>/w/pong</code> (with its address); sync sends everything again</td></tr>
@@ -97,6 +98,8 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <tr><td>Reverse</td><td>Ctrl+Backspace</td><td>⌘Delete</td></tr>
 <tr><td>Convex</td><td>Ctrl+Tab</td><td>⌃Tab (⌘Tab switches apps)</td></tr>
 <tr><td>Loop Hue</td><td>F2</td><td>F2</td></tr>
+<tr><td>Rotate Hue (Mac, as in Whorld 1)</td><td>&mdash;</td><td>F3</td></tr>
+<tr><td>Invert Color (Mac, as in Whorld 1)</td><td>&mdash;</td><td>F4</td></tr>
 <tr><td>Zoom Center</td><td>Shift+W</td><td>⇧W</td></tr>
 <tr><td>Antialiasing</td><td>Ctrl+Alt+A</td><td>⌥⌘A</td></tr>
 <tr><td>Origin Center</td><td>Ctrl+0</td><td>⌘0</td></tr>
@@ -110,6 +113,9 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <tr><td>Detach</td><td>Ctrl+F12</td><td>⇧⌘D</td></tr>
 <tr><td>Show frame rate</td><td>—</td><td>⌃⌘F</td></tr>
 </table>
+
+<h2>Hue, Rotate Hue and Invert Color</h2>
+<p>These three color controls from Whorld 1 work again in Whorld for Mac (Windows Whorld V2 keeps the settings in patches but doesn't use them). <b>Hue</b> (Master pane, 0 to 360 degrees) shifts the color of new rings; existing rings keep theirs, so a change sweeps outward as they're replaced. With Loop Hue on, it shifts the range of colors being looped through. <b>Image &gt; Rotate Hue</b> (<kbd>F3</kbd>) turns the colors of the rings already showing by 90 degrees and adds 90 to Hue, so new rings follow; four in a row come back to where you started. Undo puts Hue back, but not the colors already turned. <b>Image &gt; Invert Color</b> (<kbd>F4</kbd>, or Properties) inverts the colors of all rings, new and existing, as a photographic negative: hue and lightness both flip, so while it's on, raising Lightness darkens the rings. The background isn't affected. All three are saved with the patch and can be MIDI mapping targets or set by OSC. Normally a patch's colors carry on from where the previous patch left them, as on Windows, so the same patch can look different each time; to have each patch start from its own Hue, choose Whorld &gt; Settings &gt; Rendering &gt; Patch colors &gt; Start from the patch.</p>
 
 <h2>Fading rings</h2>
 <p>Normally, once there are as many rings as Master &gt; Rings allows, the oldest ring vanishes each time a new one appears. Master &gt; Fade makes them fade out instead: at 20, for example, each ring fades smoothly from its own transparency to nothing over its last 20 rings before it would vanish. Fade goes from 0 (off, as in Windows Whorld) to 200, is saved with the patch, and can be a MIDI mapping target. Whorld &gt; Settings &gt; Rendering &gt; Ring fade curve chooses between Linear, an even fade, and Eased, which starts and ends gently. The fade applies to the picture, snapshots, movies and exports; snapshots and movies don't record the Rings setting, so their own ring count stands in for it. With Rings at its maximum (unlimited), rings only disappear once they've left the picture, so nothing fades. Patches with Fade above 0 still open in Windows Whorld, which ignores Fade.</p>

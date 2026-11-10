@@ -46,8 +46,9 @@ MASTER = [("sp", "Speed"), ("zm", "Zoom"), ("dp", "Damping"), ("tr", "Trail"), (
 	("fd", "Fade")]
 SWITCHES = [("fill", "FILL"), ("outline", "OUTLINE"), ("mirror", "MIRROR"), ("reverse", "REVERSE"),
 	("convex", "CONVEX"), ("loophue", "LOOP HUE"), ("zoomctr", "ZOOM CTR"), ("aa", "ANTIALIAS"),
-	("drag", "ORG DRAG"), ("random", "ORG RANDOM"), ("pause", "PAUSE")]
-ACTIONS = [("rndphase", "RANDOM PHASE"), ("rndorg", "RANDOM ORIGIN"), ("clear", "CLEAR")]
+	("drag", "ORG DRAG"), ("random", "ORG RANDOM"), ("pause", "PAUSE"), ("invert", "INVERT")]
+ACTIONS = [("rndphase", "RANDOM PHASE"), ("rndorg", "RANDOM ORIGIN"), ("clear", "CLEAR"),
+	("rothue", "ROTATE HUE")]
 
 
 def rgb(hex_, a=1.0):
@@ -295,13 +296,17 @@ def build():
 	# MAIN: Master on the left, switches and actions on the right, the origin below them
 	c = header("main_")
 	c.append(lay.caption("cap_master", (M, 58, 300, 20), "MASTER"))
-	for (code, name), frame in zip(MASTER, grid(M, 82, 620, H - TAB - M, 1, len(MASTER), 6)):
-		c.append(lay.fader("m_" + code, frame, name, "/w/m/" + code))
+	# the Master faders, with Hue (a main property, /w/hue) after Hue Span
+	faders = [("m_" + code, name, "/w/m/" + code) for code, name in MASTER]
+	at = [code for code, _ in MASTER].index("hs") + 1
+	faders.insert(at, ("hue", "Hue", "/w/hue"))
+	for (cid, name, addr), frame in zip(faders, grid(M, 82, 620, H - TAB - M, 1, len(faders), 6)):
+		c.append(lay.fader(cid, frame, name, addr))
 	c.append(lay.caption("cap_image", (640, 58, 300, 20), "IMAGE"))
-	for (addr, text), frame in zip(SWITCHES + [(None, None)], grid(640, 82, W - M, 312, 4, 3, GAP)):
+	for (addr, text), frame in zip(SWITCHES, grid(640, 82, W - M, 312, 4, 3, GAP)):
 		if addr:
 			c.append(lay.switch("s_" + addr, frame, text, "/w/" + addr))
-	for (addr, text), frame in zip(ACTIONS, grid(640, 322, W - M, 382, 3, 1, GAP)):
+	for (addr, text), frame in zip(ACTIONS, grid(640, 322, W - M, 382, len(ACTIONS), 1, GAP)):
 		c.append(lay.push("a_" + addr, frame, text, "/w/" + addr))
 	c.append(lay.caption("cap_origin", (640, 394, 300, 20), "ORIGIN"))
 	c.append(lay.xy("origin", (640, 418, W - M - 640, H - TAB - M - 418), "/w/org"))

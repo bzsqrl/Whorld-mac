@@ -33,6 +33,7 @@ enum Preferences {
 			"General_sAuthorName": "",
 			"Render_nMaxFrameRate": 0,
 			"Rings_bFadeEased": false,
+			"Rings_bHueFromPatch": false,
 			"OSC_bEnabled": true,
 			"OSC_nReceivePort": 8000,
 			"OSC_nSendPort": 8001,
@@ -100,6 +101,14 @@ enum Preferences {
 		return defaults.bool(forKey: "Rings_bFadeEased")
 	}
 
+	/// Settings > Rendering > Patch colors on load (Mac addition): true, a
+	/// loaded patch starts from its own Hue; false, the hue carries on from
+	/// the previous patch (as Windows V2)
+	static var hueFromPatch: Bool {
+		register()
+		return defaults.bool(forKey: "Rings_bHueFromPatch")
+	}
+
 	/// Reopen the last playlist and patch at launch (Session; new in the Mac port)
 	static var reopenLast: Bool {
 		register()
@@ -138,6 +147,7 @@ struct PreferencesView: View {
 	@AppStorage("General_sAuthorName") private var authorName = ""
 	@AppStorage("Render_nMaxFrameRate") private var maxFrameRate = 0
 	@AppStorage("Rings_bFadeEased") private var ringFadeEased = false
+	@AppStorage("Rings_bHueFromPatch") private var hueFromPatch = false
 	@AppStorage("OSC_bEnabled") private var oscEnabled = true
 	@AppStorage("OSC_nReceivePort") private var oscReceivePort = 8000
 	@AppStorage("OSC_nSendPort") private var oscSendPort = 8001
@@ -159,7 +169,7 @@ struct PreferencesView: View {
 			}
 			.formStyle(.grouped)
 		}
-		.frame(width: 860, height: 600)
+		.frame(width: 860, height: 620)
 		.onAppear { Preferences.register() }
 	}
 
@@ -206,6 +216,13 @@ struct PreferencesView: View {
 					InfoLabel("Ring fade curve", info: "How old rings fade out when Master > Fade is above 0: Linear fades evenly; Eased starts and ends the fade gently.")
 				}
 				.onChange(of: ringFadeEased) { _, eased in model.engine.setRingFadeEased(eased) }
+				Picker(selection: $hueFromPatch) {
+					Text("Continue").tag(false)
+					Text("Start from the patch").tag(true)
+				} label: {
+					InfoLabel("Patch colors", info: "When a patch is loaded. Continue: the hue carries on from the previous patch, as on Windows, so a patch's colors depend on what played before. Start from the patch: colors start from the patch's Hue (Master pane), so a patch looks the same each time it's opened.")
+				}
+				.onChange(of: hueFromPatch) { _, on in model.engine.setHueFromPatch(on) }
 			}
 			Section("Syphon") {
 				Toggle(isOn: $syphonEnabled) {
@@ -233,15 +250,6 @@ struct PreferencesView: View {
 			.onChange(of: syphonFixedSize) { model.applySyphon() }
 			.onChange(of: syphonWidth) { model.applySyphon() }
 			.onChange(of: syphonHeight) { model.applySyphon() }
-			Section("Snapshots") {
-				Toggle("Letterbox", isOn: $letterbox)
-					.onChange(of: letterbox) { _, on in model.engine.setSnapshotLetterbox(on) }
-				Picker("Legacy snapshot size", selection: $legacySize) {
-					Text("640 × 480 (VGA)").tag(0)
-					Text("800 × 600 (SVGA)").tag(1)
-					Text("1024 × 768 (XGA)").tag(2)
-				}
-			}
 	}
 
 	@ViewBuilder private var rightColumn: some View {
@@ -319,6 +327,15 @@ struct PreferencesView: View {
 					Text("Both").tag(3)
 				}
 				Toggle("Ask for export options each time", isOn: $promptUser)
+			}
+			Section("Snapshots") {
+				Toggle("Letterbox", isOn: $letterbox)
+					.onChange(of: letterbox) { _, on in model.engine.setSnapshotLetterbox(on) }
+				Picker("Legacy snapshot size", selection: $legacySize) {
+					Text("640 × 480 (VGA)").tag(0)
+					Text("800 × 600 (SVGA)").tag(1)
+					Text("1024 × 768 (XGA)").tag(2)
+				}
 			}
 	}
 
