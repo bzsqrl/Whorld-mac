@@ -680,8 +680,8 @@ struct MovieBar: View {
 	}
 }
 
-/// The playlist window (CPlaylistBar): patch name and folder, playing
-/// indicator; double-click or Return plays.
+/// The playlist window (CPlaylistBar): patch name, author (Mac addition)
+/// and folder, playing indicator; double-click or Return plays.
 struct PlaylistPanel: View {
 	@EnvironmentObject private var model: AppModel
 
@@ -713,6 +713,13 @@ struct PlaylistPanel: View {
 					}
 				}
 				.width(min: 120, ideal: 180)
+				TableColumn("Author") { row in
+					Text(model.patchAuthor(row.path))
+						.foregroundStyle(.secondary)
+						.lineLimit(1)
+						.truncationMode(.tail)
+				}
+				.width(min: 60, ideal: 110)
 				TableColumn("Folder") { row in
 					Text(row.folder).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
 				}

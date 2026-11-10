@@ -222,6 +222,29 @@ TEST(FadeIsWrittenOnlyWhenOn) {
 	CHECK_EQ(w.m_master.fFade, 0.0);
 }
 
+TEST(AuthorIsWrittenOnlyWhenKnown) {
+	// Author is a Mac addition: without one, a patch is exactly the Windows
+	// format; with one, an Author line is added (Windows Whorld skips it)
+	Patch	p;
+	p.SetDefaults();
+	CHECK(WriteToString(p).find("Author") == std::string::npos);
+	p.m_sAuthor = "  Jane\tDoe \u00e9\r\nand  Co ";	// tabs, breaks, runs of spaces, UTF-8
+	std::string	text = WriteToString(p);
+	CHECK(text.find("Author\tJane Doe \u00e9 and Co\r\n") != std::string::npos);
+	Patch	q;
+	CHECK(ReadFromString(q, text));
+	CHECK_EQ(q.m_sAuthor, std::string("Jane Doe \u00e9 and Co"));
+	CHECK_EQ(q.GetMasterProp(Patch::MASTER_Rings), p.GetMasterProp(Patch::MASTER_Rings));
+	CHECK_EQ(WriteToString(q), text);	// stable
+	// reading another patch forgets it; a Windows patch has none
+	CHECK(ReadFromString(q, Join(kDefaultPatchLines, std::size(kDefaultPatchLines), "\r\n")));
+	CHECK_EQ(q.m_sAuthor, std::string());
+	// "Author" alone, or spaces only, is no author
+	CHECK(ReadFromString(q, "WHORLD4\nAuthor\nRings\t12\n"));
+	CHECK_EQ(q.m_sAuthor, std::string());
+	CHECK_EQ(q.GetMasterProp(Patch::MASTER_Rings), 12.0);
+}
+
 TEST(BadHeaderFails) {
 	Patch	p;
 	std::string	err;

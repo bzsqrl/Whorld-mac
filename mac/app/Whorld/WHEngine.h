@@ -141,6 +141,11 @@ typedef struct {
 - (void)newPatch;
 - (BOOL)openPatchAtPath:(NSString *)path error:(NSError **)error;
 @property (nonatomic, readonly, nullable) NSString *patchPath;
+// The patch's author (Mac addition: the patch file's Author line), "" if not known
+@property (nonatomic, readonly) NSString *patchAuthor;
+// A patch file's author without opening it (the playlist's Author column):
+// "" if it has none, nil if the file can't be read
++ (nullable NSString *)authorOfPatchAtPath:(NSString *)path;
 // Writes the document, with the live origin from the render thread, as
 // CWhorldDoc::OnSaveDocument does. Clears `modified` on success.
 - (BOOL)savePatchToPath:(NSString *)path error:(NSError **)error;

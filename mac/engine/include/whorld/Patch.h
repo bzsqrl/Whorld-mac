@@ -48,6 +48,9 @@ public:
 	PARAM_TABLE		m_aParam;	// table of parameter rows
 	MASTER_PROPS	m_master;	// master properties
 	MAIN_PROPS		m_main;		// main properties
+	// Mac addition: who made the patch (UTF-8, one line), "" if not known.
+	// Saved as an "Author" line, which Windows Whorld ignores.
+	std::string		m_sAuthor;
 
 // Attributes
 	void	SetDefaults();
@@ -70,6 +73,8 @@ public:
 	bool	Write(const std::string& sPath, std::string* pError = nullptr) const;
 	bool	Read(std::istream& in, std::string* pError = nullptr);
 	bool	Write(std::ostream& out) const;
+	static std::string	AuthorForFile(const std::string& sAuthor);	// as written: one line, trimmed
+	static const char* const kAuthorTag;	// "Author"
 
 protected:
 // Constants

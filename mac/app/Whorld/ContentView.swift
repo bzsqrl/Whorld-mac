@@ -28,6 +28,7 @@ private struct DocumentTitle: ViewModifier {
 
 	func body(content: Content) -> some View {
 		content.navigationTitle(model.windowTitle)
+			.navigationSubtitle(model.windowSubtitle)
 	}
 }
 

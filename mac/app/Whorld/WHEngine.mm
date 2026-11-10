@@ -531,6 +531,16 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	return _patchPath;
 }
 
+- (NSString *)patchAuthor { return @(_doc.m_sAuthor.c_str()) ?: @""; }
+
++ (NSString *)authorOfPatchAtPath:(NSString *)path
+{
+	whorld::Patch	patch;
+	if (!patch.Read(path.fileSystemRepresentation))
+		return nil;
+	return @(patch.m_sAuthor.c_str()) ?: @"";
+}
+
 - (BOOL)modified { return _modified; }
 - (void)setModified:(BOOL)modified { _modified = modified; }
 

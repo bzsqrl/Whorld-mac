@@ -85,6 +85,7 @@ void Patch::SetDefaults()
 	SetParamDefaults(m_aParam);
 	m_master = m_masterDefault;
 	m_main = m_mainDefault;
+	m_sAuthor.clear();	// Mac addition
 }
 
 // ported from Patch.cpp CPatch::GetParamRC
@@ -170,6 +171,25 @@ std::string Patch::MainToString(int iProp, const VARIANT_PROP& prop)
 	return sOut;
 }
 
+const char* const Patch::kAuthorTag = "Author";
+
+// An author as one line: tabs and line breaks become spaces, runs of spaces
+// one, and the ends are trimmed.
+std::string Patch::AuthorForFile(const std::string& sAuthor)
+{
+	std::string	s;
+	for (char c : sAuthor) {
+		if (c == '\t' || c == '\r' || c == '\n')
+			c = ' ';
+		if (c == ' ' && (s.empty() || s.back() == ' '))
+			continue;
+		s += c;
+	}
+	while (!s.empty() && s.back() == ' ')
+		s.pop_back();
+	return s;
+}
+
 // ported from Patch.cpp CPatch::ParseLine
 bool Patch::ParseLine(std::string sLine)
 {
@@ -193,6 +213,12 @@ bool Patch::ParseLine(std::string sLine)
 		const MAIN_INFO& info = GetMainInfo(iMain);
 		FormatIO::StrToVal(info.nFIOType, sArg.c_str(),
 			reinterpret_cast<uint8_t *>(&m_main) + info.nOffset);
+		return true;
+	}
+	if (sName == kAuthorTag) {	// Mac addition: the rest of the line, trimmed
+		TrimLeft(sArg);
+		size_t	iEnd = sArg.find_last_not_of(" \t\r\n");
+		m_sAuthor = iEnd == std::string::npos ? std::string() : sArg.substr(0, iEnd + 1);
 		return true;
 	}
 	return false;	// unknown symbol; parse failed
@@ -254,6 +280,13 @@ bool Patch::Write(std::ostream& out) const
 			reinterpret_cast<const uint8_t *>(&m_main) + info.nOffset, sLine);
 		out << info.pszTag << '\t' << sLine << kNewline;
 	}
+	// Author is a Mac addition, like Fade: written only when known, so a
+	// patch without one is byte for byte the Windows format. Windows Whorld
+	// skips the line (CPatch::ParseLine: unknown tag), and drops it if it
+	// saves the patch again.
+	std::string	sAuthor = AuthorForFile(m_sAuthor);
+	if (!sAuthor.empty())
+		out << kAuthorTag << '\t' << sAuthor << kNewline;
 	return static_cast<bool>(out);
 }
 

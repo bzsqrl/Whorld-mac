@@ -390,6 +390,7 @@ final class AppModel: ObservableObject {
 		let paths = engine.playlistPatches
 		guard index >= 0, index < paths.count, let url = resolvePatchPath(paths[index]) else { return }
 		if engine.playPatch(atPath: url.path) {
+			playedName = url.deletingPathExtension().lastPathComponent
 			playingPatch = index
 			resetUndo()
 			updateTitle()
@@ -616,11 +617,17 @@ final class AppModel: ObservableObject {
 
 	// MARK: Files
 
+	/// The name of the patch last played from the playlist, while the
+	/// document is that patch. As on Windows (CWhorldDoc::SetPatch), playing
+	/// a playlist patch detaches the document from its file, so Save asks
+	/// where; the title shows the patch's name, not "Untitled" (Mac port).
+	private var playedName: String?
+
 	func updateTitle() {
 		if let path = engine.patchPath {
 			title = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
 		} else {
-			title = "Untitled"
+			title = playedName ?? "Untitled"
 		}
 	}
 
@@ -629,8 +636,30 @@ final class AppModel: ObservableObject {
 		return engine.modified ? title + " — Edited" : title
 	}
 
+	/// Under the title: the patch's author, if the patch names one
+	var windowSubtitle: String {
+		_ = changes.document.n
+		let author = engine.patchAuthor
+		return author.isEmpty ? "" : "by " + author
+	}
+
+	/// A playlist patch's author, for the Playlist's Author column: read from
+	/// the file, and read again only when the file changes
+	func patchAuthor(_ stored: String) -> String {
+		guard let url = resolvePatchPath(stored) else { return "" }
+		let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+		if let cached = authorCache[url.path], cached.date == date {
+			return cached.author
+		}
+		let author = WHEngine.authorOfPatch(atPath: url.path) ?? ""
+		authorCache[url.path] = (date, author)
+		return author
+	}
+	private var authorCache: [String: (date: Date?, author: String)] = [:]
+
 	func newPatch() {
 		guard confirmDiscard() else { return }
+		playedName = nil
 		engine.newPatch()
 		resetUndo()
 		updateTitle()
@@ -641,6 +670,7 @@ final class AppModel: ObservableObject {
 		guard confirmDiscard() else { return }
 		do {
 			try engine.openPatch(atPath: url.path)
+			playedName = nil
 			resetUndo()
 			NSDocumentController.shared.noteNewRecentDocumentURL(url)
 		} catch {
