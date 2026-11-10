@@ -30,6 +30,7 @@ enum Preferences {
 			"Render_bMetal": true,
 			"General_bReopenLast": true,
 			"General_bCheckUpdates": true,
+			"General_sAuthorName": "",
 			"Render_nMaxFrameRate": 0,
 			"Rings_bFadeEased": false,
 			"OSC_bEnabled": true,
@@ -105,6 +106,13 @@ enum Preferences {
 		return defaults.bool(forKey: "General_bReopenLast")
 	}
 
+	/// Settings > General > Your name (Mac addition): suggested as the Author
+	/// of patches that have none, when saving or naming the author
+	static var authorName: String {
+		register()
+		return (defaults.string(forKey: "General_sAuthorName") ?? "").trimmingCharacters(in: .whitespaces)
+	}
+
 	static var snapshotLetterbox: Bool {
 		register()
 		return defaults.bool(forKey: "Snapshot_bLetterbox")
@@ -127,6 +135,7 @@ struct PreferencesView: View {
 	@AppStorage("Render_bMetal") private var useMetal = true
 	@AppStorage("General_bReopenLast") private var reopenLast = true
 	@AppStorage("General_bCheckUpdates") private var checkUpdates = true
+	@AppStorage("General_sAuthorName") private var authorName = ""
 	@AppStorage("Render_nMaxFrameRate") private var maxFrameRate = 0
 	@AppStorage("Rings_bFadeEased") private var ringFadeEased = false
 	@AppStorage("OSC_bEnabled") private var oscEnabled = true
@@ -163,6 +172,14 @@ struct PreferencesView: View {
 					}
 					Spacer()
 					Button("Check Now") { UpdateChecker.shared.checkNow() }
+				}
+				LabeledContent {
+					TextField("Your name", text: $authorName, prompt: Text("optional"))
+						.labelsHidden()
+						.multilineTextAlignment(.trailing)
+						.frame(width: 180)
+				} label: {
+					InfoLabel("Your name", info: "Suggested as the Author when you save a patch that doesn't name one yet, or use File > Patch Author…. A patch's existing author is never replaced unless you change it.")
 				}
 			}
 			Section("Rendering") {

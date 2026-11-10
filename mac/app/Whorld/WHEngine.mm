@@ -533,6 +533,15 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 
 - (NSString *)patchAuthor { return @(_doc.m_sAuthor.c_str()) ?: @""; }
 
+- (void)setPatchAuthor:(NSString *)author
+{
+	std::string	s = whorld::Patch::AuthorForFile(author.UTF8String ?: "");
+	if (s == _doc.m_sAuthor)
+		return;
+	_doc.m_sAuthor = s;	// the render thread's copy doesn't need it
+	_modified = YES;
+}
+
 + (NSString *)authorOfPatchAtPath:(NSString *)path
 {
 	whorld::Patch	patch;
@@ -1361,6 +1370,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	[self oscSend:p + "/pause" arg:OscArg::Float(_paused ? 1 : 0)];
 	[self oscSend:p + "/patch" arg:OscArg::Int(playingPatch)];
 	[self oscSend:p + "/patch/name" arg:OscArg::String(patchName.UTF8String ?: "")];
+	[self oscSend:p + "/patch/author" arg:OscArg::String(_doc.m_sAuthor)];
 	[self oscSend:p + "/playlist/name" arg:OscArg::String(playlistName.UTF8String ?: "")];
 	[self oscSend:p + "/fs" arg:OscArg::Float(fullScreen ? 1 : 0)];
 }

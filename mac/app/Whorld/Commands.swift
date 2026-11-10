@@ -68,6 +68,7 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut("s")
 			Button("Save As…") { model.saveAs() }
 				.keyboardShortcut("s", modifiers: [.command, .shift])
+			Button("Patch Author…") { model.editPatchAuthor() }
 			Divider()
 			Button("Take Snapshot…") { model.takeSnapshot() }
 				.keyboardShortcut("t")

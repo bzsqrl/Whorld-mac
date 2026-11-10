@@ -322,7 +322,7 @@ def build():
 
 	# MONITOR: names and frame statistics
 	c = header("mon_")
-	rows = [("Patch", "/w/patch/name"), ("Playlist", "/w/playlist/name"), ("Playing patch", "/w/patch"),
+	rows = [("Patch", "/w/patch/name"), ("Author", "/w/patch/author"), ("Playlist", "/w/playlist/name"), ("Playing patch", "/w/patch"),
 		("Frames per second", "/w/stat/fps"), ("Draw (ms)", "/w/stat/draw"), ("GPU (ms)", "/w/stat/gpu"),
 		("Refresh (Hz)", "/w/stat/hz"), ("Missed refreshes", "/w/stat/missed"), ("Rings", "/w/stat/rings"),
 		("Renderer", "/w/stat/renderer")]

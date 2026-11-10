@@ -715,8 +715,53 @@ final class AppModel: ObservableObject {
 		let panel = NSSavePanel()
 		panel.allowedContentTypes = [.whorldPatch]
 		panel.nameFieldStringValue = title + ".whp"
+		// the patch's author, or for a patch without one Settings > Your name
+		let author = NSTextField(string: authorToSuggest)
+		author.placeholderString = "who made this patch (optional)"
+		author.widthAnchor.constraint(equalToConstant: 280).isActive = true
+		let row = NSStackView(views: [NSTextField(labelWithString: "Author:"), author])
+		row.spacing = 8
+		row.edgeInsets = NSEdgeInsets(top: 10, left: 20, bottom: 10, right: 20)
+		panel.accessoryView = row
 		guard panel.runModal() == .OK, let url = panel.url else { return false }
+		setPatchAuthor(author.stringValue)
 		return write(to: url)
+	}
+
+	/// What the Author fields start with: the patch's author, or if it has
+	/// none, Settings > General > Your name
+	private var authorToSuggest: String {
+		let a = engine.patchAuthor
+		return a.isEmpty ? Preferences.authorName : a
+	}
+
+	/// Sets the patch's author: an edit, undoable like any other
+	func setPatchAuthor(_ author: String) {
+		let old = engine.patchAuthor
+		engine.patchAuthor = author
+		guard engine.patchAuthor != old else { return }
+		recordUndo(key: "author", title: "Author") { [weak self] in
+			self?.setPatchAuthor(old)
+		}
+		changes.document.bump()	// the title's subtitle
+		noteEdit()
+	}
+
+	/// File > Patch Author...: names the patch's author; Save (or Save As)
+	/// then writes it
+	func editPatchAuthor() {
+		let field = NSTextField(string: authorToSuggest)
+		field.placeholderString = "who made this patch"
+		field.frame = NSRect(x: 0, y: 0, width: 300, height: 24)
+		let a = NSAlert()
+		a.messageText = "Author of \"\(title)\""
+		a.informativeText = "Saved with the patch, and shown in the title bar and the Playlist's Author column. Leave empty for none."
+		a.accessoryView = field
+		a.addButton(withTitle: "OK")
+		a.addButton(withTitle: "Cancel")
+		a.window.initialFirstResponder = field
+		guard a.runModal() == .alertFirstButtonReturn else { return }
+		setPatchAuthor(field.stringValue)
 	}
 
 	private func write(to url: URL) -> Bool {
@@ -725,6 +770,7 @@ final class AppModel: ObservableObject {
 			NSDocumentController.shared.noteNewRecentDocumentURL(url)
 			updateTitle()
 			changed()
+			changes.playlist.bump()	// its Author column, if the playlist has this patch
 			return true
 		} catch {
 			NSAlert(error: error).runModal()

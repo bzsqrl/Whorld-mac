@@ -710,6 +710,30 @@ struct GlobalRow: View {
 /// Clicking a row gives it focus; the up and down arrows move the focus
 /// through the list (wrapping), and Space toggles the focused row's
 /// checkbox, steps Origin Motion, or presses Random Phase.
+/// The top of the Properties panel (Mac addition): the patch's name, and
+/// its author if it names one.
+private struct PatchCredit: View {
+	@EnvironmentObject private var model: AppModel
+
+	var body: some View {
+		let _ = model.changes.document.n
+		let author = model.engine.patchAuthor
+		VStack(alignment: .leading, spacing: 1) {
+			Text(model.title)
+				.fontWeight(.semibold)
+				.lineLimit(1)
+				.truncationMode(.middle)
+			Text(author.isEmpty ? "No author" : "by " + author)
+				.foregroundStyle(.secondary)
+				.lineLimit(2)
+		}
+		.padding(.horizontal, 4)
+		.padding(.vertical, 2)
+		.frame(maxWidth: .infinity, alignment: .leading)
+		.help(author.isEmpty ? "File > Patch Author… names the patch's author" : "")
+	}
+}
+
 struct PropertiesPanel: View {
 	@EnvironmentObject private var model: AppModel
 
@@ -735,6 +759,8 @@ struct PropertiesPanel: View {
 		let _ = model.changes.main.n
 		let e = model.engine
 		VStack(alignment: .leading, spacing: 1) {
+			PatchCredit()
+			divider
 			check(.fill, "Fill", e.fill)
 			check(.outline, "Outline", e.outline)
 			check(.mirror, WHControls.mainName(MainProp.mirror.rawValue), model.isOn(.mirror))
