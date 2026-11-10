@@ -191,7 +191,7 @@ for cfg in ("Debug", "Release"):
 \t\t\t\tCODE_SIGN_IDENTITY = "-";
 \t\t\t\tCODE_SIGN_STYLE = Manual;
 \t\t\t\tCOMBINE_HIDPI_IMAGES = YES;
-\t\t\t\tCURRENT_PROJECT_VERSION = 8;
+\t\t\t\tCURRENT_PROJECT_VERSION = 9;
 \t\t\t\tENABLE_HARDENED_RUNTIME = NO;
 \t\t\t\tENABLE_USER_SCRIPT_SANDBOXING = NO;
 \t\t\t\tFRAMEWORK_SEARCH_PATHS = (
