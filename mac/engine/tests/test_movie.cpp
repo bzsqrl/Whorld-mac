@@ -149,6 +149,10 @@ TEST(EngineRecordsAndPlaysBack) {
 		eng.Draw(rec);
 	CHECK_EQ(eng.GetMovieState().iFrame, int64_t(11));
 	CHECK_EQ(eng.GetRingCount(), aRings[10]);
+	eng.DrawAtSize(rec, SizeF{800, 480});	// Syphon's fixed size: no frame read
+	CHECK_EQ(eng.GetMovieState().iFrame, int64_t(11));
+	eng.Draw(rec);
+	CHECK_EQ(eng.GetMovieState().iFrame, int64_t(12));
 	// seek while paused reads exactly that frame
 	eng.OnMoviePause(true);
 	eng.OnMovieSeek(25);

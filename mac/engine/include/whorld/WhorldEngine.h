@@ -94,6 +94,9 @@ public:
 	// frame with antialiasing on, as OnCaptureBitmap does.
 	IntSize	GetCaptureSize(uint32_t nFlags, IntSize szImage) const;
 	bool	DrawCapture(IRenderer& renderer, uint32_t nFlags, IntSize szImage);
+	// The current frame again as if the view were szTarget DIPs, without
+	// advancing, with the live antialiasing (Mac port: Syphon output).
+	bool	DrawAtSize(IRenderer& renderer, SizeF szTarget);
 
 // Commands (ported from CWhorldThread::OnRenderCommand and handlers)
 	void	OnRenderCommand(const RenderCmd& cmd);
@@ -174,6 +177,7 @@ protected:
 	int		m_nMaxRings;	// maximum number of rings
 	bool	m_bRingFadeEased;	// ring fade along an S-curve instead of a line
 	bool	m_bIsPaused;	// if true, we're paused
+	bool	m_bRedrawing;	// Mac port: in DrawAtSize, which mustn't read a movie frame
 	bool	m_bSnapshotMode;	// if true, we're displaying a snapshot
 	bool	m_bFlushHistory;	// if true, next TimerHook won't interpolate oscillators
 	bool	m_bCopying;		// if true, add a rotating skew to new ring origins

@@ -346,6 +346,25 @@ TEST(RingFadeFadesTheOldestRings) {
 	CHECK(none);
 }
 
+TEST(DrawAtSizeDoesNotAdvance) {
+	// Syphon's fixed size (Mac port): the same frame at another size, no tick
+	auto	eng = MakeEngine(800, 600);
+	RunFrames(*eng, 100);
+	size_t	nRings = eng->GetRings().size();
+	double	fRadius = eng->GetRings().front().fRadius;
+	RecordingRenderer	a, b;
+	CHECK(eng->DrawAtSize(a, SizeF{1066.67f, 600}));
+	CHECK(eng->DrawAtSize(b, SizeF{1066.67f, 600}));
+	CHECK_EQ(eng->GetRings().size(), nRings);
+	CHECK_EQ(eng->GetRings().front().fRadius, fRadius);	// not advanced
+	CHECK_EQ(a.calls.size(), b.calls.size());	// the same picture twice
+	const RC*	aa = a.First(RC::ANTIALIAS);
+	CHECK(aa != nullptr && aa->bFlag == eng->GetPatch().m_main.bAntialiasing);	// live setting, not forced
+	RecordingRenderer	c;
+	RunFrames(*eng, 1, &c);	// and the live frame after it is the next one, at the live size
+	CHECK(eng->GetRings().front().fRadius != fRadius || eng->GetRings().size() != nRings);
+}
+
 TEST(RandomOriginUsesMsvcSequence) {
 	auto	eng = MakeEngine(800, 600);
 	Patch::VARIANT_PROP	prop;

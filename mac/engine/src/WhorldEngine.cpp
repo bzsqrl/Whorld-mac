@@ -77,6 +77,7 @@ WhorldEngine::WhorldEngine()
 	m_nMaxRings = INT_MAX;
 	m_bRingFadeEased = false;
 	m_bIsPaused = false;
+	m_bRedrawing = false;
 	m_bSnapshotMode = false;
 	m_bFlushHistory = false;
 	m_bCopying = false;
@@ -543,7 +544,7 @@ bool WhorldEngine::Draw(IRenderer& renderer)
 	if (!m_bIsPaused) {	// if unpaused
 		TimerHook();	// do time-based updates
 	} else {	// paused
-		if (m_movie.IsReading()) {	// if playing movie
+		if (m_movie.IsReading() && !m_bRedrawing) {	// if playing movie (Mac port: not when redrawing)
 			ReadMovieFrame();	// read its next frame
 		}
 	}
@@ -789,6 +790,24 @@ IntSize WhorldEngine::GetCaptureSize(uint32_t nFlags, IntSize szImage) const
 		szImage.cy = Round(m_szTarget.height);
 	}
 	return szImage;
+}
+
+// The current frame drawn again as if the view were szTarget DIPs, without
+// advancing (Mac port: Syphon's fixed-size output, drawn by a renderer at
+// its own scale). Paused for the drawing, as DrawCapture is, so nothing
+// ticks or is deleted, and a movie being recorded doesn't get the frame.
+bool WhorldEngine::DrawAtSize(IRenderer& renderer, SizeF szTarget)
+{
+	bool	bSavePaused = m_bIsPaused;
+	SizeF	szSaveTarget = m_szTarget;
+	m_bIsPaused = true;	// paused: no tick, no ring deletion, no movie recording
+	m_bRedrawing = true;	// and no movie frame read
+	m_szTarget = szTarget;
+	bool	bResult = Draw(renderer);
+	m_szTarget = szSaveTarget;
+	m_bRedrawing = false;
+	m_bIsPaused = bSavePaused;
+	return bResult;
 }
 
 // ported from WhorldDraw.cpp CWhorldDraw::CaptureBitmap (step 2, drawing)
