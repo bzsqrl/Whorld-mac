@@ -44,6 +44,80 @@ enum KeyStep {
 	}
 }
 
+/// Two-finger trackpad swipes on sliders and edit boxes (new in the Mac
+/// port): with the pointer over a slider, a sideways swipe moves it; over an
+/// edit box, a swipe up or down steps its value. A swipe belongs to the
+/// control under the pointer when it begins, and only if it goes along that
+/// control's axis; any other swipe scrolls as usual, even when scrolling
+/// brings a control under the pointer. Mouse wheels aren't affected, and
+/// the value doesn't coast after the fingers lift.
+@MainActor
+enum TrackpadSwipe {
+	enum Axis { case horizontal, vertical }
+
+	/// Finger travel along the axis, right or up positive, in points
+	struct Travel {
+		let points: Double
+		let first: Bool		// the swipe's first adjustment
+	}
+
+	private static weak var candidate: NSView?	// under the pointer as the swipe began
+	private static weak var owner: NSView?		// adjusting with this swipe
+	private static var beganPassedOn = false	// the scroll view saw the swipe begin
+	private static var monitor: Any?
+
+	/// Starts watching for the start of each swipe (once; any control may call it).
+	static func install() {
+		guard monitor == nil else { return }
+		monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { e in
+			if e.phase.contains(.began) || e.phase.contains(.mayBegin) {	// a new swipe: no owner yet
+				candidate = nil
+				owner = nil
+				beganPassedOn = false
+			}
+			return e
+		}
+	}
+
+	/// For a control's scrollWheel: the travel if the control takes this
+	/// event, or nil to pass it on (super.scrollWheel). A zero travel means
+	/// take the event but don't change anything.
+	static func travel(_ e: NSEvent, for view: NSView, axis: Axis) -> Travel? {
+		guard e.hasPreciseScrollingDeltas else { return nil }	// a mouse wheel
+		if !e.momentumPhase.isEmpty {	// coasting after the fingers lift
+			return owner === view ? Travel(points: 0, first: false) : nil
+		}
+		if e.phase.contains(.began) {
+			candidate = view
+		}
+		if e.phase.contains(.ended) || e.phase.contains(.cancelled) {
+			// the scroll view gets the end if it got the beginning
+			return owner === view && !beganPassedOn ? Travel(points: 0, first: false) : nil
+		}
+		let dx = Double(e.scrollingDeltaX), dy = Double(e.scrollingDeltaY)
+		var first = false
+		if owner !== view {
+			guard candidate === view else { return nil }	// began elsewhere: scroll
+			if dx == 0 && dy == 0 {	// no direction yet
+				if e.phase.contains(.began) { beganPassedOn = true }
+				return nil
+			}
+			let along = axis == .horizontal ? abs(dx) > abs(dy) : abs(dy) > abs(dx)
+			guard along else {	// across the control: scroll
+				candidate = nil
+				if e.phase.contains(.began) { beganPassedOn = true }
+				return nil
+			}
+			owner = view
+			first = true
+		}
+		// with natural scrolling the deltas follow the fingers; otherwise they're reversed
+		let inverted = e.isDirectionInvertedFromDevice
+		let points = axis == .horizontal ? (inverted ? dx : -dx) : (inverted ? -dy : dy)
+		return Travel(points: points, first: first)
+	}
+}
+
 /// An edit box: shows the formatted value, and on Return or losing focus
 /// parses what was typed, if anything was, as CNumEdit does (it commits only
 /// if GetModify). Committing unedited text would round the value to what's
@@ -135,6 +209,24 @@ struct KeyTextField: NSViewRepresentable {
 	/// asks its delegate, this field, for a context menu).
 	final class Field: NSTextField {
 		var onReset: (() -> Bool)?
+		var onSwipeStep: ((Int, KeyStep) -> Void)?	// steps up (+) or down (-)
+		private var swipeTravel = 0.0
+		/// finger travel per arrow-key step
+		static let pointsPerStep = 2.0
+
+		override func scrollWheel(with event: NSEvent) {
+			guard onSwipeStep != nil,
+				let t = TrackpadSwipe.travel(event, for: self, axis: .vertical) else {
+				super.scrollWheel(with: event)
+				return
+			}
+			if t.first { swipeTravel = 0 }
+			swipeTravel += t.points
+			let n = Int(swipeTravel / Self.pointsPerStep)	// whole steps, toward zero
+			guard n != 0 else { return }
+			swipeTravel -= Double(n) * Self.pointsPerStep
+			onSwipeStep?(n, event.modifierFlags.contains(.shift) ? .coarse : .fine)
+		}
 
 		override func rightMouseDown(with event: NSEvent) {
 			if onReset?() != true { super.rightMouseDown(with: event) }
@@ -183,6 +275,21 @@ struct KeyTextField: NSViewRepresentable {
 			parent.commit(v)
 			show(field, v)
 			(field.currentEditor() as? NSTextView)?.selectAll(nil)
+		}
+
+		/// a trackpad swipe: n arrow-key steps from the value shown
+		func swipe(_ field: NSTextField, _ n: Int, _ k: KeyStep) {
+			guard let step = parent.step else { return }
+			var v = field.stringValue != shown ? parent.parse(field.stringValue) : parent.parse(shown)
+			for _ in 0..<abs(n) {
+				v = step(v, n > 0 ? 1 : -1, k)
+			}
+			if field.currentEditor() != nil {
+				set(field, v)
+			} else {
+				parent.commit(v)
+				show(field, v)
+			}
 		}
 
 		func reset(_ field: NSTextField) -> Bool {
@@ -234,6 +341,13 @@ struct KeyTextField: NSViewRepresentable {
 		f.onReset = { [weak f, weak c] in
 			guard let f, let c else { return false }
 			return c.reset(f)
+		}
+		if step != nil {
+			TrackpadSwipe.install()
+			f.onSwipeStep = { [weak f, weak c] n, k in
+				guard let f, let c else { return }
+				c.swipe(f, n, k)
+			}
 		}
 		context.coordinator.show(f, value)
 		return f
@@ -300,8 +414,27 @@ struct KeySlider: NSViewRepresentable {
 		var onSet: ((Double) -> Void)?
 		var onReset: (() -> Void)?
 		var onStep: ((Int, KeyStep) -> Void)?
+		private var swipePosition = 0.0	// unrounded, during a trackpad swipe
 
 		override var acceptsFirstResponder: Bool { true }
+
+		// a sideways trackpad swipe moves the knob as if dragged: the
+		// slider's width of travel covers its range
+		override func scrollWheel(with event: NSEvent) {
+			guard let t = TrackpadSwipe.travel(event, for: self, axis: .horizontal) else {
+				super.scrollWheel(with: event)
+				return
+			}
+			if t.first { swipePosition = doubleValue }
+			guard t.points != 0 else { return }
+			let width = max(bounds.width, 40)
+			swipePosition = min(max(swipePosition + t.points / width * (maxValue - minValue), minValue), maxValue)
+			let pos = swipePosition.rounded()	// whole positions, as dragging
+			if pos != doubleValue {
+				doubleValue = pos
+				onSet?(pos)
+			}
+		}
 		override var canBecomeKeyView: Bool { true }
 
 		override func mouseDown(with event: NSEvent) {
@@ -347,6 +480,7 @@ struct KeySlider: NSViewRepresentable {
 		s.target = s
 		s.action = #selector(Slider.changed(_:))
 		s.focusRingType = .exterior
+		TrackpadSwipe.install()
 		updateNSView(s, context: context)
 		return s
 	}
