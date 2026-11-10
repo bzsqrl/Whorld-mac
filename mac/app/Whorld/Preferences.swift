@@ -139,85 +139,98 @@ struct PreferencesView: View {
 	@AppStorage("Syphon_nHeight") private var syphonHeight = 1080
 
 	var body: some View {
-		Form {
+		// two columns, so everything shows without scrolling
+		HStack(alignment: .top, spacing: 0) {
+			Form {
+				leftColumn
+			}
+			.formStyle(.grouped)
+			Form {
+				rightColumn
+			}
+			.formStyle(.grouped)
+		}
+		.frame(width: 860, height: 600)
+		.onAppear { Preferences.register() }
+	}
+
+	@ViewBuilder private var leftColumn: some View {
 			Section("General") {
 				Toggle("Reopen the last playlist and patch at launch", isOn: $reopenLast)
 				HStack {
-					Toggle("Check for updates automatically", isOn: $checkUpdates)
+					Toggle(isOn: $checkUpdates) {
+						InfoLabel("Check for updates automatically", info: "Once a day, Whorld asks GitHub whether a newer version has been released; only Whorld's version number is sent. Updates are never installed by themselves, and never announced in full screen.")
+					}
 					Spacer()
 					Button("Check Now") { UpdateChecker.shared.checkNow() }
 				}
-				Text("Once a day, Whorld asks GitHub whether a newer version has been released; only Whorld's version number is sent. Updates are never installed by themselves, and never announced in full screen.")
-					.font(.caption)
-					.foregroundStyle(.secondary)
-					.fixedSize(horizontal: false, vertical: true)
 			}
 			Section("Rendering") {
-				Picker("Renderer", selection: $useMetal) {
+				Picker(selection: $useMetal) {
 					Text("Metal (GPU)").tag(true)
 					Text("Core Graphics (CPU)").tag(false)
+				} label: {
+					InfoLabel("Renderer", info: WHEngine.metalAvailable
+						? "Draws the live view. Exports always use Core Graphics."
+						: "Draws the live view. Metal needs a Mac with Apple silicon, so this Mac uses Core Graphics. Exports always use Core Graphics.")
 				}
 				.onChange(of: useMetal) { _, on in model.engine.preferMetal = on }
-				Text(WHEngine.metalAvailable
-					? "For the live view. Exports always use Core Graphics."
-					: "Metal needs a Mac with Apple silicon; the live view uses Core Graphics.")
-					.font(.caption)
-					.foregroundStyle(.secondary)
-				Picker("Frame rate", selection: $maxFrameRate) {
+				Picker(selection: $maxFrameRate) {
 					Text("Display refresh rate").tag(0)
 					Text("60 fps").tag(60)
+				} label: {
+					InfoLabel("Frame rate", info: "Rings move a step each frame, so at 120 Hz patches run twice as fast as on a 60 Hz display. 60 fps matches Windows on a typical monitor and uses about half the power.")
 				}
 				.onChange(of: maxFrameRate) { _, rate in model.engine.maxFrameRate = rate }
-				Text("Rings move a step each frame, so at 120 Hz patches run twice as fast as on a 60 Hz display. 60 fps matches Windows on a typical monitor and uses about half the power.")
-					.font(.caption)
-					.foregroundStyle(.secondary)
-					.fixedSize(horizontal: false, vertical: true)
+				Picker(selection: $ringFadeEased) {
+					Text("Linear").tag(false)
+					Text("Eased").tag(true)
+				} label: {
+					InfoLabel("Ring fade curve", info: "How old rings fade out when Master > Fade is above 0: Linear fades evenly; Eased starts and ends the fade gently.")
+				}
+				.onChange(of: ringFadeEased) { _, eased in model.engine.setRingFadeEased(eased) }
 			}
 			Section("Syphon") {
-				Toggle("Syphon output", isOn: $syphonEnabled)
-				Picker("Size", selection: $syphonFixedSize) {
-					Text("Same as the output").tag(false)
-					Text("Fixed size").tag(true)
+				Toggle(isOn: $syphonEnabled) {
+					InfoLabel("Syphon output", info: "Sends Whorld's output to other apps on this Mac (Resolume, MadMapper, OBS, TouchDesigner…), where it's listed as Whorld, with transparency where the patch has any.")
+					SyphonStatus()
+				}
+				LabeledContent {
+					HStack {
+						Picker("Size", selection: $syphonFixedSize) {
+							Text("Same as the output").tag(false)
+							Text("Fixed").tag(true)
+						}
+						.labelsHidden()
+						.fixedSize()
+						if syphonFixedSize {
+							SizeFields(width: $syphonWidth, height: $syphonHeight)
+						}
+					}
+				} label: {
+					InfoLabel("Size", info: "Same as the output: the frames Whorld shows, at their size. Fixed: each frame drawn again at that size in pixels, the picture scaled to fit, with more of the pattern on the longer side; it's drawn only while an app is receiving.")
 				}
 				.disabled(!syphonEnabled)
-				LabeledContent("Fixed size") {
-					HStack {
-						TextField("Width", value: $syphonWidth, format: .number.grouping(.never))
-							.labelsHidden()
-							.multilineTextAlignment(.trailing)
-							.frame(width: 72)
-						Text("×")
-						TextField("Height", value: $syphonHeight, format: .number.grouping(.never))
-							.labelsHidden()
-							.multilineTextAlignment(.trailing)
-							.frame(width: 72)
-					}
-				}
-				.disabled(!syphonEnabled || !syphonFixedSize)
-				SyphonStatus()
-				Text("Sends Whorld's output to other apps (Resolume, MadMapper, OBS, TouchDesigner…), where it's listed as Whorld, with transparency where the patch has any. Same as the output: the frames Whorld shows. Fixed size: each frame drawn again at that size in pixels, the picture scaled to fit, with more of the pattern on the longer side; it's drawn only while an app is receiving.")
-					.font(.caption)
-					.foregroundStyle(.secondary)
-					.fixedSize(horizontal: false, vertical: true)
 			}
 			.onChange(of: syphonEnabled) { model.applySyphon() }
 			.onChange(of: syphonFixedSize) { model.applySyphon() }
 			.onChange(of: syphonWidth) { model.applySyphon() }
 			.onChange(of: syphonHeight) { model.applySyphon() }
-			Section("Rings") {
-				Picker("Fade curve", selection: $ringFadeEased) {
-					Text("Linear").tag(false)
-					Text("Eased").tag(true)
+			Section("Snapshots") {
+				Toggle("Letterbox", isOn: $letterbox)
+					.onChange(of: letterbox) { _, on in model.engine.setSnapshotLetterbox(on) }
+				Picker("Legacy snapshot size", selection: $legacySize) {
+					Text("640 × 480 (VGA)").tag(0)
+					Text("800 × 600 (SVGA)").tag(1)
+					Text("1024 × 768 (XGA)").tag(2)
 				}
-				.onChange(of: ringFadeEased) { _, eased in model.engine.setRingFadeEased(eased) }
-				Text("How old rings fade out when Master > Fade is above 0: Linear fades evenly; Eased starts and ends the fade gently.")
-					.font(.caption)
-					.foregroundStyle(.secondary)
-					.fixedSize(horizontal: false, vertical: true)
 			}
-			Section("MIDI") {
+	}
+
+	@ViewBuilder private var rightColumn: some View {
+			Section("Control") {
 				let _ = model.changes.midi.n
-				Picker("Input device", selection: $midiInput) {
+				Picker("MIDI input", selection: $midiInput) {
 					Text("None").tag("")
 					ForEach(model.engine.midiInputNames, id: \.self) { name in
 						Text(name).tag(name)
@@ -229,50 +242,41 @@ struct PreferencesView: View {
 				.onChange(of: midiInput) { _, name in
 					model.engine.midiInputName = name.isEmpty ? nil : name
 				}
-			}
-			Section("OSC") {
-				Toggle("OSC remote control", isOn: $oscEnabled)
-				LabeledContent("Receive port") {
-					TextField("", value: $oscReceivePort, format: .number.grouping(.never))
-						.labelsHidden()
-						.multilineTextAlignment(.trailing)
-						.frame(width: 70)
-				}
-				.disabled(!oscEnabled)
-				LabeledContent("Send port") {
-					TextField("", value: $oscSendPort, format: .number.grouping(.never))
-						.labelsHidden()
-						.multilineTextAlignment(.trailing)
-						.frame(width: 70)
-				}
-				.disabled(!oscEnabled)
-				LabeledContent("Also send to") {
-					TextField("host (optional)", text: $oscHost)
-						.labelsHidden()
-						.multilineTextAlignment(.trailing)
-						.frame(width: 160)
-						.onSubmit { model.restartOSC() }
-				}
-				.disabled(!oscEnabled)
-				OSCStatus()
-				Text("Every control MIDI can map has an OSC address, such as /w/m/sp for Speed; see Help > Whorld Help. Whorld answers each device that has sent it something in the last 30 seconds, on the send port, with the values as they change and the frame statistics (/w/stat/...); \"Also send to\" adds a fixed address, for a monitor that never sends. TouchOSC: open Whorld.tosc, set a connection to this Mac's address, send port \(oscReceivePort), receive port \(oscSendPort).")
-					.font(.caption)
-					.foregroundStyle(.secondary)
-					.fixedSize(horizontal: false, vertical: true)
-			}
-			.onChange(of: oscEnabled) { model.restartOSC() }
-			.onChange(of: oscReceivePort) { model.restartOSC() }
-			.onChange(of: oscSendPort) { model.restartOSC() }
-			Section("Input") {
 				LabeledContent("Wheel sensitivity") {
 					HStack {
 						Slider(value: $wheelSense, in: 0.1...10)
 						Text(String(format: "%.2f", wheelSense))
 							.monospacedDigit()
-							.frame(width: 40, alignment: .trailing)
+							.frame(width: 36, alignment: .trailing)
 					}
 				}
+				Toggle(isOn: $oscEnabled) {
+					InfoLabel("OSC remote control", info: "Every control MIDI can map has an OSC address, such as /w/m/sp for Speed; see Help > Whorld Help. Whorld answers each device that has sent it something in the last 30 seconds, on the send port, with the values as they change and the frame statistics (/w/stat/...). \"Also send to\" adds a fixed address, for a monitor that never sends.\n\nTouchOSC: open Whorld.tosc, and set a connection to this Mac's address, send port \(oscReceivePort), receive port \(oscSendPort).")
+					OSCStatus()
+				}
+				Group {
+					LabeledContent("Ports") {
+						HStack(spacing: 6) {
+							Text("receive").foregroundStyle(.secondary)
+							IntField(value: $oscReceivePort, width: 56)
+							Text("send").foregroundStyle(.secondary)
+								.padding(.leading, 4)
+							IntField(value: $oscSendPort, width: 56)
+						}
+					}
+					LabeledContent("Also send to") {
+						TextField("Also send to", text: $oscHost, prompt: Text("host (optional)"))
+							.labelsHidden()
+							.multilineTextAlignment(.trailing)
+							.frame(width: 160)
+							.onSubmit { model.restartOSC() }
+					}
+				}
+				.disabled(!oscEnabled)
 			}
+			.onChange(of: oscEnabled) { model.restartOSC() }
+			.onChange(of: oscReceivePort) { model.restartOSC() }
+			.onChange(of: oscSendPort) { model.restartOSC() }
 			Section("Export") {
 				LabeledContent("Image folder") {
 					HStack {
@@ -282,20 +286,14 @@ struct PreferencesView: View {
 						Button("Choose…", action: chooseFolder)
 					}
 				}
-				Toggle("Use view size", isOn: $useViewSize)
 				LabeledContent("Image size") {
 					HStack {
-						TextField("Width", value: $imageWidth, format: .number.grouping(.never))
-							.labelsHidden()
-							.multilineTextAlignment(.trailing)
-							.frame(width: 72)
-						Text("×")
-						TextField("Height", value: $imageHeight, format: .number.grouping(.never))
-							.labelsHidden()
-							.multilineTextAlignment(.trailing)
-							.frame(width: 72)
+						Toggle("Same as the view", isOn: $useViewSize)
+							.toggleStyle(.checkbox)
+						if !useViewSize {
+							SizeFields(width: $imageWidth, height: $imageHeight)
+						}
 					}
-					.disabled(useViewSize)
 				}
 				Picker("Scale to fit", selection: $scaleToFit) {
 					Text("None").tag(0)
@@ -303,21 +301,8 @@ struct PreferencesView: View {
 					Text("Height").tag(2)
 					Text("Both").tag(3)
 				}
-				Toggle("Prompt for export options", isOn: $promptUser)
+				Toggle("Ask for export options each time", isOn: $promptUser)
 			}
-			Section("Snapshot") {
-				Toggle("Letterbox", isOn: $letterbox)
-					.onChange(of: letterbox) { _, on in model.engine.setSnapshotLetterbox(on) }
-				Picker("Legacy snapshot size", selection: $legacySize) {
-					Text("640 × 480 (VGA)").tag(0)
-					Text("800 × 600 (SVGA)").tag(1)
-					Text("1024 × 768 (XGA)").tag(2)
-				}
-			}
-		}
-		.formStyle(.grouped)
-		.frame(width: 460, height: 700)
-		.onAppear { Preferences.register() }
 	}
 
 	private func chooseFolder() {
@@ -327,6 +312,77 @@ struct PreferencesView: View {
 		panel.canCreateDirectories = true
 		if panel.runModal() == .OK, let url = panel.url {
 			imageFolder = url.path
+		}
+	}
+}
+
+/// A setting's title followed by an InfoButton with its explanation.
+private struct InfoLabel: View {
+	let title: String
+	let info: String
+
+	init(_ title: String, info: String) {
+		self.title = title
+		self.info = info
+	}
+
+	var body: some View {
+		HStack(spacing: 4) {
+			Text(title)
+			InfoButton(text: info)
+		}
+	}
+}
+
+/// An info icon that explains a setting: as a tooltip on hover, and in a
+/// popover on click (to read at leisure, or where tooltips are slow to show).
+private struct InfoButton: View {
+	let text: String
+	@State private var shown = false
+
+	var body: some View {
+		Button {
+			shown.toggle()
+		} label: {
+			Image(systemName: "info.circle")
+				.foregroundStyle(.secondary)
+		}
+		.buttonStyle(.borderless)
+		.help(text)
+		.accessibilityLabel("About this setting")
+		.popover(isPresented: $shown, arrowEdge: .bottom) {
+			Text(text)
+				.font(.callout)
+				.fixedSize(horizontal: false, vertical: true)
+				.frame(width: 300, alignment: .leading)
+				.padding(12)
+		}
+	}
+}
+
+/// A whole-number field, right-aligned
+private struct IntField: View {
+	@Binding var value: Int
+	var width: CGFloat = 64
+
+	var body: some View {
+		TextField("", value: $value, format: .number.grouping(.never))
+			.labelsHidden()
+			.multilineTextAlignment(.trailing)
+			.frame(width: width)
+	}
+}
+
+/// Width × height in pixels
+private struct SizeFields: View {
+	@Binding var width: Int
+	@Binding var height: Int
+
+	var body: some View {
+		HStack(spacing: 4) {
+			IntField(value: $width, width: 52)
+			Text("×")
+			IntField(value: $height, width: 52)
 		}
 	}
 }
