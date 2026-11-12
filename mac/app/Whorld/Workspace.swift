@@ -274,9 +274,24 @@ struct Layout: Codable, Equatable {
 	/// where a hidden or floating panel goes back to
 	var lastRegion: [PanelID: Region] = [:]
 
-	/// what a new install shows; Playlist and MIDI Mapping start hidden
-	static let standard = Layout(left: .panel(.properties), right: .split(.column, [.panel(.master), .panel(.globals)]),
-		bottom: .panel(.params))
+	/// What a new install shows, and Window > Reset Layout: Parameters on the
+	/// left beside the picture, Playlist, Properties, Master and Globals along
+	/// the bottom, MIDI Mapping hidden (the user's arrangement, 2026-11-11).
+	/// The divider positions are in `standardSplits`.
+	static let standard: Layout = {
+		var l = Layout(left: .panel(.params),
+			bottom: .split(.row, [.panel(.playlist), .panel(.properties), .panel(.master), .panel(.globals)]))
+		l.lastRegion = [.mapping: .left]
+		return l
+	}()
+
+	/// The standard layout's split views (by autosave name): each pane's
+	/// share of the space, in order
+	static let standardSplits: [String: [Double]] = [
+		"Whorld.H.left|center": [0.4987, 0.5013],
+		"Whorld.V.top|bottom": [0.5836, 0.4164],
+		"Whorld.bottom.row(playlist,properties,master,globals)": [0.2502, 0.1352, 0.3360, 0.2786],
+	]
 
 	func root(_ r: Region) -> DockNode? {
 		switch r {
@@ -333,6 +348,76 @@ struct Layout: Codable, Equatable {
 		floating = v1.floating
 		detached = v1.detached
 		lastRegion = v1.lastRegion
+	}
+}
+
+/// A rectangle as a share of a screen's visible area, so a layout adapts to
+/// other displays.
+struct UnitRect: Codable, Equatable {
+	var x, y, w, h: Double
+
+	init(_ r: NSRect, in area: NSRect) {
+		x = Double((r.minX - area.minX) / max(area.width, 1))
+		y = Double((r.minY - area.minY) / max(area.height, 1))
+		w = Double(r.width / max(area.width, 1))
+		h = Double(r.height / max(area.height, 1))
+	}
+
+	func rect(in area: NSRect) -> NSRect {
+		let r = NSRect(x: area.minX + CGFloat(x) * area.width, y: area.minY + CGFloat(y) * area.height,
+			width: CGFloat(w) * area.width, height: CGFloat(h) * area.height)
+		return r.intersection(area).isEmpty ? area : r	// keep it on screen
+	}
+}
+
+/// A saved panel layout (Mac addition): a .whlayout file, or a playlist's
+/// [Layout] section (as one line of JSON).
+struct LayoutFile: Codable {
+	var version = 1
+	var layout: Layout
+	/// each split view (autosave name): its panes' shares of the space
+	var splits: [String: [Double]] = [:]
+	var window: UnitRect?	// the Whorld window
+	var output: UnitRect?	// the detached output window, if detached
+	var floating: [String: UnitRect] = [:]	// floating panels' windows, by panel
+
+	init(layout: Layout) { self.layout = layout }
+
+	/// one line, for a playlist
+	var line: String? {
+		let e = JSONEncoder()
+		e.outputFormatting = [.sortedKeys]
+		return (try? e.encode(self)).flatMap { String(data: $0, encoding: .utf8) }
+	}
+
+	init?(line: String) {
+		guard let f = try? JSONDecoder().decode(LayoutFile.self, from: Data(line.utf8)) else { return nil }
+		self = f
+	}
+}
+
+/// The split views' starting positions as shares of their space: those of
+/// the layout last applied, else the standard one's. A split view whose
+/// positions weren't saved (first launch, a new arrangement, Reset Layout,
+/// applying a layout) arranges by these, else by its panes' starting sizes.
+enum SplitShares {
+	nonisolated(unsafe) static var current: [String: [Double]] = Layout.standardSplits
+
+	/// the shares of every Whorld split view in a window's content
+	@MainActor static func capture(in root: NSView) -> [String: [Double]] {
+		var out: [String: [Double]] = [:]
+		func walk(_ v: NSView) {
+			if let s = v as? NSSplitView, let name = s.autosaveName, name.hasPrefix("Whorld.") {
+				let sizes = s.arrangedSubviews.map { Double(s.isVertical ? $0.frame.width : $0.frame.height) }
+				let sum = sizes.reduce(0, +)
+				if sum > 0 {
+					out[name] = sizes.map { $0 / sum }
+				}
+			}
+			v.subviews.forEach(walk)
+		}
+		walk(root)
+		return out
 	}
 }
 
@@ -482,19 +567,27 @@ final class LayoutModel: ObservableObject {
 		}
 	}
 
-	/// Window > Reset Layout: the standard arrangement and divider positions.
-	func reset() {
-		for id in layout.floating {
-			closeFloating?(id)
-		}
+	/// Forgets the split views' saved divider positions, so they arrange
+	/// afresh (by SplitShares)
+	func forgetSplitPositions() {
 		let defaults = UserDefaults.standard
 		for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(Self.splitPrefix) {
 			defaults.removeObject(forKey: key)
 		}
+	}
+
+	/// Window > Reset Layout: the standard arrangement and divider positions,
+	/// exactly as a new install shows them (MIDI Mapping hidden; the View
+	/// menu shows it).
+	func reset() {
+		for id in layout.floating {
+			closeFloating?(id)
+		}
+		forgetSplitPositions()
+		SplitShares.current = Layout.standardSplits
 		var l = Layout.standard
 		l.detached = layout.detached
 		layout = l
-		showAll()
 	}
 }
 
@@ -635,10 +728,24 @@ struct SplitView: NSViewRepresentable {
 	/// Starting sizes, at the next layout (and saved).
 	private func arrange(_ s: DockSplitView) {
 		let name = autosave, ids = items, initial = initialSize, isVertical = vertical
+		let shares = SplitShares.current[name]
 		s.pendingInitial = { [weak s] in
 			guard let s else { return true }
 			let total = isVertical ? s.bounds.width : s.bounds.height
 			let t = s.dividerThickness
+			if let shares, shares.count == ids.count, ids.count > 1 {	// a saved layout's proportions
+				let room = total - t * CGFloat(ids.count - 1)
+				let sum = max(shares.reduce(0, +), 1e-9)
+				var pos: CGFloat = 0
+				for i in 0..<(ids.count - 1) {
+					pos += room * CGFloat(shares[i] / sum)
+					s.setPosition(pos, ofDividerAt: i)
+					pos += t
+				}
+				s.autosaveName = name
+				s.redisplayWindowSoon()
+				return true
+			}
 			let fixed = ids.map(initial)
 			let nFlex = fixed.filter { $0 == nil }.count
 			let used = fixed.compactMap { $0 }.reduce(0, +) + t * CGFloat(max(ids.count - 1, 0))

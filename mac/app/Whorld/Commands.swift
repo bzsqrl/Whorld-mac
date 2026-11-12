@@ -224,6 +224,8 @@ struct WhorldCommands: Commands {
 			Button("Show All Panels") { model.showAllPanels() }
 				.keyboardShortcut("p", modifiers: [.command, .option])
 			Button("Reset Layout…") { model.resetLayout() }
+			Button("Save Layout…") { model.saveLayout() }
+			Button("Open Layout…") { model.openLayout() }
 			Divider()
 		}
 	}

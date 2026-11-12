@@ -18,6 +18,8 @@ extension UTType {
 	static let whorldPatch = UTType(importedAs: "io.github.bzsqrl.whorld.patch", conformingTo: .data)
 	// Whorld playlist (.whl), declared in Info.plist
 	static let whorldPlaylist = UTType(importedAs: "io.github.bzsqrl.whorld.playlist", conformingTo: .data)
+	// Whorld panel layout (.whlayout, Mac only), declared in Info.plist
+	static let whorldLayout = UTType(exportedAs: "io.github.bzsqrl.whorld.layout", conformingTo: .json)
 }
 
 /// Main property indices (WhorldBase MAIN_*)
@@ -303,6 +305,9 @@ final class AppModel: ObservableObject {
 	func openPlaylist(_ url: URL) {
 		do {
 			try engine.openPlaylist(atPath: url.path)
+			if Preferences.applyPlaylistLayouts, let line = engine.playlistLayout, let f = LayoutFile(line: line) {
+				applyLayout(f)
+			}
 			playlistURL = url
 			playingPatch = -1
 			checkMissingPatches()
@@ -330,11 +335,24 @@ final class AppModel: ObservableObject {
 		let panel = NSSavePanel()
 		panel.allowedContentTypes = [.whorldPlaylist]
 		panel.nameFieldStringValue = playlistTitle + ".whl"
+		// the panel layout goes in the playlist if this is checked (remembered)
+		let include = NSButton(checkboxWithTitle: "Include the panel layout", target: nil, action: nil)
+		include.state = Preferences.playlistSavesLayout ? .on : .off
+		include.toolTip = "Saves the panels' arrangement with the playlist, to restore when it's opened (Whorld for Mac only; Windows Whorld ignores it)."
+		let row = NSStackView(views: [include])
+		row.edgeInsets = NSEdgeInsets(top: 10, left: 20, bottom: 10, right: 20)
+		panel.accessoryView = row
 		guard panel.runModal() == .OK, let url = panel.url else { return false }
+		let on = include.state == .on
+		UserDefaults.standard.set(on, forKey: "Playlist_bSaveLayout")
+		engine.playlistLayout = on ? currentLayoutFile().line : nil
 		return writePlaylist(to: url)
 	}
 
 	private func writePlaylist(to url: URL) -> Bool {
+		if engine.playlistLayout != nil {	// a playlist with a layout keeps it current
+			engine.playlistLayout = currentLayoutFile().line
+		}
 		do {
 			try engine.savePlaylist(toPath: url.path)
 			NSDocumentController.shared.noteNewRecentDocumentURL(url)
@@ -700,6 +718,7 @@ final class AppModel: ObservableObject {
 			if confirmDiscardPlaylist() {
 				openPlaylist(url)
 			}
+		case "whlayout": openLayout(url)
 		case "whs": loadSnapshots([url])
 		case "whm": playMovie(url)
 		default: open(url)
@@ -938,12 +957,118 @@ final class AppModel: ObservableObject {
 	func resetLayout() {
 		let alert = NSAlert()
 		alert.messageText = "Reset the layout?"
-		alert.informativeText = "All panels go back to their standard places and sizes."
+		alert.informativeText = "The panels go back to their standard places and sizes, as when Whorld is first opened."
 		alert.addButton(withTitle: "Reset")
 		alert.addButton(withTitle: "Cancel")
 		guard alert.runModal() == .alertFirstButtonReturn else { return }
 		layout.reset()
 		fitWorkspace()
+	}
+
+	// MARK: Layouts (Mac addition)
+
+	/// The workspace as it is now: panels, divider proportions, windows
+	func currentLayoutFile() -> LayoutFile {
+		var f = LayoutFile(layout: layout.layout)
+		if let w = mainWindow {
+			if let v = w.contentView {
+				f.splits = SplitShares.capture(in: v)
+			}
+			if let area = w.screen?.visibleFrame {
+				f.window = UnitRect(w.frame, in: area)
+			}
+		}
+		if layout.layout.detached, let w = outputWindow.window, let area = w.screen?.visibleFrame {
+			f.output = UnitRect(w.frame, in: area)
+		}
+		for id in layout.layout.floating {
+			if let w = panelWindow(id), let area = w.screen?.visibleFrame {
+				f.floating[id.rawValue] = UnitRect(w.frame, in: area)
+			}
+		}
+		return f
+	}
+
+	/// Arranges the workspace as a saved layout says. Before the Whorld
+	/// window is up (a playlist reopened at launch), it waits for it.
+	func applyLayout(_ f: LayoutFile) {
+		guard let main = mainWindow else {
+			pendingLayout = f
+			return
+		}
+		for id in layout.layout.floating where !f.layout.floating.contains(id) {
+			layout.closeFloating?(id)
+		}
+		layout.forgetSplitPositions()
+		SplitShares.current = Layout.standardSplits.merging(f.splits) { $1 }
+		let wasDetached = layout.layout.detached
+		layout.layout = f.layout
+		if let r = f.window, let area = (main.screen ?? NSScreen.main)?.visibleFrame {
+			main.setFrame(r.rect(in: area), display: true)
+		}
+		if f.layout.detached && !wasDetached {
+			outputWindow.show(model: self, near: main.frame)
+		} else if !f.layout.detached && wasDetached {
+			outputWindow.hide()
+		}
+		if let r = f.output, let w = outputWindow.window, let area = (w.screen ?? NSScreen.main)?.visibleFrame {
+			w.setFrame(r.rect(in: area), display: true)
+		}
+		for id in f.layout.floating {
+			layout.openFloating?(id)
+		}
+		DispatchQueue.main.async {	// the floating windows are up now
+			for (raw, r) in f.floating {
+				if let id = PanelID(rawValue: raw), let w = self.panelWindow(id),
+					let area = (w.screen ?? NSScreen.main)?.visibleFrame {
+					w.setFrame(r.rect(in: area), display: true)
+				}
+			}
+		}
+		layout.arrangeGeneration += 1
+		changes.menus.bump()
+	}
+	private var pendingLayout: LayoutFile?
+
+	private func panelWindow(_ id: PanelID) -> NSWindow? {
+		NSApp.windows.first {
+			guard let s = $0.identifier?.rawValue else { return false }
+			return s == id.rawValue || s.hasPrefix(id.rawValue + "-")
+		}
+	}
+
+	/// Window > Save Layout...
+	func saveLayout() {
+		let panel = NSSavePanel()
+		panel.allowedContentTypes = [.whorldLayout]
+		panel.nameFieldStringValue = "Layout.whlayout"
+		guard panel.runModal() == .OK, let url = panel.url else { return }
+		let e = JSONEncoder()
+		e.outputFormatting = [.prettyPrinted, .sortedKeys]
+		do {
+			try e.encode(currentLayoutFile()).write(to: url, options: .atomic)
+		} catch {
+			NSAlert(error: error).runModal()
+		}
+	}
+
+	/// Window > Open Layout...
+	func openLayout() {
+		let panel = NSOpenPanel()
+		panel.allowedContentTypes = [.whorldLayout]
+		guard panel.runModal() == .OK, let url = panel.url else { return }
+		openLayout(url)
+	}
+
+	func openLayout(_ url: URL) {
+		do {
+			applyLayout(try JSONDecoder().decode(LayoutFile.self, from: Data(contentsOf: url)))
+		} catch {
+			let a = NSAlert()
+			a.messageText = "Can't open the layout \"\(url.lastPathComponent)\"."
+			a.informativeText = "It isn't a Whorld layout file, or it's damaged."
+			a.runModal()
+		}
 	}
 
 	/// The workspace fills its display's visible area, the panes at their
@@ -964,6 +1089,10 @@ final class AppModel: ObservableObject {
 		}
 		if layout.isFirstRun {
 			DispatchQueue.main.async { self.fitWorkspace() }
+		}
+		if let f = pendingLayout {	// a playlist's, from before the window was up
+			pendingLayout = nil
+			DispatchQueue.main.async { self.applyLayout(f) }
 		}
 	}
 

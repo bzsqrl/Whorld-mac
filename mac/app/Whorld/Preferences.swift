@@ -31,6 +31,8 @@ enum Preferences {
 			"General_bReopenLast": true,
 			"General_bCheckUpdates": true,
 			"General_sAuthorName": "",
+			"Playlist_bSaveLayout": true,
+			"Playlist_bApplyLayout": true,
 			"Render_nMaxFrameRate": 0,
 			"Rings_bFadeEased": false,
 			"Rings_bHueFromPatch": false,
@@ -115,6 +117,19 @@ enum Preferences {
 		return defaults.bool(forKey: "General_bReopenLast")
 	}
 
+	/// Save Playlist As > Include the panel layout (remembered; Mac addition)
+	static var playlistSavesLayout: Bool {
+		register()
+		return defaults.bool(forKey: "Playlist_bSaveLayout")
+	}
+
+	/// Settings > General > Apply playlist layouts (Mac addition): opening a
+	/// playlist that has a layout arranges the panels as it says
+	static var applyPlaylistLayouts: Bool {
+		register()
+		return defaults.bool(forKey: "Playlist_bApplyLayout")
+	}
+
 	/// Settings > General > Your name (Mac addition): suggested as the Author
 	/// of patches that have none, when saving or naming the author
 	static var authorName: String {
@@ -145,6 +160,7 @@ struct PreferencesView: View {
 	@AppStorage("General_bReopenLast") private var reopenLast = true
 	@AppStorage("General_bCheckUpdates") private var checkUpdates = true
 	@AppStorage("General_sAuthorName") private var authorName = ""
+	@AppStorage("Playlist_bApplyLayout") private var applyPlaylistLayouts = true
 	@AppStorage("Render_nMaxFrameRate") private var maxFrameRate = 0
 	@AppStorage("Rings_bFadeEased") private var ringFadeEased = false
 	@AppStorage("Rings_bHueFromPatch") private var hueFromPatch = false
@@ -176,6 +192,9 @@ struct PreferencesView: View {
 	@ViewBuilder private var leftColumn: some View {
 			Section("General") {
 				Toggle("Reopen the last playlist and patch at launch", isOn: $reopenLast)
+				Toggle(isOn: $applyPlaylistLayouts) {
+					InfoLabel("Open playlists with their layout", info: "A playlist saved with its panel layout (Save Playlist As > Include the panel layout) arranges the panels and windows that way when it's opened. Window > Save Layout and Open Layout keep layouts in files of their own.")
+				}
 				HStack {
 					Toggle(isOn: $checkUpdates) {
 						InfoLabel("Check for updates automatically", info: "Once a day, Whorld asks GitHub whether a newer version has been released; only Whorld's version number is sent. Updates are never installed by themselves, and never announced in full screen.")

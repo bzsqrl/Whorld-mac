@@ -270,6 +270,9 @@ typedef struct {
 - (BOOL)openPlaylistAtPath:(NSString *)path error:(NSError **)error;
 - (BOOL)savePlaylistToPath:(NSString *)path error:(NSError **)error;
 @property (nonatomic, readonly) NSArray<NSString *> *playlistPatches;
+// The panel layout saved with the playlist (Mac addition: its [Layout]
+// section, the app's one-line JSON), or nil
+@property (nonatomic, copy, nullable) NSString *playlistLayout;
 // Loads a patch as an untitled document (CWhorldDoc::SetPatch, from
 // CPlaylistBar::Play). Returns NO if it can't be read.
 - (BOOL)playPatchAtPath:(NSString *)path;

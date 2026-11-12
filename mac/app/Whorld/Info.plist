@@ -56,6 +56,18 @@
 				<string>io.github.bzsqrl.whorld.playlist</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Whorld Layout</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>io.github.bzsqrl.whorld.layout</string>
+			</array>
+		</dict>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Whorld uses the local network for OSC remote control, such as TouchOSC on a phone or tablet.</string>
@@ -70,6 +82,23 @@
 			<array>
 				<string>public.data</string>
 			</array>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>io.github.bzsqrl.whorld.layout</string>
+			<key>UTTypeDescription</key>
+			<string>Whorld Layout</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.json</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>whlayout</string>
+				</array>
+			</dict>
 		</dict>
 	</array>
 	<key>UTImportedTypeDeclarations</key>

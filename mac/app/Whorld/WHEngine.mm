@@ -1433,6 +1433,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 {
 	_playlistPatches.clear();
 	_midiMgr->m_midiMaps.RemoveAll();
+	_playlistLayout = nil;
 }
 
 // ported from Playlist.cpp CPlaylist::OnOpenDocument
@@ -1450,6 +1451,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		return NO;
 	}
 	_playlistPatches = pl.m_arrPatch;
+	_playlistLayout = pl.m_sLayout.empty() ? nil : ToNS(pl.m_sLayout);
 	_midiMgr->m_midiMaps.SetArray(pl.m_arrMapping);
 	return YES;
 }
@@ -1460,6 +1462,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	whorld::Playlist	pl;
 	pl.m_arrPatch = _playlistPatches;
 	pl.m_arrMapping = _midiMgr->m_midiMaps.GetArray();
+	pl.m_sLayout = _playlistLayout.UTF8String ?: "";
 	std::string	sErr;
 	if (!pl.Write(path.fileSystemRepresentation, &sErr)) {
 		if (error) {
