@@ -138,6 +138,33 @@ TEST(SamplePlaylistsRoundTrip) {
 	CHECK(nFiles > 0);
 }
 
+TEST(PlaylistLayoutSection) {
+	// Mac addition: a [Layout] section, last, only when there's a layout
+	Playlist	pl;
+	pl.m_arrPatch = {"a.whp", "b.whp"};
+	IniFile	plain;
+	pl.Write(plain);
+	CHECK(WriteIni(plain).find("Layout") == std::string::npos);
+	pl.m_sLayout = R"({"version":1,"layout":{"left":{"panel":{"_0":"params"}}},"note":"a=b [c]"})";
+	IniFile	with;
+	pl.Write(with);
+	std::string	text = WriteIni(with);
+	CHECK(text.size() > WriteIni(plain).size());
+	std::string	tail = "[Layout]\r\nData=" + pl.m_sLayout + "\r\n";
+	CHECK(text.size() >= tail.size() && text.compare(text.size() - tail.size(), tail.size(), tail) == 0);	// last
+	std::istringstream	in(text);
+	IniFile	back;
+	back.Read(in);
+	Playlist	q;
+	CHECK(q.Read(back));
+	CHECK_EQ(q.m_sLayout, pl.m_sLayout);	// '=' and brackets in the value survive
+	CHECK_EQ(q.m_arrPatch.size(), size_t(2));
+	pl.m_sLayout = "two\nlines";	// can't be one INI line: not written
+	IniFile	bad;
+	pl.Write(bad);
+	CHECK(WriteIni(bad).find("Layout") == std::string::npos);
+}
+
 TEST(SamplePlaylistValues) {
 	fs::path	path = fs::path(WHORLD_TESTDATA_DIR) / "playlists" / "SMC-Mixer_Logitech_8BitDo.whl";
 	if (!fs::exists(path))

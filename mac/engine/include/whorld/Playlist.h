@@ -33,6 +33,10 @@ public:
 	std::vector<std::string>	m_arrPatch;	// patch paths, as stored (Windows paths from Windows)
 	MappingArray	m_arrMapping;			// MIDI mappings
 	int		m_nFileVersion = FILE_VERSION;	// file version number obtained from document
+	// Mac addition: the panel layout saved with the playlist, as the app's
+	// one-line JSON (opaque here), or empty. A [Layout] section, which
+	// Windows Whorld ignores (and drops if it saves the playlist).
+	std::string	m_sLayout;
 
 // Operations
 	bool	Read(const std::string& sPath, std::string* pError = nullptr, bool* pbNewer = nullptr);

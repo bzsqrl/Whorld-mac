@@ -23,6 +23,8 @@ const char* const Playlist::m_pszPlaylistExt = "whl";
 #define RK_PATCH_COUNT		"Count"
 #define RK_PATCH_SECTION	"Patch"
 #define RK_PATCH_PATH		"Path"
+#define RK_LAYOUT_SECTION	"Layout"	// Mac addition
+#define RK_LAYOUT_DATA		"Data"
 
 // ported from Playlist.cpp CPlaylist::OnOpenDocument, ValidateFileType, ReadPatches
 bool Playlist::Read(const IniFile& fIn, std::string* pError, bool* pbNewer)
@@ -44,6 +46,7 @@ bool Playlist::Read(const IniFile& fIn, std::string* pError, bool* pbNewer)
 		fIn.GetUnicodeString(RK_PATCH_SECTION "\\" + std::to_string(iPatch), RK_PATCH_PATH, m_arrPatch[iPatch]);
 	}
 	m_arrMapping.Read(fIn);	// CMidiManager::ReadMappings
+	m_sLayout = fIn.GetString(RK_LAYOUT_SECTION, RK_LAYOUT_DATA, "");	// Mac addition
 	return true;
 }
 
@@ -58,6 +61,10 @@ void Playlist::Write(IniFile& fOut) const
 		fOut.WriteUnicodeString(RK_PATCH_SECTION "\\" + std::to_string(iPatch), RK_PATCH_PATH, m_arrPatch[iPatch]);
 	}
 	m_arrMapping.Write(fOut);	// CMidiManager::WriteMappings
+	// Mac addition, last and only when there is one, so other playlists are
+	// byte for byte the Windows format; one line (line breaks would end it)
+	if (!m_sLayout.empty() && m_sLayout.find_first_of("\r\n") == std::string::npos)
+		fOut.WriteString(RK_LAYOUT_SECTION, RK_LAYOUT_DATA, m_sLayout);
 }
 
 bool Playlist::Read(const std::string& sPath, std::string* pError, bool* pbNewer)
