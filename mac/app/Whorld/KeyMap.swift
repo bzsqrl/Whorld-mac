@@ -265,13 +265,17 @@ struct KeyMapView: View {
 	}
 }
 
-/// The Key cell: click, then press a key. Plain printable keys only; Esc
-/// (or clicking again) cancels.
+/// The Key cell: click, then press a key. Plain printable keys only; Esc,
+/// a click anywhere else (or on the button again), or switching to another
+/// app cancels.
 private struct KeyCaptureButton: View {
 	let id: KeyBinding.ID
 	let label: String
 	@ObservedObject private var map = KeyMap.shared
 	@State private var monitor: Any?
+	@State private var clickMonitor: Any?
+	@State private var resignObserver: Any?
+	@State private var anchor = ViewAnchor()	// the button's view, to tell clicks on it from clicks elsewhere
 
 	private var capturing: Bool { map.capturing == id }
 
@@ -291,6 +295,7 @@ private struct KeyCaptureButton: View {
 				.frame(minWidth: 44)
 		}
 		.buttonStyle(.bordered)	// looks clickable, and takes the click from the table row
+		.background(ViewAnchor.Probe(anchor: anchor))
 		.tint(capturing ? .accentColor : nil)
 		.help(capturing ? "Press the new key, or Esc to cancel" : "Click, then press a key to assign it")
 		.onChange(of: capturing) { _, on in on ? start() : stop() }
@@ -299,6 +304,21 @@ private struct KeyCaptureButton: View {
 
 	private func start() {
 		stop()
+		// A click anywhere else in the app cancels, before the click goes on
+		// (so a click on another row's Key button starts that one instead);
+		// a click on this button is left to the button, which toggles.
+		clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { e in
+			let w = e.window, p = e.locationInWindow
+			MainActor.assumeIsolated {
+				if !anchor.contains(window: w, point: p) {
+					onKey(nil)
+				}
+			}
+			return e
+		}
+		resignObserver = NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { _ in
+			MainActor.assumeIsolated { onKey(nil) }
+		}
 		monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
 			if e.keyCode == 53 {	// Esc
 				MainActor.assumeIsolated { onKey(nil) }
@@ -323,6 +343,37 @@ private struct KeyCaptureButton: View {
 			NSEvent.removeMonitor(monitor)
 		}
 		monitor = nil
+		if let clickMonitor {
+			NSEvent.removeMonitor(clickMonitor)
+		}
+		clickMonitor = nil
+		if let resignObserver {
+			NotificationCenter.default.removeObserver(resignObserver)
+		}
+		resignObserver = nil
+	}
+}
+
+/// Holds a SwiftUI view's backing NSView, to hit-test events against it
+@MainActor
+final class ViewAnchor {
+	weak var view: NSView?
+
+	/// whether a point in a window's coordinates is on the view
+	func contains(window: NSWindow?, point: NSPoint) -> Bool {
+		guard let v = view, let window, v.window === window else { return false }
+		return v.bounds.contains(v.convert(point, from: nil))
+	}
+
+	/// an empty view the size of the one it's behind
+	struct Probe: NSViewRepresentable {
+		let anchor: ViewAnchor
+		func makeNSView(context: Context) -> NSView {
+			let v = NSView()
+			anchor.view = v
+			return v
+		}
+		func updateNSView(_ v: NSView, context: Context) { anchor.view = v }
 	}
 }
 
