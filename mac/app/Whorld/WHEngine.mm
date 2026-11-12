@@ -2200,7 +2200,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	double	delta = event.scrollingDeltaY != 0 ? event.scrollingDeltaY : (shift ? event.scrollingDeltaX : 0);
 	double	notches = event.hasPreciseScrollingDeltas ? delta / 10 : delta;
 	if (notches != 0)
-		_wheelHandler(notches, shift);
+		_wheelHandler(notches, shift, event.momentumPhase != NSEventPhaseNone, event.directionInvertedFromDevice);
 }
 
 - (void)mouseMoved:(NSEvent *)event

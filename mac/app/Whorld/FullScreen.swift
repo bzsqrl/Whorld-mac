@@ -72,8 +72,10 @@ final class FullScreenController {
 		view.mouseButtonHandler = { down in	// while pressed, the origin follows the mouse
 			MainActor.assumeIsolated { AppModel.shared.outputMouse(down: down) }	// in order: no Task
 		}
-		view.wheelHandler = { notches, shift in
-			Task { @MainActor in AppModel.shared.wheel(notches: notches, shift: shift) }
+		view.wheelHandler = { notches, shift, momentum, inverted in
+			Task { @MainActor in
+				AppModel.shared.wheel(notches: notches, shift: shift, momentum: momentum, inverted: inverted)
+			}
 		}
 		container.addSubview(view)
 		w.contentView = container

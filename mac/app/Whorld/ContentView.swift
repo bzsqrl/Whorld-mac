@@ -114,8 +114,10 @@ struct RenderView: NSViewRepresentable {
 		let view = WHRenderView(frame: .zero)
 		view.engine = engine
 		view.fullResolution = fullResolution
-		view.wheelHandler = { notches, shift in
-			Task { @MainActor in AppModel.shared.wheel(notches: notches, shift: shift) }
+		view.wheelHandler = { notches, shift, momentum, inverted in
+			Task { @MainActor in
+				AppModel.shared.wheel(notches: notches, shift: shift, momentum: momentum, inverted: inverted)
+			}
 		}
 		return view
 	}

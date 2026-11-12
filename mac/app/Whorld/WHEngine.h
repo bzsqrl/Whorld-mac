@@ -366,7 +366,9 @@ typedef struct {
 @property (nonatomic) BOOL fullScreenOutput;
 // Scroll wheel over the view (CRenderWnd::OnMouseWheel): delta in wheel
 // notches, positive away from the user; shift if the Shift key is down.
-@property (nonatomic, copy, nullable) void (^wheelHandler)(double notches, BOOL shift);
+// momentum: the scroll is coasting after the fingers lifted; inverted: the
+// deltas follow the fingers (natural scrolling)
+@property (nonatomic, copy, nullable) void (^wheelHandler)(double notches, BOOL shift, BOOL momentum, BOOL inverted);
 // The left mouse button went down (YES) or up (NO) over the view; the
 // cursor position has already been reported. With a handler, the first
 // click on the view's window counts too.

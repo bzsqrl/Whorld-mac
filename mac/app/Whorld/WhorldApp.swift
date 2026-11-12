@@ -630,9 +630,21 @@ final class AppModel: ObservableObject {
 	func toggleOriginRandom() { setOriginMotion(engine.originMotion == .random ? .park : .random) }
 
 	// CWhorldDoc::OnMouseWheel: zoom, or damping with Shift, in normalized
-	// slider space (CWhorldDoc::OffsetMasterProp)
-	func wheel(notches: Double, shift: Bool) {
+	// slider space (CWhorldDoc::OffsetMasterProp). Mac addition: with a key
+	// held over the picture (OutputKeys), that key's control instead.
+	func wheel(notches: Double, shift: Bool, momentum: Bool = false, inverted: Bool = false) {
 		let delta = notches * Preferences.wheelSense / 100
+		if momentum && (outputKeys.held != nil || outputKeys.lastWheelWasKeyed) {
+			return	// no coasting after a key swipe, nor turning into zoom when the key lifts
+		}
+		if let target = outputKeys.heldTarget {
+			outputKeys.lastWheelWasKeyed = true
+			adjust(target, by: inverted ? -delta : delta)	// fingers or wheel up: more, whatever the scrolling direction
+			return
+		}
+		if !momentum {
+			outputKeys.lastWheelWasKeyed = false
+		}
 		let iProp = (shift ? MasterProp.damping : MasterProp.zoom).rawValue
 		let old = engine.masterValue(iProp)
 		var norm = WHControls.masterNorm01(iProp, value: old) + delta
@@ -643,6 +655,32 @@ final class AppModel: ObservableObject {
 			setMaster(iProp, value)
 		} else {
 			setZoom(value)
+		}
+	}
+
+	let outputKeys = OutputKeys()
+
+	/// A control, moved by `delta` in normalized slider space (0 to 1)
+	private func adjust(_ target: OutputKeys.Target, by delta: Double) {
+		switch target {
+		case .master(let i):
+			let old = engine.masterValue(i)
+			let norm = min(max(WHControls.masterNorm01(i, value: old) + delta, 0), 1)
+			let value = WHControls.masterDenorm01(i, value: norm)
+			if value != old {
+				setMaster(i, value)
+			}
+		case .param(let i):
+			let ci = WHControls.paramControl(i, column: 0)
+			let lo = Double(ci.rangeMin), hi = Double(ci.rangeMax)
+			guard hi > lo else { return }
+			let old = engine.paramValue(i, property: .val)
+			let norm = (WHControls.paramPosition(i, value: old) - lo) / (hi - lo)
+			let pos = lo + min(max(norm + delta, 0), 1) * (hi - lo)
+			let value = WHControls.paramValue(i, position: pos)
+			if value != old {
+				setParam(i, .val, value)
+			}
 		}
 	}
 
@@ -1102,6 +1140,97 @@ final class AppModel: ObservableObject {
 	}
 }
 
+/// Keys held over the picture (Mac addition): while one of these is held
+/// with the pointer over the output (docked, detached or full screen), a
+/// trackpad swipe up or down, or the mouse wheel, moves that key's control
+/// instead of zooming. Plain keys only: with Shift, Command, Control or
+/// Option they're shortcuts (Shift-W is Zoom Center, Command-S Save...),
+/// and with the pointer elsewhere they type as usual.
+@MainActor
+final class OutputKeys {
+	enum Target {
+		case param(Int)		// a parameter's value (WhorldDef.h PARAMDEF order)
+		case master(Int)	// a Master property
+	}
+
+	/// the trial set (2026-11-12); a fuller map to follow
+	static let map: [String: Target] = [
+		"q": .param(1),		// Ring Spacing
+		"w": .param(2),		// Line Width
+		"s": .master(MasterProp.speed.rawValue),
+		"r": .master(MasterProp.rings.rawValue),
+	]
+
+	private(set) var held: String?
+	private var heldCode: CGKeyCode = 0
+	/// the held key's control, if the key is still down (a key-up can be
+	/// missed, e.g. released while a menu tracks: then ask the keyboard)
+	var heldTarget: Target? {
+		guard let held else { return nil }
+		if !CGEventSource.keyState(.combinedSessionState, key: heldCode) {
+			self.held = nil
+			return nil
+		}
+		return Self.map[held]
+	}
+	/// the last wheel event moved a key's control (so its coasting is ignored)
+	var lastWheelWasKeyed = false
+	private var monitor: Any?
+	private var resign: Any?
+
+	func install() {
+		guard monitor == nil else { return }
+		monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { e in
+			// plain values across to the main actor (we're on the main thread)
+			let key = e.charactersIgnoringModifiers?.lowercased()
+			let code = e.keyCode
+			let up = e.type == .keyUp
+			let mods = e.modifierFlags.intersection([.shift, .command, .control, .option]).rawValue
+			let take = MainActor.assumeIsolated {
+				AppModel.shared.outputKeys.takes(key: key, code: code, up: up, modifiers: mods)
+			}
+			return take ? nil : e
+		}
+		resign = NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification,
+			object: nil, queue: .main) { [weak self] _ in
+			MainActor.assumeIsolated { self?.held = nil }	// its key-up goes to another app
+		}
+	}
+
+	/// true: the key event is this feature's (not passed on)
+	func takes(key: String?, code: CGKeyCode, up: Bool, modifiers: UInt) -> Bool {
+		guard let key else { return false }
+		if up {
+			if key == held {
+				held = nil
+				return true
+			}
+			return false
+		}
+		guard modifiers == 0, Self.map[key] != nil else { return false }
+		if key == held {
+			return true	// key repeat
+		}
+		guard Self.pointerOverOutput() else { return false }
+		held = key
+		heldCode = code
+		return true
+	}
+
+	/// the pointer is over a picture (WHRenderView) in the topmost window under it
+	private static func pointerOverOutput() -> Bool {
+		let p = NSEvent.mouseLocation
+		let n = NSWindow.windowNumber(at: p, belowWindowWithWindowNumber: 0)
+		guard let w = NSApp.window(withWindowNumber: n), let content = w.contentView else { return false }
+		var v = content.hitTest(w.convertPoint(fromScreen: p))	// hitTest takes its superview's (the window's) coordinates
+		while let view = v {
+			if view is WHRenderView { return true }
+			v = view.superview
+		}
+		return false
+	}
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
 	private var f11Monitor: Any?
 
@@ -1115,6 +1244,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 			MainActor.assumeIsolated { AppModel.shared.toggleFullScreen() }
 			return nil
 		}
+		MainActor.assumeIsolated { AppModel.shared.outputKeys.install() }
 		UpdateChecker.shared.checkAtLaunch()
 		// the playlist and patch from last time, after any files opened at
 		// launch (application(_:open:) comes first)
