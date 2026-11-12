@@ -703,8 +703,8 @@ final class AppModel: ObservableObject {
 	}
 
 	/// A two-finger tap (a secondary click) over the picture while a key in
-	/// the key map is held: that key's control goes back to the value it had
-	/// when the patch was loaded (opened, played from the playlist, or new).
+	/// the key map is held: that key's control goes back to its value in the
+	/// patch as loaded (opened, played from the playlist, or new) or last saved.
 	/// Returns false with no such key held, so the click goes on as usual.
 	func resetHeldKeyControl() -> Bool {
 		guard let b = outputKeys.heldTarget, let t = b.targetIndex else { return false }

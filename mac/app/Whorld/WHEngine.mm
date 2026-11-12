@@ -582,6 +582,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	}
 	_patchPath = [path copy];
 	_modified = NO;
+	_loaded = _doc;	// saved: the new reset point
 	return YES;
 }
 

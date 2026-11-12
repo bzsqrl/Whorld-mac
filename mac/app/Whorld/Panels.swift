@@ -720,7 +720,7 @@ struct ParamRow: View {
 			step: spinStep(ci),
 			lo: bounded ? ci.editMin : nil,
 			hi: bounded && ci.editMax < Double(Int32.max) ? ci.editMax : nil,	// not Frequency's INT_MAX
-			defaultValue: WHControls.paramDefault(iParam, column: column),
+			defaultValue: model.engine.loadedParamValue(iParam, property: prop),	// the patch as loaded or last saved
 			width: width)
 	}
 
@@ -738,7 +738,7 @@ struct ParamRow: View {
 				norm: { WHControls.paramPosition(iParam, value: $0) },
 				denorm: { WHControls.paramValue(iParam, position: $0) },
 				commit: { model.setParam(iParam, .val, $0) },
-				defaultValue: WHControls.paramDefault(iParam, column: 0),
+				defaultValue: model.engine.loadedParamValue(iParam, property: .val),
 				width: ParamColumn.slider)
 			field(.val, column: 0)
 				.frame(width: ParamColumn.field, alignment: .leading)
@@ -799,7 +799,7 @@ struct MasterRow: View {
 				norm: { WHControls.masterPosition(i, value: $0) },
 				denorm: { WHControls.masterValue(i, position: $0) },
 				commit: { model.setMaster(i, $0) },
-				defaultValue: WHControls.masterDefault(i),
+				defaultValue: model.engine.loadedMasterValue(i),
 				step: { masterStep(i, ci, $0, $1, $2) })
 			NumberField(
 				value: value,
@@ -809,7 +809,7 @@ struct MasterRow: View {
 				step: { masterStep(i, ci, $0, $1, $2) },	// no stepper: as the slider
 				lo: WHControls.masterValue(i, position: Double(ci.rangeMin)),
 				hi: WHControls.masterValue(i, position: Double(ci.rangeMax)),
-				defaultValue: WHControls.masterDefault(i))
+				defaultValue: model.engine.loadedMasterValue(i))
 		}
 	}
 }
@@ -833,7 +833,7 @@ struct HueRow: View {
 				.frame(width: 72, alignment: .leading)
 			KeySlider(position: min(max(value, 0), 360), range: 0...360,
 				set: { model.setHue($0) },
-				reset: { model.setHue(0) },
+				reset: { model.setHue(model.engine.loadedHue) },
 				step: { d, k in model.setHue(step(value, d, k)) })
 				.frame(minWidth: PositionSlider.minWidth, maxWidth: .infinity, minHeight: 18, maxHeight: 18)
 			NumberField(
@@ -844,7 +844,7 @@ struct HueRow: View {
 				step: step,
 				lo: 0,
 				hi: 360,
-				defaultValue: 0)
+				defaultValue: model.engine.loadedHue)
 		}
 	}
 }
@@ -884,7 +884,7 @@ struct GlobalRow: View {
 				norm: { WHControls.globalPosition(i, value: $0) },
 				denorm: { WHControls.globalValue(i, position: $0) },
 				commit: { model.setParam(i, .global, $0) },
-				defaultValue: WHControls.paramDefault(i, column: 4))
+				defaultValue: model.engine.loadedParamValue(i, property: .global))
 			NumberField(
 				value: value,
 				format: { WHControls.format($0, control: ci) },
@@ -893,7 +893,7 @@ struct GlobalRow: View {
 				step: spinStep(ci),
 				lo: ci.editMin,
 				hi: ci.editMax,
-				defaultValue: WHControls.paramDefault(i, column: 4))
+				defaultValue: model.engine.loadedParamValue(i, property: .global))
 		}
 	}
 }
