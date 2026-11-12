@@ -659,13 +659,13 @@ extension View {
 
 // MARK: Parameters
 
-struct ParamsPanel: View {
-	@EnvironmentObject private var model: AppModel
-
-	/// The rows' order: the engine's, except that the four curve and shear
-	/// parameters follow Pinwheel, as they do in Globals. Display only; the
-	/// parameter indices (patch files, MIDI, OSC) are unchanged.
-	static let rowOrder: [Int] = {
+/// The order the Parameters panel, the Key Map and the MIDI target menus list
+/// the parameters in: the engine's, except that the four curve and shear
+/// parameters follow Pinwheel, as they do in Globals. Display only; the
+/// parameter indices (patch files, MIDI, OSC) are unchanged. A parameter's
+/// index is also its mapping target index.
+extension WHControls {
+	static let paramDisplayOrder: [Int] = {
 		let all = Array(0..<WHControls.paramCount)
 		func name(_ i: Int) -> String { WHControls.paramName(i).replacingOccurrences(of: " ", with: "") }
 		let curves = all.filter { ["EvenCurve", "OddCurve", "EvenShear", "OddShear"].contains(name($0)) }
@@ -674,6 +674,11 @@ struct ParamsPanel: View {
 		order.insert(contentsOf: curves, at: pin + 1)
 		return order
 	}()
+}
+
+struct ParamsPanel: View {
+	@EnvironmentObject private var model: AppModel
+
 
 	var body: some View {
 		// The workspace (or a floating window) scrolls it, both ways.
@@ -692,7 +697,7 @@ struct ParamsPanel: View {
 				}
 				.font(.caption)
 				.foregroundStyle(.secondary)
-				ForEach(Self.rowOrder, id: \.self) { i in
+				ForEach(WHControls.paramDisplayOrder, id: \.self) { i in
 					ParamRow(iParam: i)
 				}
 			}

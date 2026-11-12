@@ -128,7 +128,7 @@ final class KeyMap: ObservableObject {
 	static let groups: [(title: String, choices: [Choice])] = {
 		let nParams = WHMappingInfo.paramTargetCount
 		let nMaster = WHMappingInfo.masterTargetCount
-		let params = (0..<nParams).map { WHMappingInfo.targetTag($0) }
+		let params = WHControls.paramDisplayOrder.filter { $0 < nParams }.map { WHMappingInfo.targetTag($0) }
 		func column(_ p: WHParamProperty) -> [Choice] { params.map { Choice(target: $0, prop: p.rawValue) } }
 		let globals = (0..<WHControls.globalCount).map {
 			Choice(target: WHMappingInfo.targetTag(WHControls.param(forGlobal: $0)), prop: WHParamProperty.global.rawValue)

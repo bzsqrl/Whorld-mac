@@ -135,15 +135,15 @@ struct MappingPanel: View {
 	}
 }
 
-/// Targets grouped as in the original enumeration: parameters, master
-/// properties, then miscellaneous targets.
+/// Targets grouped as in the original enumeration: parameters (in the
+/// Parameters panel's order), master properties, then miscellaneous targets.
 private struct TargetMenuItems: View {
 	var body: some View {
 		let nParam = WHMappingInfo.paramTargetCount
 		let nMaster = WHMappingInfo.masterTargetCount
 		let all = WHMappingInfo.targetCount
 		Section("Parameters") {
-			ForEach(0..<nParam, id: \.self) { t in Text(WHMappingInfo.targetName(t)).tag(Int32(t)) }
+			ForEach(WHControls.paramDisplayOrder.filter { $0 < nParam }, id: \.self) { t in Text(WHMappingInfo.targetName(t)).tag(Int32(t)) }
 		}
 		Section("Master") {
 			ForEach(nParam..<(nParam + nMaster), id: \.self) { t in Text(WHMappingInfo.targetName(t)).tag(Int32(t)) }
