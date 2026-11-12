@@ -377,6 +377,9 @@ typedef struct {
 // cursor position has already been reported. With a handler, the first
 // click on the view's window counts too.
 @property (nonatomic, copy, nullable) void (^mouseButtonHandler)(BOOL down);
+// A secondary click (right click, or a two-finger tap or click on a
+// trackpad) over the view: return YES if handled, NO to pass it on
+@property (nonatomic, copy, nullable) BOOL (^secondaryClickHandler)(void);
 @end
 
 NS_ASSUME_NONNULL_END

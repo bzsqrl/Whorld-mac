@@ -702,6 +702,43 @@ final class AppModel: ObservableObject {
 		KeyReadout.show(b.displayName + "  " + shown)
 	}
 
+	/// A two-finger tap (a secondary click) over the picture while a key in
+	/// the key map is held: that key's control goes back to its default, the
+	/// value a new patch has (what right-clicking it in its panel restores).
+	/// Returns false with no such key held, so the click goes on as usual.
+	func resetHeldKeyControl() -> Bool {
+		guard let b = outputKeys.heldTarget, let t = b.targetIndex else { return false }
+		let nParams = WHMappingInfo.paramTargetCount, nMaster = WHMappingInfo.masterTargetCount
+		if t < nParams {
+			let prop = WHParamProperty(rawValue: b.prop) ?? .val
+			let column: Int? = switch prop {
+				case .val: 0
+				case .amp: 1
+				case .freq: 2
+				case .PW: 3
+				default: nil
+			}
+			let value = column.map { WHControls.paramDefault(t, column: $0) } ?? 0	// a Global's default is 0
+			setParam(t, prop, value)
+		} else if t < nParams + nMaster {
+			let i = t - nParams
+			if i == MasterProp.zoom.rawValue {
+				setZoom(WHControls.masterDefault(i))
+			} else {
+				setMaster(i, WHControls.masterDefault(i))
+			}
+		} else {
+			switch b.target {
+			case "Hue": setHue(0)
+			case "OriginX": setOrigin(CGPoint(x: 0.5, y: engine.liveOrigin.y))	// the middle
+			case "OriginY": setOrigin(CGPoint(x: engine.liveOrigin.x, y: 0.5))
+			default: return false
+			}
+		}
+		adjust(b, by: 0)	// the readout, if on
+		return true
+	}
+
 	/// A parameter column, moved: Value and Global along their sliders; the
 	/// oscillator columns (number boxes only) within the box's limits, or by
 	/// its stepper increments (one per hundredth of travel) if it has none.

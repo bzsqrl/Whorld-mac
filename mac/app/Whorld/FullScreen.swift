@@ -69,6 +69,9 @@ final class FullScreenController {
 		view.autoresizingMask = [.width, .height]
 		view.fullResolution = fullResolution
 		KeyReadout.attach(to: view)
+		view.secondaryClickHandler = {	// a two-finger tap with a key held: that control's default
+			MainActor.assumeIsolated { AppModel.shared.resetHeldKeyControl() }
+		}
 		view.fullScreenOutput = true	// no cursor over the picture; the mouse followed for Origin Drag
 		view.mouseButtonHandler = { down in	// while pressed, the origin follows the mouse
 			MainActor.assumeIsolated { AppModel.shared.outputMouse(down: down) }	// in order: no Task

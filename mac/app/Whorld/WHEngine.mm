@@ -2225,6 +2225,13 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		[super mouseDown:event];
 }
 
+- (void)rightMouseDown:(NSEvent *)event
+{
+	if (_secondaryClickHandler && _secondaryClickHandler())
+		return;
+	[super rightMouseDown:event];
+}
+
 - (void)mouseUp:(NSEvent *)event
 {
 	[self reportMouse:event];
