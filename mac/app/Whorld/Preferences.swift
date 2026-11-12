@@ -34,6 +34,7 @@ enum Preferences {
 			"Playlist_bSaveLayout": true,
 			"Playlist_bApplyLayout": true,
 			"General_bControlTips": true,
+			"Output_bKeyReadout": false,
 			"Render_nMaxFrameRate": 0,
 			"Rings_bFadeEased": false,
 			"Rings_bHueFromPatch": false,
@@ -163,6 +164,8 @@ struct PreferencesView: View {
 	@AppStorage("General_sAuthorName") private var authorName = ""
 	@AppStorage("Playlist_bApplyLayout") private var applyPlaylistLayouts = true
 	@AppStorage("General_bControlTips") private var controlTips = true
+	@AppStorage("Output_bKeyReadout") private var keyReadout = false
+	@Environment(\.openWindow) private var openWindow
 	@AppStorage("Render_nMaxFrameRate") private var maxFrameRate = 0
 	@AppStorage("Rings_bFadeEased") private var ringFadeEased = false
 	@AppStorage("Rings_bHueFromPatch") private var hueFromPatch = false
@@ -187,7 +190,7 @@ struct PreferencesView: View {
 			}
 			.formStyle(.grouped)
 		}
-		.frame(width: 860, height: 620)
+		.frame(width: 860, height: 660)
 		.onAppear { Preferences.register() }
 	}
 
@@ -298,6 +301,15 @@ struct PreferencesView: View {
 							.monospacedDigit()
 							.frame(width: 36, alignment: .trailing)
 					}
+				}
+				LabeledContent {
+					HStack {
+						Toggle("Show values", isOn: $keyReadout)
+							.toggleStyle(.checkbox)
+						Button("Edit…") { openWindow(id: "keymap") }
+					}
+				} label: {
+					InfoLabel("Key map", info: "Hold a key with the pointer over the picture and scroll (two fingers up or down, or the mouse wheel) to change a control instead of zooming; the Key Map says which key moves which control. Show values: the control's name and value appear briefly over the picture as it changes (never in Syphon output or exports).")
 				}
 				Toggle(isOn: $oscEnabled) {
 					InfoLabel("OSC remote control", info: "Every control MIDI can map has an OSC address, such as /w/m/sp for Speed; see Help > Whorld Help. Whorld answers each device that has sent it something in the last 30 seconds, on the send port, with the values as they change and the frame statistics (/w/stat/...). \"Also send to\" adds a fixed address, for a monitor that never sends.\n\nTouchOSC: open Whorld.tosc, and set a connection to this Mac's address, send port \(oscReceivePort), receive port \(oscSendPort).")

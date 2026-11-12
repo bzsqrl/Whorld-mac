@@ -127,6 +127,9 @@ static NSString *ToNS(const std::string& s)
 + (NSString *)eventName:(NSInteger)i { return ToNS(whorld::MappingBase::GetEventName((int)i)); }
 + (NSString *)targetName:(NSInteger)i { return ToNS(whorld::MappingBase::GetTargetName((int)i)); }
 + (BOOL)targetHasProperty:(NSInteger)i { return whorld::MappingBase::TargetHasProperty((int)i); }
++ (NSString *)targetTag:(NSInteger)i { return ToNS(whorld::MappingBase::GetTargetTag((int)i)); }
++ (NSInteger)targetForTag:(NSString *)tag { return whorld::MappingBase::FindTargetTag(tag.UTF8String ?: ""); }
++ (BOOL)targetIsRange:(NSInteger)i { return whorld::MappingBase::GetTargetType((int)i) == whorld::MappingBase::TT_RANGE; }
 + (WHMappingData)defaultMapping
 {
 	whorld::Mapping	m;

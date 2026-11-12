@@ -15,6 +15,7 @@ import SwiftUI
 /// the key. See mac/app/README.md for the full table.
 struct WhorldCommands: Commands {
 	@ObservedObject var model: AppModel
+	@Environment(\.openWindow) private var openWindow
 
 	private func fkey(_ code: Int) -> KeyEquivalent {
 		KeyEquivalent(Character(UnicodeScalar(UInt32(code))!))
@@ -226,6 +227,7 @@ struct WhorldCommands: Commands {
 			Button("Reset Layout…") { model.resetLayout() }
 			Button("Save Layout…") { model.saveLayout() }
 			Button("Open Layout…") { model.openLayout() }
+			Button("Key Map…") { openWindow(id: "keymap") }	// keys held over the picture
 			Divider()
 		}
 	}

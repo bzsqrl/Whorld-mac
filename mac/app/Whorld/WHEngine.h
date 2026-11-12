@@ -124,6 +124,10 @@ typedef struct {
 + (NSString *)eventName:(NSInteger)iEvent;
 + (NSString *)targetName:(NSInteger)iTarget;
 + (BOOL)targetHasProperty:(NSInteger)iTarget;
+// a target's tag, as playlists store it (e.g. "RingSpacing", "Speed", "OriginX")
++ (NSString *)targetTag:(NSInteger)iTarget;
++ (NSInteger)targetForTag:(NSString *)tag;	// -1 if none
++ (BOOL)targetIsRange:(NSInteger)iTarget;	// a continuous or multiple-choice value (not a switch or action)
 + (WHMappingData)defaultMapping;
 // MIDI learn: strip the data from an incoming message and set the mapping's
 // event, channel and control from it (CMappingBar::OnMidiEvent). Returns NO

@@ -68,6 +68,7 @@ final class FullScreenController {
 		let view = WHRenderView(frame: Self.pictureFrame(screen))
 		view.autoresizingMask = [.width, .height]
 		view.fullResolution = fullResolution
+		KeyReadout.attach(to: view)
 		view.fullScreenOutput = true	// no cursor over the picture; the mouse followed for Origin Drag
 		view.mouseButtonHandler = { down in	// while pressed, the origin follows the mouse
 			MainActor.assumeIsolated { AppModel.shared.outputMouse(down: down) }	// in order: no Task

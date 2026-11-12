@@ -112,6 +112,7 @@ struct RenderView: NSViewRepresentable {
 
 	func makeNSView(context: Context) -> WHRenderView {
 		let view = WHRenderView(frame: .zero)
+		KeyReadout.attach(to: view)	// a held key's control and value, if Settings says
 		view.engine = engine
 		view.fullResolution = fullResolution
 		view.wheelHandler = { notches, shift, momentum, inverted in

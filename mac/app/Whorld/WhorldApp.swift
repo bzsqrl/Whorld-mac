@@ -660,28 +660,81 @@ final class AppModel: ObservableObject {
 
 	let outputKeys = OutputKeys()
 
-	/// A control, moved by `delta` in normalized slider space (0 to 1)
-	private func adjust(_ target: OutputKeys.Target, by delta: Double) {
-		switch target {
-		case .master(let i):
+	/// A key's control, moved by `delta` (in the units of a slider's travel,
+	/// 0 to 1) times the key's speed; with the readout on, shows the result.
+	private func adjust(_ b: KeyBinding, by delta: Double) {
+		guard let t = b.targetIndex else { return }
+		let d = delta * b.speed
+		let nParams = WHMappingInfo.paramTargetCount, nMaster = WHMappingInfo.masterTargetCount
+		var shown = ""
+		if t < nParams {
+			shown = adjustParam(t, WHParamProperty(rawValue: b.prop) ?? .val, d)
+		} else if t < nParams + nMaster {
+			let i = t - nParams
 			let old = engine.masterValue(i)
-			let norm = min(max(WHControls.masterNorm01(i, value: old) + delta, 0), 1)
-			let value = WHControls.masterDenorm01(i, value: norm)
+			let value = WHControls.masterDenorm01(i, value: min(max(WHControls.masterNorm01(i, value: old) + d, 0), 1))
 			if value != old {
-				setMaster(i, value)
+				if i == MasterProp.zoom.rawValue {
+					setZoom(value)	// damped, as the wheel's zoom
+				} else {
+					setMaster(i, value)
+				}
 			}
-		case .param(let i):
-			let ci = WHControls.paramControl(i, column: 0)
-			let lo = Double(ci.rangeMin), hi = Double(ci.rangeMax)
-			guard hi > lo else { return }
-			let old = engine.paramValue(i, property: .val)
-			let norm = (WHControls.paramPosition(i, value: old) - lo) / (hi - lo)
-			let pos = lo + min(max(norm + delta, 0), 1) * (hi - lo)
-			let value = WHControls.paramValue(i, position: pos)
-			if value != old {
-				setParam(i, .val, value)
+			shown = WHControls.formatMaster(i, value: engine.masterValue(i))
+		} else {
+			switch b.target {
+			case "Hue":	// degrees, 0 to 360
+				setHue(min(max(engine.hue + d * 360, 0), 360))
+				shown = String(format: "%.1f°", engine.hue)
+			case "OriginX", "OriginY":	// normalized, 0 to 1
+				var p = engine.liveOrigin
+				if b.target == "OriginX" {
+					p.x = min(max(p.x + d, 0), 1)
+				} else {
+					p.y = min(max(p.y + d, 0), 1)
+				}
+				setOrigin(p)
+				shown = String(format: "%.3f", b.target == "OriginX" ? p.x : p.y)
+			default:
+				return
 			}
 		}
+		KeyReadout.show(b.displayName + "  " + shown)
+	}
+
+	/// A parameter column, moved: Value and Global along their sliders; the
+	/// oscillator columns (number boxes only) within the box's limits, or by
+	/// its stepper increments (one per hundredth of travel) if it has none.
+	/// Returns the new value as the panel shows it.
+	private func adjustParam(_ i: Int, _ prop: WHParamProperty, _ d: Double) -> String {
+		let old = engine.paramValue(i, property: prop)
+		var value = old
+		let ci: WHControlInfo
+		switch prop {
+		case .val, .global:
+			ci = prop == .val ? WHControls.paramControl(i, column: 0) : WHControls.globalControl(i)
+			let lo = Double(ci.rangeMin), hi = Double(ci.rangeMax)
+			guard hi > lo else { return "" }
+			let pos = prop == .val ? WHControls.paramPosition(i, value: old) : WHControls.globalPosition(i, value: old)
+			let newPos = lo + min(max((pos - lo) / (hi - lo) + d, 0), 1) * (hi - lo)
+			value = prop == .val ? WHControls.paramValue(i, position: newPos) : WHControls.globalValue(i, position: newPos)
+		case .amp, .freq, .PW:
+			ci = WHControls.paramControl(i, column: prop == .amp ? 1 : prop == .freq ? 2 : 3)
+			if ci.editClamp.boolValue && ci.editMax > ci.editMin {
+				value = old + d * (ci.editMax - ci.editMin)
+			} else {
+				value = old + d * 100 * (ci.spinDelta > 0 ? ci.spinDelta : 0.01)
+			}
+			if ci.editClamp.boolValue {
+				value = min(max(value, ci.editMin), ci.editMax)
+			}
+		default:
+			return ""	// waveforms aren't continuous
+		}
+		if value != old {
+			setParam(i, prop, value)
+		}
+		return WHControls.format(engine.paramValue(i, property: prop), control: ci)
 	}
 
 	// MARK: Files
@@ -699,6 +752,7 @@ final class AppModel: ObservableObject {
 			title = playedName ?? "Untitled"
 		}
 	}
+
 
 	var windowTitle: String {
 		_ = changes.document.n	// the name is @Published; edited comes from the engine
@@ -1140,38 +1194,27 @@ final class AppModel: ObservableObject {
 	}
 }
 
-/// Keys held over the picture (Mac addition): while one of these is held
-/// with the pointer over the output (docked, detached or full screen), a
-/// trackpad swipe up or down, or the mouse wheel, moves that key's control
-/// instead of zooming. Plain keys only: with Shift, Command, Control or
-/// Option they're shortcuts (Shift-W is Zoom Center, Command-S Save...),
-/// and with the pointer elsewhere they type as usual.
+/// Keys held over the picture (Mac addition): while a key in the key map
+/// (KeyMap.swift) is held with the pointer over the output (docked,
+/// detached or full screen), a trackpad swipe up or down, or the mouse
+/// wheel, moves that key's control instead of zooming. Plain keys only:
+/// with Shift, Command, Control or Option they're shortcuts (Shift-W is
+/// Zoom Center, Command-S Save...), and with the pointer elsewhere they
+/// type as usual.
 @MainActor
 final class OutputKeys {
-	enum Target {
-		case param(Int)		// a parameter's value (WhorldDef.h PARAMDEF order)
-		case master(Int)	// a Master property
-	}
-
-	/// the trial set (2026-11-12); a fuller map to follow
-	static let map: [String: Target] = [
-		"q": .param(1),		// Ring Spacing
-		"w": .param(2),		// Line Width
-		"s": .master(MasterProp.speed.rawValue),
-		"r": .master(MasterProp.rings.rawValue),
-	]
 
 	private(set) var held: String?
 	private var heldCode: CGKeyCode = 0
 	/// the held key's control, if the key is still down (a key-up can be
 	/// missed, e.g. released while a menu tracks: then ask the keyboard)
-	var heldTarget: Target? {
+	var heldTarget: KeyBinding? {
 		guard let held else { return nil }
 		if !CGEventSource.keyState(.combinedSessionState, key: heldCode) {
 			self.held = nil
 			return nil
 		}
-		return Self.map[held]
+		return KeyMap.shared.binding(for: held)
 	}
 	/// the last wheel event moved a key's control (so its coasting is ignored)
 	var lastWheelWasKeyed = false
@@ -1207,7 +1250,7 @@ final class OutputKeys {
 			}
 			return false
 		}
-		guard modifiers == 0, Self.map[key] != nil else { return false }
+		guard modifiers == 0, KeyMap.shared.binding(for: key) != nil else { return false }
 		if key == held {
 			return true	// key repeat
 		}
@@ -1369,6 +1412,13 @@ struct WhorldApp: App {
 		}
 		.commandsRemoved()
 		.defaultSize(width: 760, height: 420)
+
+		// Window > Key Map... (keys held over the picture; KeyMap.swift)
+		Window("Key Map", id: "keymap") {
+			KeyMapView()
+		}
+		.commandsRemoved()
+		.defaultSize(width: 560, height: 620)
 
 		Settings {
 			PreferencesView().environmentObject(model)
