@@ -503,6 +503,90 @@ struct KeySlider: NSViewRepresentable {
 	}
 }
 
+// MARK: Control tips
+
+/// Hover help on the controls' names (Mac addition; Settings > General >
+/// Show tips on control names). Condensed from Whorld's help: the
+/// Parameters, Master Controls and Effects pages.
+enum ControlTips {
+	/// in parameter order (WhorldDef.h PARAMDEF)
+	static let params = [
+		"How fast rings grow, in pixels per frame; it also sets how often new rings are born. Negative values make rings grow inward from the edges.",
+		"The gap between rings, in pixels. Wider spacing means fewer rings, which helps with wide lines or Fill.",
+		"The width of each ring's line, in pixels.",
+		"The number of sides each ring has, from 3 (a triangle) to 50 (nearly a circle).",
+		"How much each ring turns per frame, in degrees; positive is counterclockwise.",
+		"Stretches rings sideways (positive) or upright (negative): 1 doubles the width, 2 quadruples it.",
+		"How far each ring's center drifts per frame, in pixels, for depth like a tunnel. Skew Angle sets the direction.",
+		"The direction rings' centers drift (see Skew Radius), in degrees: 0 is down, 90 is right.",
+		"Pushes every other corner out or in, turning polygons into stars (positive) or pinched shapes (negative).",
+		"Turns the star points to make pinwheel or turbine shapes; use it with Star Factor.",
+		"How fast the ring color cycles around the hue wheel, in degrees per frame.",
+		"The rings' lightness, from 0 (black) to 1 (white).",
+		"The rings' saturation, from 0 (gray) to 1 (full color).",
+		"The rings' opacity, from 0 (invisible) to 1 (solid).",
+		"The background's hue, in degrees. The background color also outlines rings in Outline mode.",
+		"The background's lightness, from 0 (black) to 1 (white).",
+		"The background's saturation, from 0 (gray) to 1 (full color).",
+		"The background's opacity, from 0 (transparent, e.g. over Syphon) to 1 (solid).",
+		"Curves the sides at the even corners (those Star Factor doesn't move): positive bulges, negative loops.",
+		"Curves the sides at the odd corners (the star points): positive bulges, negative loops.",
+		"Makes the curves at the even corners lopsided; needs Even Curve.",
+		"Makes the curves at the odd corners lopsided; needs Odd Curve.",
+	]
+
+	/// a Globals row: the parameter, for every ring
+	static func global(_ iParam: Int) -> String {
+		params[iParam] + " Here it changes every ring at once, not just new ones."
+	}
+
+	/// in master property order (WhorldDef.h MASTERDEF)
+	static let master = [
+		"The speed of the whole animation, as a percentage of normal. Pause stops it.",
+		"Magnifies the picture, as a percentage of normal; Damping smooths it.",
+		"Smooths origin movement, zoom and globals: higher is more fluid but slower to respond.",
+		"How far rings lag behind a moving origin: 0 keeps them together, higher makes a slinky trail.",
+		"The most rings at once; beyond it the oldest disappear. At the maximum, rings live until they leave the canvas.",
+		"Beats per minute: how often the origin jumps when Origin Motion is Random.",
+		"With Loop Hue on, the size of the range of hues rings cycle through, in degrees.",
+		"The area rings live in, as a percentage of the window; a ring vanishes once it's wholly outside it.",
+		"Draws several groups of rings, evenly spaced in a circle around the origin (see Spread).",
+		"How far the Copies sit from the origin, in pixels.",
+		"Old rings fade out over this many rings before the Rings limit removes them; 0 is off.",
+	]
+
+	static let hue = "Shifts the color of new rings, in degrees (and the looped range, with Loop Hue). Rotate Hue (F3) also turns existing rings."
+	static let fill = "Fills the space between rings with color instead of drawing lines. Affects new rings."
+	static let outline = "Outlines filled rings in the background color, for a faceted look. Affects new rings."
+	static let mirror = "Mirrors the top-left quarter of the picture into the other three, like a kaleidoscope."
+	static let reverse = "Reverses ring growth: expanding rings start contracting, and contracting rings expand."
+	static let convex = "Draws the smallest rings last, so filled rings look like a worm rather than a tunnel."
+	static let loopHue = "Limits color cycling to a range of hues (Master > Hue Span) instead of the whole wheel."
+	static let zoomCenter = "Zooms about the window's center instead of the origin."
+	static let antialiasing = "Smooths jagged edges; off is faster, with a crisper, pixelated look."
+	static let invertColor = "Shows the rings as a color negative (hue and lightness flip); the background is unchanged."
+	static let originMotion = "How the origin (the rings' center) moves: Center, Drag (follows the mouse), Random (jumps in time with Tempo), or Park (stays put)."
+}
+
+/// A control name's tip, while Settings > General > Show tips on control
+/// names is on: on the name only, not its slider, box or checkbox.
+private struct ControlTip: ViewModifier {
+	let text: String
+	@AppStorage("General_bControlTips") private var on = true
+
+	func body(content: Content) -> some View {
+		if on {
+			content.help(text)
+		} else {
+			content
+		}
+	}
+}
+
+extension View {
+	func controlTip(_ text: String) -> some View { modifier(ControlTip(text: text)) }
+}
+
 // MARK: Parameters
 
 struct ParamsPanel: View {
@@ -576,6 +660,7 @@ struct ParamRow: View {
 		HStack(spacing: ParamColumn.spacing) {
 			Text(WHControls.paramName(iParam))
 				.lineLimit(1)
+				.controlTip(ControlTips.params[iParam])
 				.frame(width: ParamColumn.name, alignment: .leading)
 			PositionSlider(
 				value: e.paramValue(iParam, property: .val),
@@ -636,6 +721,7 @@ struct MasterRow: View {
 		HStack(spacing: 8) {
 			Text(WHControls.masterName(i))
 				.lineLimit(1)
+				.controlTip(ControlTips.master[i])
 				.frame(width: 72, alignment: .leading)
 			PositionSlider(
 				value: value,
@@ -673,6 +759,7 @@ struct HueRow: View {
 		HStack(spacing: 8) {
 			Text("Hue")
 				.lineLimit(1)
+				.controlTip(ControlTips.hue)
 				.frame(width: 72, alignment: .leading)
 			KeySlider(position: min(max(value, 0), 360), range: 0...360,
 				set: { model.setHue($0) },
@@ -689,7 +776,6 @@ struct HueRow: View {
 				hi: 360,
 				defaultValue: 0)
 		}
-		.help("Hue: shifts the colors of new rings, in degrees (and the looped range, with Loop Hue). Image > Rotate Hue (F3) also turns existing rings.")
 	}
 }
 
@@ -720,6 +806,7 @@ struct GlobalRow: View {
 		HStack(spacing: 8) {
 			Text(WHControls.paramName(i))
 				.lineLimit(1)
+				.controlTip(ControlTips.global(i))
 				.frame(width: 96, alignment: .leading)
 			PositionSlider(
 				value: value,
@@ -813,6 +900,7 @@ struct PropertiesPanel: View {
 			row(.origin) {
 				HStack(spacing: 6) {
 					Text(WHControls.mainName(MainProp.orgMotion.rawValue))
+						.controlTip(ControlTips.originMotion)
 					Picker("", selection: Binding(
 						get: { originChoice(e) },
 						set: { setOrigin($0) })) {
@@ -879,9 +967,27 @@ struct PropertiesPanel: View {
 
 	private func check(_ r: Row, _ title: String, _ isOn: Bool) -> some View {
 		row(r) {
-			Toggle(title, isOn: Binding(get: { isOn }, set: { _ in activate(r) }))
+			Toggle(isOn: Binding(get: { isOn }, set: { _ in activate(r) })) {
+				Text(title).controlTip(tip(r))	// the name, not the checkbox
+			}
 				.toggleStyle(.checkbox)
 				.focusable(false)	// the row has the focus, not the checkbox
+		}
+	}
+
+	private func tip(_ r: Row) -> String {
+		switch r {
+		case .fill: ControlTips.fill
+		case .outline: ControlTips.outline
+		case .mirror: ControlTips.mirror
+		case .reverse: ControlTips.reverse
+		case .convex: ControlTips.convex
+		case .loopHue: ControlTips.loopHue
+		case .zoomCenter: ControlTips.zoomCenter
+		case .antialiasing: ControlTips.antialiasing
+		case .invertColor: ControlTips.invertColor
+		case .origin: ControlTips.originMotion
+		case .randomPhase: ""
 		}
 	}
 

@@ -33,6 +33,7 @@ enum Preferences {
 			"General_sAuthorName": "",
 			"Playlist_bSaveLayout": true,
 			"Playlist_bApplyLayout": true,
+			"General_bControlTips": true,
 			"Render_nMaxFrameRate": 0,
 			"Rings_bFadeEased": false,
 			"Rings_bHueFromPatch": false,
@@ -161,6 +162,7 @@ struct PreferencesView: View {
 	@AppStorage("General_bCheckUpdates") private var checkUpdates = true
 	@AppStorage("General_sAuthorName") private var authorName = ""
 	@AppStorage("Playlist_bApplyLayout") private var applyPlaylistLayouts = true
+	@AppStorage("General_bControlTips") private var controlTips = true
 	@AppStorage("Render_nMaxFrameRate") private var maxFrameRate = 0
 	@AppStorage("Rings_bFadeEased") private var ringFadeEased = false
 	@AppStorage("Rings_bHueFromPatch") private var hueFromPatch = false
@@ -192,6 +194,9 @@ struct PreferencesView: View {
 	@ViewBuilder private var leftColumn: some View {
 			Section("General") {
 				Toggle("Reopen the last playlist and patch at launch", isOn: $reopenLast)
+				Toggle(isOn: $controlTips) {
+					InfoLabel("Show tips on control names", info: "Hovering over a control's name in Parameters, Master, Globals or Properties shows a short explanation of what it does.")
+				}
 				Toggle(isOn: $applyPlaylistLayouts) {
 					InfoLabel("Open playlists with their layout", info: "A playlist saved with its panel layout (Save Playlist As > Include the panel layout) arranges the panels and windows that way when it's opened. Window > Save Layout and Open Layout keep layouts in files of their own.")
 				}
