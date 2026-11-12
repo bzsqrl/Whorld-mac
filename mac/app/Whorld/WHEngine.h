@@ -160,6 +160,12 @@ typedef struct {
 // Parameters, master and main properties of the document. Setters update
 // the document and send the change to the render thread.
 - (double)paramValue:(NSInteger)iParam property:(WHParamProperty)property;
+// the patch as it was loaded (opened, played from the playlist, or new);
+// later edits don't change it (Mac addition: what a key-map reset restores)
+- (double)loadedParamValue:(NSInteger)iParam property:(WHParamProperty)property;
+- (double)loadedMasterValue:(NSInteger)iProp;
+@property (nonatomic, readonly) double loadedHue;
+@property (nonatomic, readonly) CGPoint loadedOrigin;
 - (void)setParamValue:(double)value param:(NSInteger)iParam property:(WHParamProperty)property;
 - (double)masterValue:(NSInteger)iProp;
 - (void)setMasterValue:(double)value prop:(NSInteger)iProp;

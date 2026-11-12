@@ -349,6 +349,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	std::vector<std::string>	_playlistPatches;
 	// main thread only
 	whorld::Patch	_doc;	// the document, as CWhorldDoc
+	whorld::Patch	_loaded;	// the patch as it was loaded (Mac addition: what a key-map reset restores)
 	BOOL	_paused;
 	BOOL	_modified;
 	BOOL	_snapshotMode;
@@ -394,6 +395,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 		_surfScale = 0;
 		_engine = std::make_unique<whorld::WhorldEngine>();
 		_doc.SetDefaults();
+		_loaded = _doc;
 		_statStart = CACurrentMediaTime();
 		_liveMovie = _engine->GetMovieState();
 		_liveTarget = whorld::SizeF{0, 0};
@@ -509,6 +511,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 - (void)newPatch
 {
 	_doc.SetDefaults();
+	_loaded = _doc;
 	_patchPath = nil;
 	_modified = NO;
 	[self pushPatch];
@@ -527,6 +530,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 		return NO;
 	}
 	_doc = patch;
+	_loaded = patch;
 	_patchPath = [path copy];
 	_modified = NO;
 	[self pushPatch];	// CWhorldView::OnUpdate HINT_NONE
@@ -605,6 +609,19 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	cmd.m_prop = v;
 	[self pushCommand:cmd];
 }
+
+// The patch as loaded (opened, played from the playlist, or new): what a
+// two-finger tap with a key-map key held restores (Mac addition)
+- (double)loadedParamValue:(NSInteger)iParam property:(WHParamProperty)prop
+{
+	WhorldBase::VARIANT_PROP	v;
+	_loaded.GetParamRC((int)iParam, (int)prop, v);
+	return prop == WHParamPropertyWave ? v.intVal : v.dblVal;
+}
+
+- (double)loadedMasterValue:(NSInteger)iProp { return _loaded.GetMasterProp((int)iProp); }
+- (double)loadedHue { return _loaded.m_main.fHue; }
+- (CGPoint)loadedOrigin { return CGPointMake(_loaded.m_main.dptOrigin.x, _loaded.m_main.dptOrigin.y); }
 
 - (double)masterValue:(NSInteger)iProp
 {
@@ -1494,6 +1511,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	if (!patch.Read(path.fileSystemRepresentation))
 		return NO;
 	_doc = patch;
+	_loaded = patch;
 	_patchPath = nil;
 	_modified = NO;
 	[self pushPatch];

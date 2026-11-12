@@ -703,35 +703,30 @@ final class AppModel: ObservableObject {
 	}
 
 	/// A two-finger tap (a secondary click) over the picture while a key in
-	/// the key map is held: that key's control goes back to its default, the
-	/// value a new patch has (what right-clicking it in its panel restores).
+	/// the key map is held: that key's control goes back to the value it had
+	/// when the patch was loaded (opened, played from the playlist, or new).
 	/// Returns false with no such key held, so the click goes on as usual.
 	func resetHeldKeyControl() -> Bool {
 		guard let b = outputKeys.heldTarget, let t = b.targetIndex else { return false }
 		let nParams = WHMappingInfo.paramTargetCount, nMaster = WHMappingInfo.masterTargetCount
 		if t < nParams {
 			let prop = WHParamProperty(rawValue: b.prop) ?? .val
-			let column: Int? = switch prop {
-				case .val: 0
-				case .amp: 1
-				case .freq: 2
-				case .PW: 3
-				default: nil
-			}
-			let value = column.map { WHControls.paramDefault(t, column: $0) } ?? 0	// a Global's default is 0
-			setParam(t, prop, value)
+			guard prop != .wave else { return false }
+			setParam(t, prop, engine.loadedParamValue(t, property: prop))
 		} else if t < nParams + nMaster {
 			let i = t - nParams
+			let value = engine.loadedMasterValue(i)
 			if i == MasterProp.zoom.rawValue {
-				setZoom(WHControls.masterDefault(i))
+				setZoom(value)
 			} else {
-				setMaster(i, WHControls.masterDefault(i))
+				setMaster(i, value)
 			}
 		} else {
+			let o = engine.loadedOrigin
 			switch b.target {
-			case "Hue": setHue(0)
-			case "OriginX": setOrigin(CGPoint(x: 0.5, y: engine.liveOrigin.y))	// the middle
-			case "OriginY": setOrigin(CGPoint(x: engine.liveOrigin.x, y: 0.5))
+			case "Hue": setHue(engine.loadedHue)
+			case "OriginX": setOrigin(CGPoint(x: o.x, y: engine.liveOrigin.y))
+			case "OriginY": setOrigin(CGPoint(x: engine.liveOrigin.x, y: o.y))
 			default: return false
 			}
 		}
