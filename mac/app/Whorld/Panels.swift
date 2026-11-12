@@ -662,6 +662,19 @@ extension View {
 struct ParamsPanel: View {
 	@EnvironmentObject private var model: AppModel
 
+	/// The rows' order: the engine's, except that the four curve and shear
+	/// parameters follow Pinwheel, as they do in Globals. Display only; the
+	/// parameter indices (patch files, MIDI, OSC) are unchanged.
+	static let rowOrder: [Int] = {
+		let all = Array(0..<WHControls.paramCount)
+		func name(_ i: Int) -> String { WHControls.paramName(i).replacingOccurrences(of: " ", with: "") }
+		let curves = all.filter { ["EvenCurve", "OddCurve", "EvenShear", "OddShear"].contains(name($0)) }
+		guard curves.count == 4, let pin = all.firstIndex(where: { name($0) == "Pinwheel" }) else { return all }
+		var order = all.filter { !curves.contains($0) }
+		order.insert(contentsOf: curves, at: pin + 1)
+		return order
+	}()
+
 	var body: some View {
 		// The workspace (or a floating window) scrolls it, both ways.
 		Group {
@@ -679,7 +692,7 @@ struct ParamsPanel: View {
 				}
 				.font(.caption)
 				.foregroundStyle(.secondary)
-				ForEach(0..<WHControls.paramCount, id: \.self) { i in
+				ForEach(Self.rowOrder, id: \.self) { i in
 					ParamRow(iParam: i)
 				}
 			}
