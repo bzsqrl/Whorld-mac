@@ -44,13 +44,16 @@ enum KeyStep {
 	}
 }
 
-/// Two-finger trackpad swipes on sliders and edit boxes (new in the Mac
-/// port): with the pointer over a slider, a sideways swipe moves it; over an
-/// edit box, a swipe up or down steps its value. A swipe belongs to the
-/// control under the pointer when it begins, and only if it goes along that
-/// control's axis; any other swipe scrolls as usual, even when scrolling
-/// brings a control under the pointer. Mouse wheels aren't affected, and
-/// the value doesn't coast after the fingers lift.
+/// Two-finger trackpad swipes and mouse wheels on sliders and edit boxes
+/// (new in the Mac port): with the pointer over a slider, a sideways swipe
+/// (or rolling the wheel) moves it; over an edit box, a swipe up or down (or
+/// the wheel) steps its value. A swipe belongs to the control under the
+/// pointer when it begins, and only if it goes along that control's axis;
+/// any other swipe scrolls as usual, even when scrolling brings a control
+/// under the pointer. A wheel has no begin and end, so wheel clicks less
+/// than `wheelGap` apart make one turn, which belongs to what was under the
+/// pointer at its first click in the same way. The value doesn't coast
+/// after the fingers lift.
 @MainActor
 enum TrackpadSwipe {
 	enum Axis { case horizontal, vertical }
@@ -65,11 +68,35 @@ enum TrackpadSwipe {
 	private static weak var owner: NSView?		// adjusting with this swipe
 	private static var beganPassedOn = false	// the scroll view saw the swipe begin
 	private static var monitor: Any?
+	// mouse wheels
+	private static weak var wheelOwner: NSView?	// adjusting with this turn of the wheel
+	private static var wheelTurnStarts = false	// this wheel click starts a turn
+	private static var lastWheel: TimeInterval = 0
+	/// wheel clicks closer than this are one turn
+	static let wheelGap: TimeInterval = 0.5
+
+	/// A turn of a mouse wheel: clicks up (away from you) positive, or
+	/// down; fractions accumulate. `first`: the turn's first click here.
+	struct Wheel {
+		let clicks: Double
+		let first: Bool
+	}
+
+	private static func isWheel(_ e: NSEvent) -> Bool {
+		!e.hasPreciseScrollingDeltas && e.phase.isEmpty && e.momentumPhase.isEmpty
+	}
 
 	/// Starts watching for the start of each swipe (once; any control may call it).
 	static func install() {
 		guard monitor == nil else { return }
 		monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { e in
+			if isWheel(e) {	// a mouse wheel: a pause starts a new turn, with no owner yet
+				wheelTurnStarts = e.timestamp - lastWheel > wheelGap
+				if wheelTurnStarts {
+					wheelOwner = nil
+				}
+				lastWheel = e.timestamp
+			}
 			if e.phase.contains(.began) || e.phase.contains(.mayBegin) {	// a new swipe: no owner yet
 				candidate = nil
 				owner = nil
@@ -77,6 +104,22 @@ enum TrackpadSwipe {
 			}
 			return e
 		}
+	}
+
+	/// For a control's scrollWheel: a mouse wheel's clicks if the control
+	/// takes this event (the turn began on it), or nil.
+	static func wheel(_ e: NSEvent, for view: NSView) -> Wheel? {
+		guard isWheel(e) else { return nil }
+		var first = false
+		if wheelTurnStarts {	// the turn's first click: this control's
+			wheelOwner = view
+			wheelTurnStarts = false
+			first = true
+		}
+		guard wheelOwner === view else { return nil }	// began elsewhere: scroll
+		let dy = Double(e.scrollingDeltaY), dx = Double(e.scrollingDeltaX)
+		let d = dy != 0 ? dy : dx	// a wheel turned with Shift scrolls sideways
+		return Wheel(clicks: e.isDirectionInvertedFromDevice ? -d : d, first: first)
 	}
 
 	/// For a control's scrollWheel: the travel if the control takes this
@@ -214,7 +257,18 @@ struct KeyTextField: NSViewRepresentable {
 		/// finger travel per arrow-key step
 		static let pointsPerStep = 2.0
 
+		private var wheelClicks = 0.0
+
 		override func scrollWheel(with event: NSEvent) {
+			if onSwipeStep != nil, let w = TrackpadSwipe.wheel(event, for: self) {	// a click a step
+				if w.first { wheelClicks = 0 }
+				wheelClicks += w.clicks
+				let n = Int(wheelClicks)	// whole clicks, toward zero
+				guard n != 0 else { return }
+				wheelClicks -= Double(n)
+				onSwipeStep?(n, event.modifierFlags.contains(.shift) ? .coarse : .fine)
+				return
+			}
 			guard onSwipeStep != nil,
 				let t = TrackpadSwipe.travel(event, for: self, axis: .vertical) else {
 				super.scrollWheel(with: event)
@@ -420,7 +474,23 @@ struct KeySlider: NSViewRepresentable {
 
 		// a sideways trackpad swipe moves the knob as if dragged: the
 		// slider's width of travel covers its range
+		private var wheelClicks = 0.0
+
 		override func scrollWheel(with event: NSEvent) {
+			if let w = TrackpadSwipe.wheel(event, for: self) {	// a click is 1% of the range
+				if w.first { wheelClicks = 0 }
+				wheelClicks += w.clicks
+				let n = Int(wheelClicks)
+				guard n != 0 else { return }
+				wheelClicks -= Double(n)
+				let step = max(((maxValue - minValue) / 100).rounded(), 1)	// whole positions, as dragging
+				let pos = min(max(doubleValue + Double(n) * step, minValue), maxValue)
+				if pos != doubleValue {
+					doubleValue = pos
+					onSet?(pos)
+				}
+				return
+			}
 			guard let t = TrackpadSwipe.travel(event, for: self, axis: .horizontal) else {
 				super.scrollWheel(with: event)
 				return
