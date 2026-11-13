@@ -293,6 +293,42 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	}
 	return self;
 }
+
++ (NSArray<NSString *> *)sourceTags
+{
+	NSMutableArray	*a = [NSMutableArray array];
+	for (int i = 0; i < whorld::ModSources::SOURCES; i++)
+		[a addObject:@(whorld::ModSources::GetTag(i))];
+	return a;
+}
+
++ (NSArray<NSString *> *)actionTags
+{
+	NSMutableArray	*a = [NSMutableArray array];
+	for (int i = 0; i < whorld::ModActions::ACTIONS; i++)
+		[a addObject:@(whorld::ModActions::GetTag(i))];
+	return a;
+}
+
++ (NSString *)sourceName:(NSString *)tag
+{
+	return @(whorld::ModSources::GetName(whorld::ModSources::FindTag(tag.UTF8String)));
+}
+
++ (NSString *)actionName:(NSString *)tag
+{
+	return @(whorld::ModActions::GetName(whorld::ModActions::FindTag(tag.UTF8String)));
+}
+
++ (BOOL)isTriggerSource:(NSString *)tag
+{
+	return whorld::ModSources::IsTrigger(whorld::ModSources::FindTag(tag.UTF8String));
+}
+
++ (BOOL)isModulatableTarget:(NSInteger)target prop:(NSInteger)prop
+{
+	return whorld::ModRow::IsModulatable(static_cast<int>(target), static_cast<int>(prop));
+}
 @end
 
 @implementation WHEngine {
@@ -888,6 +924,11 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	[self pushCommand:RenderCmd(WhorldBase::RC_RANDOM_PHASE)];
 }
 
+- (void)randomOrigin
+{
+	[self pushCommand:RenderCmd(WhorldBase::RC_RANDOM_ORIGIN)];
+}
+
 #pragma mark - Window menu
 
 - (BOOL)paused { return _paused; }
@@ -1399,6 +1440,22 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		// post to the main thread are done here, as MIDI's are
 		using R = whorld::OscRemote::Request;
 		for (const whorld::OscMessage& msg : msgs) {
+			// modulation (Mac addition): the app's, not a mapping target
+			std::string	modOn = std::string(whorld::OscRemote::PREFIX) + "/mod/on";
+			std::string	modDepth = std::string(whorld::OscRemote::PREFIX) + "/mod/depth";
+			if (msg.path == modOn || msg.path == modDepth) {
+				bool	bDepth = msg.path == modDepth;
+				bool	bHasArg = !msg.args.empty() && msg.args[0].IsNumber();
+				double	fVal = bHasArg ? msg.args[0].Number() : -1;	// on with no argument toggles
+				if (bDepth && !bHasArg)
+					continue;
+				dispatch_async(dispatch_get_main_queue(), ^{
+					WHEngine	*strong = weakSelf;
+					if (strong.modulationOscHandler)
+						strong.modulationOscHandler(bDepth ? 1 : 0, bDepth ? fVal : (fVal < 0 ? -1 : fVal != 0));
+				});
+				continue;
+			}
 			R	req = whorld::OscRemote::Handle(msg, *pMgr);
 			switch (req.type) {
 			case R::NONE:
@@ -1536,6 +1593,15 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	[self oscSend:p + "/patch/author" arg:OscArg::String(_doc.m_sAuthor)];
 	[self oscSend:p + "/playlist/name" arg:OscArg::String(playlistName.UTF8String ?: "")];
 	[self oscSend:p + "/fs" arg:OscArg::Float(fullScreen ? 1 : 0)];
+	double	fDepth;
+	bool	bBypass;
+	{
+		std::lock_guard<std::mutex>	lock(_mutex);
+		fDepth = _modDepth;
+		bBypass = _modBypass;
+	}
+	[self oscSend:p + "/mod/on" arg:OscArg::Float(bBypass ? 0 : 1)];
+	[self oscSend:p + "/mod/depth" arg:OscArg::Float(fDepth)];
 }
 
 - (void)oscSendStats:(NSString *)text

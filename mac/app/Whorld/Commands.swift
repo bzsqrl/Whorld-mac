@@ -176,6 +176,10 @@ struct WhorldCommands: Commands {
 			Divider()
 			Button("Random Phase") { e.randomPhase() }
 				.keyboardShortcut("9")	// and F9
+			Divider()
+			// Mac addition (AUDIO_PLAN.md): the Modulation window's rows on or off
+			toggle("Audio Modulation", !ModMap.shared.bypass) { ModMap.shared.bypass.toggle() }
+				.keyboardShortcut("8")
 		}
 
 		CommandGroup(after: .toolbar) {

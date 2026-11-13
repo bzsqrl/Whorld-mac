@@ -143,7 +143,12 @@ final class AppModel: ObservableObject {
 		applySyphon()
 		_ = AudioInputWatch.shared	// sees the audio input's changes from the start
 		AudioSettings.apply()	// the audio input chosen last time
-		AudioSettings.installTestRows(engine)
+		ModMap.shared.attach(engine)	// the modulation rows
+		engine.modulationActionHandler = { [weak self] actions in
+			guard let self else { return }
+			ModMap.shared.perform(actions, self)
+		}
+		engine.modulationOscHandler = { kind, value in ModMap.shared.osc(kind: kind, value: value) }
 		engine.midiInputName = Preferences.midiInputName
 		engine.movieErrorHandler = { message in
 			let alert = NSAlert()
@@ -1511,7 +1516,7 @@ struct WhorldApp: App {
 			ModulationView()
 		}
 		.commandsRemoved()
-		.defaultSize(width: 680, height: 420)
+		.defaultSize(width: 1140, height: 760)
 
 		// Window > Key Map... (keys held over the picture; KeyMap.swift)
 		Window("Key Map", id: "keymap") {

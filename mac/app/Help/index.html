@@ -53,12 +53,18 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <tr><td><code>/w/rndphase</code>, <code>/w/rndorg</code>, <code>/w/clear</code>, <code>/w/rothue</code></td><td>Random Phase, Random Origin, Clear, Rotate Hue</td></tr>
 <tr><td><code>/w/org/x</code>, <code>/w/org/y</code>, <code>/w/org x y</code></td><td>The origin, 0 to 1 (y down)</td></tr>
 <tr><td><code>/w/patch</code></td><td>Play the playlist's patch (a whole number is its index)</td></tr>
+<tr><td><code>/w/mod/on</code>, <code>/w/mod/depth</code></td><td>Audio modulation on (1) or off (0; no argument toggles), and its Depth, 0 to 1</td></tr>
 <tr><td><code>/w/ping</code>, <code>/w/sync</code></td><td>Whorld answers <code>/w/pong</code> (with its address); sync sends everything again</td></tr>
 <tr><td>Sent by Whorld</td><td>The addresses above with their values, and <code>/w/patch/name</code>, <code>/w/patch/author</code>, <code>/w/playlist/name</code>, <code>/w/fs</code> (full screen), <code>/w/stat/fps</code>, <code>/w/stat/draw</code>, <code>/w/stat/gpu</code> (ms), <code>/w/stat/hz</code>, <code>/w/stat/missed</code>, <code>/w/stat/rings</code>, <code>/w/stat/renderer</code>, and <code>/w/stat/text</code> (Show Frame Rate's line)</td></tr>
 </table>
 
 <h2>MIDI</h2>
 <p>Whorld listens to MIDI input through Core MIDI. Choose the input device in Settings. To map a control, open MIDI Mapping, select one or more mappings, turn on MIDI Learn (<kbd>⇧⌘L</kbd>) and move the control on your device.</p>
+
+<h2>Audio modulation</h2>
+<p>Whorld can move with music. Choose Window &gt; Modulation&hellip; and pick an <b>Input</b>: an audio interface, the built-in microphone, or a loopback device such as BlackHole that carries another app's sound (the first time, macOS asks whether Whorld may use audio input; the sound is analyzed as it arrives and never recorded or sent anywhere). <b>Channels</b> picks which of the device's inputs to listen to, mixed together. <b>Gain</b> boosts or cuts what Whorld hears, <b>Auto-level</b> follows the music's recent peak so quiet and loud material both use the whole range, and <b>Hit sensitivity</b> sets how strong a beat must be to count as a hit. <b>Hearing</b> shows what the analysis hears: the overall level, four bands (Bass up to 150 Hz, Low Mid to 600 Hz, High Mid to 4 kHz, Treble above), Brightness (where the sound's energy sits, low to high), and lights for hits: any hit, a Kick (in the bass) or Hats (in the treble).</p>
+<p>The table below says what the sound moves. Each row has a <b>Source</b> (a level, a band, Brightness, or a kind of hit), a <b>Target</b> (any parameter's value or Global column, any Master control, Hue, or the origin), and an <b>Amount</b>: how far the target moves, as a share of its slider, when the source is at its loudest (negative moves it down). The target starts from the patch's own value, and the patch itself never changes: saving keeps its values, it isn't marked Edited, and turning modulation off brings it back exactly. Rows on the same target add up. <b>Curve</b> shapes the response: Linear; Soft (quiet passages count for more); Hard (only loud passages count); Gate (all or nothing above the Threshold). <b>Polarity</b> Up moves the target from its value upward; Centered moves it either side. <b>Attack</b> and <b>Release</b> (in milliseconds) smooth the movement as the sound rises and falls; a hit sends a pulse that fades over its Release. <b>Live</b> shows each row's level as it plays. A row whose Target is an action (Random Phase, Random Origin, Rotate Hue, Clear, Next or Previous Patch, Next or Previous Snapshot) fires it on each hit, or when a sound rises past the Threshold; Rotate Hue changes the patch's Hue, as it does from the menu.</p>
+<p><b>Depth</b> scales every row at once, and <b>Modulation on</b> (Image &gt; Audio Modulation, <kbd>⌘8</kbd>) switches them all off and on; both also work by OSC (<code>/w/mod/on</code>, <code>/w/mod/depth</code>). The rows are a setting, the same for every patch and playlist; <b>Export</b> and <b>Import</b> keep them in a file, and <b>Restore Defaults</b> brings back the starting rows (bass widens the lines, a kick pulses the zoom). Modulation needs a little time to respond: about 20 to 40 milliseconds from a sound to the picture.</p>
 
 <h2>Movies and video</h2>
 <p>Movies record every frame's geometry, so they can be replayed and exported at any size. Besides exporting an image sequence, the Mac version can export a movie straight to a QuickTime video (Movie &gt; Export Video…) as H.264, HEVC, ProRes 422 or ProRes 4444. ProRes 4444 keeps the colors nearly exactly; the other formats soften color at sharp edges.</p>
@@ -108,6 +114,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <tr><td>Origin Drag</td><td>Ctrl+D</td><td>⌘− (minus), or ⌘D</td></tr>
 <tr><td>Origin Random</td><td>Ctrl+R</td><td>⌘=, or ⌘R</td></tr>
 <tr><td>Random Phase</td><td>F9</td><td>⌘9, or F9</td></tr>
+<tr><td>Audio Modulation on or off (Mac)</td><td>&mdash;</td><td>⌘8</td></tr>
 <tr><td>Pause</td><td>Ctrl+Space</td><td>Space (⌃Space switches input sources)</td></tr>
 <tr><td>Step</td><td>Shift+Space</td><td>⇧Space</td></tr>
 <tr><td>Clear</td><td>Ctrl+Delete</td><td>⌘K, or ⌘⌦ (forward delete: fn‑⌘‑Delete on laptops)</td></tr>

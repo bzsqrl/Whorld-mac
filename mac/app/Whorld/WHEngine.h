@@ -153,6 +153,14 @@ typedef struct {
 @property (nonatomic) double attack;	// seconds
 @property (nonatomic) double releaseTime;	// seconds
 @property (nonatomic) double threshold;
+// the sources and actions (ModulationDef.h), as tags, in menu order
+@property (class, readonly) NSArray<NSString *> *sourceTags;
+@property (class, readonly) NSArray<NSString *> *actionTags;
++ (NSString *)sourceName:(NSString *)tag;
++ (NSString *)actionName:(NSString *)tag;
++ (BOOL)isTriggerSource:(NSString *)tag;
+/// whether a modulation can move this mapping target and column
++ (BOOL)isModulatableTarget:(NSInteger)target prop:(NSInteger)prop;
 @end
 
 @interface WHEngine : NSObject
@@ -211,6 +219,9 @@ typedef struct {
 @property (nonatomic, readonly) NSArray<NSNumber *> *modulationLevels;
 /// actions the rows fired (bits, 1 << whorld::ModActions::ACT_*), on the main thread
 @property (nonatomic, copy, nullable) void (^modulationActionHandler)(uint32_t actions);
+/// OSC /w/mod/on (kind 0: value 1 on, 0 off, -1 toggle) and /w/mod/depth
+/// (kind 1: 0 to 1), on the main thread
+@property (nonatomic, copy, nullable) void (^modulationOscHandler)(NSInteger kind, double value);
 // Image > Rotate Hue (V1's, Mac addition): existing rings' hues turn 90
 // degrees, and Hue goes up 90 (wrapping at 360) so new rings follow
 - (void)rotateHue;
@@ -239,6 +250,7 @@ typedef struct {
 - (void)toggleOriginDrag;
 - (void)toggleOriginRandom;
 - (void)randomPhase;
+- (void)randomOrigin;	// RC_RANDOM_ORIGIN (MIDI's Random Origin target; a modulation action)
 
 // Window menu (CMainFrame::OnWindow*)
 @property (nonatomic, readonly) BOOL paused;

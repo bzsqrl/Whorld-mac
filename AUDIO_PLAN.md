@@ -93,7 +93,7 @@ Make Whorld respond to music, for synaesthetic visuals: live from an audio input
   | Polarity | Up (0 to amount) or Centered (−½ to +½ of amount) |
   | Attack, Release | ms |
 
-  Below the table: a **Depth** slider (0–100%, scales everything), **Bypass**, + / − / Duplicate, Restore Defaults (a small starter set), **Export… / Import…**.
+  Below the table: a **Depth** slider (0–100%, scales everything), **Bypass** (shown as "Modulation on"), + (a copy of the selected row, if any) / −, Restore Defaults (a small starter set), **Export… / Import…**. As built (9.4): actions are a Target choice (an "Actions" group in the Target menu), not a separate column; the Threshold column applies to the Gate curve and to actions on continuous sources; Attack doesn't apply to hits (a pulse starts at once). Starting rows: Bass → Line Width +30%, Kick → Zoom +8% (release 250 ms), Hit → Random Phase (off).
 - **Actions** (trigger targets): Random Phase, Rotate Hue, next / previous playlist patch, next / previous snapshot, Clear. Actions that change the document (Rotate Hue moves the Hue value) mark it Edited, as they do from the menu; that's documented.
 - **Menus and remote control:**
   - **Window > Modulation…** opens the window;
