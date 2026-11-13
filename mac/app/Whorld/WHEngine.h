@@ -215,7 +215,7 @@ typedef struct {
 // Modulation (Mac addition, AUDIO_PLAN.md): the routing rows, stepped on the
 // render thread each frame with the audio input's analysis (WHAudioInput),
 // as render-only offsets that never change the patch. No rows: none.
-- (void)setModulationRows:(NSArray<WHModRow *> *)rows depth:(double)depth bypass:(BOOL)bypass;
+- (void)setModulationRows:(NSArray<WHModRow *> *)rows depth:(double)depth bypass:(BOOL)bypass followTempo:(BOOL)followTempo;
 /// each row's level after its curve, 0 to 1, as of the last frame (meters)
 @property (nonatomic, readonly) NSArray<NSNumber *> *modulationLevels;
 /// actions the rows fired (bits, 1 << whorld::ModActions::ACT_*), on the main thread

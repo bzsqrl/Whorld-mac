@@ -13,6 +13,7 @@ License: GPLv3. Every new file gets a GPLv3 header and keeps the original copyri
 - `mac/tools/` — command-line tools: `whorld-render` renders a patch or snapshot to PNG and compares images.
 - `mac/app/` — the macOS app (Swift / SwiftUI, Xcode project), talking to the engine through a thin Objective-C++ bridge.
 - `mac/third_party/Syphon-Framework` — git submodule (BSD), built from source and embedded by the app's Build Syphon and Embed Syphon phases. Don't edit it; update it by moving the submodule to a tested commit.
+- `mac/third_party/link` — git submodule: Ableton Link (GPLv2 or later), with its own `asio-standalone` submodule, header-only, compiled into `WHLink.mm` alone. Pinned to a release tag. Clone with `git submodule update --init --recursive`.
 - `mac/testdata/` — sample `.whp` patches, `.whs` snapshots and reference PNGs exported from Windows Whorld.
 
 ## Build and test

@@ -180,7 +180,7 @@ struct WhorldCommands: Commands {
 			// Mac addition (AUDIO_PLAN.md): the Modulation window's rows on or off
 			toggle("Audio Modulation", !ModMap.shared.bypass) { ModMap.shared.bypass.toggle() }
 				.keyboardShortcut("8")
-			Button("Mark Downbeat") { WHAudioInput.shared.markDownbeat() }	// the "one" for Bar ... 32-Bar
+			Button("Mark Downbeat") { ModMap.markDownbeat() }	// the "one" for Bar ... 32-Bar
 				.keyboardShortcut("8", modifiers: [.command, .option])
 		}
 
@@ -317,6 +317,9 @@ struct HelpCommands: Commands {
 			<p>Syphon output uses Syphon.framework, copyright 2010 bangnoise (Tom Butterworth)
 			&amp; vade (Anton Marini), under its
 			<a href="https://github.com/Syphon/Syphon-Framework/blob/main/License.txt">BSD license</a>.</p>
+			<p>Ableton Link support uses Ableton's Link library, copyright 2016 Ableton AG, Berlin, under the
+			<a href="https://github.com/Ableton/link/blob/master/LICENSE.md">GNU General Public License</a>
+			version 2 or later.</p>
 			</div>
 			"""
 		let credits = NSMutableAttributedString(html: Data(html.utf8), documentAttributes: nil) ?? NSMutableAttributedString()

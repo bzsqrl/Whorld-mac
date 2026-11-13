@@ -1,3 +1,6 @@
 [submodule "mac/third_party/Syphon-Framework"]
 	path = mac/third_party/Syphon-Framework
 	url = https://github.com/Syphon/Syphon-Framework.git
+[submodule "mac/third_party/link"]
+	path = mac/third_party/link
+	url = https://github.com/Ableton/link.git

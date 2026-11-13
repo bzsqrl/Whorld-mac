@@ -27,10 +27,12 @@ enum AudioSettings {
 	static let rangeKey = "Audio_fRangeDb"
 	static let autoLevelKey = "Audio_bAutoLevel"
 	static let hitThresholdKey = "Audio_fHitThreshold"
+	static let linkKey = "Link_bEnabled"
+	static let linkSyncKey = "Link_bStartStopSync"
 
 	static func register() {
 		UserDefaults.standard.register(defaults: [
-			inputKey: "", firstKey: 0, countKey: 0, gainKey: 0.0, rangeKey: 36.0, autoLevelKey: false, hitThresholdKey: 4.0,
+			inputKey: "", firstKey: 0, countKey: 0, gainKey: 0.0, rangeKey: 36.0, autoLevelKey: false, hitThresholdKey: 4.0, linkKey: false, linkSyncKey: false,
 		])
 	}
 
@@ -44,6 +46,8 @@ enum AudioSettings {
 		input.autoLevel = d.bool(forKey: autoLevelKey)
 		input.hitThreshold = d.double(forKey: hitThresholdKey)
 		selectInput()
+		WHLink.shared.startStopSync = d.bool(forKey: linkSyncKey)
+		WHLink.shared.enabled = d.bool(forKey: linkKey)
 	}
 
 	@MainActor static func selectInput() {
@@ -73,6 +77,7 @@ final class AudioInputWatch: ObservableObject {
 	static let shared = AudioInputWatch()
 	private init() {
 		WHAudioInput.shared.changeHandler = { [weak self] in self?.objectWillChange.send() }
+		WHLink.shared.changeHandler = { [weak self] in self?.objectWillChange.send() }
 	}
 }
 
@@ -87,8 +92,24 @@ private struct AudioInputSection: View {
 	@AppStorage(AudioSettings.rangeKey) private var rangeDb = 36.0	// mastered music lives in the top 15 to 20 dB
 	@AppStorage(AudioSettings.autoLevelKey) private var autoLevel = false
 	@AppStorage(AudioSettings.hitThresholdKey) private var hitThreshold = 4.0
+	@AppStorage(AudioSettings.linkKey) private var linkEnabled = false
+	@AppStorage(AudioSettings.linkSyncKey) private var linkSync = false
+	@ObservedObject private var map = ModMap.shared
 
 	private var input: WHAudioInput { .shared }
+
+	/// Ableton Link's state, for its row
+	private var linkStatus: String {
+		let link = WHLink.shared
+		guard linkEnabled else { return "" }
+		let n = link.peers
+		if n == 0 {
+			return "No other Link apps yet: the beat comes from the music"
+		}
+		let apps = n == 1 ? "1 Link app" : "\(n) Link apps"
+		let transport = linkSync ? (link.playing ? " · playing" : " · stopped") : ""
+		return apps + String(format: " · %.1f BPM", link.tempo) + transport + " · the beat comes from Ableton Link"
+	}
 
 	var body: some View {
 		let devices = WHAudioInput.devices
@@ -169,6 +190,26 @@ private struct AudioInputSection: View {
 				}
 			}
 			GridRow {
+				Text("Ableton Link")
+				HStack(spacing: 14) {
+					Toggle(linkEnabled ? "Enabled" : "Disabled", isOn: $linkEnabled)
+						.toggleStyle(.switch)
+						.controlSize(.small)
+					Toggle("Start/Stop sync", isOn: $linkSync)
+						.disabled(!linkEnabled)
+						.help("Beats only while the Link session plays (Ableton Live's transport, for one).")
+					Text(linkStatus)
+						.font(.caption)
+						.foregroundStyle(.secondary)
+				}
+				.help("Keeps time with Ableton Live and other Link apps on this Mac or the network: while the session has other apps, its tempo, beats and bars drive Beat and the bars, in place of the beat Whorld hears in the music.")
+			}
+			GridRow {
+				Text("Tempo")
+				Toggle("Whorld's Tempo follows the beat", isOn: $map.followTempo)
+					.help("Master > Tempo (which times Origin Random) follows the beat's tempo, from Ableton Link or the music, while there's a beat. The patch's own Tempo isn't changed.")
+			}
+			GridRow {
 				Text("")
 				AudioStatus(state: input.state, text: input.statusText)
 			}
@@ -184,6 +225,8 @@ private struct AudioInputSection: View {
 		.onChange(of: rangeDb) { _, v in input.rangeDb = v }
 		.onChange(of: autoLevel) { _, v in input.autoLevel = v }
 		.onChange(of: hitThreshold) { _, v in input.hitThreshold = v }
+		.onChange(of: linkEnabled) { _, v in WHLink.shared.enabled = v }
+		.onChange(of: linkSync) { _, v in WHLink.shared.startStopSync = v }
 	}
 
 	private struct ChannelChoice: Hashable {
@@ -237,6 +280,7 @@ private struct AudioMeter: View {
 		TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
 			let r = WHAudioInput.shared.reading()
 			let now = context.date
+			let link = linkBeat()
 			HStack(alignment: .top, spacing: 24) {
 				VStack(alignment: .leading, spacing: 4) {
 					bar("Level", r.level, detail: r.levelDb > -150 ? String(format: "%.0f dB", r.levelDb) : "")
@@ -253,7 +297,12 @@ private struct AudioMeter: View {
 					Text("hits a second, over 4 s")
 						.font(.caption2)
 						.foregroundStyle(.secondary)
-					beatRow(r, lit: now < flashUntil[3])
+					beatRow(r, link: link, lit: now < flashUntil[3])
+				}
+			}
+			.onChange(of: link?.beat) { _, beat in	// Ableton Link's beats flash the Beat light
+				if beat != nil {
+					flashUntil[3] = Date().addingTimeInterval(0.12)
 				}
 			}
 			.onChange(of: [r.hits, r.kicks, r.hats, r.beats]) { _, counts in
@@ -287,12 +336,25 @@ private struct AudioMeter: View {
 		}
 	}
 
-	/// the beat tracker's light, its tempo and place once it has the beat,
-	/// and Mark Downbeat
-	private func beatRow(_ r: WHAudioReading, lit: Bool) -> some View {
+	/// Ableton Link's beat now, while it drives the beat (nil otherwise; a
+	/// nil beat while stopped)
+	private func linkBeat() -> (beat: Int?, text: String)? {
+		let link = WHLink.shared
+		guard link.drivesBeat else { return nil }
+		var pos = 0.0
+		guard link.beatPosition(&pos) else { return (nil, "Ableton Link · stopped") }
+		let beat = Int(pos.rounded(.down))
+		let inBar = ((beat % 4) + 4) % 4, bar = (((beat / 4) % 32) + 32) % 32	// (pos may be just below 0)
+		return (beat, String(format: "Ableton Link · %.1f BPM · bar %d · beat %d", link.tempo, bar + 1, inBar + 1))
+	}
+
+	/// the beat's light (the tracker's, or Ableton Link's while it drives
+	/// the beat), its tempo and place, and Mark Downbeat
+	private func beatRow(_ r: WHAudioReading, link: (beat: Int?, text: String)?, lit: Bool) -> some View {
 		let place = r.beatInBar >= 0 ? String(format: " · bar %d · beat %d", r.barInPhrase + 1, r.beatInBar + 1) : ""
-		let text: String = r.beatLocked.boolValue ? String(format: "%.1f BPM", r.tempo) + place
+		let heard: String = r.beatLocked.boolValue ? String(format: "%.1f BPM", r.tempo) + place
 			: (r.level > 0 ? "finding the beat…" : "")
+		let text = link?.text ?? heard
 		return HStack(spacing: 6) {
 			Circle()
 				.fill(lit ? Color.orange : Color.secondary.opacity(0.25))
@@ -303,9 +365,12 @@ private struct AudioMeter: View {
 				.font(.caption)
 				.monospacedDigit()
 				.foregroundStyle(.secondary)
-				.frame(width: 190, alignment: .leading)
-			Button("Mark Downbeat") { WHAudioInput.shared.markDownbeat() }
+				.lineLimit(1)
+				.truncationMode(.tail)
+				.frame(minWidth: 180, maxWidth: 300, alignment: .leading)
+			Button("Mark Downbeat") { ModMap.markDownbeat() }
 				.controlSize(.small)
+				.fixedSize()	// the text gives way, not the button
 				.help("Press on the \"one\" (a drop, the start of a phrase): the beat nearest the press becomes beat 1 of bar 1, for Bar, 4-Bar ... 32-Bar. Image > Mark Downbeat (⌥⌘8) and OSC /w/mod/downbeat do the same.")
 		}
 		.padding(.top, 4)
@@ -433,12 +498,30 @@ final class ModMap: ObservableObject {
 		var version = 1
 		var depth = 1.0
 		var bypass = false
+		var followTempo = false	// Tempo follows the beat (render-only)
 		var rows: [ModRowSetting] = []
+
+		init(depth: Double = 1, bypass: Bool = false, followTempo: Bool = false, rows: [ModRowSetting] = []) {
+			self.depth = depth
+			self.bypass = bypass
+			self.followTempo = followTempo
+			self.rows = rows
+		}
+
+		init(from decoder: Decoder) throws {	// missing fields read as defaults
+			let c = try decoder.container(keyedBy: CodingKeys.self)
+			version = (try? c.decodeIfPresent(Int.self, forKey: .version)) ?? 1
+			depth = (try? c.decodeIfPresent(Double.self, forKey: .depth)) ?? 1
+			bypass = (try? c.decodeIfPresent(Bool.self, forKey: .bypass)) ?? false
+			followTempo = (try? c.decodeIfPresent(Bool.self, forKey: .followTempo)) ?? false
+			rows = (try? c.decodeIfPresent([ModRowSetting].self, forKey: .rows)) ?? []
+		}
 	}
 
 	@Published var rows: [ModRowSetting] { didSet { changed() } }
 	@Published var depth: Double { didSet { changed() } }	// 0 to 1, scales every row
 	@Published var bypass: Bool { didSet { changed() } }	// off: the patches as they are
+	@Published var followTempo: Bool { didSet { changed() } }	// Tempo follows the beat
 	/// what an import skipped, for the window to say
 	@Published var notice: String?
 	private weak var engine: WHEngine?
@@ -452,6 +535,7 @@ final class ModMap: ObservableObject {
 		rows = f.rows
 		depth = f.depth
 		bypass = f.bypass
+		followTempo = f.followTempo
 	}
 
 	/// Starting rows: bass widens the lines, each kick pulses the zoom, and
@@ -466,7 +550,7 @@ final class ModMap: ObservableObject {
 		]
 	}()
 
-	var file: File { File(depth: depth, bypass: bypass, rows: rows) }
+	var file: File { File(depth: depth, bypass: bypass, followTempo: followTempo, rows: rows) }
 
 	/// sends the rows to the engine (and from now on, each change)
 	func attach(_ engine: WHEngine) {
@@ -485,13 +569,14 @@ final class ModMap: ObservableObject {
 	private func apply() {
 		// every row, so the engine's row levels line up with these;
 		// rows it doesn't know (from a newer Whorld) do nothing
-		engine?.setModulationRows(rows.map { $0.engineRow() }, depth: depth, bypass: bypass)
+		engine?.setModulationRows(rows.map { $0.engineRow() }, depth: depth, bypass: bypass, followTempo: followTempo)
 	}
 
 	func restoreDefaults() {
 		rows = Self.standard
 		depth = 1
 		bypass = false
+		followTempo = false
 		notice = nil
 	}
 
@@ -528,6 +613,7 @@ final class ModMap: ObservableObject {
 		rows = known
 		depth = min(max(f.depth, 0), 1)
 		bypass = f.bypass
+		followTempo = f.followTempo
 		notice = skipped > 0 ? "\(skipped) row\(skipped == 1 ? "" : "s") skipped: from a newer Whorld, with a source or control this one doesn't have." : nil
 	}
 
@@ -555,11 +641,20 @@ final class ModMap: ObservableObject {
 	/// and /w/mod/downbeat (kind 2)
 	func osc(kind: Int, value: Double) {
 		if kind == 2 {
-			WHAudioInput.shared.markDownbeat()
+			Self.markDownbeat()
 		} else if kind == 0 {
 			bypass = value < 0 ? !bypass : value == 0
 		} else {
 			depth = min(max(value, 0), 1)
+		}
+	}
+
+	/// Mark Downbeat: Ableton Link's beat while it drives, else the tracker's
+	static func markDownbeat() {
+		if WHLink.shared.drivesBeat {
+			WHLink.shared.markDownbeat()
+		} else {
+			WHAudioInput.shared.markDownbeat()
 		}
 	}
 

@@ -154,6 +154,13 @@ Sound reaches the picture after the input buffer (≈5–10 ms), the analysis ho
   - Stored with the modulation settings, not in the patch.
 - **Testing:** with Ableton Live, or LinkHut (Link's own example app, built from the submodule), check phase alignment with logs and by eye. Check tempo changes, start/stop, peers joining and leaving, and Wi-Fi off.
 
+### Ableton Link as built (9.6)
+
+- Link 4.1.1 (the latest stable release), `mac/third_party/link`, compiled into `WHLink.mm` alone (with `LINK_PLATFORM_MACOSX`).
+- **Driving the beat:** while enabled with peers, the render thread's sources get Link's beat position (at the moment of the frame, quantum 4) and tempo in place of the beat tracker's, so every beat-based row and its Offset work unchanged. With no peers, the tracker takes over again. The per-row Offset replaced the planned global latency offset.
+- **Phrases:** Link aligns apps within a bar but not their bar counts, so phrases start at Mark Downbeat's beat, or, with Start/Stop sync, at the beat where the session started playing.
+- **Not built:** a Beat LFO source; the planned Beat Phase source. Rows can follow the beat with Beat or the bars and their release.
+
 ## Capturing another app's audio (after Link)
 
 Core Audio process taps (`AudioHardwareCreateProcessTap` with an aggregate device) can capture an app's output (Ableton's, a browser's) or the whole system mix, with no loopback driver.

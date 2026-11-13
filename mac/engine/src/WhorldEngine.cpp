@@ -358,6 +358,8 @@ void WhorldEngine::ComputeModulation()
 	m_fHueMod = 0;
 	m_ptOriginMod = DPoint(0, 0);
 	m_fZoomMod = 1;
+	if (m_mod.fTempo > 0)	// the beat's tempo (Origin Random's timing), not the patch's
+		m_masterEff.fTempo = m_mod.fTempo;
 	if (!m_mod.bActive)
 		return;
 	auto	limit = [](double fBase, double fDelta, double fMin, double fMax) {
@@ -404,14 +406,15 @@ void WhorldEngine::UpdateModulation()
 {
 	MASTER_PROPS	prev = m_masterEff;
 	ComputeModulation();
-	if (m_mod.bActive || m_bModWasActive) {
+	bool	bModActive = m_mod.bActive || m_mod.fTempo > 0;
+	if (bModActive || m_bModWasActive) {
 		if (Round(m_masterEff.fCopies) != Round(prev.fCopies)
 		|| (m_masterEff.fSpread != 0) != (prev.fSpread != 0))
 			OnCopiesChange();
 		if (m_masterEff.fTempo != prev.fTempo)
 			OnTempoChange();
 	}
-	m_bModWasActive = m_mod.bActive;
+	m_bModWasActive = bModActive;
 }
 
 // ported from WhorldDraw.cpp CWhorldDraw::RemoveAllRings

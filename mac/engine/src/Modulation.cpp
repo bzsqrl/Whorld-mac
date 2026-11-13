@@ -151,6 +151,8 @@ void Modulator::Step(const ModSources& src, double dt, ModOutput& out)
 	out.Clear();
 	if (dt > 0)
 		m_fTime += dt;
+	if (m_bFollowTempo && !m_bBypass && src.bBeat && src.fTempo > 0)
+		out.fTempo = src.fTempo;
 	for (size_t iRow = 0; iRow < m_aRow.size(); iRow++) {
 		const ModRow&	row = m_aRow[iRow];
 		State&	st = m_aState[iRow];

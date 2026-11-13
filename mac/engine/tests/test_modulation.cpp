@@ -378,6 +378,38 @@ TEST(HitOffsetsOnlyDelay) {
 	}
 }
 
+TEST(TempoFollowsTheBeat) {
+	// with Tempo following, the output carries the beat's tempo, and the
+	// engine's effective Tempo takes it (render-only); without, nothing
+	Modulator	m;
+	m.SetRows({});
+	ModSources	src;
+	src.bBeat = true;
+	src.fTempo = 124;
+	src.fBeatPos = 3.2;
+	ModOutput	out;
+	m.Step(src, 1.0 / 60, out);
+	CHECK_EQ(out.fTempo, 0.0);
+	m.SetFollowTempo(true);
+	m.Step(src, 1.0 / 60, out);
+	CHECK_EQ(out.fTempo, 124.0);
+	src.bBeat = false;	// no beat: the patch's tempo
+	m.Step(src, 1.0 / 60, out);
+	CHECK_EQ(out.fTempo, 0.0);
+	auto	eng = MakeEngine();
+	Patch	p = StillPatch();
+	eng->OnSetPatch(p);
+	ModOutput	mod;
+	mod.fTempo = 124;
+	eng->SetModulation(mod);
+	RunFrames(*eng, 1);
+	CHECK_EQ(eng->GetEffectiveMaster().fTempo, 124.0);
+	CHECK_EQ(eng->GetPatch().m_master.fTempo, p.m_master.fTempo);
+	eng->SetModulation(ModOutput());
+	RunFrames(*eng, 1);
+	CHECK_EQ(eng->GetEffectiveMaster().fTempo, p.m_master.fTempo);
+}
+
 // Engine
 
 TEST(ZeroModulationIsBitIdentical) {

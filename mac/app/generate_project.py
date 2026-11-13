@@ -18,7 +18,7 @@ def gid(name):
     return hashlib.md5(name.encode()).hexdigest()[:24].upper()
 
 app_files = ["WhorldApp.swift", "ContentView.swift", "Commands.swift", "Panels.swift", "Preferences.swift", "Mapping.swift", "Media.swift", "FullScreen.swift", "Workspace.swift", "Updates.swift", "KeyMap.swift", "Modulation.swift",
-             "WHOscServer.h", "WHOscServer.mm", "WHSyphon.h", "WHSyphon.mm", "WHAudioInput.h", "WHAudioInput.mm",
+             "WHOscServer.h", "WHOscServer.mm", "WHSyphon.h", "WHSyphon.mm", "WHAudioInput.h", "WHAudioInput.mm", "WHLink.h", "WHLink.mm",
              "WHEngine.h", "WHEngine.mm",
              "Whorld-Bridging-Header.h", "Info.plist", "AppIcon.icns"]
 engine_src = sorted(f for f in os.listdir(os.path.join(root, "../engine/src")) if f.endswith(".cpp"))
@@ -202,6 +202,8 @@ for cfg in ("Debug", "Release"):
 \t\t\t\t\t"$(SRCROOT)/../engine/include",
 \t\t\t\t\t"$(SRCROOT)/../engine/src",
 \t\t\t\t\t"$(SRCROOT)/../renderer",
+\t\t\t\t\t"$(SRCROOT)/../third_party/link/include",
+\t\t\t\t\t"$(SRCROOT)/../third_party/link/modules/asio-standalone/asio/include",
 \t\t\t\t);
 \t\t\t\tINFOPLIST_FILE = Whorld/Info.plist;
 \t\t\t\tLD_RUNPATH_SEARCH_PATHS = (

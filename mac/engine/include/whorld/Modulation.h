@@ -105,6 +105,7 @@ struct ModOutput {
 	double	fHue = 0;		// of the hue wheel
 	double	fOriginX = 0;	// of the view
 	double	fOriginY = 0;
+	double	fTempo = 0;		// BPM: the Tempo master property follows this (render-only); 0: the patch's
 	uint32_t	nActions = 0;	// bit (1 << ModActions::ACT_*) per action fired
 
 	void	Clear() { *this = ModOutput(); }
@@ -118,6 +119,9 @@ public:
 	double	GetDepth() const { return m_fDepth; }
 	void	SetBypass(bool bBypass) { m_bBypass = bBypass; }	// no offsets, no actions
 	bool	GetBypass() const { return m_bBypass; }
+	// Tempo follows the beat (the beat tracker's or Ableton Link's): ModOutput::fTempo
+	void	SetFollowTempo(bool bFollow) { m_bFollowTempo = bFollow; }
+	bool	GetFollowTempo() const { return m_bFollowTempo; }
 	// One frame: dt is the time since the last step, in seconds.
 	void	Step(const ModSources& src, double dt, ModOutput& out);
 	// A row's value after smoothing and its curve, 0 to 1 (for meters)
@@ -141,6 +145,7 @@ private:
 	std::vector<State>	m_aState;
 	double	m_fDepth = 1;
 	bool	m_bBypass = false;
+	bool	m_bFollowTempo = false;
 
 	static double	Smooth(double fEnv, double fTarget, double dt, double fTime);
 	static double	Shape(int nCurve, double x, double fThreshold);

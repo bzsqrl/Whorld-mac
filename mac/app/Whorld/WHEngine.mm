@@ -13,6 +13,7 @@
 #import "WHOscServer.h"
 #import "WHSyphon.h"
 #import "WHAudioInput.h"
+#import "WHLink.h"
 #include "whorld/OscRemote.h"
 #include <arpa/inet.h>
 #include <ifaddrs.h>
@@ -358,6 +359,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	std::vector<whorld::ModRow>	_modRows;	// modulation, for the render thread
 	double	_modDepth;
 	bool	_modBypass;
+	bool	_modFollowTempo;
 	bool	_modChanged;
 	std::vector<double>	_modLevels;	// from the render thread, for meters
 	whorld::DPoint	_cursor;
@@ -454,6 +456,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 		_hueFromPatchChanged = false;
 		_modDepth = 1;
 		_modBypass = false;
+		_modFollowTempo = false;
 		_modChanged = false;
 		_modulating = false;
 		_modHasLast = false;
@@ -746,7 +749,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	_modified = YES;
 }
 
-- (void)setModulationRows:(NSArray<WHModRow *> *)rows depth:(double)depth bypass:(BOOL)bypass
+- (void)setModulationRows:(NSArray<WHModRow *> *)rows depth:(double)depth bypass:(BOOL)bypass followTempo:(BOOL)followTempo
 {
 	std::vector<whorld::ModRow>	a;
 	for (WHModRow *r in rows) {
@@ -769,6 +772,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	_modRows = std::move(a);
 	_modDepth = depth;
 	_modBypass = bypass;
+	_modFollowTempo = followTempo;
 	_modChanged = true;
 	_frameRequested = true;
 	_cv.notify_one();
@@ -788,7 +792,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 // the main thread.
 - (void)stepModulation
 {
-	if (_modulator.GetRows().empty()) {
+	if (_modulator.GetRows().empty() && !_modulator.GetFollowTempo()) {
 		if (_modulating) {	// rows removed: the patch's own values again
 			_engine->SetModulation(whorld::ModOutput());
 			_modulating = false;
@@ -803,6 +807,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	_modHasLast = true;
 	whorld::ModSources	src;
 	WHAudioInputRead(src);
+	WHLinkRead(src);	// Ableton Link, while it has peers, drives the beat instead of the tracker
 	whorld::ModOutput	out;
 	_modulator.Step(src, dt, out);
 	_engine->SetModulation(out);
@@ -1759,6 +1764,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		std::vector<whorld::ModRow>	modRows;
 		double	fModDepth;
 		bool	bModBypass;
+		bool	bModFollowTempo;
 		whorld::DPoint	cursor;
 		{
 			std::unique_lock<std::mutex>	lock(_mutex);
@@ -1789,6 +1795,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 				modRows = _modRows;
 				fModDepth = _modDepth;
 				bModBypass = _modBypass;
+				bModFollowTempo = _modFollowTempo;
 				_modChanged = false;
 			}
 		}
@@ -1814,6 +1821,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 			_modulator.SetRows(modRows);
 			_modulator.SetDepth(fModDepth);
 			_modulator.SetBypass(bModBypass);
+			_modulator.SetFollowTempo(bModFollowTempo);
 		}
 		if (w <= 0 || h <= 0)
 			continue;
