@@ -255,6 +255,20 @@ Output must stay within the golden-image tolerance (mean ≤ 1.5, at most 1% of 
 - **Self-overlapping rings** (`boomer_cvx`) make a lot of geometry and stencil work. It may stay below 120 Hz, but should still be several times faster than on the CPU.
 - **CI.** GitHub's macOS runners may not expose a Metal device. If so, Metal tests run locally only, and CI keeps covering the CG path.
 
+### Phase 9 — Audio reactivity and Ableton Link (planned 2026-11-13)
+
+A Mac addition, at the user's request: Whorld responds to music from an audio input (analysis) and keeps time with Ableton Link. Modulation is a render-only offset added beside each control's oscillator, so patches are never changed. The design, decisions and test plan are in `AUDIO_PLAN.md`.
+
+- [ ] 9.1 Modulation core: render-only offsets in the engine (parameters, globals, master, origin); `Modulator` (rows, shaping, attack and release, depth, bypass, triggers) with ctest; zero offsets bit-identical to the golden images.
+- [ ] 9.2 Audio analysis: `AudioAnalyzer` (FFT, level, four bands, brightness, hits) with ctest on synthetic signals.
+- [ ] 9.3 Audio input: device choice, channels, gain, meter (Settings > Audio), Microphone permission, lock-free hand-off to the render thread.
+- [ ] 9.4 Modulation window: rows table with live meters, Depth, Bypass, Export / Import (JSON), Restore Defaults; Image > Audio Modulation (⌘8); OSC `/w/mod/on` and `/w/mod/depth`; Help.
+- [ ] 9.5 Trigger actions (Random Phase, Rotate Hue, playlist and snapshot steps, Clear); tune hit detection by ear; measure missed frames with heavy patches and worst-case rows.
+- [ ] 9.6 Ableton Link: submodule (with asio), Settings > Link, frame-accurate beat and bar clock with a latency offset, Beat LFO and pulse sources, tempo follow (render-only); license notice in the DMG, About and Help.
+- [ ] 9.7 Beat-locked oscillators: a parameter's oscillator follows the Link beat at a chosen division.
+- [ ] 9.8 Audio from another app (Core Audio process taps, macOS 14.2 or 14.4+, behind `#available`).
+- [ ] 9.9 Offline audio-reactive video render (later; the design already allows it).
+
 ## Decisions (confirmed with the user 2026-11-05)
 
 | Decision | Recommendation | Why |
