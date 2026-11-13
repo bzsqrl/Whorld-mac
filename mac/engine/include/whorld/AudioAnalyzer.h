@@ -68,6 +68,8 @@ public:
 	double	GetLevelDb() const { return m_fLevelDb; }	// RMS, after gain; a full-scale sine is 0 dB
 	double	GetBandDb(int iBand) const { return m_aBandDb[iBand]; }	// 0..3: Bass..Treble
 	double	GetFlux(int iOnset) const { return m_aFlux[iOnset]; }
+	double	GetThreshold(int iOnset) const { return m_aThreshold[iOnset]; }	// the last analysis's
+	double	GetHitPeak(int iOnset) const { return m_aHitPeak[iOnset]; }	// the last hit's flux, decaying
 	uint64_t	GetAnalysisCount() const { return m_nAnalyses; }
 	size_t	GetWindowSize() const { return m_nWindow; }
 	size_t	GetHopSize() const { return m_nHop; }
@@ -104,6 +106,7 @@ private:
 	size_t	m_nHist = 0;		// entries filled
 	double	m_aFlux[ONSETS] = {};	// smoothed: this hop's and the last's, averaged
 	double	m_aRawFlux[ONSETS] = {};
+	double	m_aThreshold[ONSETS] = {};
 	double	m_aSinceHit[ONSETS] = {};	// seconds
 	double	m_aHitPeak[ONSETS] = {};	// the last hit's flux, decaying
 	double	m_fLevelDb = -200;

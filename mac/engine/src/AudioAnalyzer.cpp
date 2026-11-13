@@ -267,6 +267,7 @@ void AudioAnalyzer::Analyze()
 		m_aHitPeak[o] *= std::exp(-fHopSeconds / kHitPeakTime);
 		double	fThreshold = std::max(fMedian + m_set.fHitThreshold * kOnsetStrictness[o] * fDev + kMinFlux,
 			m_aHitPeak[o] * kHitPeakRatio);
+		m_aThreshold[o] = fThreshold;
 		m_aSinceHit[o] += fHopSeconds;
 		double	fRefractory = std::max(m_set.fRefractory, kMinRefractory[o]);
 		if (fFlux > fThreshold && m_aSinceHit[o] >= fRefractory) {
