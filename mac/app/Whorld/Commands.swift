@@ -17,10 +17,6 @@ struct WhorldCommands: Commands {
 	@ObservedObject var model: AppModel
 	@Environment(\.openWindow) private var openWindow
 
-	private func fkey(_ code: Int) -> KeyEquivalent {
-		KeyEquivalent(Character(UnicodeScalar(UInt32(code))!))
-	}
-
 	/// A recent file's name, with its folder if another recent file has the same name.
 	static func recentTitle(_ url: URL, in all: [URL]) -> String {
 		let name = url.lastPathComponent
@@ -135,27 +131,32 @@ struct WhorldCommands: Commands {
 			Button("Save Playlist") { model.savePlaylist() }
 				.keyboardShortcut("s", modifiers: [.command, .option])
 			Button("Save Playlist As…") { model.savePlaylistAs() }
+				.keyboardShortcut("s", modifiers: [.command, .option, .shift])
 			Divider()
 			Toggle("MIDI Learn", isOn: Binding(get: { model.midiLearn }, set: { model.midiLearn = $0 }))
 				.keyboardShortcut("l", modifiers: [.command, .shift])
 		}
 
+		// The function keys are Windows Whorld's; on a Mac keyboard they need
+		// fn (plain, they're brightness, Mission Control, media...), so the
+		// menu shows Command-digit keys and the F-keys work too (SecondKeys,
+		// in WhorldApp.swift).
 		CommandMenu("Image") {
 			toggle("Fill", e.fill) { model.toggleFill() }
-				.keyboardShortcut(fkey(NSF6FunctionKey), modifiers: [])
+				.keyboardShortcut("1")	// and F6
 			toggle("Outline", e.outline) { model.toggleOutline() }
-				.keyboardShortcut(fkey(NSF7FunctionKey), modifiers: [])
+				.keyboardShortcut("2")	// and F7
 			toggle("Mirror", e.mirror) { model.toggle(.mirror) }
-				.keyboardShortcut(fkey(NSF5FunctionKey), modifiers: [])
+				.keyboardShortcut("3")	// and F5
 			Divider()
 			toggle("Reverse", e.reverse) { model.toggle(.reverse) }
 				.keyboardShortcut(.delete, modifiers: .command)
 			toggle("Convex", e.convex) { model.toggle(.convex) }
 				.keyboardShortcut(.tab, modifiers: .control)
 			toggle("Loop Hue", e.loopHue) { model.toggle(.loopHue) }
-				.keyboardShortcut(fkey(NSF2FunctionKey), modifiers: [])
+				.keyboardShortcut("4")	// and F2
 			Button("Rotate Hue") { model.rotateHue() }	// V1's (Mac addition)
-				.keyboardShortcut(fkey(NSF3FunctionKey), modifiers: [])
+				.keyboardShortcut("5")	// and F3
 			toggle("Zoom Center", e.zoomCenter) { model.toggle(.zoomCenter) }
 				.keyboardShortcut("w", modifiers: .shift)
 			toggle("Antialiasing", e.antialiasing) { model.toggle(.antialiasing) }
@@ -163,7 +164,7 @@ struct WhorldCommands: Commands {
 			// not on Windows' Image menu (its Properties grid only); here the
 			// Properties panel mirrors this menu, so it's in both
 			toggle("Invert Color", e.invertColor) { model.toggle(.invertColor) }
-				.keyboardShortcut(fkey(NSF4FunctionKey), modifiers: [])	// V1's
+				.keyboardShortcut("6")	// and F4, V1's
 			Divider()
 			Button("Origin Center") { model.originCenter() }
 				.keyboardShortcut("0")
@@ -173,17 +174,16 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut("r")
 			Divider()
 			Button("Random Phase") { e.randomPhase() }
-				.keyboardShortcut(fkey(NSF9FunctionKey), modifiers: [])
+				.keyboardShortcut("9")	// and F9
 		}
 
 		CommandGroup(after: .toolbar) {
 			// Whorld's own full screen (FullScreen.swift), on Shift-Cmd-F (the
-			// user's choice; Ctrl-Cmd-F, macOS's usual one, is Show Frame Rate).
-			// It replaces AppKit's automatic Enter Full Screen item,
-			// which drives macOS's full screen (turned off; see AppDelegate).
-			// F11, the Windows shortcut, is on the Window menu's item; on most
-			// Mac keyboards it doesn't reach apps (a media key, or fn-F11 for
-			// Show Desktop).
+			// user's choice). It replaces AppKit's automatic Enter Full Screen
+			// item, which drives macOS's full screen (turned off; see
+			// AppDelegate). Ctrl-Cmd-F, macOS's usual one, and F11, the Windows
+			// one, work too (SecondKeys); on most Mac keyboards F11 doesn't
+			// reach apps (a media key, or fn-F11 for Show Desktop).
 			Button(model.isFullScreen ? "Exit Full Screen" : "Enter Full Screen") { model.toggleFullScreen() }
 				.keyboardShortcut("f", modifiers: [.command, .shift])
 			Divider()
@@ -197,7 +197,7 @@ struct WhorldCommands: Commands {
 			Divider()
 			Toggle("Full Resolution", isOn: $model.fullResolution)
 			Toggle("Show Frame Rate", isOn: $model.showFrameRate)
-				.keyboardShortcut("f", modifiers: [.control, .command])
+				.keyboardShortcut("f", modifiers: [.command, .option])	// not Ctrl-Cmd-F, macOS's full screen key
 			Toggle("Syphon Output", isOn: Binding(get: { model.syphonEnabled }, set: { model.setSyphonEnabled($0) }))
 			Divider()
 		}
@@ -216,7 +216,7 @@ struct WhorldCommands: Commands {
 			Button("Step") { e.singleStep() }
 				.keyboardShortcut(.space, modifiers: .shift)
 			Button("Clear") { e.clear() }
-				.keyboardShortcut(.deleteForward, modifiers: .command)
+				.keyboardShortcut("k")	// and Cmd-Forward Delete (Windows' Ctrl+Delete), which laptops lack
 			// CMainFrame::OnWindowDetach
 			Toggle("Detach", isOn: Binding(get: { model.isDetached }, set: { _ in model.toggleDetach() }))
 				.keyboardShortcut("d", modifiers: [.command, .shift])	// Windows: Ctrl+F12

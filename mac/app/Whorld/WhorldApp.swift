@@ -1291,6 +1291,13 @@ final class OutputKeys {
 			AppModel.shared.stepPatch(code == 125 ? 1 : -1)
 			return true
 		}
+		// Command-Left and Command-Right: the previous and next snapshot
+		// (Snapshot > Previous and Next, Page Up and Page Down), likewise
+		if !up, code == 123 || code == 124, modifiers == NSEvent.ModifierFlags.command.rawValue,
+			AppModel.shared.hasSnapshots, AppModel.shared.isFullScreen || Self.pointerOverOutput() {
+			if code == 124 { AppModel.shared.snapshotNext() } else { AppModel.shared.snapshotPrev() }
+			return true
+		}
 		if up {
 			if key == held {
 				held = nil
@@ -1322,18 +1329,49 @@ final class OutputKeys {
 	}
 }
 
+/// Keys that do what a menu item does, besides the item's own shortcut: the
+/// Windows Whorld keys where the menu shows a Mac one (the F-keys need fn
+/// on a Mac keyboard; laptops have no Forward Delete), and macOS's usual
+/// full-screen key. Not shown in the menus; listed in Help.
+@MainActor
+enum SecondKeys {
+	private typealias Mods = NSEvent.ModifierFlags
+	private static let none: UInt = 0
+	private static let cmd = Mods.command.rawValue
+	private static let ctrlCmd = Mods([.control, .command]).rawValue
+
+	/// true: the key was one of these, and its command ran
+	static func perform(code: UInt16, modifiers: UInt) -> Bool {
+		guard NSApp.modalWindow == nil else { return false }	// a dialog is up
+		let m = AppModel.shared
+		let e = m.engine
+		switch (code, modifiers) {
+		case (103, none): m.toggleFullScreen()	// F11, Windows' full screen
+		case (3, ctrlCmd): m.toggleFullScreen()	// Ctrl-Cmd-F, macOS's (Shift-Cmd-F in the menu)
+		case (117, cmd): e.clear()	// Cmd-Forward Delete, Windows' Ctrl+Delete (Cmd-K in the menu)
+		case (97, none): m.toggleFill()	// F6 (Cmd-1)
+		case (98, none): m.toggleOutline()	// F7 (Cmd-2)
+		case (96, none): m.toggle(.mirror)	// F5 (Cmd-3)
+		case (120, none): m.toggle(.loopHue)	// F2 (Cmd-4)
+		case (99, none): m.rotateHue()	// F3 (Cmd-5)
+		case (118, none): m.toggle(.invertColor)	// F4 (Cmd-6)
+		case (101, none): e.randomPhase()	// F9 (Cmd-9)
+		default: return false
+		}
+		return true
+	}
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
-	private var f11Monitor: Any?
+	private var secondKeysMonitor: Any?
 
 	func applicationDidFinishLaunching(_ notification: Notification) {
-		// F11, Windows Whorld's full-screen key, as a second shortcut for
-		// View > Enter Full Screen (a menu item has only one)
-		f11Monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-			guard event.keyCode == 103,	// F11
-				event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.function, .numericPad]).isEmpty
-			else { return event }
-			MainActor.assumeIsolated { AppModel.shared.toggleFullScreen() }
-			return nil
+		// second shortcuts for menu commands (a menu item has only one)
+		secondKeysMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+			let code = event.keyCode
+			let mods = event.modifierFlags.intersection([.shift, .command, .control, .option]).rawValue
+			let taken = MainActor.assumeIsolated { SecondKeys.perform(code: code, modifiers: mods) }
+			return taken ? nil : event
 		}
 		MainActor.assumeIsolated { AppModel.shared.outputKeys.install() }
 		UpdateChecker.shared.checkAtLaunch()
