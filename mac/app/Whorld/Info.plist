@@ -69,6 +69,8 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Whorld listens to the audio input you choose in Window &gt; Modulation, so the picture can move with the music. The sound is analyzed as it arrives and never recorded or sent anywhere.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Whorld uses the local network for OSC remote control, such as TouchOSC on a phone or tablet.</string>
 	<key>UTExportedTypeDeclarations</key>

@@ -141,6 +141,9 @@ final class AppModel: ObservableObject {
 		engine.setHueFromPatch(Preferences.hueFromPatch)
 		restartOSC()
 		applySyphon()
+		_ = AudioInputWatch.shared	// sees the audio input's changes from the start
+		AudioSettings.apply()	// the audio input chosen last time
+		AudioSettings.installTestRows(engine)
 		engine.midiInputName = Preferences.midiInputName
 		engine.movieErrorHandler = { message in
 			let alert = NSAlert()
@@ -1502,6 +1505,13 @@ struct WhorldApp: App {
 		}
 		.commandsRemoved()
 		.defaultSize(width: 760, height: 420)
+
+		// Window > Modulation... (audio modulation; Modulation.swift)
+		Window("Modulation", id: "modulation") {
+			ModulationView()
+		}
+		.commandsRemoved()
+		.defaultSize(width: 680, height: 420)
 
 		// Window > Key Map... (keys held over the picture; KeyMap.swift)
 		Window("Key Map", id: "keymap") {

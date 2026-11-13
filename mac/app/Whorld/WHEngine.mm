@@ -12,6 +12,7 @@
 #import <CoreMIDI/CoreMIDI.h>
 #import "WHOscServer.h"
 #import "WHSyphon.h"
+#import "WHAudioInput.h"
 #include "whorld/OscRemote.h"
 #include <arpa/inet.h>
 #include <ifaddrs.h>
@@ -274,6 +275,26 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	});
 }
 
+@implementation WHModRow
+- (instancetype)init
+{
+	if ((self = [super init])) {
+		whorld::ModRow	row;
+		_on = row.bOn;
+		_source = @(whorld::ModSources::GetTag(row.iSource));
+		_target = row.iTarget;
+		_prop = row.iProp;
+		_amount = row.fAmount;
+		_curve = row.nCurve;
+		_centered = row.bCentered;
+		_attack = row.fAttack;
+		_releaseTime = row.fRelease;
+		_threshold = row.fThreshold;
+	}
+	return self;
+}
+@end
+
 @implementation WHEngine {
 	// shared between threads, guarded by _mutex
 	std::mutex	_mutex;
@@ -297,6 +318,11 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	bool	_ringFadeChanged;
 	bool	_hueFromPatch;	// the patch colors on load setting
 	bool	_hueFromPatchChanged;
+	std::vector<whorld::ModRow>	_modRows;	// modulation, for the render thread
+	double	_modDepth;
+	bool	_modBypass;
+	bool	_modChanged;
+	std::vector<double>	_modLevels;	// from the render thread, for meters
 	whorld::DPoint	_cursor;
 	double	_statRenderSum;
 	int		_statFrames;
@@ -335,6 +361,10 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	int		_syphonWidth, _syphonHeight;	// fixed size in pixels, or 0: the output's own
 	int		_curRate;
 	int		_lastMovieIO;	// render thread: for movieStateHandler
+	whorld::Modulator	_modulator;	// render thread
+	bool	_modulating;	// render thread: offsets were set
+	bool	_modHasLast;
+	std::chrono::steady_clock::time_point	_modLast;
 	// MIDI
 	WHMidiSink	_midiSink;
 	std::unique_ptr<whorld::MidiManager>	_midiMgr;
@@ -385,6 +415,11 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 		_ringFadeChanged = false;
 		_hueFromPatch = false;
 		_hueFromPatchChanged = false;
+		_modDepth = 1;
+		_modBypass = false;
+		_modChanged = false;
+		_modulating = false;
+		_modHasLast = false;
 		_statRenderSum = 0;
 		_statFrames = 0;
 		_statRings = 0;
@@ -672,6 +707,83 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	cmd.m_prop.dblVal = 90;
 	[self pushCommand:cmd];
 	_modified = YES;
+}
+
+- (void)setModulationRows:(NSArray<WHModRow *> *)rows depth:(double)depth bypass:(BOOL)bypass
+{
+	std::vector<whorld::ModRow>	a;
+	for (WHModRow *r in rows) {
+		whorld::ModRow	row;
+		row.bOn = r.on;
+		row.iSource = whorld::ModSources::FindTag(r.source.UTF8String);
+		row.iAction = r.action.length ? whorld::ModActions::FindTag(r.action.UTF8String) : -1;
+		row.iTarget = static_cast<int>(r.target);
+		row.iProp = static_cast<int>(r.prop);
+		row.fAmount = r.amount;
+		row.nCurve = static_cast<int>(r.curve);
+		row.bCentered = r.centered;
+		row.fAttack = r.attack;
+		row.fRelease = r.releaseTime;
+		row.fThreshold = r.threshold;
+		a.push_back(row);
+	}
+	std::lock_guard<std::mutex>	lock(_mutex);
+	_modRows = std::move(a);
+	_modDepth = depth;
+	_modBypass = bypass;
+	_modChanged = true;
+	_frameRequested = true;
+	_cv.notify_one();
+}
+
+- (NSArray<NSNumber *> *)modulationLevels
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	NSMutableArray	*a = [NSMutableArray arrayWithCapacity:_modLevels.size()];
+	for (double f : _modLevels)
+		[a addObject:@(f)];
+	return a;
+}
+
+// Render thread, once per frame before drawing: the latest audio analysis
+// through the routing rows, as offsets for the engine; fired actions go to
+// the main thread.
+- (void)stepModulation
+{
+	if (_modulator.GetRows().empty()) {
+		if (_modulating) {	// rows removed: the patch's own values again
+			_engine->SetModulation(whorld::ModOutput());
+			_modulating = false;
+		}
+		_modHasLast = false;
+		return;
+	}
+	auto	now = std::chrono::steady_clock::now();
+	double	dt = _modHasLast ? std::chrono::duration<double>(now - _modLast).count() : 0;
+	dt = std::min(dt, 0.25);	// after a stall, don't jump
+	_modLast = now;
+	_modHasLast = true;
+	whorld::ModSources	src;
+	WHAudioInputRead(src);
+	whorld::ModOutput	out;
+	_modulator.Step(src, dt, out);
+	_engine->SetModulation(out);
+	_modulating = true;
+	{
+		std::lock_guard<std::mutex>	lock(_mutex);
+		_modLevels.resize(_modulator.GetRows().size());
+		for (size_t i = 0; i < _modLevels.size(); i++)
+			_modLevels[i] = _modulator.GetRowLevel(i);
+	}
+	if (out.nActions) {
+		uint32_t	nActions = out.nActions;
+		__weak WHEngine	*weakSelf = self;
+		dispatch_async(dispatch_get_main_queue(), ^{
+			WHEngine	*strong = weakSelf;
+			if (strong.modulationActionHandler)
+				strong.modulationActionHandler(nActions);
+		});
+	}
 }
 
 - (void)setHueFromPatch:(BOOL)fromPatch
@@ -1564,6 +1676,10 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		bool	bCursor, bLetterbox, bLetterboxOn, bPreferMetal;
 		bool	bRingFade, bRingFadeEased;
 		bool	bHueFromPatchChanged, bHueFromPatch;
+		bool	bModChanged;
+		std::vector<whorld::ModRow>	modRows;
+		double	fModDepth;
+		bool	bModBypass;
 		whorld::DPoint	cursor;
 		{
 			std::unique_lock<std::mutex>	lock(_mutex);
@@ -1589,6 +1705,13 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 			bHueFromPatch = _hueFromPatch;
 			_hueFromPatchChanged = false;
 			bPreferMetal = _preferMetal;
+			bModChanged = _modChanged;
+			if (bModChanged) {
+				modRows = _modRows;
+				fModDepth = _modDepth;
+				bModBypass = _modBypass;
+				_modChanged = false;
+			}
 		}
 		for (QueueItem& item : cmds) {	// ProcessCommand
 			if (item.job)
@@ -1608,6 +1731,11 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 			_engine->SetRingFadeEased(bRingFadeEased);
 		if (bHueFromPatchChanged)
 			_engine->SetHueFromPatch(bHueFromPatch);
+		if (bModChanged) {
+			_modulator.SetRows(modRows);
+			_modulator.SetDepth(fModDepth);
+			_modulator.SetBypass(bModBypass);
+		}
 		if (w <= 0 || h <= 0)
 			continue;
 		if (w != _surfWidth || h != _surfHeight || scale != _surfScale) {	// RC_RESIZE
@@ -1636,6 +1764,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 				continue;	// next frame switches
 			}
 		}
+		[self stepModulation];	// Mac addition: audio modulation, before drawing
 		Surface	*pSurf = [self freeSurface];
 		if (!pSurf) {
 			_handoff->nNoSurface++;

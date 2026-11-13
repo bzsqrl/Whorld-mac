@@ -17,8 +17,8 @@ root = os.path.dirname(os.path.abspath(__file__))  # mac/app
 def gid(name):
     return hashlib.md5(name.encode()).hexdigest()[:24].upper()
 
-app_files = ["WhorldApp.swift", "ContentView.swift", "Commands.swift", "Panels.swift", "Preferences.swift", "Mapping.swift", "Media.swift", "FullScreen.swift", "Workspace.swift", "Updates.swift", "KeyMap.swift",
-             "WHOscServer.h", "WHOscServer.mm", "WHSyphon.h", "WHSyphon.mm",
+app_files = ["WhorldApp.swift", "ContentView.swift", "Commands.swift", "Panels.swift", "Preferences.swift", "Mapping.swift", "Media.swift", "FullScreen.swift", "Workspace.swift", "Updates.swift", "KeyMap.swift", "Modulation.swift",
+             "WHOscServer.h", "WHOscServer.mm", "WHSyphon.h", "WHSyphon.mm", "WHAudioInput.h", "WHAudioInput.mm",
              "WHEngine.h", "WHEngine.mm",
              "Whorld-Bridging-Header.h", "Info.plist", "AppIcon.icns"]
 engine_src = sorted(f for f in os.listdir(os.path.join(root, "../engine/src")) if f.endswith(".cpp"))
@@ -218,6 +218,10 @@ for cfg in ("Debug", "Release"):
 \t\t\t\t\tQuartzCore,
 \t\t\t\t\t"-framework",
 \t\t\t\t\tCoreMIDI,
+\t\t\t\t\t"-framework",
+\t\t\t\t\tCoreAudio,
+\t\t\t\t\t"-framework",
+\t\t\t\t\tAudioToolbox,
 \t\t\t\t\t"-framework",
 \t\t\t\t\tAVFoundation,
 \t\t\t\t\t"-framework",

@@ -139,6 +139,22 @@ typedef struct {
 // (the current patch) and sends changes to the render thread as commands,
 // as CWhorldDoc does through CWhorldThread on Windows. Call from the main
 // thread only.
+/// A modulation routing row (whorld::ModRow; AUDIO_PLAN.md). Source and
+/// action are tags (ModulationDef.h); target and prop as in WHMappingInfo.
+@interface WHModRow : NSObject
+@property (nonatomic) BOOL on;
+@property (nonatomic, copy) NSString *source;
+@property (nonatomic, copy, nullable) NSString *action;	// fires this instead of moving a control
+@property (nonatomic) NSInteger target;
+@property (nonatomic) NSInteger prop;
+@property (nonatomic) double amount;	// -1 to 1, of the target's slider travel
+@property (nonatomic) NSInteger curve;	// ModRow::CURVE_*
+@property (nonatomic) BOOL centered;
+@property (nonatomic) double attack;	// seconds
+@property (nonatomic) double releaseTime;	// seconds
+@property (nonatomic) double threshold;
+@end
+
 @interface WHEngine : NSObject
 
 // Document
@@ -187,6 +203,14 @@ typedef struct {
 // Settings > Rendering > Patch colors on load (Mac addition): a loaded patch
 // starts the hue from its own Hue, or carries on from the previous patch
 - (void)setHueFromPatch:(BOOL)fromPatch;
+// Modulation (Mac addition, AUDIO_PLAN.md): the routing rows, stepped on the
+// render thread each frame with the audio input's analysis (WHAudioInput),
+// as render-only offsets that never change the patch. No rows: none.
+- (void)setModulationRows:(NSArray<WHModRow *> *)rows depth:(double)depth bypass:(BOOL)bypass;
+/// each row's level after its curve, 0 to 1, as of the last frame (meters)
+@property (nonatomic, readonly) NSArray<NSNumber *> *modulationLevels;
+/// actions the rows fired (bits, 1 << whorld::ModActions::ACT_*), on the main thread
+@property (nonatomic, copy, nullable) void (^modulationActionHandler)(uint32_t actions);
 // Image > Rotate Hue (V1's, Mac addition): existing rings' hues turn 90
 // degrees, and Hue goes up 90 (wrapping at 360) so new rings follow
 - (void)rotateHue;
