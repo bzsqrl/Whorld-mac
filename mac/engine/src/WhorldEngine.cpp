@@ -9,6 +9,7 @@
 // any later version. See the LICENSE file at the repository root.
 
 #include "whorld/WhorldEngine.h"
+#include "whorld/Controls.h"
 #include "whorld/HLS.h"
 #include "whorld/Random.h"
 #include "whorld/Round.h"
@@ -18,6 +19,7 @@
 #include <climits>
 #include <cmath>
 #include <cstring>
+#include <iterator>
 
 namespace whorld {
 
@@ -95,6 +97,13 @@ WhorldEngine::WhorldEngine()
 	m_fZoom = 1;
 	m_fZoomTarget = 1;
 	m_nFrameRate = DEFAULT_FRAME_RATE;
+	m_masterEff = m_master;	// Mac addition: modulation (see ComputeModulation)
+	std::fill(std::begin(m_aParamMod), std::end(m_aParamMod), 0.0);
+	std::fill(std::begin(m_aGlobalMod), std::end(m_aGlobalMod), 0.0);
+	m_fHueMod = 0;
+	m_ptOriginMod = DPoint(0, 0);
+	m_fZoomMod = 1;
+	m_bModWasActive = false;
 	std::memset(&m_dsSnapshot, 0, sizeof(m_dsSnapshot));
 	// CreateUserResources creates both brushes as ColorF(0, 255, 0, 0.5f)
 	m_clrBkgndBrush = MakeColor(0, 255, 0, 0.5f);
@@ -165,10 +174,10 @@ inline double WhorldEngine::Reflect(double fVal, double fLimit)
 inline void WhorldEngine::UpdateHue(double fDeltaTick)
 {
 	if (m_main.bLoopHue) {	// if looping hue
-		if (m_master.fHueSpan) {	// if non-zero loop length
+		if (m_masterEff.fHueSpan) {	// if non-zero loop length (Mac: modulated)
 			m_fHueLoopPos += m_params.fColorSpeed * fDeltaTick;
 			m_fHue = m_fHueLoopBase -
-				Reflect(m_fHueLoopPos, m_master.fHueSpan);
+				Reflect(m_fHueLoopPos, m_masterEff.fHueSpan);
 		} else {	// avoid divide by zero
 			m_fHue = m_fHueLoopBase;
 		}
@@ -197,7 +206,7 @@ void WhorldEngine::SetAntialiasing(bool bEnable)
 // ported from WhorldDraw.cpp CWhorldDraw::ResizeCanvas
 void WhorldEngine::ResizeCanvas()
 {
-	double	fScale = m_master.fCanvasScale * m_fZoom;
+	double	fScale = m_masterEff.fCanvasScale * m_fZoom;	// Mac: modulated
 	RectF	rCanvas = {0, 0, DTOF(m_szTarget.width * fScale), DTOF(m_szTarget.height * fScale)};
 	OffsetRect(rCanvas, (m_szTarget.width - Width(rCanvas)) / 2, (m_szTarget.height - Height(rCanvas)) / 2);
 	m_rCanvas = rCanvas;
@@ -206,11 +215,11 @@ void WhorldEngine::ResizeCanvas()
 // ported from WhorldDraw.cpp CWhorldDraw::OnCopiesChange
 void WhorldEngine::OnCopiesChange()
 {
-	int	nCount = Round(m_master.fCopies);
+	int	nCount = Round(m_masterEff.fCopies);	// Mac: modulated
 	if (nCount > 1) {	// if multiple copies desired
 		m_fCopyDelta = M_PI_ * 2 / nCount;
 		m_fCopyTheta = m_fCopyDelta / 2;
-		m_bCopying = m_master.fSpread != 0;
+		m_bCopying = m_masterEff.fSpread != 0;
 	} else {	// one copy only
 		m_bCopying = false;
 	}
@@ -225,8 +234,8 @@ inline double WhorldEngine::RandDouble()
 // ported from WhorldDraw.cpp CWhorldDraw::OnTempoChange
 void WhorldEngine::OnTempoChange()
 {
-	if (m_master.fTempo) {	// if non-zero tempo
-		m_oscOrigin.SetFreq(m_master.fTempo / 60);
+	if (m_masterEff.fTempo) {	// if non-zero tempo (Mac: modulated)
+		m_oscOrigin.SetFreq(m_masterEff.fTempo / 60);
 	}
 }
 
@@ -265,7 +274,7 @@ void WhorldEngine::UpdateOrigin()
 		}
 		break;
 	case OM_RANDOM:
-		if (m_master.fTempo) {	// if non-zero tempo
+		if (m_masterEff.fTempo) {	// if non-zero tempo
 			if (m_oscOrigin.IsTrigger()) {	// if origin oscillator triggered
 				// The original's DPoint ptRand(RandDouble(), RandDouble())
 				// evaluates its arguments in an unspecified order. MSVC
@@ -281,7 +290,11 @@ void WhorldEngine::UpdateOrigin()
 		break;
 	}
 	// increment origin by a fraction of its distance from target origin
-	m_ptOrigin += (m_ptOriginTarget - m_ptOrigin) * m_master.fDamping;
+	if (m_ptOriginMod.x || m_ptOriginMod.y) {	// Mac: modulated origin
+		m_ptOrigin += (m_ptOriginTarget + m_ptOriginMod - m_ptOrigin) * m_masterEff.fDamping;
+		return;
+	}
+	m_ptOrigin += (m_ptOriginTarget - m_ptOrigin) * m_masterEff.fDamping;
 }
 
 // ported from WhorldDraw.cpp CWhorldDraw::UpdateZoom
@@ -289,7 +302,10 @@ void WhorldEngine::UpdateZoom()
 {
 	double	fPrevZoom = m_fZoom;	// save previous zoom
 	// increment zoom by a fraction of its distance from target zoom
-	m_fZoom += (m_fZoomTarget - m_fZoom) * m_master.fDamping;
+	if (m_fZoomMod != 1)	// Mac: modulated zoom
+		m_fZoom += (m_fZoomTarget * m_fZoomMod - m_fZoom) * m_masterEff.fDamping;
+	else
+		m_fZoom += (m_fZoomTarget - m_fZoom) * m_masterEff.fDamping;
 	// apply zoom to ring origins to match V1 trail behavior
 	double	fDeltaZoom = m_fZoom / fPrevZoom;	// delta is a scaling factor
 	DPoint	ptLeadOrg;
@@ -324,8 +340,78 @@ void WhorldEngine::UpdateGlobals()
 		int	iParam = MapGlobalToParam(iGlobal);	// map from global index to parameter index
 		const PARAM_ROW&	row = GetParamRow(iParam);	// dereference
 		// increment parameter by a fraction of its distance from target parameter
-		m_globs.a[iParam] += (row.fGlobal - m_globs.a[iParam]) * m_master.fDamping;
+		m_globs.a[iParam] += (row.fGlobal - m_globs.a[iParam]) * m_masterEff.fDamping;
 	}
+}
+
+// Mac addition (AUDIO_PLAN.md): turns the modulation offsets (m_mod, in
+// slider travel) into the values drawing uses, from the patch's current
+// values: the effective master and the parameter, global, hue, origin and
+// zoom offsets. An offset can't push a control past its slider's end (nor
+// pull it back if the patch's own value is already beyond). With no
+// modulation, the effective master is m_master and every offset is zero.
+void WhorldEngine::ComputeModulation()
+{
+	m_masterEff = m_master;
+	std::fill(std::begin(m_aParamMod), std::end(m_aParamMod), 0.0);
+	std::fill(std::begin(m_aGlobalMod), std::end(m_aGlobalMod), 0.0);
+	m_fHueMod = 0;
+	m_ptOriginMod = DPoint(0, 0);
+	m_fZoomMod = 1;
+	if (!m_mod.bActive)
+		return;
+	auto	limit = [](double fBase, double fDelta, double fMin, double fMax) {
+		double	f = fBase + fDelta;
+		return fDelta > 0 ? std::min(f, std::max(fMax, fBase)) : std::max(f, std::min(fMin, fBase));
+	};
+	for (int iParam = 0; iParam < PARAM_COUNT; iParam++) {
+		const PARAM_INFO&	info = GetParamInfo(iParam);
+		const PARAM_ROW&	row = GetParamRow(iParam);
+		if (double fOff = m_mod.aParam[iParam]) {	// the Val slider spans min to max
+			m_aParamMod[iParam] = limit(row.fVal, fOff * (info.fMaxVal - info.fMinVal),
+				info.fMinVal, info.fMaxVal) - row.fVal;
+		}
+		if (double fOff = m_mod.aGlobal[iParam]) {	// the Global slider spans -max to max
+			if (MapParamToGlobal(iParam) >= 0) {
+				m_aGlobalMod[iParam] = limit(row.fGlobal, fOff * info.fMaxVal * 2,
+					-info.fMaxVal, info.fMaxVal) - row.fGlobal;
+			}
+		}
+	}
+	for (int iProp = 0; iProp < MASTER_COUNT; iProp++) {	// along the slider, which may be logarithmic
+		if (double fOff = m_mod.aMaster[iProp]) {
+			double	fBase = m_master.a[iProp];
+			double	fPos = limit(Controls::MasterNorm01(iProp, fBase), fOff, 0, 1);
+			m_masterEff.a[iProp] = Controls::MasterDenorm01(iProp, fPos);
+		}
+	}
+	if (m_masterEff.fZoom != m_master.fZoom && m_master.fZoom) {	// zoom is damped toward its target
+		m_fZoomMod = m_masterEff.fZoom / m_master.fZoom;
+	}
+	m_fHueMod = m_mod.fHue * 360;
+	if ((m_mod.fOriginX || m_mod.fOriginY) && m_szTarget.width > 0 && m_szTarget.height > 0) {
+		DPoint	ptSize(m_szTarget);
+		DPoint	ptBase = m_ptOriginTarget / ptSize + 0.5;	// normalized
+		DPoint	ptEff(limit(ptBase.x, m_mod.fOriginX, 0, 1), limit(ptBase.y, m_mod.fOriginY, 0, 1));
+		m_ptOriginMod = (ptEff - ptBase) * ptSize;
+	}
+}
+
+// Mac addition: once per frame, before drawing. Master properties that
+// take effect through a change handler (Copies, Spread, Tempo) get it when
+// their effective value changes, and again when modulation ends.
+void WhorldEngine::UpdateModulation()
+{
+	MASTER_PROPS	prev = m_masterEff;
+	ComputeModulation();
+	if (m_mod.bActive || m_bModWasActive) {
+		if (Round(m_masterEff.fCopies) != Round(prev.fCopies)
+		|| (m_masterEff.fSpread != 0) != (prev.fSpread != 0))
+			OnCopiesChange();
+		if (m_masterEff.fTempo != prev.fTempo)
+			OnTempoChange();
+	}
+	m_bModWasActive = m_mod.bActive;
 }
 
 // ported from WhorldDraw.cpp CWhorldDraw::RemoveAllRings
@@ -346,7 +432,10 @@ void WhorldEngine::AddRing()
 	// Mac addition (V1's Hue): the main property Hue offsets the hue of new
 	// rings, shifting the looped range too; existing rings keep theirs.
 	// Unused on Windows V2. Wrap leaves the hue unchanged when Hue is 0.
-	double	fHue = Wrap(m_fHue + m_main.fHue, 360);
+	double	fMainHue = m_main.fHue;
+	if (m_fHueMod)	// Mac: modulated
+		fMainHue += m_fHueMod;
+	double	fHue = Wrap(m_fHue + fMainHue, 360);
 	HLS::hls2rgb(fHue, m_params.fLightness, m_params.fSaturation, fR, fG, fB);
 	m_clrRing = MakeColor(DTOF(fR), DTOF(fG), DTOF(fB), DTOF(m_params.fAlpha));
 	RING	ring;
@@ -370,8 +459,8 @@ void WhorldEngine::AddRing()
 	ring.ptShift.x = ring.ptShiftDelta.x * fRingOffset - ring.ptShiftDelta.x * m_fNewGrowth;
 	ring.ptShift.y = ring.ptShiftDelta.y * fRingOffset - ring.ptShiftDelta.y * m_fNewGrowth;
 	if (m_bCopying) {
-		ring.ptShift.x += std::sin(m_fCopyTheta) * m_master.fSpread;
-		ring.ptShift.y += std::cos(m_fCopyTheta) * m_master.fSpread;
+		ring.ptShift.x += std::sin(m_fCopyTheta) * m_masterEff.fSpread;	// Mac: modulated
+		ring.ptShift.y += std::cos(m_fCopyTheta) * m_masterEff.fSpread;
 		m_fCopyTheta += m_fCopyDelta;
 	}
 	ring.clrCur = m_clrRing;
@@ -417,12 +506,12 @@ void WhorldEngine::AddRing()
 // ported from WhorldDraw.cpp CWhorldDraw::TimerHook
 void WhorldEngine::TimerHook()
 {
-	int	nRings = std::max(Round(m_master.fRings), 0);	// keep ring count positive
+	int	nRings = std::max(Round(m_masterEff.fRings), 0);	// keep ring count positive (Mac: modulated)
 	m_nMaxRings = nRings >= MAX_RINGS ? INT_MAX : nRings;
 	UpdateOrigin();
 	UpdateZoom();
 	UpdateGlobals();
-	double	fSpeed = m_main.bReverse ? -m_master.fSpeed : m_master.fSpeed;
+	double	fSpeed = m_main.bReverse ? -m_masterEff.fSpeed : m_masterEff.fSpeed;	// Mac: modulated
 	double	afPrevClock[PARAM_COUNT];
 	for (int iParam = 0; iParam < PARAM_COUNT; iParam++) {
 		afPrevClock[iParam] = m_aOsc[iParam].GetClock();
@@ -439,7 +528,10 @@ void WhorldEngine::TimerHook()
 	static const int RG = PARAM_RingGrowth;
 	const PARAM_ROW&	rowRG = m_aParam.row[RG];
 	m_aOsc[RG].SetClock(afPrevClock[RG] + 1);
-	m_fNewGrowth = (rowRG.fVal + m_aOsc[RG].GetVal() * rowRG.fAmp) * fSpeed;
+	double	fGrowth = rowRG.fVal + m_aOsc[RG].GetVal() * rowRG.fAmp;
+	if (m_aParamMod[RG])	// Mac: modulated
+		fGrowth += m_aParamMod[RG];
+	m_fNewGrowth = fGrowth * fSpeed;
 	double	fAbsGrowth = std::fabs(m_fNewGrowth);
 	double	fPrevFracTick = 0;
 	while (m_fRingOffset > 0) {
@@ -451,6 +543,8 @@ void WhorldEngine::TimerHook()
 			double	fAmp = prev.fAmp + (cur.fAmp - prev.fAmp) * fFracTick;
 			m_params.a[iParam] = prev.fVal + (cur.fVal - prev.fVal) * fFracTick
 				+ m_aOsc[iParam].GetVal() * fAmp;
+			if (m_aParamMod[iParam])	// Mac: modulated
+				m_params.a[iParam] += m_aParamMod[iParam];
 		}
 		m_params.fRingGrowth *= fSpeed;
 		m_params.fColorSpeed *= fSpeed;
@@ -468,6 +562,8 @@ void WhorldEngine::TimerHook()
 		if (cur.fFreq != m_aPrevParam.row[iParam].fFreq)
 			m_aOsc[iParam].SetFreq(cur.fFreq);
 		m_params.a[iParam] = cur.fVal + m_aOsc[iParam].GetVal() * cur.fAmp;
+		if (m_aParamMod[iParam])	// Mac: modulated
+			m_params.a[iParam] += m_aParamMod[iParam];
 	}
 	m_aPrevParam = m_aParam;
 	m_params.fColorSpeed *= fSpeed;
@@ -480,7 +576,7 @@ void WhorldEngine::TimerHook()
 	// update rings
 	RingPos	posNext = m_aRing.begin();
 	DPoint	ptPrevOrg(m_ptOrigin);
-	double	fTrail = 1 - m_master.fTrail;
+	double	fTrail = 1 - m_masterEff.fTrail;	// Mac: modulated
 	bool	bReverse = m_params.fRingGrowth < 0;
 	m_posDel = m_aRing.end();
 	while (posNext != m_aRing.end()) {	// ring loop
@@ -506,20 +602,27 @@ void WhorldEngine::TimerHook()
 			}
 		}
 	}
-	m_globRing.fRot = m_globs.fRotateSpeed / 5 * 180;
-	m_globRing.fStarRatio = std::max(std::pow(2, m_globs.fStarFactor), MIN_STAR_RATIO);
-	m_globRing.fPinwheel = m_globs.fPinwheel;
-	double	r = std::max(std::pow(2, m_globs.fAspectRatio), MIN_ASPECT_RATIO);
+	// Mac: modulated globals are read from a copy; m_globs stays damped
+	PARAM_VALS	globs = m_globs;
+	for (int iGlobal = 0; iGlobal < GLOBAL_COUNT; iGlobal++) {
+		int	iParam = MapGlobalToParam(iGlobal);
+		if (m_aGlobalMod[iParam])
+			globs.a[iParam] += m_aGlobalMod[iParam];
+	}
+	m_globRing.fRot = globs.fRotateSpeed / 5 * 180;
+	m_globRing.fStarRatio = std::max(std::pow(2, globs.fStarFactor), MIN_STAR_RATIO);
+	m_globRing.fPinwheel = globs.fPinwheel;
+	double	r = std::max(std::pow(2, globs.fAspectRatio), MIN_ASPECT_RATIO);
 	m_globRing.ptScale.x = r > 1 ? r : 1;
 	m_globRing.ptScale.y = r < 1 ? 1 / r : 1;
-	m_globRing.ptShift.x = std::sin(m_globs.fSkewAngle) * m_globs.fSkewRadius;
-	m_globRing.ptShift.y = std::cos(m_globs.fSkewAngle) * m_globs.fSkewRadius;
-	m_globRing.fEvenCurve = m_globs.fEvenCurve;
-	m_globRing.fOddCurve = m_globs.fOddCurve / m_globRing.fStarRatio;
-	m_globRing.fEvenShear = m_globs.fEvenShear + 1;
-	m_globRing.fOddShear = m_globs.fOddShear + 1;
-	m_globRing.fLineWidth = DTOF(m_globs.fLineWidth);
-	m_globRing.nPolySides = Round(m_globs.fPolySides);
+	m_globRing.ptShift.x = std::sin(globs.fSkewAngle) * globs.fSkewRadius;
+	m_globRing.ptShift.y = std::cos(globs.fSkewAngle) * globs.fSkewRadius;
+	m_globRing.fEvenCurve = globs.fEvenCurve;
+	m_globRing.fOddCurve = globs.fOddCurve / m_globRing.fStarRatio;
+	m_globRing.fEvenShear = globs.fEvenShear + 1;
+	m_globRing.fOddShear = globs.fOddShear + 1;
+	m_globRing.fLineWidth = DTOF(globs.fLineWidth);
+	m_globRing.nPolySides = Round(globs.fPolySides);
 }
 
 // ported from WhorldDraw.cpp CWhorldDraw::DrawRing
@@ -579,6 +682,7 @@ float WhorldEngine::RingFadeFactor(double fRingsLeft, int nFadeRings) const
 bool WhorldEngine::Draw(IRenderer& renderer)
 {
 	renderer.SetAntialiasing(m_bAntialiasMode);	// device state on Windows
+	UpdateModulation();	// Mac addition: before anything reads the effective master
 	ResizeCanvas();	// order matters: AddRing uses m_rCanvas
 	if (!m_bIsPaused) {	// if unpaused
 		TimerHook();	// do time-based updates
@@ -631,7 +735,7 @@ bool WhorldEngine::Draw(IRenderer& renderer)
 	// and the rings are taken to grow outward (newest first in the list).
 	const int	nRingCount = static_cast<int>(m_aRing.size());
 	int		nFadeLimit = m_bSnapshotMode ? nRingCount : m_nMaxRings;
-	const int	nFadeRings = Clamp(Round(m_master.fFade), 0, 200);
+	const int	nFadeRings = Clamp(Round(m_masterEff.fFade), 0, 200);	// Mac: modulated
 	bool	bFade = nFadeRings > 0 && nFadeLimit != INT_MAX && nRingCount > 0;
 	bool	bNewestFirst = m_bSnapshotMode || m_params.fRingGrowth >= 0;	// AddRing: push_front unless reverse
 	double	fPhase = 0;	// progress toward the next ring addition, 0..1
@@ -972,6 +1076,7 @@ bool WhorldEngine::SetFrameRate(uint32_t nFrameRate)
 // ported from WhorldThread.cpp CWhorldThread::OnMasterPropChange
 void WhorldEngine::OnMasterPropChange(int iProp)
 {
+	ComputeModulation();	// Mac addition: the handlers read the effective master
 	switch (iProp) {
 	case MASTER_Copies:
 	case MASTER_Spread:

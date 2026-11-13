@@ -17,6 +17,7 @@ add_library(whorld_engine STATIC
   src/IniFile.cpp
   src/Mapping.cpp
   src/MidiManager.cpp
+  src/Modulation.cpp
   src/Osc.cpp
   src/OscRemote.cpp
   src/Oscillator.cpp

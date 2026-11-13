@@ -61,7 +61,8 @@ Make Whorld respond to music, for synaesthetic visuals: live from an audio input
     5. add to the target's offset (several rows can share a target; their offsets sum).
   - **Triggers** (hits, beats, bars) fire actions; pulses are 1 at the hit and decay with the row's release.
   - **Pure and deterministic:** same inputs, same outputs, so it's testable and works offline.
-- **Render command** `SET_MODULATION` (the `pData` pattern, like a patch) installs a new routing table, built by the app from Settings. Features and Link state are handed to the engine each frame by the render loop (`WHEngine.mm`), not through the command queue.
+- **Who steps it (as built, 9.1):** the engine doesn't own the `Modulator`. The host's render loop (`WHEngine.mm`) owns it, installs new rows from Settings, steps it once per frame with the latest sources, passes the `ModOutput` to `WhorldEngine::SetModulation` before `Draw`, and carries out the actions it reports. So the engine only adds offsets, and offline render and tests can drive the same `Modulator` directly.
+- **Targets in 9.1:** a parameter's Value or Global column, every master property, Hue, Origin X and Y. The oscillator columns (Amplitude, Frequency, Pulse Width) aren't modulatable yet; Amplitude ("bass drives the wobble") is a good later addition.
 
 ### App (Swift / Objective-C++)
 

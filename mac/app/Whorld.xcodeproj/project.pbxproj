@@ -30,6 +30,7 @@
 		9F5A9AF547442CBAED430042 /* IniFile.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B8B54DF90B61A72EC3278280 /* IniFile.cpp */; };
 		917A00BDC83E2C88370D9645 /* Mapping.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 11CABE3F977B40CAFBD6A8B1 /* Mapping.cpp */; };
 		E0F569F06362AA9D31B12F8C /* MidiManager.cpp in Sources */ = {isa = PBXBuildFile; fileRef = AF14D787328CC3F752F21112 /* MidiManager.cpp */; };
+		3961EC20B12DEA81AA873BC1 /* Modulation.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5D603B21DEEA645797CA016 /* Modulation.cpp */; };
 		DFD746F886AEAF22139E349A /* Osc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB76993071BEDA3C9458AD50 /* Osc.cpp */; };
 		E09BF31DECF02FD1E87B7209 /* OscRemote.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C9F1F716EB0E36F9D9F77537 /* OscRemote.cpp */; };
 		81F3AE572CE7659290FE084F /* Oscillator.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EEBE8AEA3278B5C90BEB2179 /* Oscillator.cpp */; };
@@ -78,6 +79,7 @@
 		B8B54DF90B61A72EC3278280 /* IniFile.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "IniFile.cpp"; sourceTree = "<group>"; };
 		11CABE3F977B40CAFBD6A8B1 /* Mapping.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Mapping.cpp"; sourceTree = "<group>"; };
 		AF14D787328CC3F752F21112 /* MidiManager.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "MidiManager.cpp"; sourceTree = "<group>"; };
+		F5D603B21DEEA645797CA016 /* Modulation.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Modulation.cpp"; sourceTree = "<group>"; };
 		CB76993071BEDA3C9458AD50 /* Osc.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Osc.cpp"; sourceTree = "<group>"; };
 		C9F1F716EB0E36F9D9F77537 /* OscRemote.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "OscRemote.cpp"; sourceTree = "<group>"; };
 		EEBE8AEA3278B5C90BEB2179 /* Oscillator.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Oscillator.cpp"; sourceTree = "<group>"; };
@@ -164,6 +166,7 @@
 				B8B54DF90B61A72EC3278280 /* IniFile.cpp */,
 				11CABE3F977B40CAFBD6A8B1 /* Mapping.cpp */,
 				AF14D787328CC3F752F21112 /* MidiManager.cpp */,
+				F5D603B21DEEA645797CA016 /* Modulation.cpp */,
 				CB76993071BEDA3C9458AD50 /* Osc.cpp */,
 				C9F1F716EB0E36F9D9F77537 /* OscRemote.cpp */,
 				EEBE8AEA3278B5C90BEB2179 /* Oscillator.cpp */,
@@ -271,6 +274,7 @@
 				9F5A9AF547442CBAED430042 /* IniFile.cpp in Sources */,
 				917A00BDC83E2C88370D9645 /* Mapping.cpp in Sources */,
 				E0F569F06362AA9D31B12F8C /* MidiManager.cpp in Sources */,
+				3961EC20B12DEA81AA873BC1 /* Modulation.cpp in Sources */,
 				DFD746F886AEAF22139E349A /* Osc.cpp in Sources */,
 				E09BF31DECF02FD1E87B7209 /* OscRemote.cpp in Sources */,
 				81F3AE572CE7659290FE084F /* Oscillator.cpp in Sources */,

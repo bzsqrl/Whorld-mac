@@ -25,6 +25,7 @@
 // MovieExportStep / DrawCapture (CWhorldThread::OnMovieExport).
 
 #include "whorld/IRenderer.h"
+#include "whorld/Modulation.h"
 #include "whorld/Oscillator.h"
 #include "whorld/Patch.h"
 #include "whorld/SnapMovie.h"
@@ -100,6 +101,13 @@ public:
 	// The current frame again as if the view were szTarget DIPs, without
 	// advancing, with the live antialiasing (Mac port: Syphon output).
 	bool	DrawAtSize(IRenderer& renderer, SizeF szTarget);
+	// Modulation (Mac addition, AUDIO_PLAN.md): render-only offsets, in
+	// slider travel, added beside each control's oscillator from the next
+	// frame on. They never change the patch (OnGetPatch, GetPatch).
+	// Actions in the output are the host's to carry out; ignored here.
+	void	SetModulation(const ModOutput& mod) { m_mod = mod; }
+	// the master properties as drawing uses them: the patch's plus offsets
+	const MASTER_PROPS&	GetEffectiveMaster() const { return m_masterEff; }
 
 // Commands (ported from CWhorldThread::OnRenderCommand and handlers)
 	void	OnRenderCommand(const RenderCmd& cmd);
@@ -211,6 +219,17 @@ protected:
 	SnapMovie	m_movie;		// snapshot movie for recording and playback
 	bool	m_bIsMoviePaused;	// true if movie playback is paused
 	bool	m_bMovieSingleStep;	// true to single-step movie while it's paused
+	// Modulation (Mac addition): see SetModulation. With no modulation the
+	// effective master equals m_master and the offsets are zero, and the
+	// ported code runs exactly as before.
+	ModOutput	m_mod;			// offsets for the coming frames
+	MASTER_PROPS	m_masterEff;	// m_master plus offsets; drawing reads this
+	double	m_aParamMod[PARAM_COUNT];	// Val offsets, in value units (clamped)
+	double	m_aGlobalMod[PARAM_COUNT];	// Global offsets, in value units (clamped)
+	double	m_fHueMod;		// degrees added to the patch's Hue
+	DPoint	m_ptOriginMod;	// DIPs added to the origin target
+	double	m_fZoomMod;		// zoom target factor
+	bool	m_bModWasActive;	// last frame had modulation (so its end is applied)
 
 // Helpers
 	static double	Wrap(double fVal, double fLimit);
@@ -250,6 +269,8 @@ protected:
 	void	PostReply(uint32_t nCmd, void* pData, DPoint ptOrigin = DPoint(0, 0)) const;
 	bool	ReadMovieFrame();
 	void	OnMovieError(uint32_t nCmd);
+	void	ComputeModulation();
+	void	UpdateModulation();
 };
 
 } // namespace whorld
