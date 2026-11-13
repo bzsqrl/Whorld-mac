@@ -22,6 +22,7 @@ MODSOURCEDEF(Brightness, false,	"Brightness")	// spectral centroid
 MODSOURCEDEF(Hit,		true,	"Hit")			// any onset
 MODSOURCEDEF(Kick,		true,	"Kick")			// bass onset
 MODSOURCEDEF(Hats,		true,	"Hats")			// treble onset
+MODSOURCEDEF(Beat,		true,	"Beat")			// the beat tracker's beats
 #undef MODSOURCEDEF
 #endif
 

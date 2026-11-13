@@ -229,8 +229,8 @@ private struct AudioStatus: View {
 /// What the analysis hears: bars for the level, bands and brightness, and
 /// lights that flash on hits. Thirty times a second while shown.
 private struct AudioMeter: View {
-	@State private var lastCounts: [UInt32] = [0, 0, 0]
-	@State private var flashUntil: [Date] = [.distantPast, .distantPast, .distantPast]
+	@State private var lastCounts: [UInt32] = [0, 0, 0, 0]
+	@State private var flashUntil: [Date] = [.distantPast, .distantPast, .distantPast, .distantPast]
 	@State private var history: [(time: Date, counts: [UInt32])] = []	// the last few seconds, for rates
 
 	var body: some View {
@@ -253,16 +253,17 @@ private struct AudioMeter: View {
 					Text("hits a second, over 4 s")
 						.font(.caption2)
 						.foregroundStyle(.secondary)
+					beatRow(r, lit: now < flashUntil[3])
 				}
 			}
-			.onChange(of: [r.hits, r.kicks, r.hats]) { _, counts in
-				for i in 0..<3 where counts[i] != lastCounts[i] {
+			.onChange(of: [r.hits, r.kicks, r.hats, r.beats]) { _, counts in
+				for i in 0..<4 where counts[i] != lastCounts[i] {
 					flashUntil[i] = Date().addingTimeInterval(0.12)
 				}
 				lastCounts = counts
 			}
 			.onChange(of: Int(now.timeIntervalSinceReferenceDate * 4)) {	// four times a second
-				history.append((now, [r.hits, r.kicks, r.hats]))
+				history.append((now, [r.hits, r.kicks, r.hats, r.beats]))
 				history.removeAll { now.timeIntervalSince($0.time) > 4.1 }
 			}
 		}
@@ -284,6 +285,25 @@ private struct AudioMeter: View {
 				.monospacedDigit()
 				.foregroundStyle(.secondary)
 		}
+	}
+
+	/// the beat tracker's light, and its tempo once it has the beat
+	private func beatRow(_ r: WHAudioReading, lit: Bool) -> some View {
+		let text: String = r.beatLocked.boolValue ? String(format: "%.1f BPM", r.tempo)
+			: (r.level > 0 ? "finding the beat…" : "")
+		return HStack(spacing: 6) {
+			Circle()
+				.fill(lit ? Color.orange : Color.secondary.opacity(0.25))
+				.frame(width: 12, height: 12)
+			Text("Beat").font(.caption)
+				.frame(width: 34, alignment: .leading)
+			Text(text)
+				.font(.caption)
+				.monospacedDigit()
+				.foregroundStyle(.secondary)
+		}
+		.padding(.top, 4)
+		.help("The beat tracker learns the tempo from the hits and keeps a steady beat through kicks it can't hear (a busy mix, a breakdown). Beat is a source like the hits.")
 	}
 
 	/// hits a second of one kind over the last 4 seconds (nil until there's enough)
@@ -603,7 +623,7 @@ private struct ModRowsSection: View {
 								Text(WHModRow.sourceName(t)).tag(t)
 							}
 						}
-						Section("Hits") {
+						Section("Hits and the beat") {
 							ForEach(tags.filter { WHModRow.isTriggerSource($0) }, id: \.self) { t in
 								Text(WHModRow.sourceName(t)).tag(t)
 							}

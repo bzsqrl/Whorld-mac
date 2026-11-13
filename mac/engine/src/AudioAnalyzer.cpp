@@ -21,6 +21,7 @@ namespace {
 
 const double kMinDb = -200;		// what silence reads
 const double kCompress = 100;	// magnitude compression for hits: log(1 + 100 m), m = 1 at full scale
+const double kSilentDb = -50;	// below this level (re a full-scale sine), the beat tracker hears silence
 const double kMinFlux = 0.004;	// hits need at least this much flux (silence and hiss never hit)
 const double kHistSeconds = 0.5;	// flux history for the median
 const double kPeakFall = 3;		// auto-level: dB per second its peak falls
@@ -112,6 +113,7 @@ void AudioAnalyzer::Reset(double fSampleRate)
 	for (int b = 0; b < BANDS; b++)
 		m_aBand[b] = BinRange(kBandEdge[b], kBandEdge[b + 1]);
 	m_rAudible = BinRange(kBandEdge[0], kBandEdge[BANDS]);
+	m_rSubBass = BinRange(20, 60);
 	m_aOnsetRange[ONSET_All] = m_rAudible;
 	m_aOnsetRange[ONSET_Bass] = m_aBand[0];
 	m_aOnsetRange[ONSET_Treble] = m_aBand[BANDS - 1];
@@ -132,6 +134,7 @@ void AudioAnalyzer::Reset(double fSampleRate)
 	m_bPrimed = false;
 	m_nAnalyses = 0;
 	m_src = ModSources();
+	m_beat.Reset(m_fSampleRate / static_cast<double>(m_nHop));
 	SetSettings(m_set);
 }
 
@@ -279,6 +282,17 @@ void AudioAnalyzer::Analyze()
 		}
 		hist[m_iHist] = fFlux;
 	}
+	// the beat, from this hop's raw bass and overall onsets, with the
+	// sub-bass's to back phase jumps (computed before m_aMag becomes the
+	// last hop's). The sub-bass tells beat from off-beat better on a house
+	// track, but peaks later and less sharply, so it doesn't set the timing.
+	double	fSubFlux = 0;
+	if (m_bPrimed) {
+		for (size_t k = m_rSubBass.iFirst; k <= m_rSubBass.iLast; k++)
+			fSubFlux += std::max(m_aMag[k] - m_aPrevMag[k], 0.0);
+	}
+	m_beat.Process(m_aRawFlux[ONSET_Bass] + m_aRawFlux[ONSET_All], fSubFlux, m_fLevelDb < kSilentDb);
+	m_src.aCount[ModSources::SRC_Beat] = m_beat.GetBeatCount();
 	m_iHist = (m_iHist + 1) % m_nHistSize;
 	m_nHist = std::min(m_nHist + 1, m_nHistSize);
 	std::swap(m_aMag, m_aPrevMag);

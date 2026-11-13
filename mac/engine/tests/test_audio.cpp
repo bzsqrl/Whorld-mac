@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <vector>
+#include <algorithm>
 
 using namespace whorld;
 using Src = ModSources;
@@ -330,6 +331,185 @@ TEST(AutoLevelFollowsTheMusic) {
 	double	fAuto = Run(a, 48000, set).GetSources().aValue[Src::SRC_Level];
 	CHECK_NEAR(fFixed, 0.5 + 3.0103 / 60, 0.01);	// -30 dB RMS is -27 re a full-scale sine
 	CHECK(fAuto > 0.95);
+}
+
+// Beat tracking
+
+namespace {
+
+// beat times (seconds), with the tracker's tempo at the end
+struct BeatRun {
+	std::vector<double>	beats;
+	double	fTempo = 0;
+	bool	bLocked = false;
+};
+
+BeatRun RunBeats(const std::vector<float>& a)
+{
+	AudioAnalyzer	an;
+	an.Reset(48000);
+	BeatRun	r;
+	uint32_t	n0 = 0;
+	for (size_t i = 0; i + 512 <= a.size(); i += 512) {
+		an.Process(&a[i], 512);
+		uint32_t	n = an.GetSources().aCount[Src::SRC_Beat];
+		if (n != n0)
+			r.beats.push_back(static_cast<double>(i + 512) / 48000);
+		n0 = n;
+	}
+	r.fTempo = an.GetBeatTracker().GetTempo();
+	r.bLocked = an.GetBeatTracker().IsLocked();
+	return r;
+}
+
+// how many of the expected times (from fFrom to fTo) have a beat within
+// fTol, how many beats in that span aren't near any, and the median offset
+struct BeatScore {
+	int		nHit = 0, nMissed = 0, nExtra = 0;
+	double	fMedianMs = 0;
+};
+
+BeatScore Score(const BeatRun& r, const std::vector<double>& expected, double fFrom, double fTo, double fTol = 0.035)
+{
+	BeatScore	sc;
+	std::vector<double>	off;
+	for (double t : expected) {
+		if (t < fFrom || t > fTo)
+			continue;
+		double	fBest = 1e9;
+		for (double b : r.beats)
+			if (std::fabs(b - t) < std::fabs(fBest))
+				fBest = b - t;
+		if (std::fabs(fBest) <= fTol) {
+			sc.nHit++;
+			off.push_back(fBest);
+		} else {
+			sc.nMissed++;
+		}
+	}
+	for (double b : r.beats) {
+		if (b < fFrom || b > fTo)
+			continue;
+		bool	bNear = false;
+		for (double t : expected)
+			bNear = bNear || std::fabs(b - t) <= fTol;
+		sc.nExtra += !bNear;
+	}
+	if (!off.empty()) {
+		std::sort(off.begin(), off.end());
+		sc.fMedianMs = off[off.size() / 2] * 1000;
+	}
+	return sc;
+}
+
+std::vector<double> Grid(double fBpm, double fStart, double fEnd)
+{
+	std::vector<double>	g;
+	for (double t = fStart; t < fEnd; t += 60 / fBpm)
+		g.push_back(t);
+	return g;
+}
+
+} // namespace
+
+TEST(BeatLocksToSteadyKicks) {
+	std::vector<float>	a = Sine(440, 0.02, 20);
+	std::vector<double>	kicks = Grid(124, 0.5, 19.5);
+	for (double t : kicks)
+		AddKick(a, static_cast<size_t>(t * 48000), 0.7);
+	BeatRun	r = RunBeats(a);
+	CHECK(!r.beats.empty() && r.beats.front() < 6);	// locked within a few seconds
+	BeatScore	sc = Score(r, kicks, 6, 19.5);
+	std::printf("  tempo %.2f, first beat %.2f s, hit %d missed %d extra %d, median %+.0f ms\n",
+		r.fTempo, r.beats.empty() ? 0 : r.beats.front(), sc.nHit, sc.nMissed, sc.nExtra, sc.fMedianMs);
+	CHECK_NEAR(r.fTempo, 124, 0.5);
+	CHECK_EQ(sc.nMissed, 0);
+	CHECK_EQ(sc.nExtra, 0);
+	CHECK(std::fabs(sc.fMedianMs) <= 20);	// on the kick, give or take
+}
+
+TEST(BeatFillsMissingKicks) {
+	// a third of the kicks are gone after 8 s; the beat isn't
+	std::vector<float>	a = Sine(440, 0.02, 24);
+	std::vector<double>	grid = Grid(124, 0.5, 23.5);
+	for (size_t i = 0; i < grid.size(); i++)
+		if (grid[i] < 8 || i % 3 != 1)
+			AddKick(a, static_cast<size_t>(grid[i] * 48000), 0.7);
+	BeatScore	sc = Score(RunBeats(a), grid, 8, 23.5);
+	std::printf("  hit %d missed %d extra %d\n", sc.nHit, sc.nMissed, sc.nExtra);
+	CHECK_EQ(sc.nMissed, 0);
+	CHECK_EQ(sc.nExtra, 0);
+}
+
+TEST(BeatPrefersTheKickInAGroove) {
+	// 120 BPM: kicks on the beats, louder hats on the off-beats, a bassline;
+	// the beat is on the kicks, at 120 (not 240 or 60)
+	Noise	noise;
+	std::vector<float>	a = Sine(55, 0.2, 24);
+	std::vector<double>	kicks = Grid(120, 0.5, 23.5);
+	for (double t : kicks) {
+		AddKick(a, static_cast<size_t>(t * 48000), 0.6);
+		AddHat(a, static_cast<size_t>((t + 0.25) * 48000), 0.9, noise);
+	}
+	BeatRun	r = RunBeats(a);
+	BeatScore	sc = Score(r, kicks, 8, 23.5);
+	std::printf("  tempo %.2f, hit %d missed %d extra %d, median %+.0f ms\n", r.fTempo, sc.nHit, sc.nMissed, sc.nExtra, sc.fMedianMs);
+	CHECK_NEAR(r.fTempo, 120, 1);
+	CHECK_EQ(sc.nMissed, 0);
+	CHECK_EQ(sc.nExtra, 0);
+}
+
+TEST(BeatFollowsATempoChange) {
+	// 120 BPM for 16 s, then 130; within 10 s it's on the new beat
+	std::vector<float>	a = Sine(440, 0.02, 40);
+	std::vector<double>	kicks = Grid(120, 0.5, 16);
+	double	t = kicks.back() + 60 / 130.0;
+	while (t < 39.5) {
+		kicks.push_back(t);
+		t += 60 / 130.0;
+	}
+	for (double k : kicks)
+		AddKick(a, static_cast<size_t>(k * 48000), 0.7);
+	BeatRun	r = RunBeats(a);
+	BeatScore	sc = Score(r, kicks, 26, 39.5);
+	std::printf("  tempo %.2f, hit %d missed %d extra %d\n", r.fTempo, sc.nHit, sc.nMissed, sc.nExtra);
+	CHECK_NEAR(r.fTempo, 130, 1);
+	CHECK_EQ(sc.nMissed, 0);
+	CHECK_EQ(sc.nExtra, 0);
+}
+
+TEST(BeatRidesThroughABreakdown) {
+	// 16 s of kicks with off-beat hats, 12 s of the hats alone, then the
+	// kicks again: the beat stays on the kicks' beat throughout
+	Noise	noise;
+	std::vector<float>	a = Sine(440, 0.02, 40);
+	std::vector<double>	grid = Grid(124, 0.5, 39.5);
+	for (double t : grid) {
+		if (t < 16 || t >= 28)
+			AddKick(a, static_cast<size_t>(t * 48000), 0.7);
+		AddHat(a, static_cast<size_t>((t + 30 / 124.0) * 48000), 0.6, noise);
+	}
+	BeatRun	r = RunBeats(a);
+	BeatScore	sc = Score(r, grid, 8, 39.5);
+	std::printf("  hit %d missed %d extra %d\n", sc.nHit, sc.nMissed, sc.nExtra);
+	CHECK_EQ(sc.nExtra, 0);		// never on the off-beat
+	CHECK_EQ(sc.nMissed, 0);	// and on through the breakdown
+}
+
+TEST(BeatStopsInSilence) {
+	// 16 s of kicks, then silence: beats go on for 8 more, then stop
+	std::vector<float>	a = Sine(440, 0.02, 16);
+	a.resize(48000 * 40, 0.0f);
+	for (double t : Grid(124, 0.5, 15.5))
+		AddKick(a, static_cast<size_t>(t * 48000), 0.7);
+	BeatRun	r = RunBeats(a);
+	int		nAfter = 0;
+	for (double b : r.beats)
+		nAfter += b > 16;
+	std::printf("  beats after the music: %d, last at %.1f s\n", nAfter, r.beats.empty() ? 0 : r.beats.back());
+	CHECK(nAfter <= 9);
+	CHECK(!r.beats.empty() && r.beats.back() < 21);
+	CHECK(!r.bLocked);
 }
 
 int main() { return RunAllTests(); }

@@ -18,6 +18,7 @@
 // nothing after Reset, so it can run on an audio thread, though the app
 // runs it on its own analysis thread.
 
+#include "whorld/BeatTracker.h"
 #include "whorld/Modulation.h"
 
 #include <complex>
@@ -71,6 +72,7 @@ public:
 	double	GetThreshold(int iOnset) const { return m_aThreshold[iOnset]; }	// the last analysis's
 	double	GetHitPeak(int iOnset) const { return m_aHitPeak[iOnset]; }	// the last hit's flux, decaying
 	uint64_t	GetAnalysisCount() const { return m_nAnalyses; }
+	const BeatTracker&	GetBeatTracker() const { return m_beat; }
 	size_t	GetWindowSize() const { return m_nWindow; }
 	size_t	GetHopSize() const { return m_nHop; }
 	double	GetSampleRate() const { return m_fSampleRate; }
@@ -99,6 +101,7 @@ private:
 	Range	m_aBand[BANDS];
 	Range	m_aOnsetRange[ONSETS];
 	Range	m_rAudible;		// 20 Hz to 16 kHz, for brightness
+	Range	m_rSubBass;		// 20 to 60 Hz, which must back the beat tracker's phase jumps
 	std::vector<double>	m_aFluxHist[ONSETS];	// recent flux, circular, for the median and spread
 	std::vector<double>	m_aScratch;	// for the medians
 	size_t	m_nHistSize = 0;
@@ -117,6 +120,7 @@ private:
 	bool	m_bPrimed = false;	// m_aPrevMag is valid
 	uint64_t	m_nAnalyses = 0;
 	ModSources	m_src;
+	BeatTracker	m_beat;	// fed by the bass and overall onsets
 
 	void	Analyze();
 	double	MapDb(double fDb) const;

@@ -36,6 +36,8 @@ namespace {
 struct Published {
 	whorld::ModSources	src;
 	float	levelDb = -200;
+	float	tempo = 0;
+	bool	beatLocked = false;
 };
 
 // One writer, one reader, lock-free: the writer fills Back() and
@@ -329,9 +331,13 @@ NSString *RateText(double fRate)
 			if (bRunning) {
 				p.src = analyzer.GetSources();
 				p.levelDb = static_cast<float>(analyzer.GetLevelDb());
+				p.tempo = static_cast<float>(analyzer.GetBeatTracker().GetTempo());
+				p.beatLocked = analyzer.GetBeatTracker().IsLocked();
 			} else {
 				p.src = whorld::ModSources();
 				p.levelDb = -200;
+				p.tempo = 0;
+				p.beatLocked = false;
 			}
 			for (int i = 0; i < whorld::ModSources::SOURCES; i++)
 				p.src.aCount[i] = aBase[i] + (bRunning ? analyzer.GetSources().aCount[i] : 0);
@@ -405,6 +411,9 @@ NSString *RateText(double fRate)
 	r.hits = p.src.aCount[S::SRC_Hit];
 	r.kicks = p.src.aCount[S::SRC_Kick];
 	r.hats = p.src.aCount[S::SRC_Hats];
+	r.beats = p.src.aCount[S::SRC_Beat];
+	r.tempo = p.tempo;
+	r.beatLocked = p.beatLocked;
 	return r;
 }
 

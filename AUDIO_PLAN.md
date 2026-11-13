@@ -104,6 +104,21 @@ Make Whorld respond to music, for synaesthetic visuals: live from an audio input
   - Audio and Link settings go in their own keys (`Audio_sInputUID`, `Audio_fGain`, `Link_bEnabled`, …), because a device belongs to a machine.
   - **Export / Import** writes and reads the routing JSON (`Whorld Modulation.json`), like the key map; Import checks the version and skips unknown sources and targets with a notice.
 
+### Beat tracker (added in 9.5, 2026-11-13)
+
+Hit detection alone misses kicks in dense mixes. On a 124 BPM house track (checked offline, frame by frame, against the track's beat grid), the Kick detector found every kick in the intro but only about 6 in 16 once the bassline came in. The off-beat bassline (70–117 Hz) shares the kick's band and raises its threshold. Lower thresholds, narrower bands, broadband attacks and a time-domain detector all traded misses for false kicks.
+
+`BeatTracker` (portable C++, fed by the analyzer every hop) keeps a steady beat instead. It produces the **Beat** source (a trigger) and shows the tempo in the meter.
+
+- **Tempo:** autocorrelation of the last 8 s of onsets (bass + overall flux), every 0.33 s, over 70–180 BPM, with the echo at twice the period and a gentle preference for 120 BPM against half and double tempo. A different tempo must be seen 3 times running.
+- **Phase:** a comb over the last 8 beats of the same onsets steers a running beat clock (corrections up to 0.15 beat, smoothly). A bigger error must persist 16 beats, and the sub-bass onsets (20–60 Hz: the kick, 3–6× stronger on the beat than off it on that track) must back the new phase 3 to 1, before the clock jumps. So the beat rides through breakdowns where only off-beat sounds are left; with 8 beats or a smaller margin, that track's kickless breakdown (with an off-beat sub bassline) pulled it half a beat over.
+- **Beats** come when the clock, shifted by the onsets' own delay (1.5 hops), crosses a whole beat. They continue for 8 beats after the beat is lost or the music falls silent (level below −50 dB), then stop until it locks again (only once the comb has forgotten the old beat).
+- **Results:**
+  - on the track: 839 of 848 beats within 70 ms of the grid, none off it (the 9 missed are the first 4.3 s, while it locks), about 13 ms early;
+  - in `test_audio` on synthetic music: locks in under 5 s with median timing 0 ms, fills a third of kicks missing, prefers the kick to louder off-beat hats at the right tempo, follows 120 → 130 BPM, rides through a 12 s breakdown, stops 9 beats into silence;
+  - the analyzer still costs about 40 µs a hop.
+- **Later, with Link:** Beat Phase and Bar sources (exact from Link; from the tracker, Beat Phase only, since the downbeat isn't known).
+
 ### Latency
 
 Sound reaches the picture after the input buffer (≈5–10 ms), the analysis hop (≈10 ms), at most one frame (8–17 ms) and the display (≈1 frame): about 20–40 ms. That's fine for most music. Visuals can't run ahead of live audio. For Link (which knows the future beat times), a **latency offset** setting aims the beat phase at the moment the frame appears on screen, plus or minus the user's offset, so beats can line up exactly with what you hear.

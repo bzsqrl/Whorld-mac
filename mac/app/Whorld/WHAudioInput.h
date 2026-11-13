@@ -36,7 +36,9 @@ typedef NS_ENUM(NSInteger, WHAudioState) {
 typedef struct {
 	float	level, bass, lowMid, highMid, treble, brightness;
 	float	levelDb;	// relative to a full-scale sine
-	uint32_t	hits, kicks, hats;	// counts so far
+	uint32_t	hits, kicks, hats, beats;	// counts so far
+	float	tempo;		// the beat tracker's, BPM (0 until found)
+	BOOL	beatLocked;	// the tracker has the beat
 } WHAudioReading;
 
 @interface WHAudioInput : NSObject

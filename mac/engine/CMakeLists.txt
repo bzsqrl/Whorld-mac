@@ -10,6 +10,7 @@
 # Portable engine: plain C++17, no Windows, MFC or Apple headers.
 add_library(whorld_engine STATIC
   src/AudioAnalyzer.cpp
+  src/BeatTracker.cpp
   src/ByteIO.cpp
   src/Controls.cpp
   src/DPoint.cpp
