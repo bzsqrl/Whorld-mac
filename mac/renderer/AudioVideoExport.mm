@@ -157,59 +157,155 @@ private:
 	uint32_t	m_nState;
 };
 
-// Where the beat tracker first finds the beat, from a pass of its own over
-// the audio (analyzing exactly as the export does, the same samples and the
-// same downbeat), so the export can carry that beat back to its first frame
-// instead of waiting the few seconds the tracker takes to lock
-struct FirstBeat {
-	bool	bFound = false;
-	int64_t	nAt = 0;		// samples analyzed when it was found
-	double	fBeatPos = 0;	// the beat position then
-	double	fTempo = 0;
-};
+// The beat, found ahead. Live, the beat tracker can only follow: it takes a
+// few seconds to lock, and it may lock on an ambient intro before the music
+// starts, then retune. Offline the whole file is there, so a first pass
+// runs the tracker over all of it, and the beat at any moment is taken from
+// the tracker's estimate a few seconds later, once it has settled, carried
+// back. On that grid, the music's first beat is the first kick on it with
+// kicks on most of the beats after it; beat-driven behavior starts there.
+class BeatMap {
+public:
+	// a hit is counted this long after its onset: about half the analysis
+	// window (measured: kicks then land within 2 ms of the grid)
+	static constexpr double	kHitDelay = 0.0213;
+	static constexpr double	kSettle = 16;	// seconds ahead the tracker's estimate is taken from
 
-FirstBeat FindFirstBeat(NSURL *url, double fStart, double fDuration, const AudioAnalyzer::Settings& settings,
-	int64_t iDownbeat)
-{
-	const double	kMaxSeconds = 30;	// it locks within a few seconds of steady music
-	FirstBeat	fb;
-	AudioSource	audio;
-	if (!audio.Open(url, fStart, std::min(fDuration, kMaxSeconds), nullptr))
-		return fb;
-	AudioAnalyzer	analyzer;
-	analyzer.Reset(kAudioRate);
-	analyzer.SetSettings(settings);
-	const int64_t	kChunk = static_cast<int64_t>(analyzer.GetHopSize());
-	int64_t	nAnalyzed = 0;
-	for (;;) {
-		while (audio.Pending().empty() && !audio.AtEnd()) {
-			if (CMSampleBufferRef buf = audio.Next())
-				CFRelease(buf);
+	bool Build(NSURL *url, double fStart, double fDuration, const AudioAnalyzer::Settings& settings)
+	{
+		AudioSource	audio;
+		if (!audio.Open(url, fStart, fDuration, nullptr))
+			return false;
+		AudioAnalyzer	analyzer;
+		analyzer.Reset(kAudioRate);
+		analyzer.SetSettings(settings);
+		m_nHop = static_cast<int64_t>(analyzer.GetHopSize());
+		uint32_t	nKicks = 0, nHits = 0;
+		for (;;) {
+			std::vector<float>&	pending = audio.Pending();
+			while (static_cast<int64_t>(pending.size()) < m_nHop && !audio.AtEnd()) {
+				if (CMSampleBufferRef buf = audio.Next())
+					CFRelease(buf);
+			}
+			if (static_cast<int64_t>(pending.size()) < m_nHop)
+				break;
+			analyzer.Process(pending.data(), static_cast<size_t>(m_nHop));	// one analysis
+			pending.erase(pending.begin(), pending.begin() + static_cast<ptrdiff_t>(m_nHop));
+			const ModSources&	src = analyzer.GetSources();
+			double	t = TimeOf(m_aState.size());
+			m_aState.push_back(State{src.bBeat && src.fTempo > 0, src.fBeatPos, src.fTempo});
+			if (src.aCount[ModSources::SRC_Kick] != nKicks)
+				m_aKick.push_back(t - kHitDelay);
+			if (src.aCount[ModSources::SRC_Hit] != nHits)
+				m_aHit.push_back(t - kHitDelay);
+			nKicks = src.aCount[ModSources::SRC_Kick];
+			nHits = src.aCount[ModSources::SRC_Hit];
 		}
-		std::vector<float>&	pending = audio.Pending();
-		if (pending.empty())
-			return fb;	// no beat in the time scanned
-		int64_t	nStop = nAnalyzed + kChunk;
-		if (iDownbeat >= nAnalyzed && iDownbeat < nStop)
-			nStop = iDownbeat;
-		size_t	n = static_cast<size_t>(std::min<int64_t>(nStop - nAnalyzed, static_cast<int64_t>(pending.size())));
-		analyzer.Process(pending.data(), n);
-		pending.erase(pending.begin(), pending.begin() + static_cast<ptrdiff_t>(n));
-		nAnalyzed += static_cast<int64_t>(n);
-		if (nAnalyzed == iDownbeat) {
-			analyzer.MarkDownbeat();
-			iDownbeat = -1;
+		FindFirstBeat();
+		return true;
+	}
+
+	// The beat at t (seconds into the range): its position and tempo; false
+	// where the tracker had no beat. The settled estimate (kSettle later,
+	// carried back at the rate its positions advance, since a small error in
+	// the tempo it reports would add up over that time) decides the phase
+	// and numbering; where the tracker's own estimate at t agrees on the
+	// phase, its position is used (it's the more exact one nearby).
+	bool At(double t, double& fPos, double& fTempo) const
+	{
+		if (m_aState.empty())
+			return false;
+		size_t	iSettled = IndexAt(t + kSettle);
+		const State&	st = m_aState[iSettled];
+		if (!st.bBeat)
+			return false;
+		double	fRate = st.fTempo;	// beats a minute, as the positions advance
+		double	tSettled = TimeOf(iSettled);
+		size_t	iBack = IndexAt(tSettled - 8);
+		const State&	back = m_aState[iBack];
+		if (back.bBeat && iBack < iSettled) {
+			double	fSlope = (st.fPos - back.fPos) / (tSettled - TimeOf(iBack)) * 60;
+			if (std::fabs(fSlope - st.fTempo) < 1.5)
+				fRate = fSlope;
 		}
-		const ModSources&	src = analyzer.GetSources();
-		if (src.bBeat && src.fTempo > 0) {
-			fb.bFound = true;
-			fb.nAt = nAnalyzed;
-			fb.fBeatPos = src.fBeatPos;
-			fb.fTempo = src.fTempo;
-			return fb;
+		double	fSettled = st.fPos - (tSettled - t) * fRate / 60;
+		const State&	here = m_aState[IndexAt(t)];
+		if (here.bBeat) {
+			double	fHere = here.fPos + (t - TimeOf(IndexAt(t))) * here.fTempo / 60;
+			double	c = fSettled - fHere;
+			if (std::fabs(c - std::round(c)) < 0.15) {	// the same phase: renumbered only
+				fPos = fHere + std::round(c);
+				fTempo = here.fTempo;
+				return true;
+			}
+		}
+		fPos = fSettled;
+		fTempo = fRate;
+		return true;
+	}
+
+	bool	HasFirstBeat() const { return m_bFirst; }
+	double	FirstBeatTime() const { return m_fFirstTime; }	// seconds into the range
+	double	FirstBeatPos() const { return m_fFirstPos; }	// a whole number
+
+private:
+	struct State {
+		bool	bBeat;
+		double	fPos;
+		double	fTempo;
+	};
+	int64_t	m_nHop = 512;
+	std::vector<State>	m_aState;	// after each analysis
+	std::vector<double>	m_aKick, m_aHit;	// onset times, seconds
+	bool	m_bFirst = false;
+	double	m_fFirstTime = 0;
+	double	m_fFirstPos = 0;
+
+	// the time of analysis i, seconds into the range
+	double TimeOf(size_t i) const
+	{
+		return static_cast<double>(i + 1) * static_cast<double>(m_nHop) / kAudioRate;
+	}
+
+	// the last analysis at or before t (the first, if t is before it)
+	size_t IndexAt(double t) const
+	{
+		double	f = std::floor(t * kAudioRate / static_cast<double>(m_nHop)) - 1;
+		return static_cast<size_t>(std::clamp(f, 0.0, static_cast<double>(m_aState.size() - 1)));
+	}
+
+	// the first onset on the settled grid with onsets on at least 3 of the 4
+	// beats after it: kicks if the music has them, else any hit
+	void FindFirstBeat()
+	{
+		for (const std::vector<double>* pa : {&m_aKick, &m_aHit}) {
+			for (double tk : *pa) {
+				double	fPos, fTempo;
+				if (!At(tk, fPos, fTempo))
+					continue;
+				double	fPeriod = 60 / fTempo;
+				double	fTol = std::min(0.07, fPeriod * 0.15);	// a hit this close to a beat is on it
+				double	q = std::round(fPos);
+				if (std::fabs(fPos - q) * fPeriod > fTol)
+					continue;
+				auto	onBeat = [&](double t) {
+					auto	it = std::lower_bound(pa->begin(), pa->end(), t - fTol);
+					return it != pa->end() && *it <= t + fTol;
+				};
+				double	tBeat = tk - (fPos - q) * fPeriod;
+				int	nOn = 0;
+				for (int k = 1; k <= 4; k++)
+					nOn += onBeat(tBeat + k * fPeriod);
+				if (nOn >= 3) {
+					m_bFirst = true;
+					m_fFirstTime = std::max(tBeat, 0.0);
+					m_fFirstPos = q;
+					return;
+				}
+			}
 		}
 	}
-}
+};
 
 } // namespace
 
@@ -331,12 +427,27 @@ bool ExportAudioReactiveVideo(const Patch& patch, const std::string& sAudioPath,
 	// where it's heard rather than a few frames after
 	int64_t	nLookahead = static_cast<int64_t>(analyzer.GetWindowSize() / 2);
 	int64_t	nAnalyzed = 0;
-	bool	bMarkDownbeat = opts.fTempo <= 0 && opts.fDownbeat >= fStart;
-	int64_t	iDownbeat = bMarkDownbeat ? static_cast<int64_t>(std::llround((opts.fDownbeat - fStart) * kAudioRate)) : -1;
-	// the beat from the first frame: where the tracker finds it, carried back
-	FirstBeat	firstBeat;
-	if (opts.fTempo <= 0)
-		firstBeat = FindFirstBeat(url, fStart, fDuration, opts.analyzer, iDownbeat);
+	bool	bMarkDownbeat = opts.fDownbeat >= fStart;
+	// the beat: the tracker's, settled and carried back, from the music's
+	// first beat (the one, unless a downbeat is marked); or a set tempo
+	BeatMap	beats;
+	bool	bBeatMap = opts.fTempo <= 0 && beats.Build(url, fStart, fDuration, opts.analyzer);
+	double	fShift = 0;	// subtracted from the tracker's positions, so the one is 0
+	if (bBeatMap) {
+		double	fPos, fTempo;
+		if (bMarkDownbeat && beats.At(opts.fDownbeat - fStart, fPos, fTempo))
+			fShift = std::round(fPos);	// the beat nearest the downbeat
+		else if (beats.HasFirstBeat())
+			fShift = beats.FirstBeatPos();
+	}
+	// the beat is known a little before it starts, so rows firing early
+	// (a negative offset, up to 300 ms) fire on the first beat too
+	const double	kLead = 0.35;
+	double	fBeatsFrom = 0;	// seconds into the video: no beat before
+	if (opts.fTempo > 0)
+		fBeatsFrom = bMarkDownbeat ? opts.fDownbeat - fStart - kLead : 0;	// a set tempo: from its downbeat
+	else if (beats.HasFirstBeat())
+		fBeatsFrom = beats.FirstBeatTime() - kLead;
 	int		iPatch = opts.iPatch;
 	auto	stepPatch = [&](int nStep) {
 		int	n = static_cast<int>(opts.aPlaylist.size());
@@ -365,17 +476,10 @@ bool ExportAudioReactiveVideo(const Patch& patch, const std::string& sAudioPath,
 			std::vector<float>&	pending = audio.Pending();
 			if (pending.empty())
 				break;	// the end
-			int64_t	nStop = nUntil;
-			if (iDownbeat >= nAnalyzed && iDownbeat < nStop)
-				nStop = iDownbeat;	// stop there to mark it
-			size_t	n = static_cast<size_t>(std::min<int64_t>(nStop - nAnalyzed, static_cast<int64_t>(pending.size())));
+			size_t	n = static_cast<size_t>(std::min<int64_t>(nUntil - nAnalyzed, static_cast<int64_t>(pending.size())));
 			analyzer.Process(pending.data(), n);
 			pending.erase(pending.begin(), pending.begin() + static_cast<ptrdiff_t>(n));
 			nAnalyzed += static_cast<int64_t>(n);
-			if (nAnalyzed == iDownbeat) {
-				analyzer.MarkDownbeat();
-				iDownbeat = -1;
-			}
 		}
 	};
 	for (int64_t iFrame = 0; iFrame < nTotal; iFrame++) {
@@ -390,15 +494,14 @@ bool ExportAudioReactiveVideo(const Patch& patch, const std::string& sAudioPath,
 			src.bBeat = true;
 			src.fTempo = opts.fTempo;
 			src.fBeatPos = (fStart + t - fOne) * opts.fTempo / 60;
-		} else if (src.bBeat && src.fTempo > 0) {	// the tracker's, as of the frame's moment
-			// it's as of the last analysis, which came at the last whole hop
-			int64_t	nAtAnalysis = nAnalyzed - nAnalyzed % static_cast<int64_t>(analyzer.GetHopSize());
-			src.fBeatPos += (t - static_cast<double>(nAtAnalysis) / kAudioRate) * src.fTempo / 60;
-		} else if (firstBeat.bFound && nAnalyzed < firstBeat.nAt) {	// before it locks: its first beat, carried back
-			src.bBeat = true;
-			src.fTempo = firstBeat.fTempo;
-			src.fBeatPos = firstBeat.fBeatPos + (t - static_cast<double>(firstBeat.nAt) / kAudioRate) * firstBeat.fTempo / 60;
+		} else {	// the tracker's, settled
+			double	fPos = 0, fTempo = 0;
+			src.bBeat = bBeatMap && beats.At(t, fPos, fTempo);
+			src.fBeatPos = fPos - fShift;
+			src.fTempo = fTempo;
 		}
+		if (t < fBeatsFrom)	// before the music's first beat (a silent or ambient intro): no beat yet
+			src.bBeat = false;
 		ModOutput	out;
 		mod.Step(src, iFrame ? dt : 0, out);
 		uint32_t	nActions = out.nActions;
