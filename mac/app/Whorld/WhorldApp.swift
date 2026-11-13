@@ -970,10 +970,9 @@ final class AppModel: ObservableObject {
 			fullScreen.exit(engine: engine)
 			pressDrag = nil
 			defer { UpdateChecker.shared.showPending() }	// an update found while full screen
-			// Each time full screen ends (however: Esc, the shortcut, the
-			// display going away), the origin goes back to the middle and
-			// stays there (Image > Origin Center).
-			originCenter()
+			// The origin stays where it is, as on Windows: a patch's own
+			// origin is kept (until 2026-11-12, leaving full screen ran
+			// Origin Center; removed at the user's request)
 		} else {
 			let from = layout.layout.detached ? outputWindow.window : mainWindow
 			fullScreen.enter(from: from, engine: engine, fullResolution: fullResolution) { [weak self] in
