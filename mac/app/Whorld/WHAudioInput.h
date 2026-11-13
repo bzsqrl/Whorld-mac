@@ -7,8 +7,10 @@
 // Software Foundation, either version 3 of the License, or (at your option)
 // any later version. See the LICENSE file at the repository root.
 
-// Audio input for modulation (new in the Mac port; AUDIO_PLAN.md, Phase
-// 9.3). A Core Audio input device's chosen channels, mixed to mono, go
+// Audio input for modulation (new in the Mac port; AUDIO_PLAN.md, Phases
+// 9.3 and 9.8). A Core Audio input device's chosen channels, or (macOS
+// 14.2 and later) the sound of an app or of everything the Mac plays, through
+// a process tap, mixed to mono, go
 // through the AudioAnalyzer on a thread of their own; the render thread
 // reads the latest results each frame (WHAudioInputRead), and the
 // Modulation window's meter reads them too (reading).
@@ -22,6 +24,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) NSString *uid;
 @property (readonly) NSString *name;
 @property (readonly) NSInteger channels;	// input channels
+@end
+
+/// An app that uses sound, for a process tap (macOS 14.2 and later).
+@interface WHAudioApp : NSObject
+@property (readonly) NSString *bundleID;
+@property (readonly) NSString *name;
+@property (readonly) BOOL playing;	// sending sound now
 @end
 
 typedef NS_ENUM(NSInteger, WHAudioState) {
@@ -49,9 +58,18 @@ typedef struct {
 @property (class, readonly) NSArray<WHAudioDevice *> *devices;
 /// The system's default input device, if any.
 @property (class, readonly, nullable) WHAudioDevice *defaultDevice;
+/// Whether this Mac can hear apps directly (process taps: macOS 14.2)
+@property (class, readonly) BOOL tapsAvailable;
+/// Apps using sound now (helpers count as their app), playing ones first
+@property (class, readonly) NSArray<WHAudioApp *> *apps;
+/// An app's name from its bundle ID, running or not
++ (NSString *)appName:(NSString *)bundleID;
 
 /// Chooses the input: "" for none, "default" for the system's default
-/// input (following changes to it), or a device's uid. Channels: count 0
+/// input (following changes to it), a device's uid, "tap:all" for everything
+/// the Mac plays, or "tap:app:" and a bundle ID for an app's sound (taps:
+/// all channels, and no microphone permission; System Audio Recording's
+/// instead). Channels: count 0
 /// mixes all of them; otherwise channels first..first+count-1 (0-based),
 /// mixed. Asks for microphone access if needed. Main thread.
 - (void)selectDevice:(NSString *)uid channelFirst:(NSInteger)first count:(NSInteger)count;

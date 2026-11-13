@@ -176,6 +176,14 @@ Core Audio process taps (`AudioHardwareCreateProcessTap` with an aggregate devic
 - There are reports of taps delivering silence when permission is missing; detect that and say so.
 - In Settings > Audio it would be another choice of input: "Audio from app…".
 
+### As built (9.8)
+
+- macOS 14.2 (`AudioHardwareCreateProcessTap`), hidden before. Input uids `tap:all` and `tap:app:<bundle ID>`, in the Input menu's "Sound from apps" section.
+- The tap (unmuted, private) goes into a private aggregate device with only the tap in it, and the existing input unit reads that device, so the analysis path is unchanged. The aggregate is left out of the device list.
+- Apps: Core Audio's process objects, grouped under their regular app (a helper whose bundle ID starts with an app's counts as that app). The process list is watched; a tapped app that restarts is tapped again.
+- Permission: `NSAudioCaptureUsageDescription`; macOS asks when the tap starts. Refused, the tap delivers zeros, and there's no public way to ask, so after three seconds of digital silence the status line says where to allow it.
+- Ad-hoc signing: each new build is a new app to macOS, so it asks again.
+
 ## Offline render (later; designed for now)
 
 **File > Export Audio-Reactive Video…** (and `whorld-render --audio`): pick an audio file, a size, fps and codec. Whorld renders the current patch frame by frame at a fixed dt, feeds the analyzer the audio at each frame's time, and writes the video **with the audio track** (AVAssetWriter, as Export Video does).

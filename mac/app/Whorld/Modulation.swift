@@ -117,6 +117,7 @@ private struct AudioInputSection: View {
 
 	var body: some View {
 		let devices = WHAudioInput.devices
+		let apps = WHAudioInput.apps
 		let selected = selectedDevice(devices)
 		Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 10) {
 			GridRow {
@@ -131,7 +132,18 @@ private struct AudioInputSection: View {
 						ForEach(devices, id: \.uid) { d in
 							Text(d.name).tag(d.uid)
 						}
-						if !inputUID.isEmpty, inputUID != "default", !devices.contains(where: { $0.uid == inputUID }) {
+						if WHAudioInput.tapsAvailable {
+							Section("Sound from apps") {
+								Text("Everything the Mac plays").tag("tap:all")
+								ForEach(apps, id: \.bundleID) { a in
+									Text(a.name + (a.playing ? "" : " (quiet)")).tag("tap:app:" + a.bundleID)
+								}
+								if inputUID.hasPrefix("tap:app:"), !apps.contains(where: { "tap:app:" + $0.bundleID == inputUID }) {
+									Text(WHAudioInput.appName(String(inputUID.dropFirst("tap:app:".count))) + " (not using sound)").tag(inputUID)
+								}
+							}
+						}
+						if !inputUID.isEmpty, inputUID != "default", !inputUID.hasPrefix("tap:"), !devices.contains(where: { $0.uid == inputUID }) {
 							Text("Not connected").tag(inputUID)
 						}
 					}

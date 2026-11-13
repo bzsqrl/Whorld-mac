@@ -15,12 +15,20 @@
 // one for the render thread (WHAudioInputRead) and one for the meter
 // (reading). The main thread starts and stops the device. Nothing on the
 // IO thread allocates, locks or calls Objective-C.
+//
+// Process taps (macOS 14.2; 9.8): a tap on an app's processes (or on all of
+// them) goes into a private aggregate device of its own, which the same
+// input unit then reads like any other device. The sound still plays as
+// usual (unmuted).
 
 #import "WHAudioInput.h"
 
+#import <AppKit/AppKit.h>
 #import <AVFoundation/AVFoundation.h>
 #import <AudioToolbox/AudioToolbox.h>
 #import <CoreAudio/CoreAudio.h>
+#import <CoreAudio/AudioHardwareTapping.h>
+#import <CoreAudio/CATapDescription.h>
 
 #include "whorld/AudioAnalyzer.h"
 
@@ -203,6 +211,70 @@ AudioObjectID DefaultInputDevice()
 	return dev;
 }
 
+// Process objects: every process that has used Core Audio (macOS 14.2)
+std::vector<AudioObjectID> ProcessObjects()
+{
+	AudioObjectPropertyAddress	addr = {kAudioHardwarePropertyProcessObjectList,
+		kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+	UInt32	size = 0;
+	if (AudioObjectGetPropertyDataSize(kAudioObjectSystemObject, &addr, 0, nullptr, &size) != noErr)
+		return {};
+	std::vector<AudioObjectID>	ids(size / sizeof(AudioObjectID));
+	if (AudioObjectGetPropertyData(kAudioObjectSystemObject, &addr, 0, nullptr, &size, ids.data()) != noErr)
+		return {};
+	ids.resize(size / sizeof(AudioObjectID));
+	return ids;
+}
+
+// The app a process belongs to: itself if it's a regular app, else the
+// regular app whose bundle ID starts its own (a browser's helpers), or nil
+NSRunningApplication *OwningApp(AudioObjectID proc, NSArray<NSRunningApplication *> *regular)
+{
+	pid_t	pid = 0;
+	if (!GetProp(proc, kAudioProcessPropertyPID, pid) || pid <= 0 || pid == getpid())
+		return nil;
+	NSRunningApplication	*a = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
+	if (a && a.activationPolicy == NSApplicationActivationPolicyRegular && a.bundleIdentifier.length)
+		return a;
+	NSString	*bundle = StringProp(proc, kAudioProcessPropertyBundleID);
+	if (!bundle.length)
+		return nil;
+	for (NSRunningApplication *r in regular) {
+		NSString	*rb = r.bundleIdentifier;
+		if (rb.length && r.processIdentifier != getpid() && [bundle hasPrefix:[rb stringByAppendingString:@"."]])
+			return r;
+	}
+	return nil;
+}
+
+NSArray<NSRunningApplication *> *RegularApps()
+{
+	NSMutableArray	*a = [NSMutableArray array];
+	for (NSRunningApplication *r in NSWorkspace.sharedWorkspace.runningApplications) {
+		if (r.activationPolicy == NSApplicationActivationPolicyRegular)
+			[a addObject:r];
+	}
+	return a;
+}
+
+// An app's process objects, sorted, so a change shows
+std::vector<AudioObjectID> AppProcessObjects(NSString *bundleID)
+{
+	NSArray	*regular = RegularApps();
+	std::vector<AudioObjectID>	ids;
+	for (AudioObjectID proc : ProcessObjects()) {
+		if ([OwningApp(proc, regular).bundleIdentifier isEqualToString:bundleID])
+			ids.push_back(proc);
+	}
+	std::sort(ids.begin(), ids.end());
+	return ids;
+}
+
+NSString *const kTapPrefix = @"tap:";
+std::atomic<AudioObjectID>	g_tapDevice{kAudioObjectUnknown};	// our tap's private device: not listed as an input
+NSString *const kTapAll = @"tap:all";
+NSString *const kTapAppPrefix = @"tap:app:";
+
 NSString *RateText(double fRate)
 {
 	double	k = fRate / 1000;
@@ -225,6 +297,22 @@ NSString *RateText(double fRate)
 		_uid = StringProp(dev, kAudioDevicePropertyDeviceUID);
 		_name = StringProp(dev, kAudioObjectPropertyName);
 		_channels = InputChannels(dev);
+	}
+	return self;
+}
+@end
+
+@interface WHAudioApp ()
+- (instancetype)initWithBundleID:(NSString *)bundleID name:(NSString *)name;
+@property (readwrite) BOOL playing;
+@end
+
+@implementation WHAudioApp
+- (instancetype)initWithBundleID:(NSString *)bundleID name:(NSString *)name
+{
+	if ((self = [super init])) {
+		_bundleID = [bundleID copy];
+		_name = [name copy];
 	}
 	return self;
 }
@@ -257,6 +345,13 @@ NSString *RateText(double fRate)
 	AudioObjectPropertyListenerBlock	_aliveListener;
 	AudioObjectPropertyListenerBlock	_rateListener;
 	uint64_t	_generation;	// permission replies for an earlier choice are ignored
+	// process taps (macOS 14.2)
+	AudioObjectID	_tapID;
+	AudioObjectID	_aggregateID;	// the tap's private device
+	std::vector<AudioObjectID>	_tapProcesses;	// an app's processes tapped (to notice it restart)
+	NSTimer	*_silenceTimer;	// a running tap hearing nothing: maybe no permission
+	int		_silentSeconds;
+	NSString	*_runningText;	// the status while running, without the silence hint
 }
 
 + (WHAudioInput *)shared
@@ -272,7 +367,7 @@ NSString *RateText(double fRate)
 	NSMutableArray	*a = [NSMutableArray array];
 	for (AudioObjectID dev : AllDevices()) {
 		WHAudioDevice	*d = [[WHAudioDevice alloc] initWithID:dev];
-		if (d.channels > 0 && d.uid.length)
+		if (d.channels > 0 && d.uid.length && dev != g_tapDevice)
 			[a addObject:d];
 	}
 	[a sortUsingComparator:^(WHAudioDevice *x, WHAudioDevice *y) { return [x.name localizedStandardCompare:y.name]; }];
@@ -286,6 +381,51 @@ NSString *RateText(double fRate)
 		return nil;
 	WHAudioDevice	*d = [[WHAudioDevice alloc] initWithID:dev];
 	return d.channels > 0 ? d : nil;
+}
+
++ (BOOL)tapsAvailable
+{
+	if (@available(macOS 14.2, *))
+		return YES;
+	return NO;
+}
+
++ (NSArray<WHAudioApp *> *)apps
+{
+	if (!self.tapsAvailable)
+		return @[];
+	NSArray	*regular = RegularApps();
+	NSMutableDictionary<NSString *, WHAudioApp *>	*byID = [NSMutableDictionary dictionary];
+	for (AudioObjectID proc : ProcessObjects()) {
+		NSRunningApplication	*r = OwningApp(proc, regular);
+		if (!r)
+			continue;
+		WHAudioApp	*app = byID[r.bundleIdentifier];
+		if (!app) {
+			app = [[WHAudioApp alloc] initWithBundleID:r.bundleIdentifier name:r.localizedName ?: r.bundleIdentifier];
+			byID[r.bundleIdentifier] = app;
+		}
+		UInt32	running = 0;
+		if (GetProp(proc, kAudioProcessPropertyIsRunningOutput, running) && running)
+			app.playing = YES;
+	}
+	return [byID.allValues sortedArrayUsingComparator:^(WHAudioApp *x, WHAudioApp *y) {
+		if (x.playing != y.playing)
+			return x.playing ? NSOrderedAscending : NSOrderedDescending;
+		return [x.name localizedStandardCompare:y.name];
+	}];
+}
+
++ (NSString *)appName:(NSString *)bundleID
+{
+	for (NSRunningApplication *r in [NSRunningApplication runningApplicationsWithBundleIdentifier:bundleID]) {
+		if (r.localizedName.length)
+			return r.localizedName;
+	}
+	NSURL	*url = [NSWorkspace.sharedWorkspace URLForApplicationWithBundleIdentifier:bundleID];
+	if (url)
+		return [NSFileManager.defaultManager displayNameAtPath:url.path].stringByDeletingPathExtension;
+	return bundleID;
 }
 
 - (instancetype)init
@@ -322,6 +462,14 @@ NSString *RateText(double fRate)
 			kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
 		AudioObjectAddPropertyListenerBlock(kAudioObjectSystemObject, &def, dispatch_get_main_queue(),
 			^(UInt32, const AudioObjectPropertyAddress *) { [weakSelf defaultChanged]; });
+		_tapID = kAudioObjectUnknown;
+		_aggregateID = kAudioObjectUnknown;
+		if (@available(macOS 14.2, *)) {	// apps starting, quitting, starting to use sound
+			AudioObjectPropertyAddress	procs = {kAudioHardwarePropertyProcessObjectList,
+				kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+			AudioObjectAddPropertyListenerBlock(kAudioObjectSystemObject, &procs, dispatch_get_main_queue(),
+				^(UInt32, const AudioObjectPropertyAddress *) { [weakSelf processesChanged]; });
+		}
 	}
 	return self;
 }
@@ -505,6 +653,10 @@ NSString *RateText(double fRate)
 		[self setState:WHAudioStateOff text:@"Off"];
 		return;
 	}
+	if ([uid hasPrefix:kTapPrefix]) {	// not the microphone: System Audio Recording, asked for when the tap starts
+		[self startDevice];
+		return;
+	}
 	switch ([AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio]) {
 	case AVAuthorizationStatusAuthorized:
 		[self startDevice];
@@ -551,12 +703,132 @@ NSString *RateText(double fRate)
 - (void)startDevice
 {
 	[self stopDevice];
+	if ([_selectedUID hasPrefix:kTapPrefix]) {
+		if (@available(macOS 14.2, *))
+			[self startTap];
+		else
+			[self setState:WHAudioStateUnavailable text:@"Hearing apps directly needs macOS 14.2 or later."];
+		return;
+	}
 	AudioObjectID	dev = [self deviceForSelection];
 	if (dev == kAudioObjectUnknown || InputChannels(dev) <= 0) {
 		[self setState:WHAudioStateUnavailable text:@"The audio input isn't connected."];
 		return;
 	}
-	NSString	*name = StringProp(dev, kAudioObjectPropertyName);
+	[self startUnit:dev name:StringProp(dev, kAudioObjectPropertyName) allChannels:NO];
+}
+
+// A process tap in a private aggregate device, read like any input
+- (void)startTap API_AVAILABLE(macos(14.2))
+{
+	CATapDescription	*desc;
+	NSString	*name;
+	std::vector<AudioObjectID>	procs;
+	if ([_selectedUID isEqualToString:kTapAll]) {
+		name = @"Everything the Mac plays";
+		desc = [[CATapDescription alloc] initStereoGlobalTapButExcludeProcesses:@[]];
+	} else {
+		NSString	*bundleID = [_selectedUID substringFromIndex:kTapAppPrefix.length];
+		name = [WHAudioInput appName:bundleID];
+		procs = AppProcessObjects(bundleID);
+		_tapProcesses = procs;
+		if (procs.empty()) {
+			BOOL	bRunning = [NSRunningApplication runningApplicationsWithBundleIdentifier:bundleID].count > 0;
+			[self setState:WHAudioStateUnavailable text:[NSString stringWithFormat:bRunning
+				? @"%@ hasn't played any sound yet." : @"%@ isn't running.", name]];
+			return;
+		}
+		NSMutableArray<NSNumber *>	*ids = [NSMutableArray array];
+		for (AudioObjectID proc : procs)
+			[ids addObject:@(proc)];
+		desc = [[CATapDescription alloc] initStereoMixdownOfProcesses:ids];
+	}
+	desc.name = @"Whorld";
+	desc.privateTap = YES;
+	desc.muteBehavior = CATapUnmuted;	// it still plays as usual
+	AudioObjectID	tap = kAudioObjectUnknown;
+	OSStatus	err = AudioHardwareCreateProcessTap(desc, &tap);
+	if (err != noErr) {
+		[self setState:WHAudioStateUnavailable text:[NSString stringWithFormat:@"Can't hear %@ (tap, error %d).", name, (int)err]];
+		return;
+	}
+	_tapID = tap;
+	NSDictionary	*agg = @{
+		@kAudioAggregateDeviceNameKey: @"Whorld audio tap",
+		@kAudioAggregateDeviceUIDKey: NSUUID.UUID.UUIDString,
+		@kAudioAggregateDeviceIsPrivateKey: @YES,
+		@kAudioAggregateDeviceTapAutoStartKey: @YES,
+		@kAudioAggregateDeviceTapListKey: @[@{
+			@kAudioSubTapUIDKey: desc.UUID.UUIDString,
+			@kAudioSubTapDriftCompensationKey: @YES,
+		}],
+	};
+	AudioObjectID	dev = kAudioObjectUnknown;
+	err = AudioHardwareCreateAggregateDevice((__bridge CFDictionaryRef)agg, &dev);
+	if (err != noErr) {
+		[self destroyTap];
+		[self setState:WHAudioStateUnavailable text:[NSString stringWithFormat:@"Can't hear %@ (device, error %d).", name, (int)err]];
+		return;
+	}
+	_aggregateID = dev;
+	g_tapDevice = dev;
+	[self startUnit:dev name:name allChannels:YES];
+	if (_state == WHAudioStateRunning)
+		[self watchSilence];
+	else
+		[self destroyTap];
+}
+
+- (void)destroyTap
+{
+	if (@available(macOS 14.2, *)) {
+		if (_aggregateID != kAudioObjectUnknown)
+			AudioHardwareDestroyAggregateDevice(_aggregateID);
+		if (_tapID != kAudioObjectUnknown)
+			AudioHardwareDestroyProcessTap(_tapID);
+	}
+	_aggregateID = kAudioObjectUnknown;
+	g_tapDevice = kAudioObjectUnknown;
+	_tapID = kAudioObjectUnknown;
+	[_silenceTimer invalidate];
+	_silenceTimer = nil;
+}
+
+// A tap without permission (System Audio Recording) hears pure silence, and
+// there's no public way to ask; after a few seconds of it, say so
+- (void)watchSilence
+{
+	_silentSeconds = 0;
+	_runningText = _statusText;
+	__weak WHAudioInput	*weakSelf = self;
+	_silenceTimer = [NSTimer scheduledTimerWithTimeInterval:1 repeats:YES block:^(NSTimer *) {
+		[weakSelf checkSilence];
+	}];
+}
+
+- (void)checkSilence
+{
+	bool	bSilent = [self reading].levelDb <= -199;	// digital silence (AudioAnalyzer's floor)
+	_silentSeconds = bSilent ? _silentSeconds + 1 : 0;
+	NSString	*text = _silentSeconds >= 3
+		? [_runningText stringByAppendingString:@" · Hearing silence. If sound is playing, allow Whorld in System Settings > Privacy & Security > Screen & System Audio Recording (System Audio Recording Only)."]
+		: _runningText;
+	if (![text isEqualToString:_statusText])
+		[self setState:WHAudioStateRunning text:text];
+}
+
+// An app tapped restarting, or starting to use sound: tap it afresh
+- (void)processesChanged
+{
+	if ([_selectedUID hasPrefix:kTapAppPrefix] && _state != WHAudioStateOff) {
+		if (AppProcessObjects([_selectedUID substringFromIndex:kTapAppPrefix.length]) != _tapProcesses)
+			[self startDevice];
+	}
+	[self notify];	// the app list
+}
+
+- (void)startUnit:(AudioObjectID)dev name:(NSString *)name allChannels:(BOOL)bAll
+{
 	auto	fail = [&](NSString *what, OSStatus err) {
 		[self disposeUnit];
 		[self setState:WHAudioStateUnavailable
@@ -601,7 +873,7 @@ NSString *RateText(double fRate)
 	// the chosen channels, within what the device has
 	UInt32	iFirst = static_cast<UInt32>(std::min<NSInteger>(_channelFirst, nCh - 1));
 	UInt32	nCount = _channelCount ? static_cast<UInt32>(std::min<NSInteger>(_channelCount, nCh - iFirst)) : nCh - iFirst;
-	if (!_channelCount)
+	if (!_channelCount || bAll)
 		iFirst = 0, nCount = nCh;
 	_capture.iFirst = iFirst;
 	_capture.nCount = nCount;
@@ -652,6 +924,7 @@ NSString *RateText(double fRate)
 	[self unwatchDevice];
 	bool	bWasRunning = _capture.unit != nullptr;
 	[self disposeUnit];
+	[self destroyTap];
 	_runningDevice = kAudioObjectUnknown;
 	_runningChannels = 0;
 	if (bWasRunning)
