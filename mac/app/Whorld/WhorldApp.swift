@@ -417,6 +417,16 @@ final class AppModel: ObservableObject {
 		}
 	}
 
+	/// The playlist's next (+1) or previous (-1) patch, wrapping around at
+	/// the ends; with none playing, the first or last. (A Mac addition:
+	/// Command-Down and Command-Up over the picture or in full screen.)
+	func stepPatch(_ step: Int) {
+		let n = engine.playlistPatches.count
+		guard n > 0 else { return }
+		let i = playingPatch >= 0 && playingPatch < n ? (playingPatch + step + n) % n : (step > 0 ? 0 : n - 1)
+		playPatch(i)
+	}
+
 	/// Anything may have changed (a patch opened, undo, ...): refresh everything.
 	func changed() {
 		changes.all()
@@ -1275,6 +1285,13 @@ final class OutputKeys {
 	/// true: the key event is this feature's (not passed on)
 	func takes(key: String?, code: CGKeyCode, up: Bool, modifiers: UInt) -> Bool {
 		guard let key else { return false }
+		// Command-Up and Command-Down: the playlist's previous and next patch,
+		// in full screen or with the pointer over the picture
+		if !up, code == 126 || code == 125, modifiers == NSEvent.ModifierFlags.command.rawValue,
+			AppModel.shared.isFullScreen || Self.pointerOverOutput() {
+			AppModel.shared.stepPatch(code == 125 ? 1 : -1)
+			return true
+		}
 		if up {
 			if key == held {
 				held = nil
