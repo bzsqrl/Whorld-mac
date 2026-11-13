@@ -1059,7 +1059,8 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 		std::string	sErr;
 		bool	bOk = whorld::Snapshot::Write(pSnapshot.get(), sPath, &sErr);	// CMainFrame::WriteSnapshot
 		NSString	*msg = bOk ? nil : ToNS(sErr);
-		dispatch_async(dispatch_get_main_queue(), ^{ completion(msg); });
+		auto	fn = completion;	// its own reference: the block mustn't capture the lambda's
+		dispatch_async(dispatch_get_main_queue(), ^{ fn(msg); });
 	}];
 }
 
@@ -1143,7 +1144,8 @@ static std::string CaptureToPNG(whorld::WhorldEngine& eng, uint32_t nFlags, whor
 	[self pushJob:[pEngine, sPath, flags, width, height, completion] {
 		std::string	sErr = CaptureToPNG(*pEngine, flags, whorld::IntSize{width, height}, sPath);
 		NSString	*msg = sErr.empty() ? nil : ToNS(sErr);
-		dispatch_async(dispatch_get_main_queue(), ^{ completion(msg); });
+		auto	fn = completion;	// its own reference: the block mustn't capture the lambda's
+		dispatch_async(dispatch_get_main_queue(), ^{ fn(msg); });
 	}];
 }
 
@@ -1197,6 +1199,8 @@ static std::string CaptureToPNG(whorld::WhorldEngine& eng, uint32_t nFlags, whor
 	progress:(void (^)(int64_t))progress completion:(void (^)(NSString *))completion
 {
 	std::string	sFolder = folder.fileSystemRepresentation;
+	progress = [progress copy];	// they outlive this call
+	completion = [completion copy];
 	whorld::WhorldEngine	*pEngine = _engine.get();
 	std::atomic<bool>	*pCancel = &_cancelExport;
 	_cancelExport = false;
@@ -1220,11 +1224,13 @@ static std::string CaptureToPNG(whorld::WhorldEngine& eng, uint32_t nFlags, whor
 				if (!sErr.empty())
 					break;
 				int64_t	nDone = iFrame + 1;
-				dispatch_async(dispatch_get_main_queue(), ^{ progress(nDone); });
+				auto	fn = progress;	// its own reference: the block mustn't capture the lambda's
+				dispatch_async(dispatch_get_main_queue(), ^{ fn(nDone); });
 			}
 		}
 		NSString	*msg = sErr.empty() ? nil : ToNS(sErr);
-		dispatch_async(dispatch_get_main_queue(), ^{ completion(msg); });
+		auto	fn = completion;	// its own reference: the block mustn't capture the lambda's
+		dispatch_async(dispatch_get_main_queue(), ^{ fn(msg); });
 	}];
 }
 
@@ -1267,6 +1273,9 @@ static std::string CaptureToPNG(whorld::WhorldEngine& eng, uint32_t nFlags, whor
 	std::string	sAudio = audioPath.fileSystemRepresentation;
 	std::atomic<bool>	*pCancel = &_cancelExport;
 	_cancelExport = false;
+	// the blocks outlive this call: copy them off the caller's stack
+	progress = [progress copy];
+	completion = [completion copy];
 	std::thread([patch, sAudio, sPath, opts, progress, completion, pCancel] {
 		pthread_setname_np("Whorld audio-reactive export");
 		std::string	sErr;
@@ -1275,12 +1284,14 @@ static std::string CaptureToPNG(whorld::WhorldEngine& eng, uint32_t nFlags, whor
 			auto	now = std::chrono::steady_clock::now();
 			if (nDone == nTotal || now - lastReport > std::chrono::milliseconds(100)) {
 				lastReport = now;
-				dispatch_async(dispatch_get_main_queue(), ^{ progress(nDone, nTotal); });
+				auto	fn = progress;	// its own reference: the block mustn't capture the lambda's
+				dispatch_async(dispatch_get_main_queue(), ^{ fn(nDone, nTotal); });
 			}
 			return !*pCancel;
 		}, &sErr);
 		NSString	*msg = bOk ? nil : ToNS(sErr);
-		dispatch_async(dispatch_get_main_queue(), ^{ completion(msg); });
+		auto	fn = completion;	// its own reference: the block mustn't capture the lambda's
+		dispatch_async(dispatch_get_main_queue(), ^{ fn(msg); });
 	}).detach();
 }
 
@@ -1288,6 +1299,8 @@ static std::string CaptureToPNG(whorld::WhorldEngine& eng, uint32_t nFlags, whor
 	flags:(WHExportFlags)flags width:(int)width height:(int)height
 	progress:(void (^)(int64_t))progress completion:(void (^)(NSString *))completion
 {
+	progress = [progress copy];	// they outlive this call
+	completion = [completion copy];
 	std::string	sPath = path.fileSystemRepresentation;
 	whorld::WhorldEngine	*pEngine = _engine.get();
 	std::atomic<bool>	*pCancel = &_cancelExport;
@@ -1301,11 +1314,13 @@ static std::string CaptureToPNG(whorld::WhorldEngine& eng, uint32_t nFlags, whor
 		opts.nEndFrame = end;
 		std::string	sErr;
 		bool	bOk = whorld::ExportMovieVideo(*pEngine, sPath, opts, [&](int64_t nDone, int64_t) {
-			dispatch_async(dispatch_get_main_queue(), ^{ progress(nDone); });
+			auto	fn = progress;	// its own reference: the block mustn't capture the lambda's
+			dispatch_async(dispatch_get_main_queue(), ^{ fn(nDone); });
 			return !*pCancel;
 		}, &sErr);
 		NSString	*msg = bOk ? nil : ToNS(sErr);
-		dispatch_async(dispatch_get_main_queue(), ^{ completion(msg); });
+		auto	fn = completion;	// its own reference: the block mustn't capture the lambda's
+		dispatch_async(dispatch_get_main_queue(), ^{ fn(msg); });
 	}];
 }
 
