@@ -74,7 +74,7 @@ Make Whorld respond to music, for synaesthetic visuals: live from an audio input
   - `AVAudioEngine`'s input node, with the device chosen by setting the input unit's current device (`kAudioOutputUnitProperty_CurrentDevice`). Channels are mixed to mono, or one channel or a pair is chosen.
   - It follows device changes and disconnection (it falls back to none and says so).
   - **Permission:** `NSMicrophoneUsageDescription` in Info.plist (macOS asks for any input device, not just microphones). Hardened runtime is off, so no entitlement is needed; if it's ever turned on, add `com.apple.security.device.audio-input`.
-- **Settings > Audio** (a new pane):
+- **Audio input controls** (as built in 9.3, at the top of the Modulation window, the user's choice on 2026-11-13; Settings was full):
   - input device (None by default, so nothing changes until chosen);
   - channels, gain, auto-level;
   - a live meter of level and the four bands, with hit lights;
