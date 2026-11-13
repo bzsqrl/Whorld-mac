@@ -120,8 +120,10 @@ extension AppModel {
 	/// The export options dialog (CExportDlg). Returns nil if canceled.
 	func runExportOptions() -> ExportOptions? {
 		var opts = ExportOptions.load()
-		let view = ExportOptionsView(options: Binding(get: { opts }, set: { opts = $0 }), viewSize: engine.viewSize)
-		let host = NSHostingView(rootView: view)
+		let viewSize = engine.viewSize
+		let host = NSHostingView(rootView: AccessoryState(opts, onChange: { opts = $0 }) {
+			ExportOptionsView(options: $0, viewSize: viewSize)
+		})
 		host.frame = NSRect(x: 0, y: 0, width: 340, height: 150)
 		let a = NSAlert()
 		a.messageText = "Export Options"
@@ -325,8 +327,10 @@ extension AppModel {
 		guard panel.runModal() == .OK, let folder = panel.url else { return }
 		// options (CMovieExportDlg)
 		var opts = MovieExportOptions(frameCount: ms.frameCount, frameRate: ms.frameRate, movieSize: ms.frameSize)
-		let host = NSHostingView(rootView: MovieExportOptionsView(options: Binding(get: { opts }, set: { opts = $0 }),
-			viewSize: engine.viewSize))
+		let viewSize = engine.viewSize
+		let host = NSHostingView(rootView: AccessoryState(opts, onChange: { opts = $0 }) {
+			MovieExportOptionsView(options: $0, viewSize: viewSize)
+		})
 		host.frame = NSRect(x: 0, y: 0, width: 360, height: 210)
 		let a = NSAlert()
 		a.messageText = "Export Movie"
@@ -373,8 +377,10 @@ extension AppModel {
 		var opts = MovieExportOptions(frameCount: ms.frameCount, frameRate: ms.frameRate, movieSize: ms.frameSize)
 		opts.showsCodec = true
 		opts.codec = Preferences.defaults.integer(forKey: "Video_iCodec")
-		let host = NSHostingView(rootView: MovieExportOptionsView(options: Binding(get: { opts }, set: { opts = $0 }),
-			viewSize: engine.viewSize))
+		let viewSize = engine.viewSize
+		let host = NSHostingView(rootView: AccessoryState(opts, onChange: { opts = $0 }) {
+			MovieExportOptionsView(options: $0, viewSize: viewSize)
+		})
 		host.frame = NSRect(x: 0, y: 0, width: 380, height: 240)
 		let a = NSAlert()
 		a.messageText = "Export Video"
@@ -390,6 +396,60 @@ extension AppModel {
 		engine.exportMovieVideo(toPath: url.path, codec: opts.codec, start: start, end: end, flags: opts.flags,
 			width: Int32(opts.size.width), height: Int32(opts.size.height),
 			progress: { [weak self] done in self?.movieExportProgress = (done, total) },
+			completion: { [weak self] error in
+				self?.movieExportProgress = nil
+				if let error, error != "Canceled." { self?.alert("The video export stopped.", error) }
+			})
+	}
+
+	// Audio-reactive video (9.9): the patch, moved by an audio file through
+	// the Modulation window's rows, with the audio as its sound
+	func exportAudioVideo() {
+		let open = NSOpenPanel()
+		open.title = "Choose the Music"
+		open.allowedContentTypes = [.audio]
+		guard open.runModal() == .OK, let audio = open.url else { return }
+		var opts = AudioVideoExportOptions.load()
+		let viewSize = engine.viewSize
+		let host = NSHostingView(rootView: AccessoryState(opts, onChange: { opts = $0 }) {
+			AudioVideoExportView(options: $0, viewSize: viewSize)
+		})
+		host.frame = NSRect(x: 0, y: 0, width: 440, height: 300)
+		let a = NSAlert()
+		a.messageText = "Export Audio-Reactive Video"
+		a.informativeText = "\(audio.lastPathComponent) moves the patch through the rows in Window > Modulation, as the music would live, and becomes the video's sound."
+		a.accessoryView = host
+		a.addButton(withTitle: "Continue…")
+		a.addButton(withTitle: "Cancel")
+		guard a.runModal() == .alertFirstButtonReturn else { return }
+		opts.save()
+		let name = audio.deletingPathExtension().lastPathComponent + ".mov"
+		guard let url = savePanel(.quickTimeMovie, title: "Export Audio-Reactive Video", name: name) else { return }
+		let map = ModMap.shared
+		let d = UserDefaults.standard
+		AudioSettings.register()
+		let o = WHAudioVideoOptions()
+		o.codec = opts.codec
+		o.width = Int32(opts.width)
+		o.height = Int32(opts.height)
+		o.frameRate = Double(opts.frameRate)
+		o.start = opts.wholeFile ? 0 : opts.start
+		o.duration = opts.wholeFile ? -1 : opts.length
+		o.preroll = opts.preroll
+		o.tempo = opts.setTempo ? opts.tempo : 0
+		o.downbeat = opts.markDownbeat ? opts.downbeat : -1
+		o.gainDb = d.double(forKey: AudioSettings.gainKey)
+		o.rangeDb = d.double(forKey: AudioSettings.rangeKey)
+		o.autoLevel = d.bool(forKey: AudioSettings.autoLevelKey)
+		o.hitThreshold = d.double(forKey: AudioSettings.hitThresholdKey)
+		o.rows = map.bypass ? [] : map.rows.map { $0.engineRow() }
+		o.syncs = map.bypass ? [] : map.syncs.map { $0.engineSync() }
+		o.depth = map.depth
+		o.followTempo = map.followTempo
+		o.playlistIndex = playingPatch
+		movieExportProgress = (0, 1)
+		engine.exportAudioVideo(toPath: url.path, audio: audio.path, options: o,
+			progress: { [weak self] done, total in self?.movieExportProgress = (done, total) },
 			completion: { [weak self] error in
 				self?.movieExportProgress = nil
 				if let error, error != "Canceled." { self?.alert("The video export stopped.", error) }
@@ -503,6 +563,125 @@ struct ExportOptionsView: View {
 			}
 		}
 		.padding(4)
+	}
+}
+
+/// An alert's options view, with the options in SwiftUI state so the view
+/// redraws as they change (a binding to a plain variable doesn't), each
+/// change passed back to the caller
+struct AccessoryState<Value, Content: View>: View {
+	@State private var value: Value
+	private let onChange: (Value) -> Void
+	private let content: (Binding<Value>) -> Content
+
+	init(_ initial: Value, onChange: @escaping (Value) -> Void, @ViewBuilder content: @escaping (Binding<Value>) -> Content) {
+		_value = State(initialValue: initial)
+		self.onChange = onChange
+		self.content = content
+	}
+
+	var body: some View {
+		content(Binding(get: { value }, set: { value = $0; onChange($0) }))
+	}
+}
+
+/// Audio-reactive video export options, kept between exports
+struct AudioVideoExportOptions: Codable {
+	var preset = 1			// 0 view, 1 1280×720, 2 1920×1080, 3 3840×2160, 4 custom
+	var width = 1920
+	var height = 1080
+	var frameRate = 60
+	var codec = 0			// VideoWriter::Codec
+	var wholeFile = true
+	var start = 0.0			// seconds
+	var length = 60.0
+	var preroll = 10.0
+	var setTempo = false	// a set tempo instead of the beat tracker's
+	var tempo = 120.0
+	var markDownbeat = false
+	var downbeat = 0.0		// seconds into the audio
+
+	static let presets: [(String, Int, Int)] = [("View", 0, 0), ("1280 × 720", 1280, 720), ("1920 × 1080", 1920, 1080),
+		("3840 × 2160", 3840, 2160), ("Custom", 0, 0)]
+	private static let key = "AudioVideo_Options"
+
+	static func load() -> AudioVideoExportOptions {
+		guard let data = Preferences.defaults.data(forKey: key),
+			let o = try? JSONDecoder().decode(AudioVideoExportOptions.self, from: data) else {
+			var o = AudioVideoExportOptions()
+			o.preset = 2
+			return o
+		}
+		return o
+	}
+
+	func save() {
+		if let data = try? JSONEncoder().encode(self) {
+			Preferences.defaults.set(data, forKey: Self.key)
+		}
+	}
+}
+
+struct AudioVideoExportView: View {
+	@Binding var options: AudioVideoExportOptions
+	let viewSize: CGSize
+
+	var body: some View {
+		Form {
+			Picker("Frame size", selection: Binding(get: { options.preset }, set: { setPreset($0) })) {
+				ForEach(0..<AudioVideoExportOptions.presets.count, id: \.self) { i in
+					Text(i == 0 ? "View (\(Int(viewSize.width)) × \(Int(viewSize.height)))" : AudioVideoExportOptions.presets[i].0).tag(i)
+				}
+			}
+			if options.preset == 4 {
+				HStack {
+					TextField("Width", value: $options.width, format: .number.grouping(.never))
+					Text("×")
+					TextField("Height", value: $options.height, format: .number.grouping(.never))
+				}
+			}
+			Picker("Frame rate", selection: $options.frameRate) {
+				ForEach([24, 25, 30, 50, 60], id: \.self) { Text("\($0) fps").tag($0) }
+			}
+			.help("Whorld moves one step a frame, as on a display of that rate: 60 looks like a 60 Hz display.")
+			Picker("Format", selection: $options.codec) {
+				Text("H.264").tag(0)
+				Text("HEVC").tag(1)
+				Text("ProRes 422").tag(2)
+				Text("ProRes 4444 (best for fine lines)").tag(3)
+			}
+			Toggle("The whole file", isOn: $options.wholeFile)
+			if !options.wholeFile {
+				HStack {
+					TextField("From (s)", value: $options.start, format: .number)
+					TextField("Length (s)", value: $options.length, format: .number)
+				}
+			}
+			TextField("Run the patch first (s)", value: $options.preroll, format: .number)
+				.help("Seconds the patch runs before the video starts, so the picture is already full of rings.")
+			Toggle("Set the tempo (instead of finding the beat)", isOn: $options.setTempo)
+			if options.setTempo {
+				TextField("Tempo (BPM)", value: $options.tempo, format: .number)
+			}
+			Toggle("Mark the downbeat", isOn: $options.markDownbeat)
+				.help("Where \"the one\" is, for Bar ... 32-Bar and the oscillators on the beat, as Mark Downbeat would.")
+			if options.markDownbeat {
+				TextField(options.setTempo ? "A downbeat at (s)" : "Near a downbeat at (s)", value: $options.downbeat, format: .number)
+			}
+		}
+		.padding(4)
+	}
+
+	private func setPreset(_ i: Int) {
+		options.preset = i
+		if i == 0 {	// the view, in pixels, even
+			let scale = NSScreen.main?.backingScaleFactor ?? 2
+			options.width = Int(viewSize.width * scale) & ~1
+			options.height = Int(viewSize.height * scale) & ~1
+		} else if i < 4 {
+			options.width = AudioVideoExportOptions.presets[i].1
+			options.height = AudioVideoExportOptions.presets[i].2
+		}
 	}
 }
 

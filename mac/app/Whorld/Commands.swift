@@ -73,6 +73,8 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut("l")
 			Button("Export…") { model.exportImage() }
 				.keyboardShortcut("e")
+			Button("Export Audio-Reactive Video…") { model.exportAudioVideo() }
+				.disabled(model.movieExportProgress != nil)
 		}
 
 		CommandMenu("Snapshot") {

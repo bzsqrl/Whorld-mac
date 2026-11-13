@@ -173,6 +173,30 @@ typedef struct {
 @property (nonatomic) double offset;	// seconds, -0.3 to 0.3: early (-) or late
 @end
 
+/// Audio-reactive video export settings (whorld::AudioVideoOptions; 9.9)
+@interface WHAudioVideoOptions : NSObject
+@property (nonatomic) NSInteger codec;	// VideoWriter::Codec
+@property (nonatomic) int width;		// pixels
+@property (nonatomic) int height;
+@property (nonatomic) double frameRate;
+@property (nonatomic) double start;		// seconds into the audio
+@property (nonatomic) double duration;	// seconds; -1: to the end
+@property (nonatomic) double preroll;	// seconds the patch runs before the video starts
+@property (nonatomic) double tempo;		// BPM; 0: the beat tracker's
+@property (nonatomic) double downbeat;	// seconds into the audio, the one; -1: none
+// the analysis, as the audio input's
+@property (nonatomic) double gainDb;
+@property (nonatomic) double rangeDb;
+@property (nonatomic) BOOL autoLevel;
+@property (nonatomic) double hitThreshold;
+// modulation
+@property (nonatomic, copy) NSArray<WHModRow *> *rows;
+@property (nonatomic, copy) NSArray<WHModSync *> *syncs;
+@property (nonatomic) double depth;
+@property (nonatomic) BOOL followTempo;
+@property (nonatomic) NSInteger playlistIndex;	// where Next and Previous Patch start; -1: none
+@end
+
 @interface WHEngine : NSObject
 
 // Document
@@ -366,6 +390,12 @@ typedef struct {
 // start..end to a QuickTime movie at the movie's frame rate.
 // codec: 0 H.264, 1 HEVC, 2 ProRes 422, 3 ProRes 4444. Cancel with
 // cancelMovieExport; a canceled export deletes the partial file.
+/// The document's patch, moved by the audio file through the given rows,
+/// rendered to a movie with the audio as its sound (9.9). Framed as the
+/// view shows it. Runs on a thread of its own (the live view goes on);
+/// cancelMovieExport cancels it. Completion's message is nil on success.
+- (void)exportAudioVideoToPath:(NSString *)path audio:(NSString *)audioPath options:(WHAudioVideoOptions *)options
+	progress:(void (^)(int64_t done, int64_t total))progress completion:(void (^)(NSString * _Nullable error))completion;
 - (void)exportMovieVideoToPath:(NSString *)path codec:(NSInteger)codec start:(int64_t)start end:(int64_t)end
 	flags:(WHExportFlags)flags width:(int)width height:(int)height
 	progress:(void (^)(int64_t done))progress completion:(void (^)(NSString * _Nullable error))completion;

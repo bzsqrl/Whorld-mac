@@ -17,6 +17,8 @@
 #include "CGRenderer.h"
 #include "whorld/WhorldEngine.h"
 
+#include <CoreMedia/CoreMedia.h>
+
 #include <functional>
 #include <memory>
 #include <string>
@@ -38,14 +40,20 @@ public:
 	VideoWriter& operator=(const VideoWriter&) = delete;
 
 	// Width and height are made even (H.264 and HEVC need even sizes).
+	// With an audio sample rate (Mac port, 9.9), the movie gets a stereo
+	// AAC track, fed by AppendAudio.
 	bool	Open(const std::string& sPath, int nWidth, int nHeight, double fFrameRate, Codec codec,
-		std::string* pError = nullptr);
+		std::string* pError = nullptr, double fAudioRate = 0);
 	int		GetWidth() const;
 	int		GetHeight() const;
 	// Returns a renderer that draws into the next frame's pixel buffer
 	// (DIP size = pixel size), or null on error. Call EndFrame when done.
 	CGBitmapRenderer*	BeginFrame();
 	bool	EndFrame(std::string* pError = nullptr);	// appends the frame
+	// Queues decoded audio (LPCM, presentation times from 0 like the
+	// frames'); it's written as the encoder interleaves it with the video.
+	void	AppendAudio(CMSampleBufferRef buffer);
+	void	EndAudio();	// no more audio: frames after it go on without sound
 	bool	Close(std::string* pError = nullptr);	// finishes the file
 	void	Cancel();	// stops and deletes the partial file
 

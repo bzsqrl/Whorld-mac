@@ -22,6 +22,7 @@
 
 #include "CGRenderer.h"
 #include "MetalRenderer.h"
+#include "AudioVideoExport.h"
 #include "VideoWriter.h"
 #include <IOSurface/IOSurface.h>
 #include "whorld/Controls.h"
@@ -274,6 +275,64 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	dispatch_async(dispatch_get_main_queue(), ^{
 		[engine applyMidiPost:copy];
 	});
+}
+
+@implementation WHAudioVideoOptions
+- (instancetype)init
+{
+	if ((self = [super init])) {
+		_width = 1920;
+		_height = 1080;
+		_frameRate = 60;
+		_duration = -1;
+		_preroll = 10;
+		_downbeat = -1;
+		_rangeDb = 36;
+		_hitThreshold = 4;
+		_depth = 1;
+		_playlistIndex = -1;
+		_rows = @[];
+		_syncs = @[];
+	}
+	return self;
+}
+@end
+
+static std::vector<whorld::ModRow> ModRowsFrom(NSArray<WHModRow *> *rows)
+{
+	std::vector<whorld::ModRow>	a;
+	for (WHModRow *r in rows) {
+		whorld::ModRow	row;
+		row.bOn = r.on;
+		row.iSource = whorld::ModSources::FindTag(r.source.UTF8String);
+		row.iAction = r.action.length ? whorld::ModActions::FindTag(r.action.UTF8String) : -1;
+		row.iTarget = static_cast<int>(r.target);
+		row.iProp = static_cast<int>(r.prop);
+		row.fAmount = r.amount;
+		row.nCurve = static_cast<int>(r.curve);
+		row.bCentered = r.centered;
+		row.fAttack = r.attack;
+		row.fRelease = r.releaseTime;
+		row.fThreshold = r.threshold;
+		row.fOffset = std::clamp(r.offset, -0.3, 0.3);
+		a.push_back(row);
+	}
+	return a;
+}
+
+static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
+{
+	std::vector<whorld::ModSync>	a;
+	for (WHModSync *y in syncs) {
+		whorld::ModSync	sync;
+		sync.bOn = y.on;
+		sync.iParam = static_cast<int>(y.param);
+		sync.fBeats = y.beats;
+		sync.fPhase = y.phase;
+		sync.fOffset = std::clamp(y.offset, -0.3, 0.3);
+		a.push_back(sync);
+	}
+	return a;
 }
 
 @implementation WHModSync
@@ -767,33 +826,8 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 
 - (void)setModulationRows:(NSArray<WHModRow *> *)rows syncs:(NSArray<WHModSync *> *)syncs depth:(double)depth bypass:(BOOL)bypass followTempo:(BOOL)followTempo
 {
-	std::vector<whorld::ModSync>	aSync;
-	for (WHModSync *y in syncs) {
-		whorld::ModSync	sync;
-		sync.bOn = y.on;
-		sync.iParam = static_cast<int>(y.param);
-		sync.fBeats = y.beats;
-		sync.fPhase = y.phase;
-		sync.fOffset = std::clamp(y.offset, -0.3, 0.3);
-		aSync.push_back(sync);
-	}
-	std::vector<whorld::ModRow>	a;
-	for (WHModRow *r in rows) {
-		whorld::ModRow	row;
-		row.bOn = r.on;
-		row.iSource = whorld::ModSources::FindTag(r.source.UTF8String);
-		row.iAction = r.action.length ? whorld::ModActions::FindTag(r.action.UTF8String) : -1;
-		row.iTarget = static_cast<int>(r.target);
-		row.iProp = static_cast<int>(r.prop);
-		row.fAmount = r.amount;
-		row.nCurve = static_cast<int>(r.curve);
-		row.bCentered = r.centered;
-		row.fAttack = r.attack;
-		row.fRelease = r.releaseTime;
-		row.fThreshold = r.threshold;
-		row.fOffset = std::clamp(r.offset, -0.3, 0.3);
-		a.push_back(row);
-	}
+	std::vector<whorld::ModRow>	a = ModRowsFrom(rows);
+	std::vector<whorld::ModSync>	aSync = ModSyncsFrom(syncs);
 	std::lock_guard<std::mutex>	lock(_mutex);
 	_modRows = std::move(a);
 	_modSyncs = std::move(aSync);
@@ -1192,6 +1226,62 @@ static std::string CaptureToPNG(whorld::WhorldEngine& eng, uint32_t nFlags, whor
 		NSString	*msg = sErr.empty() ? nil : ToNS(sErr);
 		dispatch_async(dispatch_get_main_queue(), ^{ completion(msg); });
 	}];
+}
+
+- (void)exportAudioVideoToPath:(NSString *)path audio:(NSString *)audioPath options:(WHAudioVideoOptions *)o
+	progress:(void (^)(int64_t, int64_t))progress completion:(void (^)(NSString *))completion
+{
+	whorld::AudioVideoOptions	opts;
+	opts.codec = static_cast<whorld::VideoWriter::Codec>(o.codec);
+	opts.nWidth = o.width;
+	opts.nHeight = o.height;
+	opts.fFrameRate = o.frameRate;
+	opts.fStart = o.start;
+	opts.fDuration = o.duration;
+	opts.fPreroll = o.preroll;
+	opts.fTempo = o.tempo;
+	opts.fDownbeat = o.downbeat;
+	opts.analyzer.fGainDb = o.gainDb;
+	opts.analyzer.fCeilDb = 0;
+	opts.analyzer.fFloorDb = -std::max(o.rangeDb, 6.0);
+	opts.analyzer.bAutoLevel = o.autoLevel;
+	opts.analyzer.fHitThreshold = o.hitThreshold;
+	opts.aRow = ModRowsFrom(o.rows);
+	opts.aSync = ModSyncsFrom(o.syncs);
+	opts.fDepth = o.depth;
+	opts.bFollowTempo = o.followTempo;
+	opts.aPlaylist = _playlistPatches;
+	opts.iPatch = static_cast<int>(o.playlistIndex);
+	{
+		std::lock_guard<std::mutex>	lock(_mutex);
+		opts.bRingFadeEased = _ringFadeEased;
+		opts.bHueFromPatch = _hueFromPatch;
+	}
+	// framed as the view shows it: the export is drawn at its own size, so
+	// zoom by the size it fits into the view at (as Scale to Fit Both)
+	whorld::Patch	patch = _doc;
+	CGSize	view = self.viewSize;
+	if (view.width > 0 && view.height > 0)
+		patch.m_master.fZoom *= std::min(o.width / view.width, o.height / view.height);
+	std::string	sPath = path.fileSystemRepresentation;
+	std::string	sAudio = audioPath.fileSystemRepresentation;
+	std::atomic<bool>	*pCancel = &_cancelExport;
+	_cancelExport = false;
+	std::thread([patch, sAudio, sPath, opts, progress, completion, pCancel] {
+		pthread_setname_np("Whorld audio-reactive export");
+		std::string	sErr;
+		auto	lastReport = std::chrono::steady_clock::now();
+		bool	bOk = whorld::ExportAudioReactiveVideo(patch, sAudio, sPath, opts, [&](int64_t nDone, int64_t nTotal) {
+			auto	now = std::chrono::steady_clock::now();
+			if (nDone == nTotal || now - lastReport > std::chrono::milliseconds(100)) {
+				lastReport = now;
+				dispatch_async(dispatch_get_main_queue(), ^{ progress(nDone, nTotal); });
+			}
+			return !*pCancel;
+		}, &sErr);
+		NSString	*msg = bOk ? nil : ToNS(sErr);
+		dispatch_async(dispatch_get_main_queue(), ^{ completion(msg); });
+	}).detach();
 }
 
 - (void)exportMovieVideoToPath:(NSString *)path codec:(NSInteger)codec start:(int64_t)start end:(int64_t)end

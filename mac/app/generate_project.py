@@ -22,7 +22,7 @@ app_files = ["WhorldApp.swift", "ContentView.swift", "Commands.swift", "Panels.s
              "WHEngine.h", "WHEngine.mm",
              "Whorld-Bridging-Header.h", "Info.plist", "AppIcon.icns"]
 engine_src = sorted(f for f in os.listdir(os.path.join(root, "../engine/src")) if f.endswith(".cpp"))
-renderer_src = ["CGRenderer.mm", "VideoWriter.mm", "MetalRenderer.mm", "gpu/Tessellator.cpp"]
+renderer_src = ["CGRenderer.mm", "VideoWriter.mm", "AudioVideoExport.mm", "MetalRenderer.mm", "gpu/Tessellator.cpp"]
 groups = [("Whorld", "Whorld", app_files), ("Engine", "../engine/src", engine_src), ("Renderer", "../renderer", renderer_src)]
 ftype = {".swift": "sourcecode.swift", ".h": "sourcecode.c.h", ".mm": "sourcecode.cpp.objcpp",
          ".cpp": "sourcecode.cpp.cpp", ".plist": "text.plist.xml", ".icns": "image.icns"}

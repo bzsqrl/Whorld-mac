@@ -191,7 +191,14 @@ Core Audio process taps (`AudioHardwareCreateProcessTap` with an aggregate devic
 - It's frame-exact and repeatable, and it can even look a little ahead, so hits land on the frame.
 - Link sources are simulated from a BPM and first-downbeat time you enter, so beat-locked modulation works offline too.
 
-What this needs from the live design, which is why it's planned now:
+As built (9.9): File > Export Audio-Reactive Video… and `whorld-render --audio` (`renderer/AudioVideoExport.mm`).
+
+- A fresh engine runs the document's patch (antialiased, as exports draw; zoomed to frame it as the view does) for a pre-roll, 10 s by default, so the picture is full when the video starts. The random sequence is seeded, so a render is the same every time.
+- Each frame: the audio is decoded and analyzed up to the frame's moment plus half an analysis window (the lookahead that puts hits on their frame); the beat position is moved back to the frame's moment; the Modulator steps 1/fps; actions run on the export's engine (Next/Previous Patch from the playlist; snapshot actions are skipped).
+- The beat comes from the tracker, or from a set tempo; a downbeat time marks the one (Mark Downbeat at that moment, with the tracker).
+- The decoded audio is the movie's sound track (AAC, 48 kHz stereo). The writer interleaves sound and picture and waits for sound ahead of each frame, so decoding stays 2 s ahead, and the track is marked finished when the audio ends.
+
+What this needed from the live design, which is why it was planned early:
 
 - the analyzer takes samples from any source;
 - the modulator's step is pure and takes dt;

@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <deque>
 #include <thread>
 
 namespace whorld {
@@ -31,6 +32,38 @@ struct VideoWriter::Impl {
 	int64_t	iFrame = 0;
 	CVPixelBufferRef	pixelBuffer = nullptr;	// frame being drawn
 	std::unique_ptr<CGBitmapRenderer>	renderer;
+	AVAssetWriterInput	*audioInput = nil;
+	std::deque<CMSampleBufferRef>	audioQueue;	// retained, waiting for the encoder
+	bool	bAudioEnding = false;	// no more audio coming: finish the track once the queue is written
+	bool	bAudioFinished = false;
+
+	// Writes queued audio while the encoder takes it, without waiting: the
+	// writer interleaves, so it may want video first
+	void PumpAudio()
+	{
+		while (!audioQueue.empty() && audioInput.readyForMoreMediaData
+		&& writer.status == AVAssetWriterStatusWriting) {
+			CMSampleBufferRef	buf = audioQueue.front();
+			audioQueue.pop_front();
+			[audioInput appendSampleBuffer:buf];
+			CFRelease(buf);
+		}
+		// the encoder waits for sound to go with each frame until the track
+		// is marked finished
+		if (bAudioEnding && !bAudioFinished && audioQueue.empty() && writer.status == AVAssetWriterStatusWriting) {
+			[audioInput markAsFinished];
+			bAudioFinished = true;
+		}
+	}
+
+	~Impl() { ClearAudio(); }
+
+	void ClearAudio()
+	{
+		for (CMSampleBufferRef buf : audioQueue)
+			CFRelease(buf);
+		audioQueue.clear();
+	}
 
 	static bool Fail(std::string* pError, NSString *msg)
 	{
@@ -64,7 +97,7 @@ int VideoWriter::GetWidth() const { return m_pImpl->nWidth; }
 int VideoWriter::GetHeight() const { return m_pImpl->nHeight; }
 
 bool VideoWriter::Open(const std::string& sPath, int nWidth, int nHeight, double fFrameRate, Codec codec,
-	std::string* pError)
+	std::string* pError, double fAudioRate)
 {
 	Impl&	d = *m_pImpl;
 	d.nWidth = nWidth & ~1;
@@ -125,6 +158,21 @@ bool VideoWriter::Open(const std::string& sPath, int nWidth, int nHeight, double
 	if (![d.writer canAddInput:d.input])
 		return Impl::Fail(pError, @"This video format isn't supported.");
 	[d.writer addInput:d.input];
+	if (fAudioRate > 0) {
+		AudioChannelLayout	layout = {};
+		layout.mChannelLayoutTag = kAudioChannelLayoutTag_Stereo;
+		d.audioInput = [AVAssetWriterInput assetWriterInputWithMediaType:AVMediaTypeAudio outputSettings:@{
+			AVFormatIDKey: @(kAudioFormatMPEG4AAC),
+			AVSampleRateKey: @(fAudioRate),
+			AVNumberOfChannelsKey: @2,
+			AVChannelLayoutKey: [NSData dataWithBytes:&layout length:sizeof(layout)],
+			AVEncoderBitRateKey: @256000,
+		}];
+		d.audioInput.expectsMediaDataInRealTime = NO;
+		if (![d.writer canAddInput:d.audioInput])
+			return Impl::Fail(pError, @"Can't add the audio track.");
+		[d.writer addInput:d.audioInput];
+	}
 	if (![d.writer startWriting])
 		return Impl::Fail(pError, d.writer.error.localizedDescription ?: @"Can't start writing the video.");
 	[d.writer startSessionAtSourceTime:kCMTimeZero];
@@ -156,8 +204,11 @@ bool VideoWriter::EndFrame(std::string* pError)
 	d.renderer.reset();
 	CVPixelBufferUnlockBaseAddress(d.pixelBuffer, 0);
 	// offline encoding: wait until the encoder can take another frame
-	while (!d.input.readyForMoreMediaData && d.writer.status == AVAssetWriterStatusWriting)
+	d.PumpAudio();
+	while (!d.input.readyForMoreMediaData && d.writer.status == AVAssetWriterStatusWriting) {
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		d.PumpAudio();
+	}
 	CMTime	t = CMTimeMake(d.iFrame * d.nTicksPerFrame, d.nTimeScale);
 	BOOL	bOk = d.writer.status == AVAssetWriterStatusWriting
 		&& [d.adaptor appendPixelBuffer:d.pixelBuffer withPresentationTime:t];
@@ -169,12 +220,39 @@ bool VideoWriter::EndFrame(std::string* pError)
 	return true;
 }
 
+void VideoWriter::AppendAudio(CMSampleBufferRef buffer)
+{
+	Impl&	d = *m_pImpl;
+	if (!d.audioInput || !buffer)
+		return;
+	CFRetain(buffer);
+	d.audioQueue.push_back(buffer);
+	d.PumpAudio();
+}
+
+void VideoWriter::EndAudio()
+{
+	Impl&	d = *m_pImpl;
+	d.bAudioEnding = true;
+	d.PumpAudio();
+}
+
 bool VideoWriter::Close(std::string* pError)
 {
 	Impl&	d = *m_pImpl;
 	if (!d.writer)
 		return true;
 	[d.input markAsFinished];
+	if (d.audioInput) {	// the rest of the audio, now that the video is done
+		while (!d.audioQueue.empty() && d.writer.status == AVAssetWriterStatusWriting) {
+			d.PumpAudio();
+			if (!d.audioQueue.empty())
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		}
+		d.ClearAudio();
+		if (!d.bAudioFinished)
+			[d.audioInput markAsFinished];
+	}
 	dispatch_semaphore_t	done = dispatch_semaphore_create(0);
 	[d.writer finishWritingWithCompletionHandler:^{ dispatch_semaphore_signal(done); }];
 	dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
@@ -183,6 +261,7 @@ bool VideoWriter::Close(std::string* pError)
 	d.writer = nil;
 	d.input = nil;
 	d.adaptor = nil;
+	d.audioInput = nil;
 	return bOk ? true : Impl::Fail(pError, msg ?: @"Can't finish the video file.");
 }
 
@@ -195,11 +274,13 @@ void VideoWriter::Cancel()
 		CVPixelBufferRelease(d.pixelBuffer);
 		d.pixelBuffer = nullptr;
 	}
+	d.ClearAudio();
 	if (d.writer) {
 		[d.writer cancelWriting];
 		d.writer = nil;
 		d.input = nil;
 		d.adaptor = nil;
+		d.audioInput = nil;
 	}
 	if (d.url)
 		[NSFileManager.defaultManager removeItemAtURL:d.url error:nil];

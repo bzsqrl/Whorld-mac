@@ -14,6 +14,7 @@
 //                 [--use-view-size] [--no-letterbox] --out frame.png
 //   whorld-render --compare a.png b.png [--threshold T] [--diff diff.png] [--region X,Y,W,H]
 
+#include "AudioVideoExport.h"
 #include "ImageCompare.h"
 #include "RenderJobs.h"
 #include "VideoWriter.h"
@@ -38,7 +39,10 @@ int Usage()
 		"                [--use-view-size] [--no-letterbox] --out frame.png\n"
 		"  whorld-render --compare a.png b.png [--threshold T] [--diff diff.png] [--region X,Y,W,H]\n"
 		"  whorld-render <movie.whm> [--size WxH] [--fit ...] [--use-view-size] [--start N] [--end N]\n"
-		"                --video out.mov [--codec h264|hevc|prores|prores4444]   (or --frame N --out frame.png)\n");
+		"                --video out.mov [--codec h264|hevc|prores|prores4444]   (or --frame N --out frame.png)\n"
+		"  whorld-render <patch.whp> --audio music.mp3 --video out.mov [--size WxH] [--fps N] [--codec ...]\n"
+		"                [--mod modulation.json] [--audio-start S] [--duration S] [--preroll S]\n"
+		"                [--tempo BPM] [--downbeat S] [--gain dB] [--range dB] [--auto-level] [--hits T]\n");
 	return 2;
 }
 
@@ -114,6 +118,10 @@ int main(int argc, char** argv)
 	std::string	sVideo;
 	VideoWriter::Codec	codec = VideoWriter::CODEC_H264;
 	long long	nStart = 0, nEnd = -1, nFrame = -1;
+	std::string	sAudio, sMod;
+	AudioVideoOptions	av;
+	bool	bSizeSet = false;
+	bool	bRangeSet = false;
 	for (int i = 2; i < argc; i++) {
 		const char*	a = argv[i];
 		bool	bHasArg = i + 1 < argc;
@@ -170,10 +178,71 @@ int main(int argc, char** argv)
 			nEnd = std::atoll(argv[++i]);
 		else if (!std::strcmp(a, "--frame") && bHasArg)
 			nFrame = std::atoll(argv[++i]);
+		else if (!std::strcmp(a, "--audio") && bHasArg)
+			sAudio = argv[++i];
+		else if (!std::strcmp(a, "--mod") && bHasArg)
+			sMod = argv[++i];
+		else if (!std::strcmp(a, "--fps") && bHasArg)
+			av.fFrameRate = std::atof(argv[++i]);
+		else if (!std::strcmp(a, "--audio-start") && bHasArg)
+			av.fStart = std::atof(argv[++i]);
+		else if (!std::strcmp(a, "--duration") && bHasArg)
+			av.fDuration = std::atof(argv[++i]);
+		else if (!std::strcmp(a, "--preroll") && bHasArg)
+			av.fPreroll = std::atof(argv[++i]);
+		else if (!std::strcmp(a, "--tempo") && bHasArg)
+			av.fTempo = std::atof(argv[++i]);
+		else if (!std::strcmp(a, "--downbeat") && bHasArg)
+			av.fDownbeat = std::atof(argv[++i]);
+		else if (!std::strcmp(a, "--gain") && bHasArg)
+			av.analyzer.fGainDb = std::atof(argv[++i]);
+		else if (!std::strcmp(a, "--range") && bHasArg)
+			av.analyzer.fFloorDb = -std::max(std::atof(argv[++i]), 6.0), bRangeSet = true;
+		else if (!std::strcmp(a, "--auto-level"))
+			av.analyzer.bAutoLevel = true;
+		else if (!std::strcmp(a, "--hits") && bHasArg)
+			av.analyzer.fHitThreshold = std::atof(argv[++i]);
 		else
 			return Usage();
+		if (!std::strcmp(a, "--size"))
+			bSizeSet = true;
 	}
 	std::string	err;
+	if (!sAudio.empty()) {	// audio-reactive video (9.9)
+		if (sVideo.empty() || !EndsWith(sIn, ".whp"))
+			return Usage();
+		Patch	patch;
+		if (!patch.Read(sIn, &err)) {
+			std::fprintf(stderr, "%s: %s\n", sIn.c_str(), err.c_str());
+			return 1;
+		}
+		av.analyzer.fCeilDb = 0;
+		if (!bRangeSet)
+			av.analyzer.fFloorDb = -36;	// the app's default range
+		if (!sMod.empty() && !ReadModulationFile(sMod, av, &err)) {
+			std::fprintf(stderr, "%s: %s\n", sMod.c_str(), err.c_str());
+			return 1;
+		}
+		av.codec = codec;
+		av.nWidth = bSizeSet ? w : 1920;
+		av.nHeight = bSizeSet ? h : 1080;
+		av.bRingFadeEased = bRingFadeEased;
+		int	nLast = -1;
+		bool	bOk = ExportAudioReactiveVideo(patch, sAudio, sVideo, av, [&](int64_t nDone, int64_t nTotal) {
+			int	nPct = static_cast<int>(nDone * 100 / nTotal);
+			if (nPct != nLast) {
+				std::fprintf(stderr, "\r%d%%", nPct);
+				nLast = nPct;
+			}
+			return true;
+		}, &err);
+		std::fprintf(stderr, "\n");
+		if (!bOk) {
+			std::fprintf(stderr, "%s\n", err.c_str());
+			return 1;
+		}
+		return 0;
+	}
 	if (EndsWith(sIn, ".whm")) {	// movie: video, or one frame as PNG
 		if (sVideo.empty() && (nFrame < 0 || sOut.empty()))
 			return Usage();

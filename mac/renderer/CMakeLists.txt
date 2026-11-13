@@ -13,6 +13,7 @@ add_library(whorld_renderer STATIC
   ImageCompare.mm
   RenderJobs.mm
   VideoWriter.mm
+  AudioVideoExport.mm
   MetalRenderer.mm
 )
 target_include_directories(whorld_renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

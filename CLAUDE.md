@@ -25,6 +25,7 @@ These commands are created in Phase 0 of the plan. Keep this section accurate as
 - Render a frame: `build/tools/whorld-render <file.whp|file.whs> --out frame.png` (run with no arguments for options)
 - Compare images: `build/tools/whorld-render --compare a.png b.png --diff diff.png`
 - Movie to video: `build/tools/whorld-render movie.whm --video out.mov --codec prores4444` (or `--frame N --out f.png` for one frame)
+- Audio-reactive video: `build/tools/whorld-render patch.whp --audio music.mp3 --video out.mov --mod modulation.json` (the Modulation window's export; run with no arguments for the other options)
 - App: `xcodebuild -project mac/app/Whorld.xcodeproj -scheme Whorld build` (needs the submodule: `git submodule update --init`) (run the built app with `WHORLD_STATS=1` to print frame-rate stats)
 - Release DMG: `sh mac/packaging/make_dmg.sh` (universal, ad-hoc signed, not notarized; writes `build/dist/Whorld-<version>.dmg`)
 - Making a release: in `mac/app/Whorld/Info.plist` set `WhorldReleaseVersion` to the new tag without the `v` (e.g. `0.1.0-beta.3`; the update checker, `Updates.swift`, compares it with the release tags) and raise `CFBundleVersion`, also `CURRENT_PROJECT_VERSION` in the Xcode project and `mac/app/generate_project.py`; then test, build the DMG, tag `v<WhorldReleaseVersion>`, and publish the GitHub release (`--prerelease` for betas) with the DMG and its SHA-256

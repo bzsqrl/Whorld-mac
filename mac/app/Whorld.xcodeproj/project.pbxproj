@@ -50,6 +50,7 @@
 		AB24DD7E38B368A205F65B6F /* WhorldEngine.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 73C37FDF9DECAB5DB772722E /* WhorldEngine.cpp */; };
 		AA09D273D9A9F1E73DF7DFCA /* CGRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 4984649519BAE4D772D49843 /* CGRenderer.mm */; };
 		25D8899CF10B6B5FF66EF4BB /* VideoWriter.mm in Sources */ = {isa = PBXBuildFile; fileRef = 50C33E763C4E46F3D0C5DDB9 /* VideoWriter.mm */; };
+		C0899F894F35CF7609E163CE /* AudioVideoExport.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3475DE47DA6573F73946FD52 /* AudioVideoExport.mm */; };
 		241A0A4B712CBD41B373BCE4 /* MetalRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 8CB4AB9DA5AE8E0D901DC108 /* MetalRenderer.mm */; };
 		BCFCBAA7A834FE60FC7D9F95 /* gpu/Tessellator.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D23147D87DAD9A077C57FE0C /* gpu/Tessellator.cpp */; };
 /* End PBXBuildFile section */
@@ -106,6 +107,7 @@
 		73C37FDF9DECAB5DB772722E /* WhorldEngine.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "WhorldEngine.cpp"; sourceTree = "<group>"; };
 		4984649519BAE4D772D49843 /* CGRenderer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "CGRenderer.mm"; sourceTree = "<group>"; };
 		50C33E763C4E46F3D0C5DDB9 /* VideoWriter.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "VideoWriter.mm"; sourceTree = "<group>"; };
+		3475DE47DA6573F73946FD52 /* AudioVideoExport.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "AudioVideoExport.mm"; sourceTree = "<group>"; };
 		8CB4AB9DA5AE8E0D901DC108 /* MetalRenderer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "MetalRenderer.mm"; sourceTree = "<group>"; };
 		D23147D87DAD9A077C57FE0C /* gpu/Tessellator.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "gpu/Tessellator.cpp"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -208,6 +210,7 @@
 			children = (
 				4984649519BAE4D772D49843 /* CGRenderer.mm */,
 				50C33E763C4E46F3D0C5DDB9 /* VideoWriter.mm */,
+				3475DE47DA6573F73946FD52 /* AudioVideoExport.mm */,
 				8CB4AB9DA5AE8E0D901DC108 /* MetalRenderer.mm */,
 				D23147D87DAD9A077C57FE0C /* gpu/Tessellator.cpp */,
 			);
@@ -313,6 +316,7 @@
 				AB24DD7E38B368A205F65B6F /* WhorldEngine.cpp in Sources */,
 				AA09D273D9A9F1E73DF7DFCA /* CGRenderer.mm in Sources */,
 				25D8899CF10B6B5FF66EF4BB /* VideoWriter.mm in Sources */,
+				C0899F894F35CF7609E163CE /* AudioVideoExport.mm in Sources */,
 				241A0A4B712CBD41B373BCE4 /* MetalRenderer.mm in Sources */,
 				BCFCBAA7A834FE60FC7D9F95 /* gpu/Tessellator.cpp in Sources */,
 			);
