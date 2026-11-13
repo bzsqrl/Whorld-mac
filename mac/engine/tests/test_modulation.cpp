@@ -410,6 +410,71 @@ TEST(TempoFollowsTheBeat) {
 	CHECK_EQ(eng->GetEffectiveMaster().fTempo, p.m_master.fTempo);
 }
 
+TEST(SyncsFollowTheBeatAndCarryOn) {
+	// a locked oscillator runs at the beat's rate, at the beat's place in its
+	// cycle (shifted by the phase and offset); without the beat it carries
+	// on at the last tempo; never locked or off: the patch's own
+	Modulator	m;
+	m.SetRows({});
+	ModSync	sync;
+	sync.iParam = MB::PARAM_LineWidth;
+	sync.fBeats = 4;	// a bar
+	sync.fPhase = 0.25;
+	m.SetSyncs({sync});
+	ModSources	src;
+	ModOutput	out;
+	m.Step(src, 1.0 / 60, out);	// no beat yet
+	CHECK_EQ(out.aOscFreq[MB::PARAM_LineWidth], 0.0);
+	src.bBeat = true;
+	src.fTempo = 120;
+	src.fBeatPos = 5;	// a quarter into the second bar
+	m.Step(src, 1.0 / 60, out);
+	CHECK_NEAR(out.aOscFreq[MB::PARAM_LineWidth], 0.5, 1e-12);	// 2 beats a second, 4 a cycle
+	CHECK_NEAR(out.aOscCycle[MB::PARAM_LineWidth], 1.5, 1e-12);	// 0.25 + 0.25
+	src.bBeat = false;	// the beat goes: half a second on at 120, 1/4 cycle
+	m.Step(src, 0.5, out);
+	CHECK_NEAR(out.aOscCycle[MB::PARAM_LineWidth], 1.75, 1e-12);
+	CHECK_NEAR(out.aOscFreq[MB::PARAM_LineWidth], 0.5, 1e-12);
+	src.bBeat = true;	// an offset of 100 ms late is 0.2 beat at 120
+	src.fBeatPos = 0;
+	sync.fOffset = 0.1;
+	sync.fPhase = 0;
+	m.SetSyncs({sync});
+	m.Step(src, 1.0 / 60, out);
+	CHECK_NEAR(out.aOscCycle[MB::PARAM_LineWidth], 1 + 1 - 0.2 / 4, 1e-12);
+	m.SetBypass(true);
+	m.Step(src, 1.0 / 60, out);
+	CHECK_EQ(out.aOscFreq[MB::PARAM_LineWidth], 0.0);
+}
+
+TEST(EngineLocksOscillators) {
+	// a locked oscillator's value is the waveform at the beat's place as
+	// the frame ends; unlocked, it carries on from there at the patch's rate
+	auto	eng = MakeEngine();
+	Patch	p = StillPatch();
+	Patch::PARAM_ROW&	row = p.GetParamRow(MB::PARAM_LineWidth);
+	row.fVal = 5;
+	row.fAmp = 2;
+	row.fFreq = 0.1;
+	row.iWave = Oscillator::RAMP_UP;
+	eng->OnSetPatch(p);
+	RunFrames(*eng, 3);
+	ModOutput	mod;
+	for (double fCycle : {1.25, 1.6, 1.9, 1.05}) {
+		mod.aOscFreq[MB::PARAM_LineWidth] = 2;
+		mod.aOscCycle[MB::PARAM_LineWidth] = fCycle;
+		eng->SetModulation(mod);
+		RunFrames(*eng, 1);
+		double	fPhase = fCycle - 1;
+		CHECK_NEAR(eng->GetParamValues().fLineWidth, 5 + (fPhase * 2 - 1) * 2, 1e-9);
+	}
+	CHECK_EQ(eng->GetPatch().GetParamRow(MB::PARAM_LineWidth).fFreq, 0.1);	// the patch is unchanged
+	eng->SetModulation(ModOutput());	// unlocked: from phase 0.05, at 0.1 Hz
+	RunFrames(*eng, 1);
+	double	fPhase = 0.05 + 0.1 / eng->GetFrameRate();
+	CHECK_NEAR(eng->GetParamValues().fLineWidth, 5 + (fPhase * 2 - 1) * 2, 1e-9);
+}
+
 // Engine
 
 TEST(ZeroModulationIsBitIdentical) {

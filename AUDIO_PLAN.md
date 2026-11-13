@@ -161,6 +161,12 @@ Sound reaches the picture after the input buffer (≈5–10 ms), the analysis ho
 - **Phrases:** Link aligns apps within a bar but not their bar counts, so phrases start at Mark Downbeat's beat, or, with Start/Stop sync, at the beat where the session started playing.
 - **Not built:** a Beat LFO source; the planned Beat Phase source. Rows can follow the beat with Beat or the bars and their release.
 
+### Beat-locked oscillators as built (9.7)
+
+- A second table in the Modulation window, **Oscillators on the Beat** (a tab beside Routing), not in Settings: each row is a parameter, a cycle (1/16 note, 1/8, 1 beat, 2 beats, 1 bar, 2, 4, 8, 16, 32 bars), a phase (degrees: where the one falls in the cycle) and an offset (±300 ms, as the routing rows'). Stored as `syncs` in the modulation file (export/import).
+- **Engine:** the modulator turns each row into a frequency and a place in the cycle as the frame ends (`ModOutput::aOscFreq`, `aOscCycle`); `WhorldEngine::LockOscillators` sets that oscillator's frequency and clock just before `TimerHook` advances it, in place of the planned `SetOscillatorSync`. The waveform, amplitude and pulse width are the patch's.
+- **Any beat:** it follows the beat tracker as well as Link. Without a beat, a locked oscillator carries on at the last tempo; turned off (or Modulation off), it returns to the patch's frequency from its current phase.
+
 ## Capturing another app's audio (after Link)
 
 Core Audio process taps (`AudioHardwareCreateProcessTap` with an aggregate device) can capture an app's output (Ableton's, a browser's) or the whole system mix, with no loopback driver.

@@ -98,6 +98,7 @@ WhorldEngine::WhorldEngine()
 	m_fZoomTarget = 1;
 	m_nFrameRate = DEFAULT_FRAME_RATE;
 	m_masterEff = m_master;	// Mac addition: modulation (see ComputeModulation)
+	std::fill(std::begin(m_abOscLocked), std::end(m_abOscLocked), false);
 	std::fill(std::begin(m_aParamMod), std::end(m_aParamMod), 0.0);
 	std::fill(std::begin(m_aGlobalMod), std::end(m_aGlobalMod), 0.0);
 	m_fHueMod = 0;
@@ -417,6 +418,29 @@ void WhorldEngine::UpdateModulation()
 	m_bModWasActive = bModActive;
 }
 
+// Mac addition (AUDIO_PLAN.md, 9.7): before the clocks advance a tick, a
+// locked oscillator's frequency and clock are set so that the tick ends at
+// the beat's place in the cycle (m_mod.aOscCycle); TimerHook's own
+// interpolation then runs as usual. Unlocking returns to the patch's
+// frequency from the current phase, so nothing jumps.
+void WhorldEngine::LockOscillators()
+{
+	for (int iParam = 0; iParam < PARAM_COUNT; iParam++) {
+		Oscillator&	osc = m_aOsc[iParam];
+		double	fFreq = m_mod.aOscFreq[iParam];
+		if (fFreq > 0 && m_nFrameRate > 0) {
+			osc.SetTimerFreq(m_nFrameRate);
+			osc.SetFreqSync(fFreq);
+			double	fPerTick = fFreq / m_nFrameRate;	// cycles a tick
+			osc.SetClock(m_mod.aOscCycle[iParam] / fPerTick - 1);
+			m_abOscLocked[iParam] = true;
+		} else if (m_abOscLocked[iParam]) {
+			osc.SetFreq(m_aParam.row[iParam].fFreq);	// keeps the phase
+			m_abOscLocked[iParam] = false;
+		}
+	}
+}
+
 // ported from WhorldDraw.cpp CWhorldDraw::RemoveAllRings
 void WhorldEngine::RemoveAllRings()
 {
@@ -515,6 +539,7 @@ void WhorldEngine::TimerHook()
 	UpdateZoom();
 	UpdateGlobals();
 	double	fSpeed = m_main.bReverse ? -m_masterEff.fSpeed : m_masterEff.fSpeed;	// Mac: modulated
+	LockOscillators();	// Mac addition: oscillators locked to the beat
 	double	afPrevClock[PARAM_COUNT];
 	for (int iParam = 0; iParam < PARAM_COUNT; iParam++) {
 		afPrevClock[iParam] = m_aOsc[iParam].GetClock();
@@ -523,6 +548,8 @@ void WhorldEngine::TimerHook()
 	if (m_bFlushHistory) {	// if flushing history
 		m_aPrevParam = m_aParam;	// suppress oscillator interpolation
 		for (int iParam = 0; iParam < PARAM_COUNT; iParam++) {	// for each parameter
+			if (m_abOscLocked[iParam])	// Mac: locked to the beat
+				continue;
 			// set parameter's oscillator frequency without compensating phase
 			m_aOsc[iParam].SetFreqSync(m_aParam.row[iParam].fFreq);
 		}
@@ -562,7 +589,7 @@ void WhorldEngine::TimerHook()
 	for (int iParam = 1; iParam < PARAM_COUNT; iParam++) {	// skip ring growth; assume it's first row
 		const PARAM_ROW&	cur = m_aParam.row[iParam];
 		m_aOsc[iParam].SetClock(afPrevClock[iParam] + 1);
-		if (cur.fFreq != m_aPrevParam.row[iParam].fFreq)
+		if (cur.fFreq != m_aPrevParam.row[iParam].fFreq && !m_abOscLocked[iParam])	// Mac: unless locked
 			m_aOsc[iParam].SetFreq(cur.fFreq);
 		m_params.a[iParam] = cur.fVal + m_aOsc[iParam].GetVal() * cur.fAmp;
 		if (m_aParamMod[iParam])	// Mac: modulated

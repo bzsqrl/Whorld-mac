@@ -276,6 +276,21 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	});
 }
 
+@implementation WHModSync
+- (instancetype)init
+{
+	if ((self = [super init])) {
+		whorld::ModSync	sync;
+		_on = sync.bOn;
+		_param = sync.iParam;
+		_beats = sync.fBeats;
+		_phase = sync.fPhase;
+		_offset = sync.fOffset;
+	}
+	return self;
+}
+@end
+
 @implementation WHModRow
 - (instancetype)init
 {
@@ -357,6 +372,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	bool	_hueFromPatch;	// the patch colors on load setting
 	bool	_hueFromPatchChanged;
 	std::vector<whorld::ModRow>	_modRows;	// modulation, for the render thread
+	std::vector<whorld::ModSync>	_modSyncs;
 	double	_modDepth;
 	bool	_modBypass;
 	bool	_modFollowTempo;
@@ -749,8 +765,18 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	_modified = YES;
 }
 
-- (void)setModulationRows:(NSArray<WHModRow *> *)rows depth:(double)depth bypass:(BOOL)bypass followTempo:(BOOL)followTempo
+- (void)setModulationRows:(NSArray<WHModRow *> *)rows syncs:(NSArray<WHModSync *> *)syncs depth:(double)depth bypass:(BOOL)bypass followTempo:(BOOL)followTempo
 {
+	std::vector<whorld::ModSync>	aSync;
+	for (WHModSync *y in syncs) {
+		whorld::ModSync	sync;
+		sync.bOn = y.on;
+		sync.iParam = static_cast<int>(y.param);
+		sync.fBeats = y.beats;
+		sync.fPhase = y.phase;
+		sync.fOffset = std::clamp(y.offset, -0.3, 0.3);
+		aSync.push_back(sync);
+	}
 	std::vector<whorld::ModRow>	a;
 	for (WHModRow *r in rows) {
 		whorld::ModRow	row;
@@ -770,6 +796,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 	}
 	std::lock_guard<std::mutex>	lock(_mutex);
 	_modRows = std::move(a);
+	_modSyncs = std::move(aSync);
 	_modDepth = depth;
 	_modBypass = bypass;
 	_modFollowTempo = followTempo;
@@ -792,7 +819,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 // the main thread.
 - (void)stepModulation
 {
-	if (_modulator.GetRows().empty() && !_modulator.GetFollowTempo()) {
+	if (_modulator.GetRows().empty() && _modulator.GetSyncs().empty() && !_modulator.GetFollowTempo()) {
 		if (_modulating) {	// rows removed: the patch's own values again
 			_engine->SetModulation(whorld::ModOutput());
 			_modulating = false;
@@ -1762,6 +1789,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		bool	bHueFromPatchChanged, bHueFromPatch;
 		bool	bModChanged;
 		std::vector<whorld::ModRow>	modRows;
+		std::vector<whorld::ModSync>	modSyncs;
 		double	fModDepth;
 		bool	bModBypass;
 		bool	bModFollowTempo;
@@ -1793,6 +1821,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 			bModChanged = _modChanged;
 			if (bModChanged) {
 				modRows = _modRows;
+				modSyncs = _modSyncs;
 				fModDepth = _modDepth;
 				bModBypass = _modBypass;
 				bModFollowTempo = _modFollowTempo;
@@ -1819,6 +1848,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 			_engine->SetHueFromPatch(bHueFromPatch);
 		if (bModChanged) {
 			_modulator.SetRows(modRows);
+			_modulator.SetSyncs(modSyncs);
 			_modulator.SetDepth(fModDepth);
 			_modulator.SetBypass(bModBypass);
 			_modulator.SetFollowTempo(bModFollowTempo);

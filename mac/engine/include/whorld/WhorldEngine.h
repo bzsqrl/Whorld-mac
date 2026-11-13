@@ -230,6 +230,7 @@ protected:
 	DPoint	m_ptOriginMod;	// DIPs added to the origin target
 	double	m_fZoomMod;		// zoom target factor
 	bool	m_bModWasActive;	// last frame had modulation (so its end is applied)
+	bool	m_abOscLocked[PARAM_COUNT];	// the oscillator is locked to the beat (LockOscillators)
 
 // Helpers
 	static double	Wrap(double fVal, double fLimit);
@@ -271,6 +272,7 @@ protected:
 	void	OnMovieError(uint32_t nCmd);
 	void	ComputeModulation();
 	void	UpdateModulation();
+	void	LockOscillators();
 };
 
 } // namespace whorld

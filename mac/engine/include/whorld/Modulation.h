@@ -95,6 +95,17 @@ struct ModRow {
 	static bool	IsModulatable(int iTarget, int iProp);
 };
 
+// A parameter's oscillator locked to the beat (AUDIO_PLAN.md, 9.7): one
+// cycle every so many beats, starting on the one (Mark Downbeat). Only the
+// timing changes; the patch's waveform, amplitude and pulse width stay.
+struct ModSync {
+	bool	bOn = true;
+	int		iParam = 0;		// a parameter (PARAM_*); its Val oscillator
+	double	fBeats = 4;		// beats per cycle (0.25: a sixteenth note ... 128: 32 bars)
+	double	fPhase = 0;		// 0 to 1: where in the cycle the one falls
+	double	fOffset = 0;	// seconds (-0.3 to 0.3), as ModRow::fOffset: early (-) or late
+};
+
 // What the engine adds this frame, in slider travel (see ModRow), and
 // which actions fired. All zero when nothing modulates.
 struct ModOutput {
@@ -107,6 +118,11 @@ struct ModOutput {
 	double	fOriginY = 0;
 	double	fTempo = 0;		// BPM: the Tempo master property follows this (render-only); 0: the patch's
 	uint32_t	nActions = 0;	// bit (1 << ModActions::ACT_*) per action fired
+	// Oscillators locked to the beat: a frequency (Hz) above 0 means the
+	// parameter's oscillator runs at it and is at aOscCycle (cycles, 1 to 2,
+	// only the fraction matters) as this frame ends; 0: the patch's own
+	double	aOscFreq[MappingBase::PARAM_COUNT] = {};
+	double	aOscCycle[MappingBase::PARAM_COUNT] = {};
 
 	void	Clear() { *this = ModOutput(); }
 };
@@ -122,6 +138,9 @@ public:
 	// Tempo follows the beat (the beat tracker's or Ableton Link's): ModOutput::fTempo
 	void	SetFollowTempo(bool bFollow) { m_bFollowTempo = bFollow; }
 	bool	GetFollowTempo() const { return m_bFollowTempo; }
+	// Oscillators locked to the beat; resets their state
+	void	SetSyncs(const std::vector<ModSync>& aSync);
+	const std::vector<ModSync>&	GetSyncs() const { return m_aSync; }
 	// One frame: dt is the time since the last step, in seconds.
 	void	Step(const ModSources& src, double dt, ModOutput& out);
 	// A row's value after smoothing and its curve, 0 to 1 (for meters)
@@ -140,13 +159,21 @@ private:
 		double		aPending[MAX_PENDING] = {};	// delayed hits: when they fire (m_fTime)
 		int			nPending = 0;
 	};
+	struct SyncState {	// the beat as last known, to carry on without it
+		bool	bKnown = false;
+		double	fBeatPos = 0;	// shifted by the offset
+		double	fTempo = 0;
+	};
 	double	m_fTime = 0;	// seconds stepped, for delayed hits
+	std::vector<ModSync>	m_aSync;
+	std::vector<SyncState>	m_aSyncState;
 	std::vector<ModRow>	m_aRow;
 	std::vector<State>	m_aState;
 	double	m_fDepth = 1;
 	bool	m_bBypass = false;
 	bool	m_bFollowTempo = false;
 
+	void	StepSyncs(const ModSources& src, double dt, ModOutput& out);
 	static double	Smooth(double fEnv, double fTarget, double dt, double fTime);
 	static double	Shape(int nCurve, double x, double fThreshold);
 };

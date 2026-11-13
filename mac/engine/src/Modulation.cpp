@@ -117,6 +117,41 @@ void Modulator::SetRows(const std::vector<ModRow>& aRow)
 	m_fTime = 0;
 }
 
+void Modulator::SetSyncs(const std::vector<ModSync>& aSync)
+{
+	m_aSync = aSync;
+	m_aSyncState.assign(aSync.size(), SyncState());
+}
+
+// Oscillators locked to the beat. While the beat is known, each follows its
+// position; when it goes (the music stops, Link's transport stops), each
+// carries on at the last tempo from where it was, so nothing jumps, until
+// the beat is back. Never locked yet: the patch's own.
+void Modulator::StepSyncs(const ModSources& src, double dt, ModOutput& out)
+{
+	bool	bBeat = src.bBeat && src.fTempo > 0;
+	for (size_t i = 0; i < m_aSync.size(); i++) {
+		const ModSync&	sync = m_aSync[i];
+		SyncState&	st = m_aSyncState[i];
+		if (!sync.bOn || sync.iParam < 0 || sync.iParam >= MappingBase::PARAM_COUNT || !(sync.fBeats > 0)) {
+			st = SyncState();
+			continue;
+		}
+		if (bBeat) {
+			st.fTempo = src.fTempo;
+			st.fBeatPos = src.fBeatPos - sync.fOffset * src.fTempo / 60;
+			st.bKnown = true;
+		} else if (st.bKnown && dt > 0) {
+			st.fBeatPos += dt * st.fTempo / 60;
+		}
+		if (!st.bKnown || m_bBypass)
+			continue;
+		double	fCycle = st.fBeatPos / sync.fBeats + sync.fPhase;
+		out.aOscFreq[sync.iParam] = st.fTempo / 60 / sync.fBeats;
+		out.aOscCycle[sync.iParam] = fCycle - std::floor(fCycle) + 1;
+	}
+}
+
 double Modulator::GetRowLevel(size_t iRow) const
 {
 	return iRow < m_aState.size() ? m_aState[iRow].fLevel : 0;
@@ -153,6 +188,7 @@ void Modulator::Step(const ModSources& src, double dt, ModOutput& out)
 		m_fTime += dt;
 	if (m_bFollowTempo && !m_bBypass && src.bBeat && src.fTempo > 0)
 		out.fTempo = src.fTempo;
+	StepSyncs(src, dt, out);
 	for (size_t iRow = 0; iRow < m_aRow.size(); iRow++) {
 		const ModRow&	row = m_aRow[iRow];
 		State&	st = m_aState[iRow];

@@ -64,7 +64,7 @@ struct ModulationView: View {
 			AudioInputSection()
 				.padding(16)
 			Divider()
-			ModRowsSection()
+			ModTablesSection()
 		}
 		.frame(minWidth: 1200, minHeight: 640)
 		.onAppear { AudioSettings.register() }
@@ -491,6 +491,53 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 	}
 }
 
+/// A parameter's oscillator locked to the beat (9.7), as the settings keep
+/// it: the parameter by its mapping tag. Missing fields read as defaults.
+struct ModSyncSetting: Codable, Identifiable, Equatable {
+	var id = UUID()
+	var on = true
+	var param = "LineWidth"	// a parameter's mapping tag
+	var beats = 4.0			// beats per cycle
+	var phaseDeg = 0.0		// 0 to 359: where in the cycle the one falls
+	var offsetMs = 0.0		// -300 to 300: early (-) or late
+
+	init() {}
+
+	init(from decoder: Decoder) throws {
+		let c = try decoder.container(keyedBy: CodingKeys.self)
+		let d = ModSyncSetting()
+		id = (try? c.decodeIfPresent(UUID.self, forKey: .id)) ?? UUID()
+		on = (try? c.decodeIfPresent(Bool.self, forKey: .on)) ?? d.on
+		param = (try? c.decodeIfPresent(String.self, forKey: .param)) ?? d.param
+		beats = (try? c.decodeIfPresent(Double.self, forKey: .beats)) ?? d.beats
+		phaseDeg = (try? c.decodeIfPresent(Double.self, forKey: .phaseDeg)) ?? d.phaseDeg
+		offsetMs = (try? c.decodeIfPresent(Double.self, forKey: .offsetMs)) ?? d.offsetMs
+	}
+
+	/// the parameter's index, or -1 if this Whorld doesn't have it
+	var paramIndex: Int {
+		let i = WHMappingInfo.target(forTag: param)
+		return i >= 0 && i < WHControls.paramCount ? i : -1
+	}
+	var isKnown: Bool { paramIndex >= 0 && beats > 0 }
+
+	func engineSync() -> WHModSync {
+		let y = WHModSync()
+		y.on = on && isKnown
+		y.param = max(paramIndex, 0)
+		y.beats = beats
+		y.phase = (phaseDeg.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360) / 360
+		y.offset = min(max(offsetMs, -300), 300) / 1000
+		return y
+	}
+
+	/// a cycle's length: notes, beats and bars (4 beats)
+	static let divisions: [(beats: Double, name: String)] = [
+		(0.25, "1/16 note"), (0.5, "1/8 note"), (1, "1 beat"), (2, "2 beats"),
+		(4, "1 bar"), (8, "2 bars"), (16, "4 bars"), (32, "8 bars"), (64, "16 bars"), (128, "32 bars"),
+	]
+}
+
 /// The routing rows, depth and bypass: a setting (Modulation_v1), applied to
 /// the engine whenever it changes.
 @MainActor
@@ -504,12 +551,14 @@ final class ModMap: ObservableObject {
 		var bypass = false
 		var followTempo = false	// Tempo follows the beat (render-only)
 		var rows: [ModRowSetting] = []
+		var syncs: [ModSyncSetting] = []	// oscillators locked to the beat
 
-		init(depth: Double = 1, bypass: Bool = false, followTempo: Bool = false, rows: [ModRowSetting] = []) {
+		init(depth: Double = 1, bypass: Bool = false, followTempo: Bool = false, rows: [ModRowSetting] = [], syncs: [ModSyncSetting] = []) {
 			self.depth = depth
 			self.bypass = bypass
 			self.followTempo = followTempo
 			self.rows = rows
+			self.syncs = syncs
 		}
 
 		init(from decoder: Decoder) throws {	// missing fields read as defaults
@@ -519,10 +568,12 @@ final class ModMap: ObservableObject {
 			bypass = (try? c.decodeIfPresent(Bool.self, forKey: .bypass)) ?? false
 			followTempo = (try? c.decodeIfPresent(Bool.self, forKey: .followTempo)) ?? false
 			rows = (try? c.decodeIfPresent([ModRowSetting].self, forKey: .rows)) ?? []
+			syncs = (try? c.decodeIfPresent([ModSyncSetting].self, forKey: .syncs)) ?? []
 		}
 	}
 
 	@Published var rows: [ModRowSetting] { didSet { changed() } }
+	@Published var syncs: [ModSyncSetting] { didSet { changed() } }
 	@Published var depth: Double { didSet { changed() } }	// 0 to 1, scales every row
 	@Published var bypass: Bool { didSet { changed() } }	// off: the patches as they are
 	@Published var followTempo: Bool { didSet { changed() } }	// Tempo follows the beat
@@ -537,6 +588,7 @@ final class ModMap: ObservableObject {
 			f = saved
 		}
 		rows = f.rows
+		syncs = f.syncs
 		depth = f.depth
 		bypass = f.bypass
 		followTempo = f.followTempo
@@ -554,7 +606,7 @@ final class ModMap: ObservableObject {
 		]
 	}()
 
-	var file: File { File(depth: depth, bypass: bypass, followTempo: followTempo, rows: rows) }
+	var file: File { File(depth: depth, bypass: bypass, followTempo: followTempo, rows: rows, syncs: syncs) }
 
 	/// sends the rows to the engine (and from now on, each change)
 	func attach(_ engine: WHEngine) {
@@ -573,11 +625,13 @@ final class ModMap: ObservableObject {
 	private func apply() {
 		// every row, so the engine's row levels line up with these;
 		// rows it doesn't know (from a newer Whorld) do nothing
-		engine?.setModulationRows(rows.map { $0.engineRow() }, depth: depth, bypass: bypass, followTempo: followTempo)
+		engine?.setModulationRows(rows.map { $0.engineRow() }, syncs: syncs.map { $0.engineSync() },
+			depth: depth, bypass: bypass, followTempo: followTempo)
 	}
 
 	func restoreDefaults() {
 		rows = Self.standard
+		syncs = []
 		depth = 1
 		bypass = false
 		followTempo = false
@@ -613,12 +667,14 @@ final class ModMap: ObservableObject {
 			return
 		}
 		let known = f.rows.filter { $0.isKnown }
-		let skipped = f.rows.count - known.count
+		let knownSyncs = f.syncs.filter { $0.isKnown }
+		let skipped = f.rows.count - known.count + f.syncs.count - knownSyncs.count
 		rows = known
+		syncs = knownSyncs
 		depth = min(max(f.depth, 0), 1)
 		bypass = f.bypass
 		followTempo = f.followTempo
-		notice = skipped > 0 ? "\(skipped) row\(skipped == 1 ? "" : "s") skipped: from a newer Whorld, with a source or control this one doesn't have." : nil
+		notice = skipped > 0 ? "\(skipped) row\(skipped == 1 ? "" : "s") skipped: from a newer Whorld, with a source, control or parameter this one doesn't have." : nil
 	}
 
 	// MARK: Carrying out actions and remote control
@@ -716,14 +772,152 @@ private final class ModLevels: ObservableObject {
 	}
 }
 
-/// The routing table and its controls.
-private struct ModRowsSection: View {
+/// The routing rows, or the oscillators locked to the beat, and the
+/// controls they share.
+private struct ModTablesSection: View {
 	@ObservedObject private var map = ModMap.shared
 	@StateObject private var levels = ModLevels()
 	@State private var selection = Set<ModRowSetting.ID>()
+	@State private var syncSelection = Set<ModSyncSetting.ID>()
+	@AppStorage("Modulation_nTab") private var tab = 0	// 0 routing, 1 oscillators
 
 	var body: some View {
 		VStack(spacing: 0) {
+			Picker("", selection: $tab) {
+				Text("Routing").tag(0)
+				Text("Oscillators on the Beat").tag(1)
+			}
+			.pickerStyle(.segmented)
+			.labelsHidden()
+			.fixedSize()
+			.padding(8)
+			if tab == 1 {
+				syncTable
+			} else {
+				rowsTable
+			}
+			Divider()
+			VStack(alignment: .leading, spacing: 8) {
+				if let notice = map.notice {
+					Text(notice).font(.caption).foregroundStyle(.orange)
+				}
+				Text(tab == 1
+					? "Each row locks a parameter's oscillator to the beat (Ableton Link's, or the beat tracker's): one cycle every so many beats, starting on the one (Mark Downbeat) plus the phase. The patch's waveform and amplitude are kept, so a parameter whose amplitude is 0 doesn't move. Without a beat, it carries on at the last tempo; turned off, it runs at the patch's own frequency again."
+					: "Each row moves a control by a share of its slider as the sound (or a hit) rises, from the patch's own value; the patch itself never changes. Rows on the same control add up. Attack and release smooth the movement (ms); a hit's pulse fades over its release. Actions fire on a hit, or when a sound rises past the threshold.")
+					.font(.caption)
+					.foregroundStyle(.secondary)
+					.fixedSize(horizontal: false, vertical: true)
+				HStack(spacing: 12) {
+					Button { add() } label: { Image(systemName: "plus") }
+						.help("Add a row (a copy of the selected one, if any)")
+					Button { remove() } label: { Image(systemName: "minus") }
+						.help("Remove the selected rows")
+						.disabled(tab == 1 ? syncSelection.isEmpty : selection.isEmpty)
+					Divider().frame(height: 16)
+					Toggle("Modulation on", isOn: Binding(get: { !map.bypass }, set: { map.bypass = !$0 }))
+						.help("Image > Audio Modulation (⌘8). Off: the patches as they are.")
+					Text("Depth")
+					Slider(value: $map.depth, in: 0...1)
+						.frame(width: 140)
+					Text(String(format: "%.0f%%", map.depth * 100))
+						.monospacedDigit()
+						.frame(width: 40, alignment: .trailing)
+					Spacer()
+					Button("Restore Defaults") { map.restoreDefaults() }
+					Button("Import…") { map.importFile() }
+					Button("Export…") { map.export() }
+				}
+			}
+			.padding(10)
+		}
+		.onAppear { levels.start() }
+		.onDisappear { levels.stop() }
+	}
+
+	private func add() {
+		if tab == 1 {
+			var y = ModSyncSetting()
+			if let sel = map.syncs.last(where: { syncSelection.contains($0.id) }) {
+				y = sel
+				y.id = UUID()
+			}
+			map.syncs.append(y)
+			syncSelection = [y.id]
+		} else {
+			var r = ModRowSetting()
+			if let sel = map.rows.last(where: { selection.contains($0.id) }) {
+				r = sel
+				r.id = UUID()
+			}
+			map.rows.append(r)
+			selection = [r.id]
+		}
+	}
+
+	private func remove() {
+		if tab == 1 {
+			map.syncs.removeAll { syncSelection.contains($0.id) }
+			syncSelection = []
+		} else {
+			map.rows.removeAll { selection.contains($0.id) }
+			selection = []
+		}
+	}
+
+	private var syncTable: some View {
+		Table($map.syncs, selection: $syncSelection) {
+			TableColumn("On") { $y in
+				Toggle("", isOn: $y.on).labelsHidden()
+			}
+			.width(30)
+			TableColumn("Parameter") { $y in
+				Picker("", selection: $y.param) {
+					ForEach(WHControls.paramDisplayOrder, id: \.self) { i in
+						Text(WHControls.paramName(i)).tag(WHMappingInfo.targetTag(i))
+					}
+					if y.paramIndex < 0 {
+						Text(y.param + " (unknown)").tag(y.param)
+					}
+				}
+				.labelsHidden()
+			}
+			.width(min: 140, ideal: 160)
+			TableColumn("Cycle") { $y in
+				Picker("", selection: $y.beats) {
+					ForEach(ModSyncSetting.divisions, id: \.beats) { d in
+						Text(d.name).tag(d.beats)
+					}
+					if !ModSyncSetting.divisions.contains(where: { $0.beats == y.beats }) {
+						Text(String(format: "%g beats", y.beats)).tag(y.beats)
+					}
+				}
+				.labelsHidden()
+			}
+			.width(min: 100, ideal: 110)
+			TableColumn("Phase") { $y in
+				HStack(spacing: 2) {
+					TextField("", value: Binding(get: { y.phaseDeg }, set: {
+						y.phaseDeg = (($0.rounded()).truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+					}), format: .number)
+						.multilineTextAlignment(.trailing)
+						.frame(width: 44)
+					Text("°")
+				}
+				.help("Where in the cycle the one falls, 0 to 359 degrees. With a triangle, 0 puts the one at the middle, rising; 270, at the lowest point.")
+			}
+			.width(64)
+			TableColumn("Offset") { $y in
+				OffsetField(value: $y.offsetMs, earlyAllowed: true)
+			}
+			.width(64)
+			TableColumn("The Patch's Oscillator") { $y in
+				PatchOscillator(iParam: y.paramIndex)
+			}
+			.width(min: 160, ideal: 220)
+		}
+	}
+
+	private var rowsTable: some View {
 			Table($map.rows, selection: $selection) {
 				TableColumn("On") { $r in
 					Toggle("", isOn: $r.on).labelsHidden()
@@ -840,56 +1034,35 @@ private struct ModRowsSection: View {
 				}
 				.width(64)
 			}
-			Divider()
-			VStack(alignment: .leading, spacing: 8) {
-				if let notice = map.notice {
-					Text(notice).font(.caption).foregroundStyle(.orange)
-				}
-				Text("Each row moves a control by a share of its slider as the sound (or a hit) rises, from the patch's own value; the patch itself never changes. Rows on the same control add up. Attack and release smooth the movement (ms); a hit's pulse fades over its release. Actions fire on a hit, or when a sound rises past the threshold.")
-					.font(.caption)
-					.foregroundStyle(.secondary)
-					.fixedSize(horizontal: false, vertical: true)
-				HStack(spacing: 12) {
-					Button {
-						var r = ModRowSetting()
-						if let sel = map.rows.last(where: { selection.contains($0.id) }) {
-							r = sel
-							r.id = UUID()
-						}
-						map.rows.append(r)
-						selection = [r.id]
-					} label: { Image(systemName: "plus") }
-						.help("Add a row (a copy of the selected one, if any)")
-					Button {
-						map.rows.removeAll { selection.contains($0.id) }
-						selection = []
-					} label: { Image(systemName: "minus") }
-						.help("Remove the selected rows")
-						.disabled(selection.isEmpty)
-					Divider().frame(height: 16)
-					Toggle("Modulation on", isOn: Binding(get: { !map.bypass }, set: { map.bypass = !$0 }))
-						.help("Image > Audio Modulation (⌘8). Off: the patches as they are.")
-					Text("Depth")
-					Slider(value: $map.depth, in: 0...1)
-						.frame(width: 140)
-					Text(String(format: "%.0f%%", map.depth * 100))
-						.monospacedDigit()
-						.frame(width: 40, alignment: .trailing)
-					Spacer()
-					Button("Restore Defaults") { map.restoreDefaults() }
-					Button("Import…") { map.importFile() }
-					Button("Export…") { map.export() }
-				}
-			}
-			.padding(10)
-		}
-		.onAppear { levels.start() }
-		.onDisappear { levels.stop() }
 	}
 
 	private func level(of id: ModRowSetting.ID) -> Double {
 		guard let i = map.rows.firstIndex(where: { $0.id == id }), i < levels.levels.count else { return 0 }
 		return levels.levels[i]
+	}
+}
+
+/// A parameter's oscillator in the patch: what a lock keeps (the waveform
+/// and amplitude), and whether it moves at all.
+private struct PatchOscillator: View {
+	let iParam: Int
+
+	var body: some View {
+		if iParam < 0 {
+			Text("—").foregroundStyle(.secondary)
+		} else {
+			let model = AppModel.shared
+			let _ = model.changes.params[iParam].n	// redraw when the row changes
+			let amp = model.engine.paramValue(iParam, property: .amp)
+			let wave = WHControls.waveformName(Int(model.engine.paramValue(iParam, property: .wave)))
+			if amp == 0 {
+				Text("\(wave), amplitude 0: doesn't move")
+					.foregroundStyle(.orange)
+			} else {
+				Text("\(wave), amplitude \(String(format: "%.3g", amp))")
+					.foregroundStyle(.secondary)
+			}
+		}
 	}
 }
 
