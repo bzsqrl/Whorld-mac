@@ -290,6 +290,7 @@ NSString *RateText(double fRate)
 		_state = WHAudioStateOff;
 		_runningDevice = kAudioObjectUnknown;
 		_gainDb = _settings.fGainDb;
+		_rangeDb = _settings.fCeilDb - _settings.fFloorDb;
 		_autoLevel = _settings.bAutoLevel;
 		_hitThreshold = _settings.fHitThreshold;
 		__weak WHAudioInput	*weakSelf = self;
@@ -419,6 +420,8 @@ NSString *RateText(double fRate)
 	{
 		std::lock_guard<std::mutex>	lock(_setMutex);
 		_settings.fGainDb = _gainDb;
+		_settings.fCeilDb = 0;
+		_settings.fFloorDb = -std::max(_rangeDb, 6.0);
 		_settings.bAutoLevel = _autoLevel;
 		_settings.fHitThreshold = _hitThreshold;
 		_settingsChanged = true;
@@ -427,6 +430,7 @@ NSString *RateText(double fRate)
 }
 
 - (void)setGainDb:(double)gainDb { _gainDb = gainDb; [self updateSettings]; }
+- (void)setRangeDb:(double)rangeDb { _rangeDb = rangeDb; [self updateSettings]; }
 - (void)setAutoLevel:(BOOL)autoLevel { _autoLevel = autoLevel; [self updateSettings]; }
 - (void)setHitThreshold:(double)hitThreshold { _hitThreshold = hitThreshold; [self updateSettings]; }
 

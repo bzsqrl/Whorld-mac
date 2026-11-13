@@ -61,6 +61,7 @@ typedef struct {
 
 // analysis settings (AudioAnalyzer::Settings)
 @property (nonatomic) double gainDb;
+@property (nonatomic) double rangeDb;	// level and bands read 0 this far below the top (0 dB, or the recent peak with auto-level)
 @property (nonatomic) BOOL autoLevel;
 @property (nonatomic) double hitThreshold;	// higher: fewer, stronger hits
 

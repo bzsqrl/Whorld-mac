@@ -24,12 +24,13 @@ enum AudioSettings {
 	static let firstKey = "Audio_nChannelFirst"
 	static let countKey = "Audio_nChannelCount"	// 0: all channels, mixed
 	static let gainKey = "Audio_fGainDb"
+	static let rangeKey = "Audio_fRangeDb"
 	static let autoLevelKey = "Audio_bAutoLevel"
 	static let hitThresholdKey = "Audio_fHitThreshold"
 
 	static func register() {
 		UserDefaults.standard.register(defaults: [
-			inputKey: "", firstKey: 0, countKey: 0, gainKey: 0.0, autoLevelKey: false, hitThresholdKey: 4.0,
+			inputKey: "", firstKey: 0, countKey: 0, gainKey: 0.0, rangeKey: 36.0, autoLevelKey: false, hitThresholdKey: 4.0,
 		])
 	}
 
@@ -39,6 +40,7 @@ enum AudioSettings {
 		let d = UserDefaults.standard
 		let input = WHAudioInput.shared
 		input.gainDb = d.double(forKey: gainKey)
+		input.rangeDb = d.double(forKey: rangeKey)
 		input.autoLevel = d.bool(forKey: autoLevelKey)
 		input.hitThreshold = d.double(forKey: hitThresholdKey)
 		selectInput()
@@ -82,6 +84,7 @@ private struct AudioInputSection: View {
 	@AppStorage(AudioSettings.firstKey) private var channelFirst = 0
 	@AppStorage(AudioSettings.countKey) private var channelCount = 0
 	@AppStorage(AudioSettings.gainKey) private var gainDb = 0.0
+	@AppStorage(AudioSettings.rangeKey) private var rangeDb = 36.0	// mastered music lives in the top 15 to 20 dB
 	@AppStorage(AudioSettings.autoLevelKey) private var autoLevel = false
 	@AppStorage(AudioSettings.hitThresholdKey) private var hitThreshold = 4.0
 
@@ -133,12 +136,26 @@ private struct AudioInputSection: View {
 				HStack {
 					Slider(value: Binding(get: { gainDb }, set: { gainDb = ($0 * 2).rounded() / 2 }), in: -24...24)	// half-dB steps, no tick marks
 						.frame(width: 260)
-					Text(String(format: "%+.1f dB", gainDb))
+					Text(String(format: "%+.1f dB", gainDb + 0))	// + 0: never "-0.0"
 						.monospacedDigit()
 						.frame(width: 64, alignment: .trailing)
 					Toggle("Auto-level", isOn: $autoLevel)
 						.help("Follows the music's recent peak, so quiet and loud material both use the whole range.")
 				}
+			}
+			GridRow {
+				Text("Range")
+				HStack {
+					Slider(value: Binding(get: { rangeDb }, set: { rangeDb = $0.rounded() }), in: 12...60)
+						.frame(width: 260)
+					Text(String(format: "%.0f dB", rangeDb))
+						.monospacedDigit()
+						.frame(width: 64, alignment: .trailing)
+					Text(autoLevel ? "below the recent peak" : "below full scale")
+						.font(.caption)
+						.foregroundStyle(.secondary)
+				}
+				.help("How far below the top a sound can be and still move the meters and rows. Mastered music sits in the top 15 to 20 dB, so a smaller range makes it move more.")
 			}
 			GridRow {
 				Text("Hit sensitivity")
@@ -164,6 +181,7 @@ private struct AudioInputSection: View {
 		.onChange(of: channelFirst) { AudioSettings.selectInput() }
 		.onChange(of: channelCount) { AudioSettings.selectInput() }
 		.onChange(of: gainDb) { _, v in input.gainDb = v }
+		.onChange(of: rangeDb) { _, v in input.rangeDb = v }
 		.onChange(of: autoLevel) { _, v in input.autoLevel = v }
 		.onChange(of: hitThreshold) { _, v in input.hitThreshold = v }
 	}
@@ -213,6 +231,7 @@ private struct AudioStatus: View {
 private struct AudioMeter: View {
 	@State private var lastCounts: [UInt32] = [0, 0, 0]
 	@State private var flashUntil: [Date] = [.distantPast, .distantPast, .distantPast]
+	@State private var history: [(time: Date, counts: [UInt32])] = []	// the last few seconds, for rates
 
 	var body: some View {
 		TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
@@ -228,9 +247,12 @@ private struct AudioMeter: View {
 					bar("Brightness", r.brightness)
 				}
 				VStack(alignment: .leading, spacing: 8) {
-					light("Hit", lit: now < flashUntil[0])
-					light("Kick", lit: now < flashUntil[1])
-					light("Hats", lit: now < flashUntil[2])
+					light("Hit", lit: now < flashUntil[0], rate: rate(0))
+					light("Kick", lit: now < flashUntil[1], rate: rate(1))
+					light("Hats", lit: now < flashUntil[2], rate: rate(2))
+					Text("hits a second, over 4 s")
+						.font(.caption2)
+						.foregroundStyle(.secondary)
 				}
 			}
 			.onChange(of: [r.hits, r.kicks, r.hats]) { _, counts in
@@ -238,6 +260,10 @@ private struct AudioMeter: View {
 					flashUntil[i] = Date().addingTimeInterval(0.12)
 				}
 				lastCounts = counts
+			}
+			.onChange(of: Int(now.timeIntervalSinceReferenceDate * 4)) {	// four times a second
+				history.append((now, [r.hits, r.kicks, r.hats]))
+				history.removeAll { now.timeIntervalSince($0.time) > 4.1 }
 			}
 		}
 	}
@@ -260,12 +286,25 @@ private struct AudioMeter: View {
 		}
 	}
 
-	private func light(_ name: String, lit: Bool) -> some View {
+	/// hits a second of one kind over the last 4 seconds (nil until there's enough)
+	private func rate(_ i: Int) -> Double? {
+		guard let first = history.first, let last = history.last else { return nil }
+		let dt = last.time.timeIntervalSince(first.time)
+		guard dt > 1 else { return nil }
+		return Double(last.counts[i] &- first.counts[i]) / dt
+	}
+
+	private func light(_ name: String, lit: Bool, rate: Double?) -> some View {
 		HStack(spacing: 6) {
 			Circle()
 				.fill(lit ? Color.accentColor : Color.secondary.opacity(0.25))
 				.frame(width: 12, height: 12)
 			Text(name).font(.caption)
+				.frame(width: 34, alignment: .leading)
+			Text(rate.map { String(format: "%.1f/s", $0) } ?? "")
+				.font(.caption)
+				.monospacedDigit()
+				.foregroundStyle(.secondary)
 		}
 	}
 }
