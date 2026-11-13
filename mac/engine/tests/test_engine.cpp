@@ -396,6 +396,29 @@ TEST(OriginAndZoomCommands) {
 	CHECK_EQ(eng->GetZoom(), 0.5);
 }
 
+// Mac change: a resize keeps the origin's share of the picture, and moves
+// the rings' centers with it
+TEST(ResizeKeepsOriginShare) {
+	auto	eng = MakeEngine(800, 600);
+	eng->OnSetPatch(DefaultPatch());
+	eng->OnSetOrigin(DPoint(0.2, 0.3), false);
+	RunFrames(*eng, 20);	// some rings, born at the origin
+	CHECK(eng->GetRingCount() > 0);
+	DPoint	ringOrg(eng->GetRings().back().ptOrigin);
+	eng->OnResize(SizeF{1600, 900});	// wider and taller, a different shape
+	CHECK_NEAR(eng->GetOrigin().x, 0.2, 1e-9);
+	CHECK_NEAR(eng->GetOrigin().y, 0.3, 1e-9);
+	DPoint	ringOrg2(eng->GetRings().back().ptOrigin);
+	CHECK_NEAR(ringOrg2.x, ringOrg.x * 2, 1e-3);
+	CHECK_NEAR(ringOrg2.y, ringOrg.y * 1.5, 1e-3);
+	RunFrames(*eng, 5);	// the target was scaled too: damping doesn't drift it
+	CHECK_NEAR(eng->GetOrigin().x, 0.2, 1e-9);
+	CHECK_NEAR(eng->GetOrigin().y, 0.3, 1e-9);
+	eng->OnResize(SizeF{0, 0});	// a zero size (minimized) changes nothing...
+	eng->OnResize(SizeF{1600, 900});
+	CHECK_NEAR(eng->GetOrigin().x, 0.2, 1e-9);
+}
+
 namespace {
 std::unique_ptr<Snapshot> MakeSquareSnapshot()
 {

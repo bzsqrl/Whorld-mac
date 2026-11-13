@@ -110,6 +110,21 @@ WhorldEngine::WhorldEngine()
 // ported from WhorldDraw.cpp CWhorldDraw::OnResize
 void WhorldEngine::OnResize(SizeF szTarget)
 {
+	// Mac change (2026-11-12, at the user's request): the origin keeps its
+	// share of the picture at any size. It's held in DIPs from the center,
+	// so on Windows an off-center origin moves toward the middle when the
+	// picture grows (full screen) and away when it shrinks. Scale it, its
+	// target and the rings' centers (so the picture doesn't jump) by the
+	// change in size; the rings' sizes are unchanged, as on Windows.
+	if (m_szTarget.width > 0 && m_szTarget.height > 0 && szTarget.width > 0 && szTarget.height > 0
+	&& (szTarget.width != m_szTarget.width || szTarget.height != m_szTarget.height)) {
+		DPoint	ptScale(double(szTarget.width) / m_szTarget.width, double(szTarget.height) / m_szTarget.height);
+		m_ptOrigin = m_ptOrigin * ptScale;
+		m_ptOriginTarget = m_ptOriginTarget * ptScale;
+		for (RING& ring : m_aRing) {
+			ring.ptOrigin = DPoint(ring.ptOrigin) * ptScale;
+		}
+	}
 	m_szTarget = szTarget;
 }
 
