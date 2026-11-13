@@ -1339,6 +1339,7 @@ enum SecondKeys {
 	private static let none: UInt = 0
 	private static let cmd = Mods.command.rawValue
 	private static let ctrlCmd = Mods([.control, .command]).rawValue
+	private static let ctrl = Mods.control.rawValue
 
 	/// true: the key was one of these, and its command ran
 	static func perform(code: UInt16, modifiers: UInt) -> Bool {
@@ -1352,9 +1353,12 @@ enum SecondKeys {
 		case (97, none): m.toggleFill()	// F6 (Cmd-1)
 		case (98, none): m.toggleOutline()	// F7 (Cmd-2)
 		case (96, none): m.toggle(.mirror)	// F5 (Cmd-3)
-		case (120, none): m.toggle(.loopHue)	// F2 (Cmd-4)
-		case (99, none): m.rotateHue()	// F3 (Cmd-5)
-		case (118, none): m.toggle(.invertColor)	// F4 (Cmd-6)
+		case (48, ctrl): m.toggle(.convex)	// Ctrl-Tab (Cmd-4)
+		case (120, none): m.toggle(.loopHue)	// F2 (Cmd-5)
+		case (99, none): m.rotateHue()	// F3 (Cmd-6)
+		case (118, none): m.toggle(.invertColor)	// F4 (Cmd-7)
+		case (2, cmd): m.toggleOriginDrag()	// Cmd-D, Windows' Ctrl+D (Cmd-Minus)
+		case (15, cmd): m.toggleOriginRandom()	// Cmd-R, Windows' Ctrl+R (Cmd-Equals)
 		case (101, none): e.randomPhase()	// F9 (Cmd-9)
 		default: return false
 		}

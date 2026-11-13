@@ -152,11 +152,11 @@ struct WhorldCommands: Commands {
 			toggle("Reverse", e.reverse) { model.toggle(.reverse) }
 				.keyboardShortcut(.delete, modifiers: .command)
 			toggle("Convex", e.convex) { model.toggle(.convex) }
-				.keyboardShortcut(.tab, modifiers: .control)
+				.keyboardShortcut("4")	// and Ctrl-Tab (Windows' Ctrl+Tab)
 			toggle("Loop Hue", e.loopHue) { model.toggle(.loopHue) }
-				.keyboardShortcut("4")	// and F2
+				.keyboardShortcut("5")	// and F2
 			Button("Rotate Hue") { model.rotateHue() }	// V1's (Mac addition)
-				.keyboardShortcut("5")	// and F3
+				.keyboardShortcut("6")	// and F3
 			toggle("Zoom Center", e.zoomCenter) { model.toggle(.zoomCenter) }
 				.keyboardShortcut("w", modifiers: .shift)
 			toggle("Antialiasing", e.antialiasing) { model.toggle(.antialiasing) }
@@ -164,14 +164,15 @@ struct WhorldCommands: Commands {
 			// not on Windows' Image menu (its Properties grid only); here the
 			// Properties panel mirrors this menu, so it's in both
 			toggle("Invert Color", e.invertColor) { model.toggle(.invertColor) }
-				.keyboardShortcut("6")	// and F4, V1's
+				.keyboardShortcut("7")	// and F4, V1's
 			Divider()
 			Button("Origin Center") { model.originCenter() }
 				.keyboardShortcut("0")
+			// Cmd-0, Cmd-Minus, Cmd-Equals: the origin keys side by side
 			toggle("Origin Drag", e.originMotion == .drag) { model.toggleOriginDrag() }
-				.keyboardShortcut("d")
+				.keyboardShortcut("-")	// and Cmd-D (Windows' Ctrl+D)
 			toggle("Origin Random", e.originMotion == .random) { model.toggleOriginRandom() }
-				.keyboardShortcut("r")
+				.keyboardShortcut("=")	// and Cmd-R (Windows' Ctrl+R)
 			Divider()
 			Button("Random Phase") { e.randomPhase() }
 				.keyboardShortcut("9")	// and F9
