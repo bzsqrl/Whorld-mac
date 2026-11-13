@@ -180,6 +180,8 @@ struct WhorldCommands: Commands {
 			// Mac addition (AUDIO_PLAN.md): the Modulation window's rows on or off
 			toggle("Audio Modulation", !ModMap.shared.bypass) { ModMap.shared.bypass.toggle() }
 				.keyboardShortcut("8")
+			Button("Mark Downbeat") { WHAudioInput.shared.markDownbeat() }	// the "one" for Bar ... 32-Bar
+				.keyboardShortcut("8", modifiers: [.command, .option])
 		}
 
 		CommandGroup(after: .toolbar) {

@@ -73,6 +73,7 @@ public:
 	double	GetHitPeak(int iOnset) const { return m_aHitPeak[iOnset]; }	// the last hit's flux, decaying
 	uint64_t	GetAnalysisCount() const { return m_nAnalyses; }
 	const BeatTracker&	GetBeatTracker() const { return m_beat; }
+	void	MarkDownbeat() { m_beat.MarkDownbeat(); }
 	size_t	GetWindowSize() const { return m_nWindow; }
 	size_t	GetHopSize() const { return m_nHop; }
 	double	GetSampleRate() const { return m_fSampleRate; }

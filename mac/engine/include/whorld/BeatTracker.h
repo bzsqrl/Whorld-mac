@@ -46,6 +46,18 @@ public:
 	double	GetTempo() const;		// BPM, 0 until a tempo is found
 	double	GetPhase() const;		// 0 to 1 through the beat (shifted like the beats)
 	uint32_t	GetBeatCount() const { return m_nBeats; }
+	// Bars and phrases (Mac addition, user's request): beats are numbered
+	// from the first after locking, which is "the one" until MarkDownbeat
+	// says otherwise; it makes the beat nearest now the one (the last beat if
+	// it's less than half a beat ago, and then every span fires at once; else
+	// the next). 4 beats to a bar.
+	void	MarkDownbeat();
+	int		GetBeatInBar() const;	// 0 to 3, the beat just counted (-1 before any)
+	int		GetBarInPhrase() const;	// 0 to 31, its bar in 32
+	// beats that began a span of nBeats (4: bars, 16: 4 bars, ... 128: 32 bars)
+	uint32_t	GetSpanCount(int iSpan) const { return m_aSpanCount[iSpan]; }
+	static constexpr int	SPANS = 5;
+	static const int	kSpanBeats[SPANS];	// 4, 16, 32, 64, 128
 	double	GetConfidence() const { return m_fConfidence; }	// 0 to 1, how clear the beat is
 
 private:
@@ -67,6 +79,9 @@ private:
 	bool	m_bBeatSilent = true;	// every hop so far this beat was silent
 	bool	m_bMayLock = true;	// false from losing the beat until the comb forgets it
 	uint32_t	m_nBeats = 0;
+	int64_t	m_iBeat = -1;		// the last beat counted, numbered from the one (-1: none yet)
+	bool	m_bMarkNext = false;	// MarkDownbeat while unlocked: the next beat is the one
+	uint32_t	m_aSpanCount[SPANS] = {};
 
 	double	Onset(const std::vector<double>& a, double fAgo) const;	// fAgo hops ago, interpolated
 	void	EstimateTempo();

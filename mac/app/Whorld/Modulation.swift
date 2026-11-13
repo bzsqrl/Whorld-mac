@@ -287,9 +287,11 @@ private struct AudioMeter: View {
 		}
 	}
 
-	/// the beat tracker's light, and its tempo once it has the beat
+	/// the beat tracker's light, its tempo and place once it has the beat,
+	/// and Mark Downbeat
 	private func beatRow(_ r: WHAudioReading, lit: Bool) -> some View {
-		let text: String = r.beatLocked.boolValue ? String(format: "%.1f BPM", r.tempo)
+		let place = r.beatInBar >= 0 ? String(format: " · bar %d · beat %d", r.barInPhrase + 1, r.beatInBar + 1) : ""
+		let text: String = r.beatLocked.boolValue ? String(format: "%.1f BPM", r.tempo) + place
 			: (r.level > 0 ? "finding the beat…" : "")
 		return HStack(spacing: 6) {
 			Circle()
@@ -301,6 +303,10 @@ private struct AudioMeter: View {
 				.font(.caption)
 				.monospacedDigit()
 				.foregroundStyle(.secondary)
+				.frame(width: 190, alignment: .leading)
+			Button("Mark Downbeat") { WHAudioInput.shared.markDownbeat() }
+				.controlSize(.small)
+				.help("Press on the \"one\" (a drop, the start of a phrase): the beat nearest the press becomes beat 1 of bar 1, for Bar, 4-Bar ... 32-Bar. Image > Mark Downbeat (⌥⌘8) and OSC /w/mod/downbeat do the same.")
 		}
 		.padding(.top, 4)
 		.help("The beat tracker learns the tempo from the hits and keeps a steady beat through kicks it can't hear (a busy mix, a breakdown). Beat is a source like the hits.")
@@ -325,6 +331,7 @@ private struct AudioMeter: View {
 				.font(.caption)
 				.monospacedDigit()
 				.foregroundStyle(.secondary)
+				.frame(width: 44, alignment: .leading)	// a steady width: the column doesn't wobble
 		}
 	}
 }
@@ -539,9 +546,12 @@ final class ModMap: ObservableObject {
 		}
 	}
 
-	/// OSC: /w/mod/on (kind 0: 1, 0, or -1 to toggle) and /w/mod/depth (kind 1)
+	/// OSC: /w/mod/on (kind 0: 1, 0, or -1 to toggle), /w/mod/depth (kind 1)
+	/// and /w/mod/downbeat (kind 2)
 	func osc(kind: Int, value: Double) {
-		if kind == 0 {
+		if kind == 2 {
+			WHAudioInput.shared.markDownbeat()
+		} else if kind == 0 {
 			bypass = value < 0 ? !bypass : value == 0
 		} else {
 			depth = min(max(value, 0), 1)

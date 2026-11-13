@@ -12,6 +12,7 @@
 #include "whorld/BeatTracker.h"
 
 #include <algorithm>
+#include <iterator>
 #include <cmath>
 
 namespace whorld {
@@ -51,6 +52,8 @@ const double kSubBassMargin = 3.0;
 
 } // namespace
 
+const int BeatTracker::kSpanBeats[BeatTracker::SPANS] = {4, 16, 32, 64, 128};
+
 void BeatTracker::Reset(double fHopRate)
 {
 	m_fHopRate = fHopRate > 0 ? fHopRate : 93.75;
@@ -68,6 +71,9 @@ void BeatTracker::Reset(double fHopRate)
 	m_bLocked = false;
 	m_nUnsure = 0;
 	m_nBeats = 0;
+	m_iBeat = -1;
+	m_bMarkNext = false;
+	std::fill(std::begin(m_aSpanCount), std::end(m_aSpanCount), 0u);
 	m_fJumpHops = 0;
 	m_bBeatSilent = true;
 	m_bMayLock = true;
@@ -85,6 +91,31 @@ double BeatTracker::GetPhase() const
 		return 0;
 	double	f = m_fClock + kOnsetDelayHops / m_fPeriod;
 	return f - std::floor(f);
+}
+
+void BeatTracker::MarkDownbeat()
+{
+	if (!m_bLocked || m_iBeat < 0) {	// the next beat counted is the one
+		m_bMarkNext = true;
+		return;
+	}
+	if (GetPhase() < 0.5) {	// the last beat was the one (pressed a little late):
+		m_iBeat = 0;		// it begins every span, so they fire now
+		for (uint32_t& n : m_aSpanCount)
+			n++;
+	} else {				// the next is (pressed a little early)
+		m_iBeat = -1;
+	}
+}
+
+int BeatTracker::GetBeatInBar() const
+{
+	return m_iBeat < 0 ? -1 : static_cast<int>(m_iBeat % 4);
+}
+
+int BeatTracker::GetBarInPhrase() const
+{
+	return m_iBeat < 0 ? -1 : static_cast<int>((m_iBeat / 4) % 32);
 }
 
 double BeatTracker::Onset(const std::vector<double>& aOnset, double fAgo) const
@@ -130,9 +161,20 @@ void BeatTracker::Process(double fOnset, double fPhaseOnset, bool bSilent)
 		if (m_bLocked && m_nUnsure > kFlywheelBeats) {
 			m_bLocked = false;	// the beat's gone: stop until it's found again
 			m_bMayLock = false;	// (after the comb has forgotten it)
+			m_iBeat = -1;		// and count bars afresh from the next lock
 		}
-		if (m_bLocked)
+		if (m_bLocked) {
 			m_nBeats++;
+			m_iBeat++;	// the first after locking is 0, the one
+			if (m_bMarkNext) {
+				m_iBeat = 0;
+				m_bMarkNext = false;
+			}
+			for (int i = 0; i < SPANS; i++) {
+				if (m_iBeat % kSpanBeats[i] == 0)
+					m_aSpanCount[i]++;
+			}
+		}
 	}
 }
 

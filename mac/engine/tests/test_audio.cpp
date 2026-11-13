@@ -512,4 +512,60 @@ TEST(BeatStopsInSilence) {
 	CHECK(!r.bLocked);
 }
 
+TEST(BarsAndPhrasesCountFromTheLock) {
+	// 70 s of kicks at 124 BPM: the first beat after locking is the one,
+	// and Bar ... 32-Bar fire on beats 0, 4, 8 ... / 0, 16 ... / 0, 128 ...
+	std::vector<float>	a = Sine(440, 0.02, 70);
+	for (double t : Grid(124, 0.5, 69.5))
+		AddKick(a, static_cast<size_t>(t * 48000), 0.7);
+	AudioAnalyzer	an;
+	an.Reset(48000);
+	an.Process(a.data(), a.size());
+	const Src&	s = an.GetSources();
+	uint32_t	nBeats = s.aCount[Src::SRC_Beat];
+	std::printf("  beats %u: bars %u, 4-bars %u, 8-bars %u, 16-bars %u, 32-bars %u\n", nBeats,
+		s.aCount[Src::SRC_Bar], s.aCount[Src::SRC_Bar4], s.aCount[Src::SRC_Bar8], s.aCount[Src::SRC_Bar16], s.aCount[Src::SRC_Bar32]);
+	CHECK(nBeats > 128);
+	CHECK_EQ(s.aCount[Src::SRC_Bar], (nBeats + 3) / 4);
+	CHECK_EQ(s.aCount[Src::SRC_Bar4], (nBeats + 15) / 16);
+	CHECK_EQ(s.aCount[Src::SRC_Bar8], (nBeats + 31) / 32);
+	CHECK_EQ(s.aCount[Src::SRC_Bar16], (nBeats + 63) / 64);
+	CHECK_EQ(s.aCount[Src::SRC_Bar32], (nBeats + 127) / 128);
+	CHECK_EQ(an.GetBeatTracker().GetBeatInBar(), static_cast<int>((nBeats - 1) % 4));
+}
+
+TEST(MarkDownbeatMovesTheOne) {
+	// mark a quarter beat after a beat: that beat becomes the one (the bars
+	// fire at once, then every 4 beats from it); a three-quarter-beat mark
+	// makes the next beat the one
+	std::vector<float>	a = Sine(440, 0.02, 30);
+	for (double t : Grid(124, 0.5, 29.5))
+		AddKick(a, static_cast<size_t>(t * 48000), 0.7);
+	AudioAnalyzer	an;
+	an.Reset(48000);
+	const BeatTracker&	bt = an.GetBeatTracker();
+	size_t	i = 0;
+	auto	until = [&](auto done) {
+		for (; i + 512 <= a.size() && !done(); i += 512)
+			an.Process(&a[i], 512);
+	};
+	until([&] { return bt.GetBeatCount() >= 9 && bt.GetBeatInBar() == 1 && bt.GetPhase() > 0.2; });
+	uint32_t	nBars = an.GetSources().aCount[Src::SRC_Bar];
+	an.MarkDownbeat();	// late: beat 1 of the bar becomes the one
+	an.Process(&a[i], 512);	// (sources update with the next analysis)
+	i += 512;
+	CHECK_EQ(bt.GetBeatInBar(), 0);
+	CHECK_EQ(an.GetSources().aCount[Src::SRC_Bar], nBars + 1);
+	uint32_t	nBeats = bt.GetBeatCount();
+	until([&] { return bt.GetBeatCount() == nBeats + 4; });
+	CHECK_EQ(bt.GetBeatInBar(), 0);	// 4 beats on: the next bar
+	CHECK_EQ(an.GetSources().aCount[Src::SRC_Bar], nBars + 2);
+	until([&] { return bt.GetBeatCount() == nBeats + 6 && bt.GetPhase() > 0.7; });
+	an.MarkDownbeat();	// early: the next beat is the one
+	nBars = an.GetSources().aCount[Src::SRC_Bar];
+	until([&] { return bt.GetBeatCount() == nBeats + 7; });
+	CHECK_EQ(bt.GetBeatInBar(), 0);
+	CHECK_EQ(an.GetSources().aCount[Src::SRC_Bar], nBars + 1);
+}
+
 int main() { return RunAllTests(); }

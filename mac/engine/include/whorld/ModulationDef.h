@@ -23,6 +23,11 @@ MODSOURCEDEF(Hit,		true,	"Hit")			// any onset
 MODSOURCEDEF(Kick,		true,	"Kick")			// bass onset
 MODSOURCEDEF(Hats,		true,	"Hats")			// treble onset
 MODSOURCEDEF(Beat,		true,	"Beat")			// the beat tracker's beats
+MODSOURCEDEF(Bar,		true,	"Bar")			// the first beat of each bar (4 beats)
+MODSOURCEDEF(Bar4,		true,	"4-Bar")		// ...of every 4 bars
+MODSOURCEDEF(Bar8,		true,	"8-Bar")
+MODSOURCEDEF(Bar16,		true,	"16-Bar")
+MODSOURCEDEF(Bar32,		true,	"32-Bar")
 #undef MODSOURCEDEF
 #endif
 

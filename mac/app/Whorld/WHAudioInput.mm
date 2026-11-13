@@ -38,6 +38,8 @@ struct Published {
 	float	levelDb = -200;
 	float	tempo = 0;
 	bool	beatLocked = false;
+	int		beatInBar = -1;
+	int		barInPhrase = -1;
 };
 
 // One writer, one reader, lock-free: the writer fills Back() and
@@ -233,6 +235,7 @@ NSString *RateText(double fRate)
 	bool	_settingsChanged;
 	double	_resetRate;		// 0: silent
 	bool	_resetPending;
+	std::atomic<bool>	_markDownbeat;
 	// analysis thread → readers
 	TripleBuffer	_forRender;
 	TripleBuffer	_forMeter;
@@ -284,6 +287,7 @@ NSString *RateText(double fRate)
 		_ring = new SampleRing(1 << 16);	// about 1.4 s at 48 kHz
 		_sem = dispatch_semaphore_create(0);
 		_quit = false;
+		_markDownbeat = false;
 		_settingsChanged = true;
 		_resetRate = 0;
 		_resetPending = true;
@@ -333,7 +337,11 @@ NSString *RateText(double fRate)
 				p.levelDb = static_cast<float>(analyzer.GetLevelDb());
 				p.tempo = static_cast<float>(analyzer.GetBeatTracker().GetTempo());
 				p.beatLocked = analyzer.GetBeatTracker().IsLocked();
+				p.beatInBar = analyzer.GetBeatTracker().GetBeatInBar();
+				p.barInPhrase = analyzer.GetBeatTracker().GetBarInPhrase();
 			} else {
+				p.beatInBar = -1;
+				p.barInPhrase = -1;
 				p.src = whorld::ModSources();
 				p.levelDb = -200;
 				p.tempo = 0;
@@ -375,6 +383,8 @@ NSString *RateText(double fRate)
 		}
 		if (!bRunning)
 			continue;
+		if (_markDownbeat.exchange(false))
+			analyzer.MarkDownbeat();
 		uint64_t	nBefore = analyzer.GetAnalysisCount();
 		size_t	n;
 		while ((n = _ring->Pop(chunk.data(), chunk.size())) > 0)
@@ -414,7 +424,15 @@ NSString *RateText(double fRate)
 	r.beats = p.src.aCount[S::SRC_Beat];
 	r.tempo = p.tempo;
 	r.beatLocked = p.beatLocked;
+	r.beatInBar = p.beatInBar;
+	r.barInPhrase = p.barInPhrase;
 	return r;
+}
+
+- (void)markDownbeat
+{
+	_markDownbeat = true;
+	dispatch_semaphore_signal(_sem);
 }
 
 - (void)readSources:(whorld::ModSources&)sources

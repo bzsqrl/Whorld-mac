@@ -1443,6 +1443,17 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 			// modulation (Mac addition): the app's, not a mapping target
 			std::string	modOn = std::string(whorld::OscRemote::PREFIX) + "/mod/on";
 			std::string	modDepth = std::string(whorld::OscRemote::PREFIX) + "/mod/depth";
+			if (msg.path == std::string(whorld::OscRemote::PREFIX) + "/mod/downbeat") {
+				bool	bPress = msg.args.empty() || !msg.args[0].IsNumber() || msg.args[0].Number() != 0;	// not on release
+				if (bPress) {
+					dispatch_async(dispatch_get_main_queue(), ^{
+						WHEngine	*strong = weakSelf;
+						if (strong.modulationOscHandler)
+							strong.modulationOscHandler(2, 1);
+					});
+				}
+				continue;
+			}
 			if (msg.path == modOn || msg.path == modDepth) {
 				bool	bDepth = msg.path == modDepth;
 				bool	bHasArg = !msg.args.empty() && msg.args[0].IsNumber();

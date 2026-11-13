@@ -219,8 +219,8 @@ typedef struct {
 @property (nonatomic, readonly) NSArray<NSNumber *> *modulationLevels;
 /// actions the rows fired (bits, 1 << whorld::ModActions::ACT_*), on the main thread
 @property (nonatomic, copy, nullable) void (^modulationActionHandler)(uint32_t actions);
-/// OSC /w/mod/on (kind 0: value 1 on, 0 off, -1 toggle) and /w/mod/depth
-/// (kind 1: 0 to 1), on the main thread
+/// OSC /w/mod/on (kind 0: value 1 on, 0 off, -1 toggle), /w/mod/depth
+/// (kind 1: 0 to 1) and /w/mod/downbeat (kind 2), on the main thread
 @property (nonatomic, copy, nullable) void (^modulationOscHandler)(NSInteger kind, double value);
 // Image > Rotate Hue (V1's, Mac addition): existing rings' hues turn 90
 // degrees, and Hue goes up 90 (wrapping at 360) so new rings follow

@@ -39,6 +39,8 @@ typedef struct {
 	uint32_t	hits, kicks, hats, beats;	// counts so far
 	float	tempo;		// the beat tracker's, BPM (0 until found)
 	BOOL	beatLocked;	// the tracker has the beat
+	int		beatInBar;	// 0 to 3 (-1 before the first beat)
+	int		barInPhrase;	// 0 to 31
 } WHAudioReading;
 
 @interface WHAudioInput : NSObject
@@ -73,6 +75,8 @@ typedef struct {
 
 /// The latest analysis, for the meter. Main thread.
 - (WHAudioReading)reading;
+/// The beat nearest now is "the one" for Bar ... 32-Bar (BeatTracker::MarkDownbeat).
+- (void)markDownbeat;
 @end
 
 NS_ASSUME_NONNULL_END

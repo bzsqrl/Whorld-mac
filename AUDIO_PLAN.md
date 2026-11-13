@@ -117,7 +117,8 @@ Hit detection alone misses kicks in dense mixes. On a 124 BPM house track (check
   - on the track: 839 of 848 beats within 70 ms of the grid, none off it (the 9 missed are the first 4.3 s, while it locks), about 13 ms early;
   - in `test_audio` on synthetic music: locks in under 5 s with median timing 0 ms, fills a third of kicks missing, prefers the kick to louder off-beat hats at the right tempo, follows 120 → 130 BPM, rides through a 12 s breakdown, stops 9 beats into silence;
   - the analyzer still costs about 40 µs a hop.
-- **Later, with Link:** Beat Phase and Bar sources (exact from Link; from the tracker, Beat Phase only, since the downbeat isn't known).
+- **Bars and phrases** (added at the user's request): **Bar**, **4-Bar**, **8-Bar**, **16-Bar** and **32-Bar** fire on the first beat of every 1, 4, 8, 16 or 32 bars of 4 beats. Beats are numbered from the first after locking (the one, until told otherwise; again after the beat is lost and found). **Mark Downbeat** makes the beat nearest the press the one (the last beat if less than half a beat ago, and the spans fire at once; else the next): a button by the meter's Beat light, Image > Mark Downbeat (⌥⌘8), OSC `/w/mod/downbeat`. The meter shows "bar 5 · beat 2" (bars 1 to 32). With Link, bars will come from Link. A MIDI action for Mark Downbeat waits on the check of how Windows treats unknown mapping targets.
+- **Later, with Link:** a Beat Phase source (exact from Link, or from the tracker).
 
 ### Latency
 
