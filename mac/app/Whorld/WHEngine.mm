@@ -290,6 +290,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 		_attack = row.fAttack;
 		_releaseTime = row.fRelease;
 		_threshold = row.fThreshold;
+		_offset = row.fOffset;
 	}
 	return self;
 }
@@ -761,6 +762,7 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 		row.fAttack = r.attack;
 		row.fRelease = r.releaseTime;
 		row.fThreshold = r.threshold;
+		row.fOffset = std::clamp(r.offset, -0.3, 0.3);
 		a.push_back(row);
 	}
 	std::lock_guard<std::mutex>	lock(_mutex);

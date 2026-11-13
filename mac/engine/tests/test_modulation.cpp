@@ -259,6 +259,125 @@ TEST(ActionsFireOnceAndRearm) {
 	CHECK_EQ(out.nActions, 0u);
 }
 
+// Beat-based rows and offsets
+
+namespace {
+
+// steps a modulator through a steady beat at fBpm from position fStart, in
+// steps of dt, and returns the positions (unshifted) at which the row fired
+std::vector<double> FirePositions(Modulator& m, double fBpm, double fStart, double fEnd, double dt = 1.0 / 120)
+{
+	ModSources	src;
+	src.bBeat = true;
+	src.fTempo = fBpm;
+	std::vector<double>	fired;
+	ModOutput	out;
+	for (double pos = fStart; pos < fEnd; pos += dt * fBpm / 60) {
+		src.fBeatPos = pos;
+		m.Step(src, dt, out);
+		if (m.GetRowLevel(0) > 0.999)	// a pulse starts at 1
+			fired.push_back(pos);
+	}
+	return fired;
+}
+
+ModRow BeatRow(int iSource, double fOffset)
+{
+	ModRow	row = MakeRow(iSource, MB::TARGET_Zoom, 0.1);
+	row.fOffset = fOffset;
+	row.fRelease = 0.05;
+	return row;
+}
+
+} // namespace
+
+TEST(BeatRowsFireOnTheBeat) {
+	Modulator	m;
+	m.SetRows({BeatRow(ModSources::SRC_Beat, 0)});
+	std::vector<double>	f = FirePositions(m, 120, 0.5, 8.5);
+	CHECK_EQ(f.size(), size_t(8));	// beats 1 to 8
+	for (double pos : f)
+		CHECK(pos - std::floor(pos) < 1.0 / 60 * 2 + 1e-9);	// within a frame after the beat
+}
+
+TEST(OffsetsFireEarlyOrLate) {
+	// at 120 BPM, 100 ms is 0.2 beat: -100 ms fires 0.2 beat before each
+	// beat, +100 ms 0.2 beat after
+	for (double fOffset : {-0.1, 0.1}) {
+		Modulator	m;
+		m.SetRows({BeatRow(ModSources::SRC_Beat, fOffset)});
+		std::vector<double>	f = FirePositions(m, 120, 0.5, 8.5, 1.0 / 1000);
+		CHECK(f.size() >= 7);
+		for (double pos : f) {
+			double	fRel = pos - std::round(pos);	// beats from the nearest beat
+			CHECK_NEAR(fRel, fOffset * 2, 0.005);
+		}
+	}
+}
+
+TEST(BarRowsFireOnTheirSpans) {
+	Modulator	m;
+	m.SetRows({BeatRow(ModSources::SRC_Bar, 0)});
+	std::vector<double>	f = FirePositions(m, 124, 0.5, 40.5);
+	CHECK_EQ(f.size(), size_t(10));	// beats 4, 8 ... 40
+	for (double pos : f)
+		CHECK_NEAR(std::fmod(pos, 4), 0, 0.05);
+	Modulator	m8;
+	m8.SetRows({BeatRow(ModSources::SRC_Bar8, -0.2)});	// a phrase change 200 ms early
+	f = FirePositions(m8, 124, 0.5, 100);
+	CHECK_EQ(f.size(), size_t(3));	// before beats 32, 64, 96
+	for (double pos : f)
+		CHECK_NEAR(std::fmod(pos + 0.2 * 124 / 60, 32), 0, 0.05);
+}
+
+TEST(DownbeatJumpsFireOrWait) {
+	// Mark Downbeat a little late: the position jumps back to just past 0
+	// and Bar fires at once; a little early: it jumps to just below 0 and
+	// fires when 0 comes
+	Modulator	m;
+	m.SetRows({BeatRow(ModSources::SRC_Bar, 0)});
+	ModSources	src;
+	src.bBeat = true;
+	src.fTempo = 120;
+	ModOutput	out;
+	src.fBeatPos = 17.5;
+	m.Step(src, 1.0 / 60, out);
+	src.fBeatPos = 0.2;	// late mark
+	m.Step(src, 1.0 / 60, out);
+	CHECK_NEAR(m.GetRowLevel(0), 1, 1e-9);
+	src.fBeatPos = 2.6;
+	m.Step(src, 1.0, out);	// (let the pulse fade)
+	src.fBeatPos = -0.3;	// early mark: nothing yet
+	m.Step(src, 1.0 / 60, out);
+	CHECK(m.GetRowLevel(0) < 0.5);
+	src.fBeatPos = 0.01;	// the one
+	m.Step(src, 1.0 / 60, out);
+	CHECK_NEAR(m.GetRowLevel(0), 1, 1e-9);
+	src.bBeat = false;	// no beat: nothing
+	src.fBeatPos = 4.01;
+	m.Step(src, 1.0, out);
+	CHECK(m.GetRowLevel(0) < 0.5);
+}
+
+TEST(HitOffsetsOnlyDelay) {
+	// +150 ms holds a kick's pulse back 150 ms; -150 ms can't advance it
+	for (double fOffset : {0.15, -0.15}) {
+		Modulator	m;
+		m.SetRows({BeatRow(ModSources::SRC_Kick, fOffset)});
+		ModSources	src;
+		ModOutput	out;
+		m.Step(src, 0.01, out);	// primes the count
+		src.aCount[ModSources::SRC_Kick] = 1;
+		double	fAt = -1;
+		for (int i = 1; i <= 40 && fAt < 0; i++) {
+			m.Step(src, 0.01, out);
+			if (m.GetRowLevel(0) > 0.999)
+				fAt = i * 0.01;
+		}
+		CHECK_NEAR(fAt, fOffset > 0 ? 0.01 + fOffset : 0.01, 0.011);
+	}
+}
+
 // Engine
 
 TEST(ZeroModulationIsBitIdentical) {

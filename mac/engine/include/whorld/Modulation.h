@@ -35,12 +35,22 @@ struct ModSources {
 	};
 	float		aValue[SOURCES] = {};	// continuous sources, 0 to 1
 	uint32_t	aCount[SOURCES] = {};	// trigger sources: hits so far
+	// The beat, when known (the beat tracker, later Ableton Link): beats
+	// since the one, continuous (just below 0 before the first), and the
+	// tempo. Beat-based rows fire from this, so they can fire early or late
+	// (ModRow::fOffset); the counts above are for meters.
+	bool		bBeat = false;
+	double		fBeatPos = 0;
+	double		fTempo = 0;	// BPM
 
 	static bool			IsValid(int iSource) { return iSource >= 0 && iSource < SOURCES; }
 	static bool			IsTrigger(int iSource);
 	static const char*	GetTag(int iSource);	// stable name, for settings files
 	static const char*	GetName(int iSource);	// shown in the UI
 	static int			FindTag(const std::string& sTag);	// -1 if unknown
+	// beats in the span a beat-based source marks (Beat 1, Bar 4, 4-Bar 16
+	// ... 32-Bar 128), or 0 for the rest
+	static int			SpanBeats(int iSource);
 };
 
 // One-shot actions a row can fire (a trigger, or a continuous source
@@ -78,6 +88,7 @@ struct ModRow {
 	double	fAttack = 0.01;		// seconds to rise (time constant)
 	double	fRelease = 0.2;		// seconds to fall; a trigger's pulse decays over it
 	double	fThreshold = 0.5;	// for the gate curve and for actions
+	double	fOffset = 0;		// seconds (-0.3 to 0.3): beat-based sources fire this much early (negative) or late; hits only late
 
 	bool	IsAction() const { return ModActions::IsValid(iAction); }
 	// whether the row's target is one a modulation can move
@@ -113,13 +124,19 @@ public:
 	double	GetRowLevel(size_t iRow) const;
 
 private:
+	enum { MAX_PENDING = 16 };	// delayed hits waiting, per row
 	struct State {
 		double		fEnv = 0;		// smoothed source
 		double		fLevel = 0;		// after the curve
 		uint32_t	nCount = 0;		// trigger count last seen
 		bool		bPrimed = false;	// nCount is valid
 		bool		bAbove = false;		// above the threshold (actions re-arm below it)
+		int64_t		iSpan = 0;		// beat-based: the span the shifted position was in
+		bool		bSpanKnown = false;
+		double		aPending[MAX_PENDING] = {};	// delayed hits: when they fire (m_fTime)
+		int			nPending = 0;
 	};
+	double	m_fTime = 0;	// seconds stepped, for delayed hits
 	std::vector<ModRow>	m_aRow;
 	std::vector<State>	m_aState;
 	double	m_fDepth = 1;

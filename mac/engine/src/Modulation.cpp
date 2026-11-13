@@ -46,6 +46,19 @@ bool ModSources::IsTrigger(int iSource)
 	return IsValid(iSource) && kSource[iSource].bTrigger;
 }
 
+int ModSources::SpanBeats(int iSource)
+{
+	switch (iSource) {
+	case SRC_Beat: return 1;
+	case SRC_Bar: return 4;
+	case SRC_Bar4: return 16;
+	case SRC_Bar8: return 32;
+	case SRC_Bar16: return 64;
+	case SRC_Bar32: return 128;
+	default: return 0;
+	}
+}
+
 const char* ModSources::GetTag(int iSource)
 {
 	return IsValid(iSource) ? kSource[iSource].pszTag : "";
@@ -101,6 +114,7 @@ void Modulator::SetRows(const std::vector<ModRow>& aRow)
 {
 	m_aRow = aRow;
 	m_aState.assign(aRow.size(), State());
+	m_fTime = 0;
 }
 
 double Modulator::GetRowLevel(size_t iRow) const
@@ -135,6 +149,8 @@ double Modulator::Shape(int nCurve, double x, double fThreshold)
 void Modulator::Step(const ModSources& src, double dt, ModOutput& out)
 {
 	out.Clear();
+	if (dt > 0)
+		m_fTime += dt;
 	for (size_t iRow = 0; iRow < m_aRow.size(); iRow++) {
 		const ModRow&	row = m_aRow[iRow];
 		State&	st = m_aState[iRow];
@@ -142,12 +158,44 @@ void Modulator::Step(const ModSources& src, double dt, ModOutput& out)
 			st = State();	// starts afresh when turned back on
 			continue;
 		}
-		bool	bFired = false;	// a trigger source's count moved
-		if (ModSources::IsTrigger(row.iSource)) {
+		bool	bFired = false;	// a trigger source fired
+		if (int nSpan = ModSources::SpanBeats(row.iSource)) {
+			// beat-based: when the beat position, shifted by the offset, enters
+			// a new span (a beat, a bar, a phrase). Also when a jump lands near a
+			// span's start (Mark Downbeat a little late), not in its middle.
+			if (src.bBeat && src.fTempo > 0) {
+				double	fPos = src.fBeatPos - row.fOffset * src.fTempo / 60;
+				int64_t	iSpan = static_cast<int64_t>(std::floor(fPos / nSpan));
+				double	fInto = fPos - static_cast<double>(iSpan) * nSpan;	// beats into the span
+				bFired = st.bSpanKnown && iSpan != st.iSpan && fInto < 0.5;
+				st.iSpan = iSpan;
+				st.bSpanKnown = true;
+			} else {
+				st.bSpanKnown = false;	// no beat: nothing until it's back
+			}
+		} else if (ModSources::IsTrigger(row.iSource)) {
 			uint32_t	nCount = src.aCount[row.iSource];
-			bFired = st.bPrimed && nCount != st.nCount;	// several hits in a frame fire once
+			bool	bHit = st.bPrimed && nCount != st.nCount;	// several hits in a frame fire once
 			st.nCount = nCount;
 			st.bPrimed = true;
+			if (bHit) {
+				if (row.fOffset > 0) {	// late: fire after the offset (hits can't come early)
+					if (st.nPending < MAX_PENDING)
+						st.aPending[st.nPending++] = m_fTime + row.fOffset;
+				} else {
+					bFired = true;
+				}
+			}
+			for (int i = 0; i < st.nPending; ) {	// delayed hits due
+				if (st.aPending[i] <= m_fTime) {
+					bFired = true;
+					st.aPending[i] = st.aPending[--st.nPending];
+				} else {
+					i++;
+				}
+			}
+		}
+		if (ModSources::IsTrigger(row.iSource)) {
 			// a pulse: jumps to 1 on a hit, then decays over the release
 			st.fEnv = bFired ? 1 : Smooth(st.fEnv, 0, dt, row.fRelease);
 		} else {

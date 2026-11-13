@@ -295,6 +295,9 @@ void AudioAnalyzer::Analyze()
 	m_src.aCount[ModSources::SRC_Beat] = m_beat.GetBeatCount();
 	for (int i = 0; i < BeatTracker::SPANS; i++)	// Bar, 4-Bar ... 32-Bar
 		m_src.aCount[ModSources::SRC_Bar + i] = m_beat.GetSpanCount(i);
+	m_src.bBeat = m_beat.IsLocked();	// the position, for beat-based rows
+	m_src.fBeatPos = m_beat.GetBeatPosition();
+	m_src.fTempo = m_beat.GetTempo();
 	m_iHist = (m_iHist + 1) % m_nHistSize;
 	m_nHist = std::min(m_nHist + 1, m_nHistSize);
 	std::swap(m_aMag, m_aPrevMag);

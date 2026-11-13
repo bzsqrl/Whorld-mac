@@ -53,6 +53,8 @@ public:
 	// the next). 4 beats to a bar.
 	void	MarkDownbeat();
 	int		GetBeatInBar() const;	// 0 to 3, the beat just counted (-1 before any)
+	// beats since the one, continuous (as the beats are shifted), while locked
+	double	GetBeatPosition() const { return static_cast<double>(m_iBeat) + GetPhase(); }
 	int		GetBarInPhrase() const;	// 0 to 31, its bar in 32
 	// beats that began a span of nBeats (4: bars, 16: 4 bars, ... 128: 32 bars)
 	uint32_t	GetSpanCount(int iSpan) const { return m_aSpanCount[iSpan]; }

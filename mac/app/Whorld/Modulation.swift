@@ -62,7 +62,7 @@ struct ModulationView: View {
 			Divider()
 			ModRowsSection()
 		}
-		.frame(minWidth: 1130, minHeight: 640)
+		.frame(minWidth: 1200, minHeight: 640)
 		.onAppear { AudioSettings.register() }
 	}
 }
@@ -354,6 +354,7 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 	var attackMs = 10.0
 	var releaseMs = 200.0
 	var threshold = 0.5			// for the gate curve and for actions
+	var offsetMs = 0.0			// -300 to 300: beat-based sources fire early (-) or late; hits only late
 
 	init() {}
 
@@ -372,10 +373,13 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 		attackMs = (try? c.decodeIfPresent(Double.self, forKey: .attackMs)) ?? d.attackMs
 		releaseMs = (try? c.decodeIfPresent(Double.self, forKey: .releaseMs)) ?? d.releaseMs
 		threshold = (try? c.decodeIfPresent(Double.self, forKey: .threshold)) ?? d.threshold
+		offsetMs = (try? c.decodeIfPresent(Double.self, forKey: .offsetMs)) ?? d.offsetMs
 	}
 
 	var isAction: Bool { !action.isEmpty }
 	var isTrigger: Bool { WHModRow.isTriggerSource(source) }
+	/// Beat, Bar ... 32-Bar: from the beat's position, so they can fire early
+	var isBeatBased: Bool { ["Beat", "Bar", "Bar4", "Bar8", "Bar16", "Bar32"].contains(source) }
 
 	/// whether this Whorld knows the source, and the action or control
 	var isKnown: Bool {
@@ -400,6 +404,7 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 		r.attack = attackMs / 1000
 		r.releaseTime = releaseMs / 1000
 		r.threshold = threshold
+		r.offset = min(max(offsetMs, -300), 300) / 1000
 		return r
 	}
 
@@ -705,16 +710,24 @@ private struct ModRowsSection: View {
 					}
 				}
 				.width(min: 80, ideal: 90)
-				TableColumn("Attack") { $r in
-					if r.isTrigger {
-						Text("—").foregroundStyle(.secondary)	// a hit's pulse starts at once
-					} else {
-						MsField(value: $r.attackMs)
+				TableColumn("Attack · Release") { $r in	// one column: a Table takes ten at most
+					HStack(spacing: 4) {
+						if r.isTrigger {
+							Text("—").foregroundStyle(.secondary)	// a hit's pulse starts at once
+								.frame(width: 52)
+						} else {
+							MsField(value: $r.attackMs)
+						}
+						MsField(value: $r.releaseMs)
 					}
 				}
-				.width(64)
-				TableColumn("Release") { $r in
-					MsField(value: $r.releaseMs)
+				.width(124)
+				TableColumn("Offset") { $r in
+					if r.isTrigger {
+						OffsetField(value: $r.offsetMs, earlyAllowed: r.isBeatBased)
+					} else {
+						Text("—").foregroundStyle(.secondary)
+					}
 				}
 				.width(64)
 				TableColumn("Threshold") { $r in
@@ -791,6 +804,24 @@ private struct LevelBar: View {
 				.frame(width: CGFloat(min(max(value, 0), 1)) * 48)
 		}
 		.frame(width: 48, height: 8)
+	}
+}
+
+/// A trigger row's timing, in milliseconds, -300 to 300: beat-based rows
+/// fire that much before (negative) or after the beat; hits can only be
+/// held back, so a negative offset does nothing for them (shown grey).
+private struct OffsetField: View {
+	@Binding var value: Double
+	let earlyAllowed: Bool
+
+	var body: some View {
+		TextField("", value: Binding(get: { value }, set: { value = min(max($0.rounded(), -300), 300) }), format: .number)
+			.multilineTextAlignment(.trailing)
+			.frame(width: 52)
+			.foregroundStyle(!earlyAllowed && value < 0 ? Color.secondary : Color.primary)
+			.help(earlyAllowed
+				? "Milliseconds before (negative) or after (positive) the beat, bar or phrase that the row fires, -300 to 300."
+				: "Milliseconds after the hit that the row fires, up to 300. A hit can't be anticipated, so negative values do nothing here; Beat and the bars can fire early.")
 	}
 }
 

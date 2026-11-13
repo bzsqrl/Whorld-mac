@@ -153,6 +153,7 @@ typedef struct {
 @property (nonatomic) double attack;	// seconds
 @property (nonatomic) double releaseTime;	// seconds
 @property (nonatomic) double threshold;
+@property (nonatomic) double offset;	// seconds, -0.3 to 0.3: beat-based sources early (-) or late; hits only late
 // the sources and actions (ModulationDef.h), as tags, in menu order
 @property (class, readonly) NSArray<NSString *> *sourceTags;
 @property (class, readonly) NSArray<NSString *> *actionTags;

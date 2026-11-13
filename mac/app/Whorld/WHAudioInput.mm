@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstdlib>
 #include <mutex>
 #include <thread>
@@ -33,8 +34,14 @@
 
 namespace {
 
+double SteadySeconds()
+{
+	return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
 struct Published {
 	whorld::ModSources	src;
+	double	fTime = 0;	// when published (SteadySeconds), to carry the beat position on to now
 	float	levelDb = -200;
 	float	tempo = 0;
 	bool	beatLocked = false;
@@ -349,6 +356,7 @@ NSString *RateText(double fRate)
 			}
 			for (int i = 0; i < whorld::ModSources::SOURCES; i++)
 				p.src.aCount[i] = aBase[i] + (bRunning ? analyzer.GetSources().aCount[i] : 0);
+			p.fTime = SteadySeconds();
 			tb->Publish();
 		}
 	};
@@ -437,7 +445,12 @@ NSString *RateText(double fRate)
 
 - (void)readSources:(whorld::ModSources&)sources
 {
-	sources = _forRender.Read().src;
+	const Published&	p = _forRender.Read();
+	sources = p.src;
+	// the beat position as of now: analyses come every 10.7 ms or so, frames
+	// in between, and beat-based rows fire on it to the frame
+	if (sources.bBeat && sources.fTempo > 0)
+		sources.fBeatPos += std::max(0.0, SteadySeconds() - p.fTime) * sources.fTempo / 60;
 }
 
 // MARK: Settings
