@@ -24,8 +24,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) NSInteger peers;		// other Link apps in the session
 @property (readonly) double tempo;			// the session's, BPM
 @property (readonly) BOOL playing;			// the session's transport (with Start/Stop sync)
-/// Link drives the beat now (enabled, with peers)
+/// Link drives the beat now (enabled, with peers, or lately: see reconnecting)
 @property (readonly) BOOL drivesBeat;
+/// The last peer went (a network drop): the beat keeps going on Link's own
+/// timeline for up to 30 s, and Link's networking restarts every 10 s,
+/// until a peer is back
+@property (readonly) BOOL reconnecting;
 /// beats since the one, and whether there's a beat now (main thread, for the meter)
 - (BOOL)beatPosition:(double *)position;
 /// The beat nearest now is "the one" for Bar ... 32-Bar.

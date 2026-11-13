@@ -103,6 +103,10 @@ private struct AudioInputSection: View {
 		let link = WHLink.shared
 		guard linkEnabled else { return "" }
 		let n = link.peers
+		if link.reconnecting {
+			return link.drivesBeat ? String(format: "Reconnecting… keeping the last tempo (%.1f BPM)", link.tempo)
+				: "Reconnecting… the beat comes from the music meanwhile"
+		}
 		if n == 0 {
 			return "No other Link apps yet: the beat comes from the music"
 		}

@@ -16,6 +16,7 @@
 #include <ableton/Link.hpp>
 
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <memory>
 #include <mutex>
@@ -23,6 +24,18 @@
 namespace {
 
 const double kQuantum = 4;	// beats to a bar: bar lines (and phrases) line up with the session's
+// When the last peer goes (a network drop), Link's own timeline carries on
+// at the last tempo and phase: the beat keeps going on it this long, while
+// Link's networking is restarted every so often (as toggling Enable does;
+// a peer that dropped off Wi-Fi was seen not to come back by itself)
+const double kHoldSeconds = 30;
+const double kRetrySeconds = 10;
+const double kGiveUpSeconds = 300;	// then stop retrying (the other app was likely switched off)
+
+double Now()
+{
+	return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 
 } // namespace
 
@@ -33,6 +46,8 @@ const double kQuantum = 4;	// beats to a bar: bar lines (and phrases) line up wi
 	int64_t	_startMicros;	// when the session last started playing, as last seen (Start/Stop sync)
 	std::atomic<bool>	_enabled;
 	std::atomic<bool>	_startStopSync;
+	std::atomic<double>	_lostAt;	// when the last peer went (Now()), 0 if not lost
+	NSTimer	*_retryTimer;			// main thread
 }
 
 + (WHLink *)shared
@@ -50,6 +65,7 @@ const double kQuantum = 4;	// beats to a bar: bar lines (and phrases) line up wi
 		_startMicros = 0;
 		_enabled = false;
 		_startStopSync = false;
+		_lostAt = 0;
 		_link = std::make_unique<ableton::Link>(120.0);	// not joined until enabled
 		__weak WHLink	*weakSelf = self;
 		auto	notify = [weakSelf] {
@@ -59,11 +75,56 @@ const double kQuantum = 4;	// beats to a bar: bar lines (and phrases) line up wi
 					strong.changeHandler();
 			});
 		};
-		_link->setNumPeersCallback([notify](std::size_t) { notify(); });
+		_link->setNumPeersCallback([weakSelf, notify](std::size_t n) {
+			dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf peersChanged:n]; });
+			notify();
+		});
 		_link->setTempoCallback([notify](double) { notify(); });
 		_link->setStartStopCallback([notify](bool) { notify(); });
 	}
 	return self;
+}
+
+// Main thread: a peer arriving ends a loss; the last one leaving starts one,
+// with retries
+- (void)peersChanged:(std::size_t)n
+{
+	if (n > 0) {
+		_lostAt = 0;
+		[_retryTimer invalidate];
+		_retryTimer = nil;
+	} else if (_enabled && _lostAt == 0) {
+		_lostAt = Now();
+		[_retryTimer invalidate];
+		__weak WHLink	*weakSelf = self;
+		_retryTimer = [NSTimer scheduledTimerWithTimeInterval:kRetrySeconds repeats:YES block:^(NSTimer *t) {
+			[weakSelf retry:t];
+		}];
+	}
+}
+
+- (void)retry:(NSTimer *)t
+{
+	if (!_enabled || _link->numPeers() > 0 || _lostAt == 0 || Now() - _lostAt > kGiveUpSeconds) {
+		if (Now() - _lostAt > kGiveUpSeconds) {
+			_lostAt = 0;	// given up: "no other Link apps", plainly
+			if (_changeHandler)
+				_changeHandler();
+		}
+		[t invalidate];
+		if (_retryTimer == t)
+			_retryTimer = nil;
+		return;
+	}
+	_link->enable(false);	// restart discovery, as toggling Enable does
+	_link->enable(true);
+}
+
+/// Lost peers, still keeping the beat on Link's own timeline
+- (BOOL)reconnecting
+{
+	double	fLost = _lostAt.load();
+	return _enabled && _link->numPeers() == 0 && fLost > 0;
 }
 
 - (BOOL)enabled { return _enabled.load(); }
@@ -71,6 +132,9 @@ const double kQuantum = 4;	// beats to a bar: bar lines (and phrases) line up wi
 - (void)setEnabled:(BOOL)enabled
 {
 	_enabled = enabled;
+	_lostAt = 0;	// a fresh start: nothing lost
+	[_retryTimer invalidate];
+	_retryTimer = nil;
 	_link->enable(enabled);
 	if (_changeHandler)
 		_changeHandler();
@@ -89,7 +153,15 @@ const double kQuantum = 4;	// beats to a bar: bar lines (and phrases) line up wi
 - (NSInteger)peers { return _enabled ? static_cast<NSInteger>(_link->numPeers()) : 0; }
 - (double)tempo { return _link->captureAppSessionState().tempo(); }
 - (BOOL)playing { return _link->captureAppSessionState().isPlaying(); }
-- (BOOL)drivesBeat { return _enabled && _link->numPeers() > 0; }
+- (BOOL)drivesBeat
+{
+	if (!_enabled)
+		return NO;
+	if (_link->numPeers() > 0)
+		return YES;
+	double	fLost = _lostAt.load();
+	return fLost > 0 && Now() - fLost < kHoldSeconds;	// keeping the beat while reconnecting
+}
 
 // The session's beat as of now, shifted so the one (Mark Downbeat) is 0;
 // false when there's no beat (not driving, or stopped with Start/Stop sync).
