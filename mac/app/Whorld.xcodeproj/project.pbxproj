@@ -22,6 +22,7 @@
 		96F024843412E664FD58F31C /* WHSyphon.mm in Sources */ = {isa = PBXBuildFile; fileRef = CE5309039327473BFF495142 /* WHSyphon.mm */; };
 		E400806317F157D60866149F /* WHEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = CC4A8AADDEC0D6A3ED3F6952 /* WHEngine.mm */; };
 		7DCDC4E90CC8AD643F19711A /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 58343318BF1C025D14EA9769 /* AppIcon.icns */; };
+		3025FC221FA6B3E393E64BDA /* AudioAnalyzer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 775590862B1B0975802643FC /* AudioAnalyzer.cpp */; };
 		4C6344BF85C28FB3A76A2C9D /* ByteIO.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9AD330ED67D25720CAF715FE /* ByteIO.cpp */; };
 		78EE3481B81BC123DC5819C2 /* Controls.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 975509B0568EFB5A359C4670 /* Controls.cpp */; };
 		41FFB717DC4AE9B25DBAA195 /* DPoint.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A25943A1CB3686F094AC5B3E /* DPoint.cpp */; };
@@ -71,6 +72,7 @@
 		895315CF8C9F41F1630E1694 /* Whorld-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Whorld-Bridging-Header.h"; sourceTree = "<group>"; };
 		4A43C53A319CA8E90772E131 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info.plist"; sourceTree = "<group>"; };
 		58343318BF1C025D14EA9769 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "AppIcon.icns"; sourceTree = "<group>"; };
+		775590862B1B0975802643FC /* AudioAnalyzer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "AudioAnalyzer.cpp"; sourceTree = "<group>"; };
 		9AD330ED67D25720CAF715FE /* ByteIO.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "ByteIO.cpp"; sourceTree = "<group>"; };
 		975509B0568EFB5A359C4670 /* Controls.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "Controls.cpp"; sourceTree = "<group>"; };
 		A25943A1CB3686F094AC5B3E /* DPoint.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "DPoint.cpp"; sourceTree = "<group>"; };
@@ -158,6 +160,7 @@
 		521F6E4D992FBF08A1ACDF93 /* Engine */ = {
 			isa = PBXGroup;
 			children = (
+				775590862B1B0975802643FC /* AudioAnalyzer.cpp */,
 				9AD330ED67D25720CAF715FE /* ByteIO.cpp */,
 				975509B0568EFB5A359C4670 /* Controls.cpp */,
 				A25943A1CB3686F094AC5B3E /* DPoint.cpp */,
@@ -266,6 +269,7 @@
 				DDE83BE642A6C2E166A02FE8 /* WHOscServer.mm in Sources */,
 				96F024843412E664FD58F31C /* WHSyphon.mm in Sources */,
 				E400806317F157D60866149F /* WHEngine.mm in Sources */,
+				3025FC221FA6B3E393E64BDA /* AudioAnalyzer.cpp in Sources */,
 				4C6344BF85C28FB3A76A2C9D /* ByteIO.cpp in Sources */,
 				78EE3481B81BC123DC5819C2 /* Controls.cpp in Sources */,
 				41FFB717DC4AE9B25DBAA195 /* DPoint.cpp in Sources */,

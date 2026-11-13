@@ -42,15 +42,19 @@ Make Whorld respond to music, for synaesthetic visuals: live from an audio input
   - origin X/Y offset.
 - **Where they're added.** `TimerHook` combines value + oscillator in three places: Ring Growth, the interpolated loop and the end-of-frame loop (`WhorldEngine.cpp`, the `m_params.a[iParam] = ... + m_aOsc[iParam].GetVal() * fAmp` lines). Add `+ m_aParamMod[iParam]` at each. Globals are added in `UpdateGlobals`. Master properties: audit every read of `m_master.*` and read through an "effective master" accessor (base + offset) where the value drives drawing. This is the one invasive change; each site gets a comment, and `PORT_PLAN.md` "Port notes" records it.
 - **Clamping.** An offset is clamped so base + offset stays within the control's slider range (the `PARAMDEF` min and max, the master limits). The patch's own oscillator isn't clamped, as now.
-- **`AudioAnalyzer`** (new, `Audio.h/.cpp`). Input is mono float samples at any rate. Its parameters:
+- **`AudioAnalyzer`** (new, `AudioAnalyzer.h/.cpp`; built in 9.2, details below as built). Input is mono float samples at any rate. Its parameters:
   - Hann window of 2048 samples, hop 512 (about 94 analyses a second at 48 kHz);
   - its own radix-2 real FFT (portable and deterministic; about 20 µs, so roughly 0.2% of one core).
 
   It produces `Features`; all values are 0–1 unless stated:
-  - **Level:** RMS in dBFS mapped over a range (default −60 to 0 dB), after input gain; optional slow auto-level.
+  - **Level:** RMS (Hann-weighted, which is steadier), after input gain, in dB relative to a full-scale sine (as AES17 meters read), so a full-scale sine is 0 dB in Level and in its band alike. Mapped over a range (default −60 to 0 dB); optional auto-level (the recent peak, falling 3 dB a second, reads 1).
   - **Bands:** Bass 20–150 Hz, Low Mid 150–600 Hz, High Mid 600 Hz–4 kHz, Treble 4–16 kHz, as energy in dB mapped like Level.
   - **Brightness:** spectral centroid on a log scale.
-  - **Onsets:** spectral flux (the positive change in magnitude) overall, bass only ("kick") and treble only ("hats"). A hit is flux above an adaptive threshold (recent median × sensitivity), with a refractory time (default 80 ms). Each kind keeps a hit **counter**, so the render thread can't miss a hit that falls between frames.
+  - **Onsets:** spectral flux (the rise in log-compressed magnitude, averaged per bin, then over two hops) overall, bass only ("kick") and treble only ("hats"). A hit is flux above an adaptive threshold. Each kind keeps a hit **counter**, so the render thread can't miss a hit that falls between frames. As built, after tuning on synthetic signals:
+    - the threshold is the recent median (0.5 s) plus 4 median absolute deviations (×1.5 for the bass detector, which averages only a few bins and so has noisier flux). Robust statistics: steady hiss doesn't hit, and a hit doesn't raise the bar for the next one;
+    - a hit must also reach 40% of the last hit's flux, decaying over 0.3 s, so a hit's aftermath isn't a hit while an equal hit soon after is;
+    - a refractory time of 80 ms; kicks at least 180 ms apart, because a kick's tail beats against a bassline and swells again 100–180 ms later, heard as roughness, not a second kick;
+    - detection comes about 12 ms after a kick starts.
 - **`Modulator`** (new, `Modulation.h/.cpp`): the routing table and its per-frame step.
   - **Inputs:** the rows (below), `Features`, `LinkState` and dt in seconds.
   - **Per row:**
