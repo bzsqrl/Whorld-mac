@@ -285,7 +285,6 @@ void WHMidiSink::PostToMain(const whorld::MidiManager::Post& post)
 		_height = 1080;
 		_frameRate = 60;
 		_duration = -1;
-		_preroll = 10;
 		_downbeat = -1;
 		_rangeDb = 36;
 		_hitThreshold = 4;

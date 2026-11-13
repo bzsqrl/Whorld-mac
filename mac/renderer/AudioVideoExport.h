@@ -14,7 +14,9 @@
 // the modulation rows, with the audio as the video's sound track. Unlike
 // the live view, it's frame-exact and the same every time: each frame's
 // analysis is of the audio up to that frame's moment (a little beyond, so
-// hits land on the frame they're heard), at a fixed time step.
+// hits land on the frame they're heard), at a fixed time step. And it can
+// look ahead: the beat the tracker finds a few seconds in is there from the
+// first frame.
 
 #include "VideoWriter.h"
 #include "whorld/AudioAnalyzer.h"
@@ -34,7 +36,7 @@ struct AudioVideoOptions {
 	double	fFrameRate = 60;
 	double	fStart = 0;			// seconds into the audio
 	double	fDuration = -1;		// seconds; -1: to the end
-	double	fPreroll = 10;		// seconds the patch runs (to fill the picture) before the video starts
+	double	fPreroll = 0;		// seconds the patch runs (to fill the picture) before the video starts
 	// modulation, as the live Modulator's
 	std::vector<ModRow>	aRow;
 	std::vector<ModSync>	aSync;

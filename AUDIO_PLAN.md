@@ -193,7 +193,8 @@ Core Audio process taps (`AudioHardwareCreateProcessTap` with an aggregate devic
 
 As built (9.9): File > Export Audio-Reactive Video… and `whorld-render --audio` (`renderer/AudioVideoExport.mm`).
 
-- A fresh engine runs the document's patch (antialiased, as exports draw; zoomed to frame it as the view does) for a pre-roll, 10 s by default, so the picture is full when the video starts. The random sequence is seeded, so a render is the same every time.
+- A fresh engine runs the document's patch (antialiased, as exports draw; zoomed to frame it as the view does). Optionally, it runs for a pre-roll first, so the picture is full when the video starts; by default (the user's choice) the video starts at the patch's first frame.
+- The beat from the first frame: a first pass over the audio (the same analysis, samples and downbeat) finds where the tracker locks, and frames before that use its first beat and tempo, carried back; the tracker takes over at the lock without a jump. The tracker's position is as of its last analysis (the last whole hop), and the frame's offset is measured from there. The random sequence is seeded, so a render is the same every time.
 - Each frame: the audio is decoded and analyzed up to the frame's moment plus half an analysis window (the lookahead that puts hits on their frame); the beat position is moved back to the frame's moment; the Modulator steps 1/fps; actions run on the export's engine (Next/Previous Patch from the playlist; snapshot actions are skipped).
 - The beat comes from the tracker, or from a set tempo; a downbeat time marks the one (Mark Downbeat at that moment, with the tracker).
 - The decoded audio is the movie's sound track (AAC, 48 kHz stereo). The writer interleaves sound and picture and waits for sound ahead of each frame, so decoding stays 2 s ahead, and the track is marked finished when the audio ends.

@@ -435,7 +435,7 @@ extension AppModel {
 		o.frameRate = Double(opts.frameRate)
 		o.start = opts.wholeFile ? 0 : opts.start
 		o.duration = opts.wholeFile ? -1 : opts.length
-		o.preroll = opts.preroll
+		o.preroll = opts.runFirst ? max(opts.preroll, 0) : 0
 		o.tempo = opts.setTempo ? opts.tempo : 0
 		o.downbeat = opts.markDownbeat ? opts.downbeat : -1
 		o.gainDb = d.double(forKey: AudioSettings.gainKey)
@@ -595,11 +595,33 @@ struct AudioVideoExportOptions: Codable {
 	var wholeFile = true
 	var start = 0.0			// seconds
 	var length = 60.0
+	var runFirst = false	// run the patch before the video starts (pre-roll), to fill the picture
 	var preroll = 10.0
 	var setTempo = false	// a set tempo instead of the beat tracker's
 	var tempo = 120.0
 	var markDownbeat = false
 	var downbeat = 0.0		// seconds into the audio
+
+	init() {}
+
+	init(from decoder: Decoder) throws {	// missing fields (from an older Whorld) read as defaults
+		let c = try decoder.container(keyedBy: CodingKeys.self)
+		let d = AudioVideoExportOptions()
+		preset = (try? c.decodeIfPresent(Int.self, forKey: .preset)) ?? d.preset
+		width = (try? c.decodeIfPresent(Int.self, forKey: .width)) ?? d.width
+		height = (try? c.decodeIfPresent(Int.self, forKey: .height)) ?? d.height
+		frameRate = (try? c.decodeIfPresent(Int.self, forKey: .frameRate)) ?? d.frameRate
+		codec = (try? c.decodeIfPresent(Int.self, forKey: .codec)) ?? d.codec
+		wholeFile = (try? c.decodeIfPresent(Bool.self, forKey: .wholeFile)) ?? d.wholeFile
+		start = (try? c.decodeIfPresent(Double.self, forKey: .start)) ?? d.start
+		length = (try? c.decodeIfPresent(Double.self, forKey: .length)) ?? d.length
+		runFirst = (try? c.decodeIfPresent(Bool.self, forKey: .runFirst)) ?? d.runFirst
+		preroll = (try? c.decodeIfPresent(Double.self, forKey: .preroll)) ?? d.preroll
+		setTempo = (try? c.decodeIfPresent(Bool.self, forKey: .setTempo)) ?? d.setTempo
+		tempo = (try? c.decodeIfPresent(Double.self, forKey: .tempo)) ?? d.tempo
+		markDownbeat = (try? c.decodeIfPresent(Bool.self, forKey: .markDownbeat)) ?? d.markDownbeat
+		downbeat = (try? c.decodeIfPresent(Double.self, forKey: .downbeat)) ?? d.downbeat
+	}
 
 	static let presets: [(String, Int, Int)] = [("View", 0, 0), ("1280 × 720", 1280, 720), ("1920 × 1080", 1920, 1080),
 		("3840 × 2160", 3840, 2160), ("Custom", 0, 0)]
@@ -657,8 +679,11 @@ struct AudioVideoExportView: View {
 					TextField("Length (s)", value: $options.length, format: .number)
 				}
 			}
-			TextField("Run the patch first (s)", value: $options.preroll, format: .number)
-				.help("Seconds the patch runs before the video starts, so the picture is already full of rings.")
+			Toggle("Run the patch first", isOn: $options.runFirst)
+				.help("Off: the video starts with the patch's first frame, reacting to the music at once. On: the patch runs this long before the video starts, so the picture is already full of rings.")
+			if options.runFirst {
+				TextField("For (s)", value: $options.preroll, format: .number)
+			}
 			Toggle("Set the tempo (instead of finding the beat)", isOn: $options.setTempo)
 			if options.setTempo {
 				TextField("Tempo (BPM)", value: $options.tempo, format: .number)
