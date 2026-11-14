@@ -1545,6 +1545,8 @@ bool MetalRenderer::SetTargetSurface(IOSurfaceRef surface)
 
 bool MetalRenderer::IsCoverageModeSupported()
 {
+	if (getenv("WHORLD_NO_METAL"))	// try the fallback an Intel Mac takes
+		return false;
 	id<MTLDevice>	device = MTLCreateSystemDefaultDevice();
 	return device && [device supportsFamily:MTLGPUFamilyApple1];
 }

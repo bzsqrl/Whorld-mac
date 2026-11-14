@@ -76,6 +76,8 @@ public:
 	bool	SetTargetSurface(IOSurfaceRef surface);
 
 	// True if this Mac's GPU can run coverage mode (nSamples 0): an Apple GPU.
+	// WHORLD_NO_METAL set in the environment makes it false, to try the Intel
+	// fallback (Core Graphics everywhere) on Apple silicon.
 	static bool	IsCoverageModeSupported();
 	// True if coverage mode can draw a frame this size: an Apple GPU, and
 	// within Metal's texture size limit. Exports draw with Metal when it can

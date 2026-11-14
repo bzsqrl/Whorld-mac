@@ -22,7 +22,7 @@ These commands are created in Phase 0 of the plan. Keep this section accurate as
 
 - Engine + tests: `cmake -S mac -B build && cmake --build build && ctest --test-dir build --output-on-failure` (`build/` defaults to Debug)
 - Timing: use an optimized tree, `cmake -S mac -B build-release -DCMAKE_BUILD_TYPE=Release && cmake --build build-release`; Debug CPU code runs about 10× slower. Metal timings: `build-release/renderer/tests/spike_metal --samples 0 --no-golden --patches name1,name2` (full screen; `--aa 1` forces antialiasing; see PORT_PLAN Phase 8)
-- Metal tests: `test_metal` checks the Windows golden images and every sample patch against Core Graphics (every third patch in a Debug build); it skips where there's no Apple GPU
+- Metal tests: `test_metal` checks the Windows golden images and every sample patch against Core Graphics (every third patch in a Debug build); it skips where there's no Apple GPU; `WHORLD_NO_METAL=1` (tests or app) acts as if there were none, to try the Intel fallback
 - Render a frame: `build/tools/whorld-render <file.whp|file.whs> --out frame.png` (run with no arguments for options)
 - Compare images: `build/tools/whorld-render --compare a.png b.png --diff diff.png`
 - Movie to video: `build/tools/whorld-render movie.whm --video out.mov --codec prores4444` (or `--frame N --out f.png` for one frame)
