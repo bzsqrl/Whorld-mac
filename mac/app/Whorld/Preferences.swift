@@ -38,7 +38,7 @@ enum Preferences {
 			"Render_nMaxFrameRate": 0,
 			"Render_fScale": 1.0,
 			"Render_bSmoothUpscale": true,
-			"Rings_bFadeEased": false,
+			"Rings_bFadeEased": true,
 			"Rings_bHueFromPatch": false,
 			"OSC_bEnabled": true,
 			"OSC_nReceivePort": 8000,
@@ -169,7 +169,7 @@ struct PreferencesView: View {
 	@AppStorage("Output_bKeyReadout") private var keyReadout = false
 	@Environment(\.openWindow) private var openWindow
 	@AppStorage("Render_nMaxFrameRate") private var maxFrameRate = 0
-	@AppStorage("Rings_bFadeEased") private var ringFadeEased = false
+	@AppStorage("Rings_bFadeEased") private var ringFadeEased = true
 	@AppStorage("Rings_bHueFromPatch") private var hueFromPatch = false
 	@AppStorage("OSC_bEnabled") private var oscEnabled = true
 	@AppStorage("OSC_nReceivePort") private var oscReceivePort = 8000
