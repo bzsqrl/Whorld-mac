@@ -240,8 +240,6 @@ final class AppModel: ObservableObject {
 		case 6:	// a master property
 			midiPending.master.insert(Int(value))
 			scheduleMidiRefresh()
-		case 7:	// Mark Downbeat (Mac addition)
-			ModMap.markDownbeat()
 		default:	// 0: main properties or draw mode; 1: pause
 			midiPending.main = true
 			scheduleMidiRefresh()

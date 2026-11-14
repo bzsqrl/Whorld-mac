@@ -85,8 +85,10 @@ MAPPINGDEF_MISC_TARGET(Patch,			RANGE)
 MAPPINGDEF_MISC_TARGET(Hue,				RANGE)
 MAPPINGDEF_MISC_TARGET(RotateHue,		ACTION)
 MAPPINGDEF_MISC_TARGET(InvertColor,		BOOL)
-// audio modulation: the beat's one (Bar ... 32-Bar)
+// audio modulation: the beat's one (Bar ... 32-Bar), on and off, depth
 MAPPINGDEF_MISC_TARGET(MarkDownbeat,	ACTION)
+MAPPINGDEF_MISC_TARGET(ModOn,			BOOL)
+MAPPINGDEF_MISC_TARGET(ModDepth,		RANGE)
 
 #undef MAPPINGDEF_MISC_TARGET
 #endif // MAPPINGDEF_MISC_TARGET

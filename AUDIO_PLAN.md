@@ -245,4 +245,4 @@ All of this is already in the design above.
 
 - A small set of starter rows for Restore Defaults: for example Bass → Ring Growth, Hit → Random Phase, Treble → Line Width. Tune these by ear with the user.
 - Whether the panels should show modulation, for example a faint second marker on a slider at the modulated value.
-- MIDI targets for Depth and Bypass (checked: Windows reads unknown targets as Ring Growth, so they'd go in `[MacMapping]`, as Mark Downbeat does).
+- MIDI targets for Depth and Bypass: done 2026-11-14, `ModDepth` and `ModOn` ("Modulation Depth", "Modulation On"), saved in playlists' `[MacMapping]`, as Mark Downbeat is (Windows reads unknown targets as Ring Growth).

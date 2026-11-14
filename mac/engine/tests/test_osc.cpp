@@ -154,7 +154,7 @@ TEST(EveryMidiTargetHasAnAddress) {
 		covered.insert({a.iTarget, a.iProp});
 		CHECK(paths.insert(a.path).second);	// unique
 		CHECK(a.path.rfind("/w/", 0) == 0);
-		CHECK(a.path.size() <= 12);	// short: "/w/p/rg/v", "/w/rndphase"
+		CHECK(a.path.size() <= 15);	// short: "/w/p/rg/v", "/w/rndphase", "/w/mod/downbeat"
 		int	iProp;
 		CHECK_EQ(OscRemote::Find(a.path, iProp), a.iTarget);
 		CHECK_EQ(iProp, a.iProp);

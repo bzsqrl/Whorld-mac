@@ -88,7 +88,9 @@ const char* const	kMiscName[] = {
 	"hue",		// Hue (Mac addition)
 	"rothue",	// RotateHue
 	"invert",	// InvertColor
-	"downbeat",	// MarkDownbeat
+	"mod/downbeat",	// MarkDownbeat (the app takes /w/mod/... before the table)
+	"mod/on",	// ModOn
+	"mod/depth",	// ModDepth
 };
 static_assert(sizeof(kMiscName) / sizeof(kMiscName[0]) == MappingBase::MISC_TARGETS, "a name per miscellaneous target");
 

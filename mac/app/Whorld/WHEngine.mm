@@ -1547,9 +1547,9 @@ static NSString *SourceName(MIDIEndpointRef src)
 	case Post::ROTATE_HUE:	// Mac addition
 		[self rotateHue];
 		break;
-	case Post::MARK_DOWNBEAT:	// Mac addition: the app marks it (Link's or the beat tracker's)
-		if (_midiHandler)
-			_midiHandler(7, 0);
+	case Post::MODULATION:	// Mac addition: the app's, as OSC's /w/mod/... (ModMap.osc)
+		if (_modulationOscHandler)
+			_modulationOscHandler(post.iVal, post.fVal);
 		return;
 	}
 	if (_midiHandler)

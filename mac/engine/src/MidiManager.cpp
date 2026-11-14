@@ -201,7 +201,19 @@ void MidiManager::PushMiscTarget(int iMiscTarget, double fNormVal)
 	case MT_MarkDownbeat:
 		if (fNormVal > 0) {	// a press, not its release (a note-on of velocity 0, a button's 0)
 			Post	post;
-			post.type = Post::MARK_DOWNBEAT;
+			post.type = Post::MODULATION;
+			post.iVal = 2;
+			post.fVal = 1;
+			m_sink.PostToMain(post);
+		}
+		break;
+	case MT_ModOn:	// the app owns the modulation settings
+	case MT_ModDepth:
+		{
+			Post	post;
+			post.type = Post::MODULATION;
+			post.iVal = iMiscTarget == MT_ModOn ? 0 : 1;
+			post.fVal = iMiscTarget == MT_ModOn ? (fNormVal != 0 ? 1 : 0) : std::clamp(fNormVal, 0.0, 1.0);
 			m_sink.PostToMain(post);
 		}
 		break;

@@ -193,8 +193,12 @@ TEST(MappingDefaultsAndNames) {
 	CHECK_EQ(m.m_iEvent, int(MIDI_CVM_CONTROL));
 	CHECK_EQ(m.m_iControl, 1);
 	CHECK_EQ(m.m_fEnd, 100.0);
-	// 17 miscellaneous targets on Windows, plus the Mac's Hue, Rotate Hue, Invert Color and Mark Downbeat
-	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 21);
+	// 17 miscellaneous targets on Windows, plus the Mac's Hue, Rotate Hue, Invert Color,
+	// Mark Downbeat, Modulation On and Modulation Depth
+	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 23);
+	CHECK_EQ(MB::GetTargetName(MB::TARGET_ModDepth), std::string("Modulation Depth"));
+	CHECK_EQ(MB::GetTargetType(MB::TARGET_ModOn), int(MB::TT_BOOL));
+	CHECK(MB::IsMacOnlyTarget(MB::TARGET_ModDepth));
 	CHECK_EQ(MB::GetTargetName(MB::TARGET_MarkDownbeat), std::string("Mark Downbeat"));
 	CHECK_EQ(MB::GetTargetType(MB::TARGET_MarkDownbeat), int(MB::TT_ACTION));
 	CHECK(!MB::IsMacOnlyTarget(MB::TARGET_Patch));
@@ -322,20 +326,37 @@ TEST(DispatchMasterAndMisc) {
 	CHECK_EQ(sink.cmds[0].m_prop.intVal, int(WhorldBase::OM_RANDOM));
 }
 
-TEST(MarkDownbeatOnPressOnly) {
+TEST(ModulationTargets) {
+	// Mac additions, carried out by the app (as OSC's /w/mod/...)
 	RecordingSink	sink;
 	MidiManager	mgr(sink);
 	MappingArray	maps;
 	maps.push_back(MakeMapping(MIDI_CVM_NOTE_ON, 0, 40, MB::TARGET_MarkDownbeat));
+	maps.push_back(MakeMapping(MIDI_CVM_NOTE_ON, 0, 41, MB::TARGET_ModOn));
+	maps.push_back(MakeMapping(MIDI_CVM_CONTROL, 0, 7, MB::TARGET_ModDepth));
 	mgr.m_midiMaps.SetArray(maps);
+	using Post = MidiManager::Post;
 	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 40, 100));
 	CHECK(sink.cmds.empty());
 	CHECK_EQ(sink.posts.size(), size_t(1));
-	CHECK_EQ(sink.posts[0].type, MidiManager::Post::MARK_DOWNBEAT);
+	CHECK_EQ(sink.posts[0].type, Post::MODULATION);
+	CHECK_EQ(sink.posts[0].iVal, 2);
 	sink.Clear();
 	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 40, 0));	// the release: nothing
 	CHECK(sink.cmds.empty());
 	CHECK(sink.posts.empty());
+	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 41, 0));	// off
+	CHECK_EQ(sink.posts[0].type, Post::MODULATION);
+	CHECK_EQ(sink.posts[0].iVal, 0);
+	CHECK_EQ(sink.posts[0].fVal, 0.0);
+	sink.Clear();
+	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 41, 100));	// on
+	CHECK_EQ(sink.posts[0].fVal, 1.0);
+	sink.Clear();
+	mgr.OnMidiEvent(MakeMidiMsg(CONTROL, 0, 7, 127));	// depth, 0 to 1
+	CHECK_EQ(sink.posts[0].iVal, 1);
+	CHECK_NEAR(sink.posts[0].fVal, 1.0, 1e-12);
+	CHECK(sink.cmds.empty());
 }
 
 TEST(MacOnlyMappingsHaveTheirOwnSection) {
