@@ -16,6 +16,7 @@
 
 #include "AudioVideoExport.h"
 #include "ImageCompare.h"
+#include "MetalRenderer.h"
 #include "RenderJobs.h"
 #include "VideoWriter.h"
 #include "whorld/WhorldEngine.h"
@@ -23,6 +24,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
+#include <vector>
 #include <string>
 
 using namespace whorld;
@@ -34,9 +37,12 @@ int Usage()
 	std::fprintf(stderr,
 		"usage:\n"
 		"  whorld-render <patch.whp> [--frames N] [--size WxH] [--scale S] [--deferred]\n"
-		"                [--ring-fade N [--eased]] --out frame.png\n"
+		"                [--ring-fade N [--eased]] [--antialias 0|1] [--metal] --out frame.png\n"
 		"  whorld-render <snapshot.whs> [--size WxH] [--view WxH] [--fit none|width|height|both]\n"
-		"                [--use-view-size] [--no-letterbox] --out frame.png\n"
+		"                [--use-view-size] [--no-letterbox] [--metal] --out frame.png\n"
+		"  whorld-render <snapshot.whs> --as-shown [--size WxH] [--antialias 0|1] [--metal] --out frame.png\n"
+		"  (--as-shown: as the window shows it, --size being the view, with antialiasing as\n"
+		"   set (default on), unlike an export, which always antialiases; --metal: drawn with Metal)\n"
 		"  whorld-render --compare a.png b.png [--threshold T] [--diff diff.png] [--region X,Y,W,H]\n"
 		"  whorld-render <movie.whm> [--size WxH] [--fit ...] [--use-view-size] [--start N] [--end N]\n"
 		"                --video out.mov [--codec h264|hevc|prores|prores4444] [--cg]   (or --frame N --out frame.png)\n"
@@ -50,6 +56,50 @@ int Usage()
 bool ParseSize(const char* psz, int& w, int& h)
 {
 	return std::sscanf(psz, "%dx%d", &w, &h) == 2 && w > 0 && h > 0;
+}
+
+// A frame drawn by fnDraw, written as a PNG: by Metal (coverage mode, as
+// the app's view and exports) or by Core Graphics
+bool DrawPNG(int w, int h, double fScale, bool bMetal, bool bDeferred,
+	const std::function<void(IRenderer&)>& fnDraw, const std::string& sOut, std::string& err)
+{
+	if (bMetal) {
+		MetalRenderer	r(w, h, fScale, 0);
+		if (!r.IsValid()) {
+			err = "Metal isn't available on this Mac";
+			return false;
+		}
+		r.BeginFrame();
+		fnDraw(r);
+		r.EndFrame();
+		std::vector<uint8_t>	aPixel;
+		size_t	nStride = 0;
+		if (!r.ReadPixels(aPixel, nStride)) {
+			err = "can't read the Metal frame";
+			return false;
+		}
+		CGBitmapRenderer	png(aPixel.data(), w, h, nStride, fScale);
+		return png.WritePNG(sOut, &err);
+	}
+	CGBitmapRenderer	r(w, h, fScale);
+	if (!r.IsValid()) {
+		err = "can't create the image";
+		return false;
+	}
+	r.SetDeferred(bDeferred);
+	r.BeginFrame();
+	fnDraw(r);
+	r.EndFrame();
+	return r.WritePNG(sOut, &err);
+}
+
+// the Antialiasing property, as the Properties checkbox sets it
+void SetAntialias(WhorldEngine& eng, bool bOn)
+{
+	WhorldBase::VARIANT_PROP	prop;
+	prop.llVal = 0;
+	prop.boolVal = bOn;
+	eng.OnSetMainProp(WhorldBase::MAIN_Antialiasing, prop);
 }
 
 bool EndsWith(const std::string& s, const char* pszSuffix)
@@ -115,6 +165,9 @@ int main(int argc, char** argv)
 	bool	bLetterbox = true;
 	bool	bDeferred = false;
 	bool	bMetal = true;	// videos: Metal where it can
+	bool	bMetalPNG = false;	// --metal: PNGs drawn with Metal
+	bool	bAsShown = false;
+	int		nAntialias = -1;	// -1: the patch's own (or on, as shown)
 	int		nRingFade = 0;
 	bool	bRingFadeEased = false;
 	std::string	sVideo;
@@ -158,6 +211,12 @@ int main(int argc, char** argv)
 			bDeferred = true;
 		else if (!std::strcmp(a, "--cg"))
 			bMetal = false;
+		else if (!std::strcmp(a, "--metal"))
+			bMetalPNG = true;
+		else if (!std::strcmp(a, "--as-shown"))
+			bAsShown = true;
+		else if (!std::strcmp(a, "--antialias") && bHasArg)
+			nAntialias = std::atoi(argv[++i]) != 0;
 		else if (!std::strcmp(a, "--ring-fade") && bHasArg)
 			nRingFade = std::atoi(argv[++i]);
 		else if (!std::strcmp(a, "--eased"))
@@ -291,6 +350,63 @@ int main(int argc, char** argv)
 	}
 	if (sOut.empty() || !(fScale > 0) || nFrames < 1)
 		return Usage();
+	if (bAsShown || bMetalPNG || nAntialias >= 0) {	// drawn here, by either renderer
+		WhorldEngine	eng;
+		std::function<void(IRenderer&)>	fnDraw;
+		int	cx = w, cy = h;
+		double	fPixelScale = fScale;
+		if (EndsWith(sIn, ".whs")) {
+			auto	pSnapshot = Snapshot::Read(sIn, &err);
+			if (!pSnapshot) {
+				std::fprintf(stderr, "%s: %s\n", sIn.c_str(), err.c_str());
+				return 1;
+			}
+			if (bAsShown) {	// the view, paused on the snapshot (CWhorldDraw::SetSnapshot)
+				eng.OnResize(SizeF{float(w / fScale), float(h / fScale)});
+				eng.SetSnapshotLetterbox(bLetterbox);
+				eng.OnDisplaySnapshot(*pSnapshot);
+				SetAntialias(eng, nAntialias != 0);
+				fnDraw = [&eng](IRenderer& r) { eng.Draw(r); };
+			} else {	// an export (antialiased, as Windows' Export)
+				SnapshotExportOptions	opts;
+				opts.szImage = IntSize{w, h};
+				opts.nFlags = nFlags;
+				opts.szView = SizeF{float(vw), float(vh)};
+				opts.bLetterbox = bLetterbox;
+				IntSize	sz = PrepareSnapshotExport(eng, *pSnapshot, opts);
+				cx = sz.cx;
+				cy = sz.cy;
+				fPixelScale = 1;
+				fnDraw = [&eng, nFlags, w, h](IRenderer& r) { eng.DrawCapture(r, nFlags, IntSize{w, h}); };
+			}
+		} else {	// a patch, run for nFrames (RenderPatch), the last drawn
+			Patch	patch;
+			if (!patch.Read(sIn, &err)) {
+				std::fprintf(stderr, "%s: %s\n", sIn.c_str(), err.c_str());
+				return 1;
+			}
+			if (nRingFade > 0)
+				patch.m_master.fFade = nRingFade;
+			eng.SetFrameRate(60);
+			eng.SetRingFadeEased(bRingFadeEased);
+			eng.OnResize(SizeF{float(w / fScale), float(h / fScale)});
+			eng.OnSetPatch(patch);
+			if (nAntialias >= 0)
+				SetAntialias(eng, nAntialias != 0);
+			CGBitmapRenderer	scratch(16, 16, 1);	// the frames before, not kept
+			for (int i = 0; i < nFrames - 1; i++) {
+				scratch.BeginFrame();
+				eng.Draw(scratch);
+				scratch.EndFrame();
+			}
+			fnDraw = [&eng](IRenderer& r) { eng.Draw(r); };
+		}
+		if (!DrawPNG(cx, cy, fPixelScale, bMetalPNG, bDeferred, fnDraw, sOut, err)) {
+			std::fprintf(stderr, "%s\n", err.c_str());
+			return 1;
+		}
+		return 0;
+	}
 	std::unique_ptr<CGBitmapRenderer>	pRenderer;
 	if (EndsWith(sIn, ".whs")) {
 		auto	pSnapshot = Snapshot::Read(sIn, &err);
