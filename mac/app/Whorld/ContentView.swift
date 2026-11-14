@@ -39,7 +39,7 @@ struct OutputView: View {
 	@EnvironmentObject private var model: AppModel
 
 	var body: some View {
-		RenderView(engine: model.engine, fullResolution: model.fullResolution)
+		RenderView(engine: model.engine, renderScale: model.renderScale, smoothUpscaling: model.smoothUpscaling)
 			.ignoresSafeArea()
 			.frame(minWidth: 320, minHeight: 240)
 			.overlay(alignment: .bottom) {
@@ -108,7 +108,8 @@ struct MainWindowObserver: NSViewRepresentable {
 /// Hosts the AppKit render view, which drives the engine from its display link.
 struct RenderView: NSViewRepresentable {
 	let engine: WHEngine
-	let fullResolution: Bool
+	let renderScale: Double
+	let smoothUpscaling: Bool
 
 	func makeNSView(context: Context) -> WHRenderView {
 		let view = WHRenderView(frame: .zero)
@@ -117,7 +118,8 @@ struct RenderView: NSViewRepresentable {
 			MainActor.assumeIsolated { AppModel.shared.resetHeldKeyControl() }
 		}
 		view.engine = engine
-		view.fullResolution = fullResolution
+		view.renderScale = renderScale
+		view.smoothUpscaling = smoothUpscaling
 		view.wheelHandler = { notches, shift, momentum, inverted in
 			Task { @MainActor in
 				AppModel.shared.wheel(notches: notches, shift: shift, momentum: momentum, inverted: inverted)
@@ -127,7 +129,12 @@ struct RenderView: NSViewRepresentable {
 	}
 
 	func updateNSView(_ view: WHRenderView, context: Context) {
-		view.fullResolution = fullResolution
+		if view.renderScale != renderScale {
+			view.renderScale = renderScale
+		}
+		if view.smoothUpscaling != smoothUpscaling {
+			view.smoothUpscaling = smoothUpscaling
+		}
 	}
 
 	/// The render view takes the size it's offered (no fitting-size measuring).

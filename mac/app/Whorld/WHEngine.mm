@@ -2429,7 +2429,8 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 - (instancetype)initWithFrame:(NSRect)frame
 {
 	if ((self = [super initWithFrame:frame])) {
-		_fullResolution = YES;
+		_renderScale = 1;
+		_smoothUpscaling = YES;
 		self.wantsLayer = YES;
 		self.layer.backgroundColor = NSColor.blackColor.CGColor;
 		self.layer.contentsGravity = kCAGravityResize;
@@ -2445,7 +2446,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 // Main thread: the pixel size frames are drawn at.
 - (void)updateDrawableSize
 {
-	double	scale = _fullResolution ? (self.window.backingScaleFactor ?: 1) : 1;
+	double	scale = (self.window.backingScaleFactor ?: 1) * _renderScale;
 	NSSize	size = self.bounds.size;
 	std::lock_guard<std::mutex>	lock(_sizeMutex);
 	_pixelWidth = (int)std::lround(size.width * scale);
@@ -2465,10 +2466,16 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	[self updateDrawableSize];
 }
 
-- (void)setFullResolution:(BOOL)fullResolution
+- (void)setRenderScale:(double)renderScale
 {
-	_fullResolution = fullResolution;
+	_renderScale = std::clamp(renderScale > 0 ? renderScale : 1, 0.25, 1.0);
 	[self updateDrawableSize];
+}
+
+- (void)setSmoothUpscaling:(BOOL)smoothUpscaling
+{
+	_smoothUpscaling = smoothUpscaling;
+	_ownLayer.magnificationFilter = smoothUpscaling ? kCAFilterLinear : kCAFilterNearest;
 }
 
 - (BOOL)isOpaque { return YES; }

@@ -46,7 +46,14 @@ final class FullScreenController {
 		NSRect(x: 0, y: 0, width: screen.frame.width, height: screen.frame.height - screen.safeAreaInsets.top)
 	}
 
-	func enter(from main: NSWindow?, engine: WHEngine, fullResolution: Bool, onExit: @escaping () -> Void) {
+	/// Settings > Rendering > Render scale and Upscaling, changed while full screen
+	func setRender(scale: Double, smooth: Bool) {
+		view?.renderScale = scale
+		view?.smoothUpscaling = smooth
+	}
+
+	func enter(from main: NSWindow?, engine: WHEngine, renderScale: Double, smoothUpscaling: Bool,
+		onExit: @escaping () -> Void) {
 		guard window == nil, let screen = main?.screen ?? NSScreen.main else { return }
 		let frame = screen.frame
 		let w = FullScreenWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
@@ -67,7 +74,8 @@ final class FullScreenController {
 		container.layer?.backgroundColor = NSColor.black.cgColor
 		let view = WHRenderView(frame: Self.pictureFrame(screen))
 		view.autoresizingMask = [.width, .height]
-		view.fullResolution = fullResolution
+		view.renderScale = renderScale
+		view.smoothUpscaling = smoothUpscaling
 		KeyReadout.attach(to: view)
 		view.secondaryClickHandler = {	// a two-finger tap with a key held: that control's default
 			MainActor.assumeIsolated { AppModel.shared.resetHeldKeyControl() }

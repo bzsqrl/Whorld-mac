@@ -36,6 +36,8 @@ enum Preferences {
 			"General_bControlTips": true,
 			"Output_bKeyReadout": false,
 			"Render_nMaxFrameRate": 0,
+			"Render_fScale": 1.0,
+			"Render_bSmoothUpscale": true,
 			"Rings_bFadeEased": false,
 			"Rings_bHueFromPatch": false,
 			"OSC_bEnabled": true,
@@ -190,7 +192,7 @@ struct PreferencesView: View {
 			}
 			.formStyle(.grouped)
 		}
-		.frame(width: 860, height: 660)
+		.frame(width: 860, height: 760)
 		.onAppear { Preferences.register() }
 	}
 
@@ -225,9 +227,23 @@ struct PreferencesView: View {
 					Text("Core Graphics (CPU)").tag(false)
 				} label: {
 					InfoLabel("Renderer", info: WHEngine.metalAvailable
-						? "Draws the live view. Exports always use Core Graphics."
-						: "Draws the live view. Metal needs a Mac with Apple silicon, so this Mac uses Core Graphics. Exports always use Core Graphics.")
+						? "Draws the live view. Exports use Metal whatever this says, so they come out the same every time."
+						: "Draws the live view. Metal needs a Mac with Apple silicon, so this Mac uses Core Graphics, for exports too.")
 				}
+				Picker(selection: $model.renderScale) {
+					ForEach(AppModel.renderScales, id: \.value) { s in
+						Text(s.name).tag(s.value)
+					}
+				} label: {
+					InfoLabel("Render scale", info: "Draws the picture with fewer pixels and scales it up to fill the window or screen, for higher frame rates on heavy patches or a slower Mac. Ring sizes and line widths stay the same; edges get coarser. At 50%, the GPU's work is about a third to a half of full resolution's. Syphon gets the smaller frames too, unless its size is fixed; exports aren't affected.")
+				}
+				Picker(selection: $model.smoothUpscaling) {
+					Text("Smooth").tag(true)
+					Text("Sharp pixels").tag(false)
+				} label: {
+					InfoLabel("Upscaling", info: "How a picture drawn below 100% is scaled up. Smooth blends neighboring pixels; Sharp pixels keeps them square and crisp, which suits patches drawn without antialiasing and looks most even at 50%.")
+				}
+				.disabled(model.renderScale >= 1)
 				.onChange(of: useMetal) { _, on in model.engine.preferMetal = on }
 				Picker(selection: $maxFrameRate) {
 					Text("Display refresh rate").tag(0)

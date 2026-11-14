@@ -80,7 +80,30 @@ final class AppModel: ObservableObject {
 	let undoManager = UndoManager()
 	@Published private(set) var title = "Untitled"
 	@Published var showFrameRate = false
-	@Published var fullResolution = true
+	/// Settings > Rendering > Render scale and Upscaling (Mac addition): the
+	/// picture is drawn at this fraction of the display's pixels and scaled up
+	@Published var renderScale: Double = {
+		Preferences.register()
+		return UserDefaults.standard.double(forKey: "Render_fScale")
+	}() {
+		didSet {
+			UserDefaults.standard.set(renderScale, forKey: "Render_fScale")
+			fullScreen.setRender(scale: renderScale, smooth: smoothUpscaling)
+		}
+	}
+	@Published var smoothUpscaling: Bool = {
+		Preferences.register()
+		return UserDefaults.standard.bool(forKey: "Render_bSmoothUpscale")
+	}() {
+		didSet {
+			UserDefaults.standard.set(smoothUpscaling, forKey: "Render_bSmoothUpscale")
+			fullScreen.setRender(scale: renderScale, smooth: smoothUpscaling)
+		}
+	}
+	/// the choices, in the View menu and Settings
+	static let renderScales: [(value: Double, name: String)] = [
+		(1, "100% (full resolution)"), (0.75, "75%"), (0.5, "50%"), (1.0 / 3, "33%"),
+	]
 	/// Frame statistics, published on their own: a change to AppModel
 	/// rebuilds every open panel, which with Parameters, Master, Globals and
 	/// Properties open blocked the main thread for about 100 ms. Done once a
@@ -983,7 +1006,7 @@ final class AppModel: ObservableObject {
 			// Origin Center; removed at the user's request)
 		} else {
 			let from = layout.layout.detached ? outputWindow.window : mainWindow
-			fullScreen.enter(from: from, engine: engine, fullResolution: fullResolution) { [weak self] in
+			fullScreen.enter(from: from, engine: engine, renderScale: renderScale, smoothUpscaling: smoothUpscaling) { [weak self] in
 				self?.toggleFullScreen()
 			}
 		}

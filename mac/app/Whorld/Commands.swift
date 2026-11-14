@@ -204,7 +204,18 @@ struct WhorldCommands: Commands {
 					.keyboardShortcut(id.shortcut, modifiers: [.command, .shift])
 			}
 			Divider()
-			Toggle("Full Resolution", isOn: $model.fullResolution)
+			Menu("Render Scale") {	// Settings > Rendering; replaces Full Resolution
+				Picker("Render Scale", selection: $model.renderScale) {
+					ForEach(AppModel.renderScales, id: \.value) { s in
+						Text(s.name).tag(s.value)
+					}
+				}
+				.pickerStyle(.inline)
+				.labelsHidden()
+				Divider()
+				Toggle("Smooth Upscaling", isOn: $model.smoothUpscaling)
+					.disabled(model.renderScale >= 1)
+			}
 			Toggle("Show Frame Rate", isOn: $model.showFrameRate)
 				.keyboardShortcut("f", modifiers: [.command, .option])	// not Ctrl-Cmd-F, macOS's full screen key
 			Toggle("Syphon Output", isOn: Binding(get: { model.syphonEnabled }, set: { model.setSyphonEnabled($0) }))
