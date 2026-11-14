@@ -9,7 +9,7 @@ License: GPLv3. Every new file gets a GPLv3 header and keeps the original copyri
 - `trunk/Whorld/` — the original Windows source (C++, MFC, Direct2D). **Reference only.** Do not edit it, except for small changes that could be sent upstream, and only when the user asks.
 - `mac/engine/` — portable C++17 engine extracted from the Windows source. No Windows headers, no MFC, no Apple headers.
 - `mac/engine/tests/` — engine unit tests and golden-image tests.
-- `mac/renderer/` — the Core Graphics drawing backend (Objective-C++, `.mm`), implementing the engine's renderer interface.
+- `mac/renderer/` — the drawing backends (Objective-C++, `.mm`), implementing the engine's renderer interface: Core Graphics (`CGRenderer`, CPU) and Metal (`MetalRenderer`, GPU, coverage mode on Apple GPUs; its portable geometry is in `mac/renderer/gpu/`). The app's live view uses Metal by default; exports use Metal wherever `MetalRenderer::CanDrawCoverage`, else Core Graphics. Core Graphics' antialiased rasterizer isn't repeatable on several threads at once, so don't parallelize antialiased Core Graphics drawing (PORT_PLAN Phase 8).
 - `mac/tools/` — command-line tools: `whorld-render` renders a patch or snapshot to PNG and compares images.
 - `mac/app/` — the macOS app (Swift / SwiftUI, Xcode project), talking to the engine through a thin Objective-C++ bridge.
 - `mac/third_party/Syphon-Framework` — git submodule (BSD), built from source and embedded by the app's Build Syphon and Embed Syphon phases. Don't edit it; update it by moving the submodule to a tested commit.
@@ -21,7 +21,8 @@ License: GPLv3. Every new file gets a GPLv3 header and keeps the original copyri
 These commands are created in Phase 0 of the plan. Keep this section accurate as the build changes.
 
 - Engine + tests: `cmake -S mac -B build && cmake --build build && ctest --test-dir build --output-on-failure` (`build/` defaults to Debug)
-- Timing: use an optimized tree, `cmake -S mac -B build-release -DCMAKE_BUILD_TYPE=Release && cmake --build build-release`; Debug CPU code runs about 10× slower. The Metal spike tool is `build-release/renderer/tests/spike_metal` (see PORT_PLAN Phase 8)
+- Timing: use an optimized tree, `cmake -S mac -B build-release -DCMAKE_BUILD_TYPE=Release && cmake --build build-release`; Debug CPU code runs about 10× slower. Metal timings: `build-release/renderer/tests/spike_metal --samples 0 --no-golden --patches name1,name2` (full screen; `--aa 1` forces antialiasing; see PORT_PLAN Phase 8)
+- Metal tests: `test_metal` checks the Windows golden images and every sample patch against Core Graphics (every third patch in a Debug build); it skips where there's no Apple GPU
 - Render a frame: `build/tools/whorld-render <file.whp|file.whs> --out frame.png` (run with no arguments for options)
 - Compare images: `build/tools/whorld-render --compare a.png b.png --diff diff.png`
 - Movie to video: `build/tools/whorld-render movie.whm --video out.mov --codec prores4444` (or `--frame N --out f.png` for one frame)

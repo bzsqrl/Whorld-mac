@@ -2,7 +2,7 @@
 
 A native macOS port of [Whorld](https://github.com/victimofleisure/Whorld) V2, the free sacred-geometry visualizer by Chris Korda. This is an unofficial port; the official Whorld, for Windows, is at [victimofleisure/Whorld](https://github.com/victimofleisure/Whorld). This repository keeps Whorld's full history, and the original Windows source in `trunk/Whorld` is unchanged.
 
-Whorld for macOS runs on macOS 14 (Sonoma) or later, on Apple silicon and Intel Macs, and draws patches the same way the Windows version does. Patches, playlists, snapshots and movies are the same files on both, so you can share them across platforms. The Mac version adds video export (H.264, HEVC and ProRes) and takes MIDI input through Core MIDI. It can also be controlled and monitored over the network with OSC, and a TouchOSC layout is included (Help > Whorld Help lists the addresses). Syphon output sends its picture, with transparency, to VJ apps such as Resolume, MadMapper and OBS.
+Whorld for macOS runs on macOS 14 (Sonoma) or later, on Apple silicon and Intel Macs, and draws patches the same way the Windows version does. On Apple silicon it draws on the GPU with Metal (on an M1 Max, all but the heaviest sample patch hold 120 fps full screen); Intel Macs draw with Core Graphics on the CPU. Patches, playlists, snapshots and movies are the same files on both, so you can share them across platforms. The Mac version adds video export (H.264, HEVC and ProRes) and takes MIDI input through Core MIDI. It can respond to music, from an audio input or from other apps, keep time with other apps through Ableton Link, and export videos that move to a music file. It can also be controlled and monitored over the network with OSC, and a TouchOSC layout is included (Help > Whorld Help lists the addresses). Syphon output sends its picture, with transparency, to VJ apps such as Resolume, MadMapper and OBS.
 
 ### Install
 
@@ -17,7 +17,7 @@ Help > Whorld Help explains what differs from Windows and lists the keyboard sho
 You need Xcode 16.2 or later and CMake 3.20 or later. Clone with `git clone --recursive` (or run `git submodule update --init` in an existing clone): the app builds [Syphon-Framework](https://github.com/Syphon/Syphon-Framework) (BSD license), a submodule in `mac/third_party`, and embeds it.
 
 ```sh
-# engine, Core Graphics renderer, tools and tests
+# engine, renderers (Core Graphics and Metal), tools and tests
 cmake -S mac -B build && cmake --build build && ctest --test-dir build --output-on-failure
 
 # the app (Debug)
