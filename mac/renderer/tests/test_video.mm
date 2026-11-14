@@ -13,6 +13,7 @@
 
 #include "ImageCompare.h"
 #include "TestHarness.h"
+#include "AudioVideoExport.h"
 #include "MetalRenderer.h"
 #include "VideoWriter.h"
 
@@ -250,6 +251,34 @@ TEST(CancelDeletesFile) {
 	CHECK(!ExportMovieVideo(eng, out.string(), opts, [](int64_t n, int64_t) { return n < 5; }, &err));
 	CHECK_EQ(err, std::string("Canceled."));
 	CHECK(!fs::exists(out));
+}
+
+TEST(ModulationFileReadsTheBeatLfo) {	// the Modulation window's export, as whorld-render --mod reads it
+	fs::path	path = fs::temp_directory_path() / "whorld_test_mod.json";
+	FILE	*f = fopen(path.c_str(), "w");
+	CHECK(f != nullptr);
+	if (!f)
+		return;
+	fputs("{\"depth\": 0.5, \"rows\": ["
+		"{\"source\": \"BeatLFO\", \"target\": \"LineWidth\", \"lfoBeats\": 8, \"lfoShape\": 3, \"lfoPhaseDeg\": -90},"
+		"{\"source\": \"BeatLFO\", \"target\": \"RingGrowth\", \"lfoBeats\": 0, \"lfoShape\": 9},"
+		"{\"source\": \"Bass\", \"target\": \"RingGrowth\"}]}", f);
+	fclose(f);
+	AudioVideoOptions	opts;
+	std::string	err;
+	CHECK(ReadModulationFile(path.string(), opts, &err));
+	fs::remove(path);
+	CHECK_EQ(opts.aRow.size(), size_t(3));
+	if (opts.aRow.size() != 3)
+		return;
+	CHECK_EQ(opts.aRow[0].iSource, int(ModSources::SRC_BeatLFO));
+	CHECK_EQ(opts.aRow[0].fLfoBeats, 8.0);
+	CHECK_EQ(opts.aRow[0].nLfoShape, int(ModRow::LFO_RampDown));
+	CHECK_NEAR(opts.aRow[0].fLfoPhase, 0.75, 1e-12);
+	CHECK_EQ(opts.aRow[1].fLfoBeats, 4.0);	// out of range: the defaults
+	CHECK_EQ(opts.aRow[1].nLfoShape, int(ModRow::LFO_Sine));
+	CHECK_EQ(opts.aRow[2].fLfoBeats, 4.0);	// missing: the defaults
+	CHECK_EQ(opts.aRow[2].fLfoPhase, 0.0);
 }
 
 int main() { return RunAllTests(); }

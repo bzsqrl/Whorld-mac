@@ -314,6 +314,9 @@ static std::vector<whorld::ModRow> ModRowsFrom(NSArray<WHModRow *> *rows)
 		row.fRelease = r.releaseTime;
 		row.fThreshold = r.threshold;
 		row.fOffset = std::clamp(r.offset, -0.3, 0.3);
+		row.fLfoBeats = r.lfoBeats;
+		row.nLfoShape = static_cast<int>(r.lfoShape);
+		row.fLfoPhase = r.lfoPhase;
 		a.push_back(row);
 	}
 	return a;
@@ -365,6 +368,9 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 		_releaseTime = row.fRelease;
 		_threshold = row.fThreshold;
 		_offset = row.fOffset;
+		_lfoBeats = row.fLfoBeats;
+		_lfoShape = row.nLfoShape;
+		_lfoPhase = row.fLfoPhase;
 	}
 	return self;
 }

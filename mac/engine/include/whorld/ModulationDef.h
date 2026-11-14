@@ -28,6 +28,7 @@ MODSOURCEDEF(Bar4,		true,	"4-Bar")		// ...of every 4 bars
 MODSOURCEDEF(Bar8,		true,	"8-Bar")
 MODSOURCEDEF(Bar16,		true,	"16-Bar")
 MODSOURCEDEF(Bar32,		true,	"32-Bar")
+MODSOURCEDEF(BeatLFO,	false,	"Beat LFO")	// a wave locked to the beat (ModRow's LFO fields)
 #undef MODSOURCEDEF
 #endif
 

@@ -152,6 +152,35 @@ void Modulator::StepSyncs(const ModSources& src, double dt, ModOutput& out)
 	}
 }
 
+// Whorld's waveforms, as Oscillator::GetVal (ported from Oscillator.cpp
+// COscillator::GetVal) computes them from the oscillator's position,
+// scaled from -1 to 1 to 0 to 1
+double ModRow::LfoValue(int nShape, double fCycle)
+{
+	const double	kPi = 3.14159265358979323846;
+	double	fPhase = fCycle - std::floor(fCycle);
+	double	r;
+	switch (nShape) {
+	case LFO_Triangle:
+		r = std::fmod(fPhase * 2 + 0.5, 2);
+		r = r < 1 ? r * 2 - 1 : 3 - r * 2;
+		break;
+	case LFO_RampUp:
+		r = fPhase * 2 - 1;
+		break;
+	case LFO_RampDown:
+		r = 1 - fPhase * 2;
+		break;
+	case LFO_Square:
+		r = fPhase < 0.5 ? 1 : -1;
+		break;
+	default:	// LFO_Sine
+		r = std::sin(fPhase * kPi * 2);
+		break;
+	}
+	return (r + 1) / 2;
+}
+
 double Modulator::GetRowLevel(size_t iRow) const
 {
 	return iRow < m_aState.size() ? m_aState[iRow].fLevel : 0;
@@ -233,7 +262,21 @@ void Modulator::Step(const ModSources& src, double dt, ModOutput& out)
 				}
 			}
 		}
-		if (ModSources::IsTrigger(row.iSource)) {
+		if (row.iSource == ModSources::SRC_BeatLFO) {
+			// a wave locked to the beat, shifted by the offset. Without the beat
+			// it carries on at the last tempo from where it was, as the beat-locked
+			// oscillators do, so nothing jumps; never locked yet, 0. No attack or
+			// release: smoothing would put it behind the beat.
+			if (src.bBeat && src.fTempo > 0) {
+				st.fLfoTempo = src.fTempo;
+				st.fLfoBeatPos = src.fBeatPos - row.fOffset * src.fTempo / 60;
+				st.bLfoKnown = true;
+			} else if (st.bLfoKnown && dt > 0) {
+				st.fLfoBeatPos += dt * st.fLfoTempo / 60;
+			}
+			st.fEnv = st.bLfoKnown && row.fLfoBeats > 0
+				? ModRow::LfoValue(row.nLfoShape, st.fLfoBeatPos / row.fLfoBeats + row.fLfoPhase) : 0;
+		} else if (ModSources::IsTrigger(row.iSource)) {
 			// a pulse: jumps to 1 on a hit, then decays over the release
 			st.fEnv = bFired ? 1 : Smooth(st.fEnv, 0, dt, row.fRelease);
 		} else {

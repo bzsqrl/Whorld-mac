@@ -447,6 +447,71 @@ TEST(SyncsFollowTheBeatAndCarryOn) {
 	CHECK_EQ(out.aOscFreq[MB::PARAM_LineWidth], 0.0);
 }
 
+TEST(BeatLfoShapesAreWhorldsWaveforms) {
+	// the Beat LFO's shapes are the oscillators' waveforms, 0 to 1
+	const int	aWave[ModRow::LFO_SHAPES] = {Oscillator::SINE, Oscillator::TRIANGLE,
+		Oscillator::RAMP_UP, Oscillator::RAMP_DOWN, Oscillator::SQUARE};
+	for (int nShape = 0; nShape < ModRow::LFO_SHAPES; nShape++) {
+		Oscillator	osc(1, aWave[nShape], 1);
+		for (int i = 0; i < 64; i++) {
+			double	fPhase = (i + 0.3) / 64;
+			osc.SetPhase(fPhase);
+			CHECK_NEAR(ModRow::LfoValue(nShape, fPhase + 3), (osc.GetVal() + 1) / 2, 1e-9);
+		}
+	}
+	CHECK_NEAR(ModRow::LfoValue(ModRow::LFO_Sine, 0.25), 1.0, 1e-12);
+	CHECK_EQ(ModRow::LfoValue(ModRow::LFO_RampDown, 0), 1.0);
+	CHECK_EQ(ModRow::LfoValue(ModRow::LFO_Square, 0.6), 0.0);
+}
+
+TEST(BeatLfoFollowsTheBeatAndCarriesOn) {
+	// the Beat LFO is at the beat's place in its cycle (shifted by the phase
+	// and offset), with no smoothing; without the beat it carries on at the
+	// last tempo; never locked: 0
+	Modulator	m;
+	ModRow	row;
+	row.iSource = ModSources::SRC_BeatLFO;
+	row.iTarget = MB::TARGET_LineWidth;
+	row.fAmount = 1;
+	row.fAttack = 1;	// ignored
+	row.fRelease = 1;
+	row.fLfoBeats = 4;	// a bar
+	row.nLfoShape = ModRow::LFO_RampUp;
+	row.fLfoPhase = 0.25;
+	m.SetRows({row});
+	ModSources	src;
+	ModOutput	out;
+	m.Step(src, 1.0 / 60, out);	// no beat yet
+	CHECK_EQ(m.GetRowLevel(0), 0.0);
+	CHECK_EQ(out.aParam[MB::PARAM_LineWidth], 0.0);
+	src.bBeat = true;
+	src.fTempo = 120;
+	src.fBeatPos = 5;	// a quarter into the second bar
+	m.Step(src, 1.0 / 60, out);
+	CHECK_NEAR(m.GetRowLevel(0), 0.5, 1e-12);	// 0.25 + 0.25 of the ramp
+	CHECK_NEAR(out.aParam[MB::PARAM_LineWidth], 0.5, 1e-12);
+	src.bBeat = false;	// the beat goes: half a second on at 120, 1/4 cycle
+	m.Step(src, 0.5, out);
+	CHECK_NEAR(m.GetRowLevel(0), 0.75, 1e-12);
+	src.bBeat = true;	// an offset of 100 ms late is 0.2 beat at 120
+	src.fBeatPos = 2;
+	row.fOffset = 0.1;
+	row.fLfoPhase = 0;
+	row.nLfoShape = ModRow::LFO_Square;
+	m.SetRows({row});
+	m.Step(src, 1.0 / 60, out);
+	CHECK_EQ(m.GetRowLevel(0), 1.0);	// 1.8 beats: in the first half
+	src.fBeatPos = 2.1;	// 1.9 shifted: still the first half; 2.3 would be past
+	m.Step(src, 1.0 / 60, out);
+	CHECK_EQ(m.GetRowLevel(0), 1.0);
+	src.fBeatPos = 2.3;
+	m.Step(src, 1.0 / 60, out);
+	CHECK_EQ(m.GetRowLevel(0), 0.0);
+	m.SetBypass(true);
+	m.Step(src, 1.0 / 60, out);
+	CHECK_EQ(out.aParam[MB::PARAM_LineWidth], 0.0);
+}
+
 TEST(EngineLocksOscillators) {
 	// a locked oscillator's value is the waveform at the beat's place as
 	// the frame ends; unlocked, it carries on from there at the patch's rate

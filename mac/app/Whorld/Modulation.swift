@@ -436,6 +436,9 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 	var releaseMs = 200.0
 	var threshold = 0.5			// for the gate curve and for actions
 	var offsetMs = 0.0			// -300 to 300: beat-based sources fire early (-) or late; hits only late
+	var lfoBeats = 4.0			// the Beat LFO: beats per cycle (ModSyncSetting.divisions)
+	var lfoShape = 0			// ModRow::LFO_*
+	var lfoPhaseDeg = 0.0		// 0 to 359: where in the cycle the one falls
 
 	init() {}
 
@@ -455,9 +458,16 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 		releaseMs = (try? c.decodeIfPresent(Double.self, forKey: .releaseMs)) ?? d.releaseMs
 		threshold = (try? c.decodeIfPresent(Double.self, forKey: .threshold)) ?? d.threshold
 		offsetMs = (try? c.decodeIfPresent(Double.self, forKey: .offsetMs)) ?? d.offsetMs
+		lfoBeats = (try? c.decodeIfPresent(Double.self, forKey: .lfoBeats)) ?? d.lfoBeats
+		lfoShape = (try? c.decodeIfPresent(Int.self, forKey: .lfoShape)) ?? d.lfoShape
+		lfoPhaseDeg = (try? c.decodeIfPresent(Double.self, forKey: .lfoPhaseDeg)) ?? d.lfoPhaseDeg
 	}
 
 	var isAction: Bool { !action.isEmpty }
+	/// a wave locked to the beat, with its own length, shape and phase
+	var isLFO: Bool { source == "BeatLFO" }
+	/// the Beat LFO's shapes, as ModRow::LFO_* (Whorld's waveforms)
+	static let lfoShapes = ["Sine", "Triangle", "Ramp Up", "Ramp Down", "Square"]
 	var isTrigger: Bool { WHModRow.isTriggerSource(source) }
 	/// Beat, Bar ... 32-Bar: from the beat's position, so they can fire early
 	var isBeatBased: Bool { ["Beat", "Bar", "Bar4", "Bar8", "Bar16", "Bar32"].contains(source) }
@@ -486,6 +496,9 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 		r.releaseTime = releaseMs / 1000
 		r.threshold = threshold
 		r.offset = min(max(offsetMs, -300), 300) / 1000
+		r.lfoBeats = lfoBeats > 0 ? lfoBeats : 4
+		r.lfoShape = lfoShape >= 0 && lfoShape < Self.lfoShapes.count ? lfoShape : 0
+		r.lfoPhase = (lfoPhaseDeg.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360) / 360
 		return r
 	}
 
@@ -815,7 +828,7 @@ private struct ModTablesSection: View {
 				}
 				Text(tab == 1
 					? "Each row locks a parameter's oscillator to the beat (Ableton Link's, or the beat tracker's): one cycle every so many beats, starting on the one (Mark Downbeat) plus the phase. The patch's waveform and amplitude are kept, so a parameter whose amplitude is 0 doesn't move. Without a beat, it carries on at the last tempo; turned off, it runs at the patch's own frequency again."
-					: "Each row moves a control by a share of its slider as the sound (or a hit) rises, from the patch's own value; the patch itself never changes. Rows on the same control add up. Attack and release smooth the movement (ms); a hit's pulse fades over its release. Actions fire on a hit, or when a sound rises past the threshold.")
+					: "Each row moves a control by a share of its slider as the sound (or a hit) rises, from the patch's own value; the patch itself never changes. Rows on the same control add up. Attack and release smooth the movement (ms); a hit's pulse fades over its release. Actions fire on a hit, or when a sound rises past the threshold. The Beat LFO is a wave locked to the beat; set its length, shape and phase with the menu beside it.")
 					.font(.caption)
 					.foregroundStyle(.secondary)
 					.fixedSize(horizontal: false, vertical: true)
@@ -936,25 +949,30 @@ private struct ModTablesSection: View {
 				}
 				.width(30)
 				TableColumn("Source") { $r in
-					Picker("", selection: $r.source) {
-						let tags = WHModRow.sourceTags
-						Section("Sound") {
-							ForEach(tags.filter { !WHModRow.isTriggerSource($0) }, id: \.self) { t in
-								Text(WHModRow.sourceName(t)).tag(t)
+					HStack(spacing: 2) {
+						Picker("", selection: $r.source) {
+							let tags = WHModRow.sourceTags
+							Section("Sound") {
+								ForEach(tags.filter { !WHModRow.isTriggerSource($0) && $0 != "BeatLFO" }, id: \.self) { t in
+									Text(WHModRow.sourceName(t)).tag(t)
+								}
+							}
+							Section("Hits and the beat") {
+								ForEach(tags.filter { WHModRow.isTriggerSource($0) || $0 == "BeatLFO" }, id: \.self) { t in
+									Text(WHModRow.sourceName(t)).tag(t)
+								}
+							}
+							if !tags.contains(r.source) {
+								Text(r.source + " (unknown)").tag(r.source)
 							}
 						}
-						Section("Hits and the beat") {
-							ForEach(tags.filter { WHModRow.isTriggerSource($0) }, id: \.self) { t in
-								Text(WHModRow.sourceName(t)).tag(t)
-							}
-						}
-						if !tags.contains(r.source) {
-							Text(r.source + " (unknown)").tag(r.source)
+						.labelsHidden()
+						if r.isLFO {
+							LfoMenu(row: $r)
 						}
 					}
-					.labelsHidden()
 				}
-				.width(min: 100, ideal: 110)
+				.width(min: 100, ideal: 210)
 				TableColumn("Live") { $r in
 					LevelBar(value: level(of: r.id))
 				}
@@ -1017,19 +1035,26 @@ private struct ModTablesSection: View {
 				.width(min: 80, ideal: 90)
 				TableColumn("Attack · Release") { $r in	// one column: a Table takes ten at most
 					HStack(spacing: 4) {
-						if r.isTrigger {
-							Text("—").foregroundStyle(.secondary)	// a hit's pulse starts at once
+						if r.isLFO {	// locked to the beat: not smoothed
+							Text("—").foregroundStyle(.secondary)
+								.frame(width: 52)
+							Text("—").foregroundStyle(.secondary)
 								.frame(width: 52)
 						} else {
-							MsField(value: $r.attackMs)
+							if r.isTrigger {
+								Text("—").foregroundStyle(.secondary)	// a hit's pulse starts at once
+									.frame(width: 52)
+							} else {
+								MsField(value: $r.attackMs)
+							}
+							MsField(value: $r.releaseMs)
 						}
-						MsField(value: $r.releaseMs)
 					}
 				}
 				.width(124)
 				TableColumn("Offset") { $r in
-					if r.isTrigger {
-						OffsetField(value: $r.offsetMs, earlyAllowed: r.isBeatBased)
+					if r.isTrigger || r.isLFO {
+						OffsetField(value: $r.offsetMs, earlyAllowed: r.isBeatBased || r.isLFO)
 					} else {
 						Text("—").foregroundStyle(.secondary)
 					}
@@ -1051,6 +1076,49 @@ private struct ModTablesSection: View {
 	private func level(of id: ModRowSetting.ID) -> Double {
 		guard let i = map.rows.firstIndex(where: { $0.id == id }), i < levels.levels.count else { return 0 }
 		return levels.levels[i]
+	}
+}
+
+/// The Beat LFO's length, shape and phase, beside its source
+private struct LfoMenu: View {
+	@Binding var row: ModRowSetting
+
+	var body: some View {
+		Menu {
+			Picker("Length", selection: $row.lfoBeats) {
+				ForEach(ModSyncSetting.divisions, id: \.beats) { d in
+					Text(d.name).tag(d.beats)
+				}
+				if !ModSyncSetting.divisions.contains(where: { $0.beats == row.lfoBeats }) {
+					Text(String(format: "%g beats", row.lfoBeats)).tag(row.lfoBeats)
+				}
+			}
+			Picker("Shape", selection: $row.lfoShape) {
+				ForEach(ModRowSetting.lfoShapes.indices, id: \.self) { i in
+					Text(ModRowSetting.lfoShapes[i]).tag(i)
+				}
+			}
+			Picker("Phase", selection: $row.lfoPhaseDeg) {
+				ForEach([0.0, 90, 180, 270], id: \.self) { d in
+					Text(String(format: "%.0f°", d)).tag(d)
+				}
+				if ![0.0, 90, 180, 270].contains(row.lfoPhaseDeg) {
+					Text(String(format: "%.0f°", row.lfoPhaseDeg)).tag(row.lfoPhaseDeg)
+				}
+			}
+		} label: {
+			Text("\(lengthName) · \(shapeName)")
+		}
+		.menuStyle(.borderlessButton)
+		.fixedSize()
+		.help("The Beat LFO: \(lengthName), \(shapeName), phase \(String(format: "%.0f°", row.lfoPhaseDeg)). One cycle every so many beats, from the one (Mark Downbeat); Ableton Link's beat, or the beat Whorld hears.")
+	}
+
+	private var lengthName: String {
+		ModSyncSetting.divisions.first(where: { $0.beats == row.lfoBeats })?.name ?? String(format: "%g beats", row.lfoBeats)
+	}
+	private var shapeName: String {
+		row.lfoShape >= 0 && row.lfoShape < ModRowSetting.lfoShapes.count ? ModRowSetting.lfoShapes[row.lfoShape] : "Sine"
 	}
 }
 

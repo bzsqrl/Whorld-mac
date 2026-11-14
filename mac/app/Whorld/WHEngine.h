@@ -154,6 +154,9 @@ typedef struct {
 @property (nonatomic) double releaseTime;	// seconds
 @property (nonatomic) double threshold;
 @property (nonatomic) double offset;	// seconds, -0.3 to 0.3: beat-based sources early (-) or late; hits only late
+@property (nonatomic) double lfoBeats;	// the Beat LFO: beats per cycle
+@property (nonatomic) NSInteger lfoShape;	// ModRow::LFO_*
+@property (nonatomic) double lfoPhase;	// 0 to 1: where in the cycle the one falls
 // the sources and actions (ModulationDef.h), as tags, in menu order
 @property (class, readonly) NSArray<NSString *> *sourceTags;
 @property (class, readonly) NSArray<NSString *> *actionTags;

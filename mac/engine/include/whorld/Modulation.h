@@ -77,6 +77,14 @@ struct ModRow {
 		CURVE_Gate,		// 1 at or above the threshold, else 0
 		CURVES
 	};
+	enum {	// the Beat LFO's shape: Whorld's waveforms (Oscillator::GetVal), 0 to 1
+		LFO_Sine,		// starts halfway, rising
+		LFO_Triangle,	// starts halfway, rising
+		LFO_RampUp,		// 0 on the one, rising
+		LFO_RampDown,	// 1 on the one, falling
+		LFO_Square,		// 1 for the first half
+		LFO_SHAPES
+	};
 	bool	bOn = true;
 	int		iSource = ModSources::SRC_Level;
 	int		iAction = -1;	// if a valid action, the row fires it instead of moving a control
@@ -88,7 +96,14 @@ struct ModRow {
 	double	fAttack = 0.01;		// seconds to rise (time constant)
 	double	fRelease = 0.2;		// seconds to fall; a trigger's pulse decays over it
 	double	fThreshold = 0.5;	// for the gate curve and for actions
-	double	fOffset = 0;		// seconds (-0.3 to 0.3): beat-based sources fire this much early (negative) or late; hits only late
+	double	fOffset = 0;		// seconds (-0.3 to 0.3): beat-based sources (and the Beat LFO) fire this much early (negative) or late; hits only late
+	// the Beat LFO source: one cycle every so many beats, from the one, plus the phase
+	double	fLfoBeats = 4;		// beats per cycle (0.25: a sixteenth note ... 128: 32 bars)
+	int		nLfoShape = LFO_Sine;
+	double	fLfoPhase = 0;		// 0 to 1: where in the cycle the one falls
+
+	// the Beat LFO's value at a phase (cycles; only the fraction counts), 0 to 1
+	static double	LfoValue(int nShape, double fCycle);
 
 	bool	IsAction() const { return ModActions::IsValid(iAction); }
 	// whether the row's target is one a modulation can move
@@ -158,6 +173,9 @@ private:
 		bool		bSpanKnown = false;
 		double		aPending[MAX_PENDING] = {};	// delayed hits: when they fire (m_fTime)
 		int			nPending = 0;
+		bool		bLfoKnown = false;	// the Beat LFO: the beat as last known, to carry on without it
+		double		fLfoBeatPos = 0;	// shifted by the offset
+		double		fLfoTempo = 0;
 	};
 	struct SyncState {	// the beat as last known, to carry on without it
 		bool	bKnown = false;

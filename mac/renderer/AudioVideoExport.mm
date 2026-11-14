@@ -351,6 +351,14 @@ bool ReadModulationFile(const std::string& sPath, AudioVideoOptions& opts, std::
 		row.fRelease = num(r, @"releaseMs", 200) / 1000;
 		row.fThreshold = num(r, @"threshold", 0.5);
 		row.fOffset = std::clamp(num(r, @"offsetMs", 0), -300.0, 300.0) / 1000;
+		row.fLfoBeats = num(r, @"lfoBeats", 4);
+		if (!(row.fLfoBeats > 0))
+			row.fLfoBeats = 4;
+		row.nLfoShape = static_cast<int>(num(r, @"lfoShape", 0));
+		if (row.nLfoShape < 0 || row.nLfoShape >= ModRow::LFO_SHAPES)
+			row.nLfoShape = ModRow::LFO_Sine;
+		double	fLfoDeg = std::fmod(num(r, @"lfoPhaseDeg", 0), 360);
+		row.fLfoPhase = (fLfoDeg < 0 ? fLfoDeg + 360 : fLfoDeg) / 360;
 		bool	bKnown = ModSources::IsValid(row.iSource)
 			&& (sAction.empty() ? ModRow::IsModulatable(row.iTarget, row.iProp) : row.IsAction());
 		if (bKnown)
