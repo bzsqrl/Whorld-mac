@@ -77,6 +77,11 @@ public:
 
 	// True if this Mac's GPU can run coverage mode (nSamples 0): an Apple GPU.
 	static bool	IsCoverageModeSupported();
+	// True if coverage mode can draw a frame this size: an Apple GPU, and
+	// within Metal's texture size limit. Exports draw with Metal when it can
+	// (exact every run, unlike Core Graphics drawing on several threads),
+	// else with Core Graphics.
+	static bool	CanDrawCoverage(int nWidth, int nHeight);
 
 	// Pixels of the last finished frame: BGRA, premultiplied, row 0 at top.
 	bool	ReadPixels(std::vector<uint8_t>& aPixel, size_t& nStride);

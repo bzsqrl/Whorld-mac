@@ -31,6 +31,7 @@ namespace whorld {
 
 struct AudioVideoOptions {
 	VideoWriter::Codec	codec = VideoWriter::CODEC_H264;
+	bool	bMetal = true;		// draw with Metal where this Mac can (see VideoWriter)
 	int		nWidth = 1920;		// pixels; the engine draws at this size, 1 DIP a pixel
 	int		nHeight = 1080;
 	double	fFrameRate = 60;

@@ -395,7 +395,7 @@ bool ExportAudioReactiveVideo(const Patch& patch, const std::string& sAudioPath,
 	if (!audio.Open(url, fStart, fDuration, pError))
 		return false;
 	VideoWriter	writer;
-	if (!writer.Open(sPath, opts.nWidth, opts.nHeight, opts.fFrameRate, opts.codec, pError, kAudioRate))
+	if (!writer.Open(sPath, opts.nWidth, opts.nHeight, opts.fFrameRate, opts.codec, pError, kAudioRate, opts.bMetal))
 		return false;
 	// a fresh engine, the same every time
 	SaveRand	saveRand;
@@ -525,14 +525,12 @@ bool ExportAudioReactiveVideo(const Patch& patch, const std::string& sAudioPath,
 			}
 		}
 		eng.SetModulation(out);
-		CGBitmapRenderer	*pRenderer = writer.BeginFrame();
+		IRenderer	*pRenderer = writer.BeginFrame();
 		if (!pRenderer) {
 			writer.Cancel();
 			return fail("Can't get a video frame buffer.");
 		}
-		pRenderer->BeginFrame();
 		eng.Draw(*pRenderer);
-		pRenderer->EndFrame();
 		if (!writer.EndFrame(pError)) {
 			writer.Cancel();
 			return false;

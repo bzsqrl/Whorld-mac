@@ -31,7 +31,8 @@ struct VideoWriter::Impl {
 	int64_t	nTicksPerFrame = 0;
 	int64_t	iFrame = 0;
 	CVPixelBufferRef	pixelBuffer = nullptr;	// frame being drawn
-	std::unique_ptr<CGBitmapRenderer>	renderer;
+	std::unique_ptr<CGBitmapRenderer>	renderer;	// Core Graphics: one per frame, over its pixel buffer
+	std::unique_ptr<MetalRenderer>	metal;	// Metal: one for the whole movie, drawing into each pixel buffer's IOSurface
 	AVAssetWriterInput	*audioInput = nil;
 	std::deque<CMSampleBufferRef>	audioQueue;	// retained, waiting for the encoder
 	bool	bAudioEnding = false;	// no more audio coming: finish the track once the queue is written
@@ -97,7 +98,7 @@ int VideoWriter::GetWidth() const { return m_pImpl->nWidth; }
 int VideoWriter::GetHeight() const { return m_pImpl->nHeight; }
 
 bool VideoWriter::Open(const std::string& sPath, int nWidth, int nHeight, double fFrameRate, Codec codec,
-	std::string* pError, double fAudioRate)
+	std::string* pError, double fAudioRate, bool bAllowMetal)
 {
 	Impl&	d = *m_pImpl;
 	d.nWidth = nWidth & ~1;
@@ -177,10 +178,18 @@ bool VideoWriter::Open(const std::string& sPath, int nWidth, int nHeight, double
 		return Impl::Fail(pError, d.writer.error.localizedDescription ?: @"Can't start writing the video.");
 	[d.writer startSessionAtSourceTime:kCMTimeZero];
 	d.iFrame = 0;
+	d.metal.reset();
+	if (bAllowMetal && MetalRenderer::CanDrawCoverage(d.nWidth, d.nHeight)) {
+		d.metal = std::make_unique<MetalRenderer>(d.nWidth, d.nHeight, 1, 0);	// coverage mode, as the live view
+		if (!d.metal->IsValid())
+			d.metal.reset();	// Core Graphics, then
+	}
 	return true;
 }
 
-CGBitmapRenderer* VideoWriter::BeginFrame()
+bool VideoWriter::UsesMetal() const { return m_pImpl->metal != nullptr; }
+
+IRenderer* VideoWriter::BeginFrame()
 {
 	Impl&	d = *m_pImpl;
 	if (!d.writer || d.pixelBuffer)
@@ -188,11 +197,20 @@ CGBitmapRenderer* VideoWriter::BeginFrame()
 	CVPixelBufferPoolRef	pool = d.adaptor.pixelBufferPool;
 	if (!pool || CVPixelBufferPoolCreatePixelBuffer(nullptr, pool, &d.pixelBuffer) != kCVReturnSuccess)
 		return nullptr;
+	if (d.metal) {	// the pixel buffers are IOSurface-backed BGRA (see Open)
+		IOSurfaceRef	surface = CVPixelBufferGetIOSurface(d.pixelBuffer);
+		if (surface && d.metal->SetTargetSurface(surface)) {
+			d.metal->BeginFrame();
+			return d.metal.get();
+		}
+		d.metal.reset();	// can't draw into it: Core Graphics from here on
+	}
 	CVPixelBufferLockBaseAddress(d.pixelBuffer, 0);
 	d.renderer = std::make_unique<CGBitmapRenderer>(
 		static_cast<uint8_t *>(CVPixelBufferGetBaseAddress(d.pixelBuffer)), d.nWidth, d.nHeight,
 		CVPixelBufferGetBytesPerRow(d.pixelBuffer), 1);
 	d.renderer->SetDeferred(true);
+	d.renderer->BeginFrame();
 	return d.renderer.get();
 }
 
@@ -201,8 +219,15 @@ bool VideoWriter::EndFrame(std::string* pError)
 	Impl&	d = *m_pImpl;
 	if (!d.pixelBuffer)
 		return Impl::Fail(pError, @"No frame was begun.");
-	d.renderer.reset();
-	CVPixelBufferUnlockBaseAddress(d.pixelBuffer, 0);
+	if (d.renderer) {
+		d.renderer->EndFrame();
+		d.renderer.reset();
+		CVPixelBufferUnlockBaseAddress(d.pixelBuffer, 0);
+	} else if (d.metal) {
+		d.metal->EndFrame();
+		d.metal->WaitUntilDone();	// the frame is in the pixel buffer
+		d.metal->SetTargetSurface(nullptr);
+	}
 	// offline encoding: wait until the encoder can take another frame
 	d.PumpAudio();
 	while (!d.input.readyForMoreMediaData && d.writer.status == AVAssetWriterStatusWriting) {
@@ -269,8 +294,14 @@ void VideoWriter::Cancel()
 {
 	Impl&	d = *m_pImpl;
 	if (d.pixelBuffer) {
-		d.renderer.reset();
-		CVPixelBufferUnlockBaseAddress(d.pixelBuffer, 0);
+		if (d.renderer) {
+			d.renderer.reset();
+			CVPixelBufferUnlockBaseAddress(d.pixelBuffer, 0);
+		} else if (d.metal) {
+			d.metal->EndFrame();
+			d.metal->WaitUntilDone();
+			d.metal->SetTargetSurface(nullptr);
+		}
 		CVPixelBufferRelease(d.pixelBuffer);
 		d.pixelBuffer = nullptr;
 	}
@@ -309,7 +340,7 @@ bool ExportMovieVideo(WhorldEngine& eng, const std::string& sPath, const VideoEx
 	sz.cy &= ~1;
 	uint32_t	nFlags = opts.nFlags & ~uint32_t(WhorldBase::EF_USE_VIEW_SIZE);
 	VideoWriter	writer;
-	if (!writer.Open(sPath, sz.cx, sz.cy, ms.fFrameRate, opts.codec, pError))
+	if (!writer.Open(sPath, sz.cx, sz.cy, ms.fFrameRate, opts.codec, pError, 0, opts.bMetal))
 		return false;
 	if (!eng.MovieExportStart(nStart)) {	// pauses playback and seeks
 		writer.Cancel();
@@ -325,16 +356,14 @@ bool ExportMovieVideo(WhorldEngine& eng, const std::string& sPath, const VideoEx
 				*pError = "Can't read frame " + std::to_string(nStart + i) + ".";
 			return false;
 		}
-		CGBitmapRenderer	*pRenderer = writer.BeginFrame();
+		IRenderer	*pRenderer = writer.BeginFrame();
 		if (!pRenderer) {
 			writer.Cancel();
 			if (pError)
 				*pError = "Can't get a video frame buffer.";
 			return false;
 		}
-		pRenderer->BeginFrame();
 		eng.DrawCapture(*pRenderer, nFlags, sz);
-		pRenderer->EndFrame();
 		if (!writer.EndFrame(pError)) {
 			writer.Cancel();
 			return false;

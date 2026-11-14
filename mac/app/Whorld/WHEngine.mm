@@ -1116,12 +1116,36 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 	return CGSizeMake(_liveTarget.width, _liveTarget.height);
 }
 
-// Render thread: CWhorldDraw::CaptureBitmap and WriteCapturedBitmap
+// Render thread: CWhorldDraw::CaptureBitmap and WriteCapturedBitmap. Drawn
+// with Metal where this Mac can (exact every run; Core Graphics drawing on
+// several threads isn't, PORT_PLAN Phase 8), else Core Graphics. The Metal
+// renderer is kept for the next capture of the same size (image sequences).
 static std::string CaptureToPNG(whorld::WhorldEngine& eng, uint32_t nFlags, whorld::IntSize sz, const std::string& sPath)
 {
 	whorld::IntSize	szImage = eng.GetCaptureSize(nFlags, sz);
 	if (szImage.cx <= 0 || szImage.cy <= 0)
 		return "The image size is empty.";
+	if (whorld::MetalRenderer::CanDrawCoverage(szImage.cx, szImage.cy)) {
+		static std::unique_ptr<whorld::MetalRenderer>	s_pMetal;	// render thread only
+		if (!s_pMetal || s_pMetal->GetPixelWidth() != szImage.cx || s_pMetal->GetPixelHeight() != szImage.cy)
+			s_pMetal = std::make_unique<whorld::MetalRenderer>(szImage.cx, szImage.cy, 1, 0);	// coverage mode
+		if (s_pMetal->IsValid()) {
+			s_pMetal->BeginFrame();
+			eng.DrawCapture(*s_pMetal, nFlags, sz);
+			s_pMetal->EndFrame();
+			std::vector<uint8_t>	aPixel;
+			size_t	nStride = 0;
+			if (s_pMetal->ReadPixels(aPixel, nStride)) {
+				// written by the Core Graphics bitmap's PNG writer, over these pixels
+				whorld::CGBitmapRenderer	png(aPixel.data(), szImage.cx, szImage.cy, nStride, 1);
+				std::string	sErr;
+				if (!png.WritePNG(sPath, &sErr))
+					return sErr;
+				return std::string();
+			}
+		}
+		s_pMetal.reset();	// Core Graphics, then
+	}
 	whorld::CGBitmapRenderer	renderer(szImage.cx, szImage.cy, 1);
 	if (!renderer.IsValid())
 		return "Can't create the image.";

@@ -1549,6 +1549,13 @@ bool MetalRenderer::IsCoverageModeSupported()
 	return device && [device supportsFamily:MTLGPUFamilyApple1];
 }
 
+bool MetalRenderer::CanDrawCoverage(int nWidth, int nHeight)
+{
+	static const bool	bSupported = IsCoverageModeSupported();
+	const int	kMaxSize = 16384;	// Metal's 2D texture limit on Apple GPUs (Apple3 and later)
+	return bSupported && nWidth > 0 && nHeight > 0 && nWidth <= kMaxSize && nHeight <= kMaxSize;
+}
+
 void MetalRenderer::WaitUntilDone()
 {
 	if (!m_pImpl)

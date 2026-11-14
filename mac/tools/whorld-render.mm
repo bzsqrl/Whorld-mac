@@ -39,10 +39,11 @@ int Usage()
 		"                [--use-view-size] [--no-letterbox] --out frame.png\n"
 		"  whorld-render --compare a.png b.png [--threshold T] [--diff diff.png] [--region X,Y,W,H]\n"
 		"  whorld-render <movie.whm> [--size WxH] [--fit ...] [--use-view-size] [--start N] [--end N]\n"
-		"                --video out.mov [--codec h264|hevc|prores|prores4444]   (or --frame N --out frame.png)\n"
+		"                --video out.mov [--codec h264|hevc|prores|prores4444] [--cg]   (or --frame N --out frame.png)\n"
 		"  whorld-render <patch.whp> --audio music.mp3 --video out.mov [--size WxH] [--fps N] [--codec ...]\n"
 		"                [--mod modulation.json] [--audio-start S] [--duration S] [--preroll S]\n"
-		"                [--tempo BPM] [--downbeat S] [--gain dB] [--range dB] [--auto-level] [--hits T]\n");
+		"                [--tempo BPM] [--downbeat S] [--gain dB] [--range dB] [--auto-level] [--hits T] [--cg]\n"
+		"  (videos are drawn with Metal where this Mac can; --cg draws them with Core Graphics)\n");
 	return 2;
 }
 
@@ -113,6 +114,7 @@ int main(int argc, char** argv)
 	uint32_t	nFlags = 0;
 	bool	bLetterbox = true;
 	bool	bDeferred = false;
+	bool	bMetal = true;	// videos: Metal where it can
 	int		nRingFade = 0;
 	bool	bRingFadeEased = false;
 	std::string	sVideo;
@@ -154,6 +156,8 @@ int main(int argc, char** argv)
 			bLetterbox = false;
 		else if (!std::strcmp(a, "--deferred"))
 			bDeferred = true;
+		else if (!std::strcmp(a, "--cg"))
+			bMetal = false;
 		else if (!std::strcmp(a, "--ring-fade") && bHasArg)
 			nRingFade = std::atoi(argv[++i]);
 		else if (!std::strcmp(a, "--eased"))
@@ -224,6 +228,7 @@ int main(int argc, char** argv)
 			return 1;
 		}
 		av.codec = codec;
+		av.bMetal = bMetal;
 		av.nWidth = bSizeSet ? w : 1920;
 		av.nHeight = bSizeSet ? h : 1080;
 		av.bRingFadeEased = bRingFadeEased;
@@ -257,6 +262,7 @@ int main(int argc, char** argv)
 		if (!sVideo.empty()) {
 			VideoExportOptions	opts;
 			opts.codec = codec;
+			opts.bMetal = bMetal;
 			opts.nFlags = nFlags;
 			opts.szImage = IntSize{w, h};
 			opts.nStartFrame = nStart;

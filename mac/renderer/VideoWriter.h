@@ -10,11 +10,13 @@
 #pragma once
 
 // Video export (new in the Mac port; Windows Whorld exports image
-// sequences only). Encodes frames drawn by CGBitmapRenderer into a QuickTime
-// movie with AVFoundation. Frames are drawn straight into the encoder's
-// pixel buffers, so there's no extra copy.
+// sequences only). Encodes frames into a QuickTime movie with AVFoundation.
+// Frames are drawn straight into the encoder's pixel buffers, so there's no
+// extra copy: by the Metal renderer in coverage mode where this Mac can
+// (exact every run), else by Core Graphics.
 
 #include "CGRenderer.h"
+#include "MetalRenderer.h"
 #include "whorld/WhorldEngine.h"
 
 #include <CoreMedia/CoreMedia.h>
@@ -41,15 +43,18 @@ public:
 
 	// Width and height are made even (H.264 and HEVC need even sizes).
 	// With an audio sample rate (Mac port, 9.9), the movie gets a stereo
-	// AAC track, fed by AppendAudio.
+	// AAC track, fed by AppendAudio. bAllowMetal false draws with Core
+	// Graphics even where Metal could.
 	bool	Open(const std::string& sPath, int nWidth, int nHeight, double fFrameRate, Codec codec,
-		std::string* pError = nullptr, double fAudioRate = 0);
+		std::string* pError = nullptr, double fAudioRate = 0, bool bAllowMetal = true);
 	int		GetWidth() const;
 	int		GetHeight() const;
 	// Returns a renderer that draws into the next frame's pixel buffer
-	// (DIP size = pixel size), or null on error. Call EndFrame when done.
-	CGBitmapRenderer*	BeginFrame();
-	bool	EndFrame(std::string* pError = nullptr);	// appends the frame
+	// (DIP size = pixel size), its frame begun, or null on error. Draw, then
+	// call EndFrame, which finishes the drawing and appends the frame.
+	IRenderer*	BeginFrame();
+	bool	EndFrame(std::string* pError = nullptr);
+	bool	UsesMetal() const;
 	// Queues decoded audio (LPCM, presentation times from 0 like the
 	// frames'); it's written as the encoder interleaves it with the video.
 	void	AppendAudio(CMSampleBufferRef buffer);
@@ -66,6 +71,7 @@ private:
 
 struct VideoExportOptions {
 	VideoWriter::Codec	codec = VideoWriter::CODEC_H264;
+	bool	bMetal = true;		// draw with Metal where this Mac can
 	uint32_t	nFlags = 0;		// WhorldBase::EF_* export flags
 	IntSize	szImage = {0, 0};	// frame size, unless EF_USE_VIEW_SIZE
 	int64_t	nStartFrame = 0;	// inclusive range of movie frames

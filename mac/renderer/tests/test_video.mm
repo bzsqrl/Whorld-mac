@@ -13,6 +13,7 @@
 
 #include "ImageCompare.h"
 #include "TestHarness.h"
+#include "MetalRenderer.h"
 #include "VideoWriter.h"
 
 #import <AVFoundation/AVFoundation.h>
@@ -100,8 +101,9 @@ double FlatAreaError(const ImageRGBA& ref, const ImageRGBA& img, int& nFlat)
 	return nFlat ? fSum / nFlat : 0;
 }
 
-// Renders one movie frame the same way the exporter does.
-ImageRGBA RenderMovieFrame(int64_t iFrame, IntSize sz, uint32_t nFlags)
+// Renders one movie frame the same way the exporter does, with Metal or
+// Core Graphics.
+ImageRGBA RenderMovieFrame(int64_t iFrame, IntSize sz, uint32_t nFlags, bool bMetal)
 {
 	WhorldEngine	eng;
 	eng.OnResize(SizeF{float(sz.cx), float(sz.cy)});
@@ -109,6 +111,16 @@ ImageRGBA RenderMovieFrame(int64_t iFrame, IntSize sz, uint32_t nFlags)
 	eng.OnMoviePlay(&sPath, true);
 	eng.MovieExportStart(iFrame);
 	eng.MovieExportStep();
+	if (bMetal) {
+		MetalRenderer	mr(sz.cx, sz.cy, 1, 0);
+		mr.BeginFrame();
+		eng.DrawCapture(mr, nFlags, sz);
+		mr.EndFrame();
+		std::vector<uint8_t>	px;
+		size_t	nStride = 0;
+		mr.ReadPixels(px, nStride);
+		return FromBGRA(px.data(), sz.cx, sz.cy, nStride);
+	}
 	CGBitmapRenderer	r(sz.cx, sz.cy, 1);
 	r.SetDeferred(true);
 	r.BeginFrame();
@@ -117,7 +129,10 @@ ImageRGBA RenderMovieFrame(int64_t iFrame, IntSize sz, uint32_t nFlags)
 	return FromBGRA(r.GetPixels(), sz.cx, sz.cy, r.GetStride());
 }
 
-void ExportAndCheck(VideoWriter::Codec codec, double fMaxMean, double fMaxFlat)
+// Metal where this Mac can draw it (as the app exports), else Core Graphics
+bool CanUseMetal() { return MetalRenderer::CanDrawCoverage(512, 384); }
+
+void ExportAndCheck(VideoWriter::Codec codec, double fMaxMean, double fMaxFlat, bool bMetal = CanUseMetal())
 {
 	fs::path	out = fs::temp_directory_path() / (std::string("whorld_test_") + VideoWriter::CodecName(codec) + ".mov");
 	WhorldEngine	eng;
@@ -126,6 +141,7 @@ void ExportAndCheck(VideoWriter::Codec codec, double fMaxMean, double fMaxFlat)
 	eng.OnMoviePlay(&sPath, true);
 	VideoExportOptions	opts;
 	opts.codec = codec;
+	opts.bMetal = bMetal;
 	opts.nFlags = WhorldBase::EF_SCALE_FIT_BOTH;
 	opts.szImage = IntSize{512, 384};
 	opts.nStartFrame = 100;
@@ -144,13 +160,13 @@ void ExportAndCheck(VideoWriter::Codec codec, double fMaxMean, double fMaxFlat)
 	CHECK_EQ(info.nHeight, 384);
 	CHECK_NEAR(info.fFrameRate, 144, 0.5);	// the movie's rate
 	CHECK_NEAR(info.fDuration, 60 / 144.0, 1e-3);
-	ImageRGBA	ref = RenderMovieFrame(130, IntSize{512, 384}, WhorldBase::EF_SCALE_FIT_BOTH);
+	ImageRGBA	ref = RenderMovieFrame(130, IntSize{512, 384}, WhorldBase::EF_SCALE_FIT_BOTH, bMetal);
 	ImageDiff	d = CompareImages(ref, info.frame, 32);
 	int	nFlat = 0;
 	double	fFlat = d.bSameSize ? FlatAreaError(ref, info.frame, nFlat) : 99;
-	std::printf("  %s: 60 frames, 512x384, %.0f fps; frame 130 vs direct render: mean %.2f, "
+	std::printf("  %s (%s): 60 frames, 512x384, %.0f fps; frame 130 vs direct render: mean %.2f, "
 		"%.2f%% over 32; flat areas %.2f (%d px)\n",
-		VideoWriter::CodecName(codec), info.fFrameRate, d.fMeanAbs, d.fFracOver * 100, fFlat, nFlat);
+		VideoWriter::CodecName(codec), bMetal ? "Metal" : "Core Graphics", info.fFrameRate, d.fMeanAbs, d.fFracOver * 100, fFlat, nFlat);
 	CHECK(d.bSameSize);
 	// Colors must be right away from edges: this checks our color tagging
 	// and pixel format, which we control. Overall error also depends on the
@@ -182,35 +198,42 @@ TEST(ProRes4444Export) {
 	ExportAndCheck(VideoWriter::CODEC_PRORES_4444, 2, 1);
 }
 
+TEST(ProRes4444ExportCoreGraphics) {	// where Metal isn't used
+	if (!fs::exists(SampleMovie()))
+		return;
+	ExportAndCheck(VideoWriter::CODEC_PRORES_4444, 2, 1, false);
+}
+
 TEST(HevcExport) {
 	if (!fs::exists(SampleMovie()))
 		return;
 	ExportAndCheck(VideoWriter::CODEC_HEVC, 12, 2);
 }
 
-TEST(OddSizeIsRoundedDown) {
-	fs::path	out = fs::temp_directory_path() / "whorld_test_odd.mov";
-	VideoWriter	w;
-	std::string	err;
-	CHECK(w.Open(out.string(), 321, 241, 30, VideoWriter::CODEC_H264, &err));
-	CHECK_EQ(w.GetWidth(), 320);
-	CHECK_EQ(w.GetHeight(), 240);
-	for (int i = 0; i < 3; i++) {
-		CGBitmapRenderer	*r = w.BeginFrame();
-		CHECK(r != nullptr);
-		if (!r)
-			break;
-		r->BeginFrame();
-		r->Clear(ColorF{1, 0, 0, 1});
-		r->EndFrame();
-		CHECK(w.EndFrame(&err));
+TEST(OddSizeIsRoundedDown) {	// with each renderer
+	for (bool bMetal : {false, true}) {
+		fs::path	out = fs::temp_directory_path() / "whorld_test_odd.mov";
+		VideoWriter	w;
+		std::string	err;
+		CHECK(w.Open(out.string(), 321, 241, 30, VideoWriter::CODEC_H264, &err, 0, bMetal));
+		CHECK_EQ(w.GetWidth(), 320);
+		CHECK_EQ(w.GetHeight(), 240);
+		CHECK_EQ(w.UsesMetal(), bMetal && MetalRenderer::CanDrawCoverage(320, 240));
+		for (int i = 0; i < 3; i++) {
+			IRenderer	*r = w.BeginFrame();
+			CHECK(r != nullptr);
+			if (!r)
+				break;
+			r->Clear(ColorF{1, 0, 0, 1});
+			CHECK(w.EndFrame(&err));
+		}
+		CHECK(w.Close(&err));
+		VideoInfo	info;
+		CHECK(ReadVideo(out, 1, info));
+		CHECK_EQ(info.nFrames, 3);
+		CHECK(info.frame.aPixel.size() > 0 && info.frame.aPixel[0] > 200 && info.frame.aPixel[1] < 40);	// red
+		fs::remove(out);
 	}
-	CHECK(w.Close(&err));
-	VideoInfo	info;
-	CHECK(ReadVideo(out, 1, info));
-	CHECK_EQ(info.nFrames, 3);
-	CHECK(info.frame.aPixel.size() > 0 && info.frame.aPixel[0] > 200 && info.frame.aPixel[1] < 40);	// red
-	fs::remove(out);
 }
 
 TEST(CancelDeletesFile) {
