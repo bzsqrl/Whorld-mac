@@ -337,13 +337,50 @@ TEST(RingFadeFadesTheOldestRings) {
 		double	f = l[i];
 		CHECK_NEAR(e[i], f * f * (3 - 2 * f), 1e-6);
 	}
-	// unlimited rings (the Rings maximum): nothing fades
+	// unlimited rings (the Rings maximum) still inside the view: nothing fades
 	eng->OnSetMasterProp(Patch::MASTER_Rings, Patch::MAX_RINGS);
 	auto	unl = RingAlphas(*eng);
 	bool	none = true;
 	for (float x : unl)
 		none = none && x == 1.0f;
 	CHECK(none);
+}
+
+TEST(RingFadeAtTheViewEdge) {
+	// Rings that leave the view before the Rings limit (unlimited here) fade
+	// out as they reach its edge: a small view, so rings pass its corners
+	auto	eng = MakeEngine(200, 150);
+	eng->OnSetMasterProp(Patch::MASTER_Fade, 4);
+	RunFrames(*eng, 400);
+	std::vector<float>	prev;
+	double	fPrevFront = 0;
+	int		nFaded = 0, nGone = 0;
+	for (int f = 0; f < 60; f++) {
+		auto	a = RingAlphas(*eng);	// newest first; draws a frame
+		CHECK(!a.empty());
+		if (a.empty())
+			return;
+		CHECK_EQ(a.front(), 1.0f);	// the newest, well inside: opaque
+		for (size_t i = 1; i < a.size(); i++)
+			CHECK(a[i] <= a[i - 1] + 1e-6f);	// fainter outward
+		for (float x : a) {
+			nFaded += x > 0 && x < 1;
+			nGone += x == 0;
+		}
+		// each ring, followed from the last frame (a ring added shifts them
+		// by one): fainter or the same, by a small step, never brighter
+		if (!prev.empty()) {
+			size_t	nShift = eng->GetRings().front().fRadius < fPrevFront ? 1 : 0;
+			for (size_t i = 0; i < prev.size() && i + nShift < a.size(); i++) {
+				CHECK(a[i + nShift] <= prev[i] + 1e-6f);
+				CHECK(prev[i] - a[i + nShift] < 0.15f);
+			}
+		}
+		prev = a;
+		fPrevFront = eng->GetRings().front().fRadius;
+	}
+	CHECK(nFaded > 0);	// fading rings at the edge
+	CHECK(nGone > 0);	// and rings past it, drawn fully faded until the canvas removes them
 }
 
 TEST(DrawAtSizeDoesNotAdvance) {

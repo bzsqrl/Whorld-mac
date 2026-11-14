@@ -708,6 +708,118 @@ float WhorldEngine::RingFadeFactor(double fRingsLeft, int nFadeRings) const
 	return DTOF(f);
 }
 
+namespace {
+
+// distance from p to the segment ab
+double SegmentDistance(DPoint p, DPoint a, DPoint b)
+{
+	DPoint	ab(b - a), ap(p - a);
+	double	fLen2 = ab.x * ab.x + ab.y * ab.y;
+	double	t = fLen2 > 0 ? Clamp((ap.x * ab.x + ap.y * ab.y) / fLen2, 0, 1) : 0;
+	DPoint	d(ap - ab * t);
+	return std::sqrt(d.x * d.x + d.y * d.y);
+}
+
+} // namespace
+
+// Ring fade at the view's edge (new in the Mac port): the ring's geometry as
+// Draw computes it, measured instead of drawn. The outline's nearest
+// approach to the ring's center (straight edges exactly; curves through
+// points along each Bezier), less half the line width, against the
+// farthest corner of the view from that center.
+double WhorldEngine::RingEdgeMargin(const RING& ring, double fZoom, double fSnapshotScale,
+	DPoint ptWndCenter, const RectF& rView) const
+{
+	double	fLineWidth = ring.fLineWidth + m_globRing.fLineWidth;
+	DPoint	ptOrg(ring.ptOrigin);
+	if (m_bSnapshotMode) {
+		ptOrg *= fSnapshotScale;
+		fLineWidth *= fSnapshotScale;
+	}
+	int		nSides = Clamp(ring.nSides + m_globRing.nPolySides, 1, MAX_SIDES);
+	double	fRot = ring.fRot + m_globRing.fRot;
+	double	afRot[2] = {fRot, fRot + ring.fPinwheel + M_PI_ / nSides * m_globRing.fPinwheel};
+	double	fRad = ring.fRadius * fZoom;
+	double	arRad[2] = {fRad, fRad * ring.fStarRatio * m_globRing.fStarRatio};
+	DPoint	ptScale(DPoint(ring.ptScale) * m_globRing.ptScale);
+	DPoint	aptRad[2] = {ptScale * arRad[0], ptScale * arRad[1]};
+	DPoint	ptShift((DPoint(ring.ptShift) * fZoom + DPoint(m_globRing.ptShift) * fRad)
+		+ ptOrg + ptWndCenter);
+	double	fDelta = M_PI_ / nSides;
+	int		nVertices = nSides * 2;
+	double	fCurveLenCW[2] = {ring.fEvenCurve + m_globRing.fEvenCurve, ring.fOddCurve + m_globRing.fOddCurve};
+	double	fCurveLenCCW[2] = {fCurveLenCW[0] * (ring.fEvenShear + m_globRing.fEvenShear),
+		fCurveLenCW[1] * (ring.fOddShear + m_globRing.fOddShear)};
+	bool	bCurved = fCurveLenCW[0] != 0 || fCurveLenCW[1] != 0;
+	// the view's farthest corner from the center
+	double	fFar = 0;
+	for (DPoint c : {DPoint(rView.left, rView.top), DPoint(rView.right, rView.top),
+		DPoint(rView.left, rView.bottom), DPoint(rView.right, rView.bottom)}) {
+		DPoint	d(c - ptShift);
+		fFar = std::max(fFar, std::sqrt(d.x * d.x + d.y * d.y));
+	}
+	double	fNear = HUGE_VAL;	// the outline's nearest approach to the center
+	auto	Vertex = [&](int iVert) {
+		int	bOdd = iVert & 1;
+		double	fTheta = fDelta * iVert + afRot[bOdd];
+		return DPoint(std::sin(fTheta) * aptRad[bOdd].x + ptShift.x, std::cos(fTheta) * aptRad[bOdd].y + ptShift.y);
+	};
+	DPoint	ptPrev = Vertex(nVertices - 1);
+	for (int iVert = 0; iVert < nVertices; iVert++) {
+		DPoint	pt = Vertex(iVert);
+		if (bCurved) {	// the Bezier from the previous vertex, as Draw builds it
+			int	bPrevOdd = (iVert + nVertices - 1) & 1, bOdd = iVert & 1;
+			DPoint	v0(ptPrev - ptShift), v1(pt - ptShift);
+			double	r0 = fCurveLenCCW[bPrevOdd], r1 = fCurveLenCW[bOdd];
+			DPoint	c1(ptPrev.x + v0.y * r0, ptPrev.y - v0.x * r0);
+			DPoint	c2(pt.x - v1.y * r1, pt.y + v1.x * r1);
+			DPoint	q = ptPrev;
+			const int	nSteps = 8;
+			for (int i = 1; i <= nSteps; i++) {
+				double	t = double(i) / nSteps, u = 1 - t;
+				DPoint	b = ptPrev * (u * u * u) + c1 * (3 * u * u * t) + c2 * (3 * u * t * t) + pt * (t * t * t);
+				fNear = std::min(fNear, SegmentDistance(ptShift, q, b));
+				q = b;
+			}
+		} else {
+			fNear = std::min(fNear, SegmentDistance(ptShift, ptPrev, pt));
+		}
+		ptPrev = pt;
+	}
+	return fNear - std::fabs(fLineWidth) / 2 - fFar;
+}
+
+// Where the view's edge falls among the rings, counting from the newest
+// (0) outward, as a fractional ring number: the first ring wholly beyond
+// the view, less how far the ring inside it still has to go. A ring fades
+// out over the Fade rings before it reaches the edge, or the Rings limit,
+// whichever is first. Rings growing outward only; HUGE_VAL if none is past.
+double WhorldEngine::RingFadeEdge(double fZoom, double fSnapshotScale, DPoint ptWndCenter) const
+{
+	bool	bNewestFirst = m_bSnapshotMode || m_params.fRingGrowth >= 0;
+	if (!bNewestFirst)
+		return HUGE_VAL;	// reverse: rings end at the center
+	RectF	rView{0, 0, m_szTarget.width, m_szTarget.height};
+	if (m_main.bMirror) {	// only the upper-left quadrant is drawn
+		rView.right /= 2;
+		rView.bottom /= 2;
+	}
+	double	fPrevMargin = 0;
+	int		iRing = 0;
+	for (const RING& ring : m_aRing) {	// newest first
+		double	fMargin = RingEdgeMargin(ring, fZoom, fSnapshotScale, ptWndCenter, rView);
+		if (fMargin > 0) {
+			if (iRing == 0)
+				return 0;
+			// between the previous ring (inside, margin <= 0) and this one
+			return iRing - 1 + Clamp(-fPrevMargin / (fMargin - fPrevMargin), 0, 1);
+		}
+		fPrevMargin = fMargin;
+		iRing++;
+	}
+	return HUGE_VAL;
+}
+
 // ported from WhorldDraw.cpp CWhorldDraw::OnDraw
 bool WhorldEngine::Draw(IRenderer& renderer)
 {
@@ -763,10 +875,15 @@ bool WhorldEngine::Draw(IRenderer& renderer)
 	// ring addition, which is fPhase of a ring spacing away. A snapshot or
 	// movie frame doesn't record the limit, so its own ring count stands in,
 	// and the rings are taken to grow outward (newest first in the list).
+	// The view's edge ends a ring too, if it gets there first (2026-11-14:
+	// a patch whose Rings limit is far beyond the screen, such as bullseye,
+	// otherwise faded its rings out of sight).
 	const int	nRingCount = static_cast<int>(m_aRing.size());
 	int		nFadeLimit = m_bSnapshotMode ? nRingCount : m_nMaxRings;
 	const int	nFadeRings = Clamp(Round(m_masterEff.fFade), 0, 200);	// Mac: modulated
-	bool	bFade = nFadeRings > 0 && nFadeLimit != INT_MAX && nRingCount > 0;
+	double	fFadeEdge = nFadeRings > 0 && nRingCount > 0
+		? RingFadeEdge(fZoom, fSnapshotScale, ptWndCenter) : HUGE_VAL;
+	bool	bFade = nFadeRings > 0 && nRingCount > 0 && (nFadeLimit != INT_MAX || fFadeEdge != HUGE_VAL);
 	bool	bNewestFirst = m_bSnapshotMode || m_params.fRingGrowth >= 0;	// AddRing: push_front unless reverse
 	double	fPhase = 0;	// progress toward the next ring addition, 0..1
 	if (bFade && !m_bSnapshotMode && m_params.fRingSpacing > 0)
@@ -779,7 +896,9 @@ bool WhorldEngine::Draw(IRenderer& renderer)
 		if (bFade) {
 			int	iFront = bConvex ? nRingCount - 1 - iRingDrawn : iRingDrawn;	// place from the list's front
 			int	iNewest = bNewestFirst ? iFront : nRingCount - 1 - iFront;	// 0 = newest
-			fFade = RingFadeFactor(nFadeLimit - iNewest - fPhase, nFadeRings);
+			double	fLeft = nFadeLimit != INT_MAX ? nFadeLimit - iNewest - fPhase : HUGE_VAL;
+			fLeft = std::min(fLeft, fFadeEdge - iNewest);	// the edge: already continuous as rings grow
+			fFade = RingFadeFactor(fLeft, nFadeRings);
 		}
 		iRingDrawn++;
 		double	fLineWidth = ring.fLineWidth + m_globRing.fLineWidth;
