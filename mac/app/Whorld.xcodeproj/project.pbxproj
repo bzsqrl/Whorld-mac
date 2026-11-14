@@ -49,6 +49,7 @@
 		AAB618AE907BBA4A9059C0FE /* WhorldBase.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FAF8EB4D8501BA25F6DC307E /* WhorldBase.cpp */; };
 		AB24DD7E38B368A205F65B6F /* WhorldEngine.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 73C37FDF9DECAB5DB772722E /* WhorldEngine.cpp */; };
 		AA09D273D9A9F1E73DF7DFCA /* CGRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 4984649519BAE4D772D49843 /* CGRenderer.mm */; };
+		7DB2A34B12FBD44B663A228D /* AliasedRaster.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5884F9EC6433AFCEFC721CC9 /* AliasedRaster.mm */; };
 		25D8899CF10B6B5FF66EF4BB /* VideoWriter.mm in Sources */ = {isa = PBXBuildFile; fileRef = 50C33E763C4E46F3D0C5DDB9 /* VideoWriter.mm */; };
 		C0899F894F35CF7609E163CE /* AudioVideoExport.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3475DE47DA6573F73946FD52 /* AudioVideoExport.mm */; };
 		241A0A4B712CBD41B373BCE4 /* MetalRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 8CB4AB9DA5AE8E0D901DC108 /* MetalRenderer.mm */; };
@@ -106,6 +107,7 @@
 		FAF8EB4D8501BA25F6DC307E /* WhorldBase.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "WhorldBase.cpp"; sourceTree = "<group>"; };
 		73C37FDF9DECAB5DB772722E /* WhorldEngine.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "WhorldEngine.cpp"; sourceTree = "<group>"; };
 		4984649519BAE4D772D49843 /* CGRenderer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "CGRenderer.mm"; sourceTree = "<group>"; };
+		5884F9EC6433AFCEFC721CC9 /* AliasedRaster.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "AliasedRaster.mm"; sourceTree = "<group>"; };
 		50C33E763C4E46F3D0C5DDB9 /* VideoWriter.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "VideoWriter.mm"; sourceTree = "<group>"; };
 		3475DE47DA6573F73946FD52 /* AudioVideoExport.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "AudioVideoExport.mm"; sourceTree = "<group>"; };
 		8CB4AB9DA5AE8E0D901DC108 /* MetalRenderer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "MetalRenderer.mm"; sourceTree = "<group>"; };
@@ -209,6 +211,7 @@
 			isa = PBXGroup;
 			children = (
 				4984649519BAE4D772D49843 /* CGRenderer.mm */,
+				5884F9EC6433AFCEFC721CC9 /* AliasedRaster.mm */,
 				50C33E763C4E46F3D0C5DDB9 /* VideoWriter.mm */,
 				3475DE47DA6573F73946FD52 /* AudioVideoExport.mm */,
 				8CB4AB9DA5AE8E0D901DC108 /* MetalRenderer.mm */,
@@ -315,6 +318,7 @@
 				AAB618AE907BBA4A9059C0FE /* WhorldBase.cpp in Sources */,
 				AB24DD7E38B368A205F65B6F /* WhorldEngine.cpp in Sources */,
 				AA09D273D9A9F1E73DF7DFCA /* CGRenderer.mm in Sources */,
+				7DB2A34B12FBD44B663A228D /* AliasedRaster.mm in Sources */,
 				25D8899CF10B6B5FF66EF4BB /* VideoWriter.mm in Sources */,
 				C0899F894F35CF7609E163CE /* AudioVideoExport.mm in Sources */,
 				241A0A4B712CBD41B373BCE4 /* MetalRenderer.mm in Sources */,

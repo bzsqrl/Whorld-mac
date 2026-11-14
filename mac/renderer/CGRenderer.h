@@ -17,11 +17,13 @@
 // y down. The renderer maps them to pixels with a flipped, scaled CTM, so
 // one DIP is `scale` pixels (the Retina backing scale; 1 for exports).
 
+#include "AliasedRaster.h"
 #include "whorld/IRenderer.h"
 
 #include <CoreGraphics/CoreGraphics.h>
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -90,13 +92,14 @@ protected:
 	CGContextRef	m_ctx = nullptr;
 	CGMutablePathRef	m_pathFilled = nullptr;	// figures begun FILLED
 	CGMutablePathRef	m_pathAll = nullptr;	// all figures, for stroking
-	struct Figure {	// copy of each figure's points, for computing joins
-		std::vector<PointF>	pts;
-		int		nSegments;
-		bool	bCurved;
-	};
-	std::vector<Figure>	m_aFigure;
+	// copy of each figure's points, for computing joins and for aliased
+	// drawing; shared by the path's deferred ops
+	using Figures = std::vector<aliased::Figure>;
+	std::shared_ptr<Figures>	m_pFigures;
 	bool	m_bInFrame = false;
+	// Aliased fills, strokes and rectangles are drawn by the pixel-center
+	// rule (AliasedRaster.h), as Direct2D draws them, not by Core Graphics
+	bool	m_bAntialias = true;	// as last set; the context's default
 	bool	m_bMirrorClip = false;	// true while the mirror clip is pushed
 	int		m_nQuadWidth = 0;	// mirror quadrant size in pixels
 	int		m_nQuadHeight = 0;
@@ -112,13 +115,19 @@ protected:
 		CGPathRef	path = nullptr;		// fill path, or stroke source path
 		CGPathRef	miters = nullptr;	// clipped miter polygons for a stroke
 		CGPathRef	outline = nullptr;	// stroke outline, built in parallel
+		bool	bAliased = false;	// FILL, STROKE, RECT: drawn as spans
+		std::shared_ptr<const Figures>	pFigures;	// aliased: the path
+		std::vector<aliased::Span>	spans;	// aliased: built in parallel
 	};
 	bool	m_bDeferred = false;
 	bool	m_bMirrorPending = false;	// deferred: a mirror begin is recorded
 	std::vector<Op>	m_aOp;
 	bool	m_bMirrorBegun = false;	// deferred: mirror begun in the current segment
 	void	Flush();
-	void	ReplayOp(CGContextRef ctx, const Op& op, bool& bMirrorClip);
+	void	ReplayOp(CGContextRef ctx, const Op& op, bool& bMirrorClip, int y0, int y1);
+	void	DrawAliased(Op& op);
+	void	BuildSpans(Op& op) const;	// aliased ops
+	void	BlendSpans(const Op& op, bool bMirrorClip, int y0, int y1);
 	void	DoAntialiasing(CGContextRef ctx, bool bEnable);
 	void	DoClear(CGContextRef ctx, const ColorF& clr);
 	void	DoFill(CGContextRef ctx, CGPathRef path, const ColorF& clr);

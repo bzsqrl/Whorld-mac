@@ -13,6 +13,7 @@
 
 #include "ImageCompare.h"
 #include "RenderJobs.h"
+#include "whorld/WhorldEngine.h"
 #include "TestHarness.h"
 
 #include <cstdio>
@@ -95,6 +96,62 @@ TEST(GoldenSnapshotsImmediate) {
 
 TEST(GoldenSnapshotsDeferred) {	// the mode the app uses
 	CompareGoldens(true);
+}
+
+// Screenshots of Windows Whorld's window showing a snapshot full screen,
+// antialiasing off ("<name>.png") and on ("<name>-aa.png"): the reference
+// for aliased frames, which Windows' exports don't make (Export always
+// antialiases). Each snapshot is drawn as the window shows it. Aliased,
+// Core Graphics draws by the pixel-center rule (AliasedRaster), as Direct2D
+// does; its own aliased rasterizer differed on 7.5 to 9.9% of pixels.
+static void CompareScreenshots(bool bDeferred)
+{
+	fs::path	dirShot = fs::path(WHORLD_TESTDATA_DIR) / "screenshots";
+	fs::path	dirSnap = fs::path(WHORLD_TESTDATA_DIR) / "snapshots";
+	int	nCompared = 0;
+	for (const auto& entry : fs::directory_iterator(dirShot)) {
+		if (entry.path().extension() != ".png")
+			continue;
+		std::string	stem = entry.path().stem().string(), err;
+		bool	bAA = stem.size() > 3 && stem.compare(stem.size() - 3, 3, "-aa") == 0;
+		std::string	name = bAA ? stem.substr(0, stem.size() - 3) : stem;
+		auto	pSnap = Snapshot::Read((dirSnap / (name + ".whs")).string(), &err);
+		CHECK(pSnap != nullptr);
+		ImageRGBA	shot;
+		CHECK(LoadImageRGBA(entry.path().string(), shot, &err));
+		if (!pSnap || shot.nWidth <= 0)
+			continue;
+		WhorldEngine	eng;	// CWhorldDraw::SetSnapshot, in a full-screen view
+		eng.OnResize(SizeF{float(shot.nWidth), float(shot.nHeight)});
+		eng.OnDisplaySnapshot(*pSnap);
+		WhorldEngine::VARIANT_PROP	prop{};
+		prop.boolVal = bAA;
+		eng.OnSetMainProp(WhorldBase::MAIN_Antialiasing, prop);
+		CGBitmapRenderer	r(shot.nWidth, shot.nHeight, 1);
+		r.SetDeferred(bDeferred);
+		r.BeginFrame();
+		eng.Draw(r);
+		r.EndFrame();
+		ImageRGBA	mine = FromBGRA(r.GetPixels(), r.GetPixelWidth(), r.GetPixelHeight(), r.GetStride());
+		ImageDiff	d = CompareImages(shot, mine, kThreshold);
+		// measured: aliased mean 0.024, 0.025% over (fish eye); antialiased 0.63, 0.22%
+		double	fMaxMean = bAA ? kMaxMeanAbs : 0.1, fMaxFrac = bAA ? kMaxFracOver : 0.001;
+		bool	bPass = d.bSameSize && d.fMeanAbs <= fMaxMean && d.fFracOver <= fMaxFrac;
+		std::printf("  %-36s mean %.3f, %.3f%% over %d %s\n", stem.c_str(), d.fMeanAbs,
+			d.fFracOver * 100, kThreshold, bPass ? "ok" : "FAIL");
+		CHECK(bPass);
+		nCompared++;
+	}
+	std::printf("  %d Windows screenshots compared (%s)\n", nCompared, bDeferred ? "deferred, banded" : "immediate");
+	CHECK(nCompared > 0);
+}
+
+TEST(ScreenshotsImmediate) {
+	CompareScreenshots(false);
+}
+
+TEST(ScreenshotsDeferred) {
+	CompareScreenshots(true);
 }
 
 int main() { return RunAllTests(); }

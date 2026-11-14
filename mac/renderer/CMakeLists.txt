@@ -10,6 +10,7 @@
 # Core Graphics renderer (macOS only).
 add_library(whorld_renderer STATIC
   CGRenderer.mm
+  AliasedRaster.mm
   ImageCompare.mm
   RenderJobs.mm
   VideoWriter.mm

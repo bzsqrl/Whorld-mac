@@ -40,16 +40,14 @@ const double	kMaxMeanAbs = 1.5;
 
 // Metal against Core Graphics on the same frames. Antialiased, they agree
 // well within the golden tolerance (worst when written: bloom_cvx, mean 0.49;
-// 0.14% over), so it's the bound. Aliased, they differ a lot: strokes thinner than a pixel, which Metal
-// draws by the pixel-center rule as unbroken lines, and Core Graphics by its
-// own (undocumented) rule as dotted ones. Which matches Direct2D is open
-// (PORT_PLAN Phase 8, "aliased output"); until it's settled, the bound is
-// the worst seen when written (default_cvx, frame 160: mean 12.6; typhoon_cvx:
-// 11.4% over), with some room, so only a gross regression shows.
+// 0.14% over), so it's the bound. Aliased, both draw by Direct2D's
+// pixel-center rule (CGBitmapRenderer through AliasedRaster), and agree
+// closer still (worst when written: mean 0.04, 0.009% over); before that,
+// Core Graphics' own aliased rasterizer differed on up to 11% of pixels.
 const double	kAAMaxFracOver = kMaxFracOver;
 const double	kAAMaxMeanAbs = kMaxMeanAbs;
-const double	kAliasedMaxFracOver = 0.14;
-const double	kAliasedMaxMeanAbs = 15.0;
+const double	kAliasedMaxFracOver = 0.001;
+const double	kAliasedMaxMeanAbs = 0.25;
 
 const IntSize	kSize = {1024, 768};
 const int		kFrames[] = {40, 160};	// frames compared; the last one ends the run
@@ -159,7 +157,7 @@ std::vector<fs::path> SamplePatches()
 	return a;
 }
 
-enum Mode { AA_ON, AA_OFF, MIRRORED };
+enum Mode { AA_ON, AA_OFF, MIRRORED, MIRRORED_ALIASED };
 
 struct Worst {
 	double	fMean = 0, fFrac = 0;
@@ -182,7 +180,8 @@ void ComparePatches(Mode mode, double fMaxMean, double fMaxFrac)
 {
 	if (!MetalAvailable())
 		return;
-	const char	*sMode = mode == AA_ON ? "antialiased" : mode == AA_OFF ? "aliased" : "mirrored, antialiased";
+	const char	*sMode = mode == AA_ON ? "antialiased" : mode == AA_OFF ? "aliased"
+		: mode == MIRRORED ? "mirrored, antialiased" : "mirrored, aliased";
 	MetalRenderer	mr(kSize.cx, kSize.cy, 1, 0);
 	CGBitmapRenderer	cg(kSize.cx, kSize.cy, 1);
 	CHECK(mr.IsValid() && cg.IsValid());
@@ -200,9 +199,9 @@ void ComparePatches(Mode mode, double fMaxMean, double fMaxFrac)
 		eng.SetFrameRate(60);
 		eng.OnResize(cg.GetSizeDIPs());
 		eng.OnSetPatch(patch);
-		if (mode != AA_OFF)
+		if (mode == AA_ON || mode == MIRRORED)
 			SetMainBool(eng, WhorldBase::MAIN_Antialiasing, true);
-		if (mode == MIRRORED)
+		if (mode == MIRRORED || mode == MIRRORED_ALIASED)
 			SetMainBool(eng, WhorldBase::MAIN_Mirror, true);
 		size_t	iNext = 0;
 		for (int i = 0; i <= nLast; i++) {
@@ -315,8 +314,8 @@ TEST(MetalGoldenSnapshots) {
 // antialiasing off ("<name>.png") and on ("<name>-aa.png"): the only
 // reference for aliased frames, since Windows' exports always antialias.
 // Each snapshot is drawn as the window shows it, at the screenshot's size.
-// Metal matches Windows' aliased rule (pixel centers); Core Graphics'
-// aliased output doesn't, and is reported, not checked.
+// Both renderers draw aliased frames by Windows' rule (pixel centers);
+// Core Graphics is shown here and checked in test_golden.
 TEST(MetalMatchesWindowsScreenshots) {
 	if (!MetalAvailable())
 		return;
@@ -425,6 +424,10 @@ TEST(MetalMatchesCoreGraphicsAliased) {	// the sample patches' own setting
 
 TEST(MetalMatchesCoreGraphicsMirrored) {
 	ComparePatches(MIRRORED, kAAMaxMeanAbs, kAAMaxFracOver);
+}
+
+TEST(MetalMatchesCoreGraphicsMirroredAliased) {
+	ComparePatches(MIRRORED_ALIASED, kAliasedMaxMeanAbs, kAliasedMaxFracOver);
 }
 
 int main() { return RunAllTests(); }

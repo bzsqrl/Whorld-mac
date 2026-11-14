@@ -143,6 +143,7 @@ void CGBitmapRenderer::BeginFrame()
 		return;
 	CGContextSaveGState(m_ctx);
 	ApplyBaseState();
+	m_bAntialias = true;	// the context's default, restored with its state
 	m_bInFrame = true;
 }
 
@@ -182,6 +183,7 @@ void CGBitmapRenderer::SetAntialiasing(bool bEnable)
 {
 	if (!m_ctx)
 		return;
+	m_bAntialias = bEnable;
 	if (m_bDeferred) {
 		Op	op;
 		op.type = Op::ANTIALIAS;
@@ -239,7 +241,7 @@ void CGBitmapRenderer::ReleasePaths()
 void CGBitmapRenderer::BeginPath()
 {
 	ReleasePaths();
-	m_aFigure.clear();
+	m_pFigures = std::make_shared<Figures>();	// ops of the previous path keep theirs
 	m_pathFilled = CGPathCreateMutable();
 	m_pathAll = CGPathCreateMutable();
 }
@@ -249,7 +251,7 @@ void CGBitmapRenderer::AddFigure(const PointF* pStart, int nSegments, bool bCurv
 	if (!m_pathAll)
 		BeginPath();
 	int	nPts = 1 + (bCurved ? nSegments * 3 : nSegments);
-	m_aFigure.push_back(Figure{std::vector<PointF>(pStart, pStart + nPts), nSegments, bCurved});
+	m_pFigures->push_back(aliased::Figure{std::vector<PointF>(pStart, pStart + nPts), nSegments, bCurved, bFilled});
 	CGMutablePathRef	paths[2] = {m_pathAll, bFilled ? m_pathFilled : nullptr};
 	for (CGMutablePathRef path : paths) {
 		if (!path)
@@ -277,10 +279,16 @@ void CGBitmapRenderer::FillPath(const ColorF& clr)
 {
 	if (!m_ctx || !m_pathFilled || CGPathIsEmpty(m_pathFilled))
 		return;
+	Op	op;
+	op.type = Op::FILL;
+	op.clr = clr;
+	if (!m_bAntialias) {	// by the pixel-center rule
+		op.bAliased = true;
+		op.pFigures = m_pFigures;
+		DrawAliased(op);
+		return;
+	}
 	if (m_bDeferred) {
-		Op	op;
-		op.type = Op::FILL;
-		op.clr = clr;
 		op.path = CGPathCreateCopy(m_pathFilled);
 		m_aOp.push_back(op);
 		return;
@@ -307,6 +315,16 @@ void CGBitmapRenderer::StrokePath(const ColorF& clr, float fWidth)
 	fWidth = std::fabs(fWidth);
 	if (!(fWidth > 0))
 		return;
+	if (!m_bAntialias) {	// by the pixel-center rule, with Direct2D's clipped miters
+		Op	op;
+		op.type = Op::STROKE;
+		op.clr = clr;
+		op.fWidth = fWidth;
+		op.bAliased = true;
+		op.pFigures = m_pFigures;
+		DrawAliased(op);
+		return;
+	}
 	CGMutablePathRef	pathMiters = CGPathCreateMutable();
 	if (!AddClippedMiters(pathMiters, fWidth)) {
 		CGPathRelease(pathMiters);
@@ -370,7 +388,7 @@ bool CGBitmapRenderer::AddClippedMiters(CGMutablePathRef path, float fWidth) con
 	const double	fLimit = kD2DMiterLimit * hw;	// clipped miter length from the vertex
 	bool	bAny = false;
 	std::vector<Seg>	segs;
-	for (const Figure& fig : m_aFigure) {
+	for (const aliased::Figure& fig : *m_pFigures) {
 		// collect non-degenerate segments, including the implicit closing line
 		segs.clear();
 		Vec	cur = ToVec(fig.pts[0]);
@@ -449,11 +467,16 @@ void CGBitmapRenderer::FillRect(const RectF& rect, const ColorF& clr)
 {
 	if (!m_ctx)
 		return;
+	Op	op;
+	op.type = Op::RECT;
+	op.rect = rect;
+	op.clr = clr;
+	if (!m_bAntialias) {
+		op.bAliased = true;
+		DrawAliased(op);
+		return;
+	}
 	if (m_bDeferred) {
-		Op	op;
-		op.type = Op::RECT;
-		op.rect = rect;
-		op.clr = clr;
 		m_aOp.push_back(op);
 		return;
 	}
@@ -495,6 +518,44 @@ bool CGBitmapRenderer::EndQuadMirror()
 	return true;
 }
 
+// An aliased fill, stroke or rectangle: recorded, or drawn now
+void CGBitmapRenderer::DrawAliased(Op& op)
+{
+	if (m_bDeferred) {
+		m_aOp.push_back(std::move(op));	// spans built in parallel by Flush
+		return;
+	}
+	BuildSpans(op);
+	BlendSpans(op, m_bMirrorClip, 0, m_nHeight);
+}
+
+void CGBitmapRenderer::BuildSpans(Op& op) const
+{
+	switch (op.type) {
+	case Op::FILL:
+		aliased::FillSpans(op.pFigures->data(), op.pFigures->size(), m_fScale, m_nWidth, m_nHeight, op.spans);
+		break;
+	case Op::STROKE:
+		aliased::StrokeSpans(op.pFigures->data(), op.pFigures->size(), op.fWidth, m_fScale,
+			m_nWidth, m_nHeight, op.spans);
+		break;
+	case Op::RECT:
+		aliased::RectSpans(op.rect, m_fScale, m_nWidth, m_nHeight, op.spans);
+		break;
+	default:
+		break;
+	}
+}
+
+// Rows [y0, y1) of an aliased op; the mirror clip is the upper-left
+// quadrant, as DoBeginQuadMirror's
+void CGBitmapRenderer::BlendSpans(const Op& op, bool bMirrorClip, int y0, int y1)
+{
+	int	xMax = bMirrorClip ? (m_nWidth + 1) / 2 : m_nWidth;
+	int	yMax = bMirrorClip ? (m_nHeight + 1) / 2 : m_nHeight;
+	aliased::Blend(op.spans, op.clr, m_pPixels, m_nStride, y0, y1, xMax, yMax);
+}
+
 void CGBitmapRenderer::Flush()
 {
 	if (m_aOp.empty())
@@ -506,8 +567,13 @@ void CGBitmapRenderer::Flush()
 	// direct rendering matches Direct2D better ("fish eye" golden image).
 	std::vector<size_t>	aStroke;
 	for (size_t i = 0; i < m_aOp.size(); i++) {
-		if (m_aOp[i].type == Op::STROKE && m_aOp[i].fWidth * m_fScale >= kMinOutlineWidth)
+		if (m_aOp[i].type == Op::STROKE && !m_aOp[i].bAliased && m_aOp[i].fWidth * m_fScale >= kMinOutlineWidth)
 			aStroke.push_back(i);
+	}
+	std::vector<size_t>	aAliased;	// and aliased ops' spans
+	for (size_t i = 0; i < m_aOp.size(); i++) {
+		if (m_aOp[i].bAliased)
+			aAliased.push_back(i);
 	}
 	Op*	pOps = m_aOp.data();
 	const size_t*	pIdx = aStroke.data();
@@ -515,6 +581,10 @@ void CGBitmapRenderer::Flush()
 		Op&	op = pOps[pIdx[i]];
 		op.outline = CGPathCreateCopyByStrokingPath(op.path, nullptr, op.fWidth,
 			kCGLineCapButt, kCGLineJoinMiter, kMiterLimit);
+	});
+	const size_t*	pAliased = aAliased.data();
+	dispatch_apply(aAliased.size(), DISPATCH_APPLY_AUTO, ^(size_t i) {
+		BuildSpans(pOps[pAliased[i]]);
 	});
 	// 2) Rasterize in horizontal bands in parallel. Each band is a bitmap
 	// context over the same pixel memory, so drawing order within a pixel
@@ -530,8 +600,8 @@ void CGBitmapRenderer::Flush()
 	for (const Op& op : m_aOp) {
 		if (op.type == Op::ANTIALIAS)
 			bOn = op.bFlag;
-		else if (op.type != Op::MIRROR_BEGIN && op.type != Op::MIRROR_END)
-			bAntialiased |= bOn;	// something drawn antialiased
+		else if (op.type != Op::MIRROR_BEGIN && op.type != Op::MIRROR_END && !op.bAliased)
+			bAntialiased |= bOn;	// something drawn antialiased by Core Graphics
 	}
 	const int	nBands = bAntialiased ? 1 : std::max(1, std::min(m_nHeight, 32));
 	struct Band {
@@ -562,10 +632,12 @@ void CGBitmapRenderer::Flush()
 			iEnd++;
 		bool	bMirrorEnd = iEnd < m_aOp.size();
 		size_t	iFirst = iStart, iLast = iEnd;	// [iFirst, iLast)
+		const int	nHeight = m_nHeight;
 		dispatch_apply(nBands, DISPATCH_APPLY_AUTO, ^(size_t b) {
 			Band&	band = pBands[b];
+			int	y0 = nHeight * int(b) / nBands, y1 = nHeight * (int(b) + 1) / nBands;
 			for (size_t i = iFirst; i < iLast; i++)
-				ReplayOp(band.ctx, pOps[i], band.bMirrorClip);
+				ReplayOp(band.ctx, pOps[i], band.bMirrorClip, y0, y1);
 			if (bMirrorEnd && band.bMirrorClip) {
 				CGContextRestoreGState(band.ctx);	// pop clip
 				band.bMirrorClip = false;
@@ -593,8 +665,13 @@ void CGBitmapRenderer::Flush()
 	m_bMirrorPending = false;
 }
 
-void CGBitmapRenderer::ReplayOp(CGContextRef ctx, const Op& op, bool& bMirrorClip)
+// y0 and y1: the band's rows, in the whole image
+void CGBitmapRenderer::ReplayOp(CGContextRef ctx, const Op& op, bool& bMirrorClip, int y0, int y1)
 {
+	if (op.bAliased) {	// written straight to the band's rows, in order with the rest
+		BlendSpans(op, bMirrorClip, y0, y1);
+		return;
+	}
 	switch (op.type) {
 	case Op::ANTIALIAS:
 		DoAntialiasing(ctx, op.bFlag);
