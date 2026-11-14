@@ -54,7 +54,7 @@ public:
 	int		GetPixelHeight() const { return m_nHeight; }
 	double	GetScale() const { return m_fScale; }
 	SizeF	GetSizeDIPs() const;
-	void	SetTolerance(float fPixels) { m_fTolerance = fPixels; }	// curve flattening
+	void	SetTolerance(float fPixels) { m_fTolerance = fPixels > 0 ? fPixels : 0.1f; }	// curve flattening (Curve quality)
 
 	// Frame. EndFrame tessellates, encodes and commits; WaitUntilDone blocks
 	// until the GPU has finished the last committed frame. Up to three frames

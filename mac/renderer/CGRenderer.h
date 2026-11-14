@@ -60,6 +60,11 @@ public:
 	// most of Core Graphics' cost. Rasterizing is split into horizontal bands
 	// drawn in parallel, with the same pixels. Off by default.
 	void	SetDeferred(bool bEnable) { m_bDeferred = bEnable; }
+	// How far, in pixels, flattened curves may stray from the true curve
+	// (Settings > Rendering > Curve quality; 0.1 by default, as Metal's).
+	// Aliased drawing flattens to it; antialiased drawing passes it to Core
+	// Graphics as the flatness, when coarser than the default.
+	void	SetTolerance(float fPixels) { m_fTolerance = fPixels > 0 ? fPixels : 0.1f; }
 	bool	IsDeferred() const { return m_bDeferred; }
 
 // Output
@@ -100,6 +105,7 @@ protected:
 	// Aliased fills, strokes and rectangles are drawn by the pixel-center
 	// rule (AliasedRaster.h), as Direct2D draws them, not by Core Graphics
 	bool	m_bAntialias = true;	// as last set; the context's default
+	float	m_fTolerance = 0.1f;	// curve flattening, pixels
 	bool	m_bMirrorClip = false;	// true while the mirror clip is pushed
 	int		m_nQuadWidth = 0;	// mirror quadrant size in pixels
 	int		m_nQuadHeight = 0;
@@ -141,6 +147,7 @@ protected:
 	void	SetStrokeColor(CGContextRef ctx, const ColorF& clr);
 	void	ReleasePaths();
 	void	ApplyBaseState();
+	void	ApplyFlatness(CGContextRef ctx) const;
 	void	CreateContext();
 	// Adds Direct2D's clipped miters for joins whose miter exceeds the limit.
 	// Returns false if no join needs one.

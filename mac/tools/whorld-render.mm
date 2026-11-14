@@ -37,7 +37,7 @@ int Usage()
 	std::fprintf(stderr,
 		"usage:\n"
 		"  whorld-render <patch.whp> [--frames N] [--size WxH] [--scale S] [--deferred]\n"
-		"                [--ring-fade N [--linear]] [--antialias 0|1] [--metal] --out frame.png\n"
+		"                [--ring-fade N [--linear]] [--antialias 0|1] [--metal] [--tolerance px] --out frame.png\n"
 		"  whorld-render <snapshot.whs> [--size WxH] [--view WxH] [--fit none|width|height|both]\n"
 		"                [--use-view-size] [--no-letterbox] [--metal] --out frame.png\n"
 		"  whorld-render <snapshot.whs> --as-shown [--size WxH] [--antialias 0|1] [--metal] --out frame.png\n"
@@ -61,11 +61,12 @@ bool ParseSize(const char* psz, int& w, int& h)
 
 // A frame drawn by fnDraw, written as a PNG: by Metal (coverage mode, as
 // the app's view and exports) or by Core Graphics
-bool DrawPNG(int w, int h, double fScale, bool bMetal, bool bDeferred,
+bool DrawPNG(int w, int h, double fScale, bool bMetal, bool bDeferred, float fTolerance,
 	const std::function<void(IRenderer&)>& fnDraw, const std::string& sOut, std::string& err)
 {
 	if (bMetal) {
 		MetalRenderer	r(w, h, fScale, 0);
+		r.SetTolerance(fTolerance);
 		if (!r.IsValid()) {
 			err = "Metal isn't available on this Mac";
 			return false;
@@ -88,6 +89,7 @@ bool DrawPNG(int w, int h, double fScale, bool bMetal, bool bDeferred,
 		return false;
 	}
 	r.SetDeferred(bDeferred);
+	r.SetTolerance(fTolerance);
 	r.BeginFrame();
 	fnDraw(r);
 	r.EndFrame();
@@ -169,6 +171,7 @@ int main(int argc, char** argv)
 	bool	bMetalPNG = false;	// --metal: PNGs drawn with Metal
 	bool	bAsShown = false;
 	int		nAntialias = -1;	// -1: the patch's own (or on, as shown)
+	float	fTolerance = 0.1f;	// --tolerance: curve flattening, pixels (Curve quality)
 	int		nRingFade = 0;
 	bool	bRingFadeEased = true;	// as the app's default (Settings > Rendering > Ring fade curve)
 	std::string	sVideo;
@@ -216,6 +219,8 @@ int main(int argc, char** argv)
 			bMetalPNG = true;
 		else if (!std::strcmp(a, "--as-shown"))
 			bAsShown = true;
+		else if (!std::strcmp(a, "--tolerance") && bHasArg)
+			fTolerance = float(std::atof(argv[++i]));
 		else if (!std::strcmp(a, "--antialias") && bHasArg)
 			nAntialias = std::atoi(argv[++i]) != 0;
 		else if (!std::strcmp(a, "--ring-fade") && bHasArg)
@@ -353,7 +358,7 @@ int main(int argc, char** argv)
 	}
 	if (sOut.empty() || !(fScale > 0) || nFrames < 1)
 		return Usage();
-	if (bAsShown || bMetalPNG || nAntialias >= 0) {	// drawn here, by either renderer
+	if (bAsShown || bMetalPNG || nAntialias >= 0 || fTolerance != 0.1f) {	// drawn here, by either renderer
 		WhorldEngine	eng;
 		std::function<void(IRenderer&)>	fnDraw;
 		int	cx = w, cy = h;
@@ -404,7 +409,7 @@ int main(int argc, char** argv)
 			}
 			fnDraw = [&eng](IRenderer& r) { eng.Draw(r); };
 		}
-		if (!DrawPNG(cx, cy, fPixelScale, bMetalPNG, bDeferred, fnDraw, sOut, err)) {
+		if (!DrawPNG(cx, cy, fPixelScale, bMetalPNG, bDeferred, fTolerance, fnDraw, sOut, err)) {
 			std::fprintf(stderr, "%s\n", err.c_str());
 			return 1;
 		}

@@ -556,6 +556,7 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 		_liveTarget = whorld::SizeF{0, 0};
 		_handoff = std::make_shared<WHHandoff>();
 		_preferMetal = true;
+		_curveTolerance = 0.1f;
 		_usingMetal = false;
 		_gpuMs = 0;
 		_rendererName = @"";
@@ -2033,6 +2034,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 			// The frame is handed over when the GPU finishes it; until then
 			// the retain keeps the surface out of the pool.
 			_metal->SetTargetSurface(image);
+			_metal->SetTolerance(self.curveTolerance);
 			_metal->BeginFrame();
 			_engine->Draw(*_metal);
 			std::shared_ptr<WHHandoff>	handoff = _handoff;
@@ -2059,6 +2061,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 				pSurf->renderer->SetDeferred(true);	// parallel stroking and banded rasterizing
 			}
 			IOSurfaceLock(image, 0, nullptr);
+			pSurf->renderer->SetTolerance(self.curveTolerance);
 			pSurf->renderer->BeginFrame();
 			_engine->Draw(*pSurf->renderer);
 			pSurf->renderer->EndFrame();
@@ -2157,6 +2160,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	whorld::SizeF	szTarget{float(fw / fScale), float(fh / fScale)};
 	if (bMetal) {
 		_syphonMetal->SetTargetSurface(image);
+		_syphonMetal->SetTolerance(self.curveTolerance);
 		_syphonMetal->BeginFrame();
 		_engine->DrawAtSize(*_syphonMetal, szTarget);
 		_syphonMetal->EndFrame([syphon, image](bool bOk, double) {
@@ -2173,6 +2177,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 			pSurf->renderer->SetDeferred(true);
 		}
 		IOSurfaceLock(image, 0, nullptr);
+		pSurf->renderer->SetTolerance(self.curveTolerance);
 		pSurf->renderer->BeginFrame();
 		_engine->DrawAtSize(*pSurf->renderer, szTarget);
 		pSurf->renderer->EndFrame();

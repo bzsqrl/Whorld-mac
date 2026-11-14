@@ -411,8 +411,12 @@ typedef struct {
 // Renderer for the live view: YES for Metal (the default), NO for Core
 // Graphics. Metal falls back to Core Graphics on its own if this Mac can't
 // run it (it needs an Apple GPU) or a frame fails; setting YES retries it.
-// Exports always use Core Graphics.
+// Exports use Metal wherever it can, whatever this says.
 @property (nonatomic) BOOL preferMetal;
+// Settings > Rendering > Curve quality (Mac addition): how far, in pixels,
+// the live view's flattened curves may stray (0.1, High, to 1, Low).
+// Exports always draw at High.
+@property (atomic) float curveTolerance;
 @property (class, nonatomic, readonly) BOOL metalAvailable;
 
 // Syphon output (new in the Mac port; WHSyphon): a Syphon server other apps

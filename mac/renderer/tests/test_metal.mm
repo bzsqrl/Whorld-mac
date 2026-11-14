@@ -414,6 +414,55 @@ TEST(MetalLetterboxMatchesCoreGraphics) {
 	}
 }
 
+// Settings > Rendering > Curve quality: the default tolerance (High, 0.1 px)
+// draws exactly as before; the lowest (1 px) changes little, on a patch
+// of large curved rings
+TEST(CurveToleranceOnlyCoarsensCurves) {
+	if (!MetalAvailable())
+		return;
+	std::string	err;
+	Patch	patch;
+	CHECK(patch.Read((fs::path(WHORLD_TESTDATA_DIR) / "patches" / "typhoon_cvx.whp").string(), &err));
+	auto	Draw = [&](bool bMetal, bool bAA, float fTol) {	// frame 160, as the sweeps
+		WhorldEngine	eng;
+		eng.SetFrameRate(60);
+		eng.OnResize(SizeF{float(kSize.cx), float(kSize.cy)});
+		eng.OnSetPatch(patch);
+		SetMainBool(eng, WhorldBase::MAIN_Antialiasing, bAA);
+		NullRenderer	null;
+		for (int i = 0; i < 160; i++)
+			eng.Draw(null);
+		if (bMetal) {
+			MetalRenderer	mr(kSize.cx, kSize.cy, 1, 0);
+			if (fTol > 0)
+				mr.SetTolerance(fTol);
+			mr.BeginFrame();
+			eng.Draw(mr);
+			mr.EndFrame();
+			mr.WaitUntilDone();
+			return MetalImage(mr);
+		}
+		CGBitmapRenderer	cg(kSize.cx, kSize.cy, 1);
+		if (fTol > 0)
+			cg.SetTolerance(fTol);
+		cg.BeginFrame();
+		eng.Draw(cg);
+		cg.EndFrame();
+		return CoreGraphicsImage(cg);
+	};
+	for (bool bMetal : {true, false}) {
+		bool	bAA = bMetal;	// Metal antialiased; Core Graphics aliased (its own flattening)
+		ImageRGBA	def = Draw(bMetal, bAA, 0), high = Draw(bMetal, bAA, 0.1f), low = Draw(bMetal, bAA, 1);
+		ImageDiff	dSame = CompareImages(def, high, kThreshold), dLow = CompareImages(def, low, kThreshold);
+		std::printf("  %s: default vs 0.1 px mean %.3f; vs 1 px mean %.3f, %.3f%% over %d\n",
+			bMetal ? "Metal, antialiased" : "Core Graphics, aliased", dSame.fMeanAbs, dLow.fMeanAbs,
+			dLow.fFracOver * 100, kThreshold);
+		CHECK_EQ(dSame.nMaxDiff, 0);	// High is the default, exactly
+		CHECK(dLow.fMeanAbs > 0);	// Low does flatten more coarsely
+		CHECK(dLow.fMeanAbs < 2.0 && dLow.fFracOver < 0.02);	// but only a little
+	}
+}
+
 TEST(MetalMatchesCoreGraphicsAntialiased) {
 	ComparePatches(AA_ON, kAAMaxMeanAbs, kAAMaxFracOver);
 }

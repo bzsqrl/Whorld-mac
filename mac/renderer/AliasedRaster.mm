@@ -18,9 +18,7 @@ namespace aliased {
 
 namespace {
 
-const float	kTolerance = 0.1f;	// curve flattening, pixels (as MetalRenderer)
-
-void Flatten(const Figure* pFig, size_t nFigs, double fScale, bool bFilledOnly,
+void Flatten(const Figure* pFig, size_t nFigs, double fScale, float fTolerance, bool bFilledOnly,
 	std::vector<gpu::Contour>& aContour)
 {
 	aContour.clear();
@@ -29,7 +27,7 @@ void Flatten(const Figure* pFig, size_t nFigs, double fScale, bool bFilledOnly,
 		if (bFilledOnly && !f.bFilled)
 			continue;
 		aContour.emplace_back();
-		gpu::FlattenFigure(f.pts.data(), f.nSegments, f.bCurved, float(fScale), kTolerance, aContour.back());
+		gpu::FlattenFigure(f.pts.data(), f.nSegments, f.bCurved, float(fScale), fTolerance, aContour.back());
 	}
 }
 
@@ -89,12 +87,12 @@ inline uint32_t MulDiv255(uint32_t x, uint32_t n)	// x * n / 255, rounded, for b
 } // namespace
 
 void FillSpans(const Figure* pFig, size_t nFigs, double fScale, int nWidth, int nHeight,
-	std::vector<Span>& spans)
+	std::vector<Span>& spans, float fTolerance)
 {
 	spans.clear();
 	thread_local std::vector<gpu::Contour>	aContour;
 	thread_local std::vector<gpu::Vec2>	v;
-	Flatten(pFig, nFigs, fScale, true, aContour);
+	Flatten(pFig, nFigs, fScale, fTolerance, true, aContour);
 	v.clear();
 	gpu::SpanContours(aContour.data(), aContour.size(), nWidth, nHeight, v);
 	spans.reserve(v.size() / 2);
@@ -103,17 +101,17 @@ void FillSpans(const Figure* pFig, size_t nFigs, double fScale, int nWidth, int 
 }
 
 void StrokeSpans(const Figure* pFig, size_t nFigs, float fWidth, double fScale, int nWidth, int nHeight,
-	std::vector<Span>& spans)
+	std::vector<Span>& spans, float fTolerance)
 {
 	spans.clear();
 	thread_local std::vector<gpu::Contour>	aContour;
 	thread_local std::vector<gpu::Vec2>	tris, quads;
 	thread_local std::vector<Span>	raw, sorted;
 	thread_local std::vector<uint32_t>	aStart, aFill;
-	Flatten(pFig, nFigs, fScale, false, aContour);
+	Flatten(pFig, nFigs, fScale, fTolerance, false, aContour);
 	tris.clear();
 	quads.clear();
-	gpu::StrokeContours(aContour.data(), aContour.size(), fWidth * float(fScale), kTolerance, tris, &quads);
+	gpu::StrokeContours(aContour.data(), aContour.size(), fWidth * float(fScale), fTolerance, tris, &quads);
 	raw.clear();
 	for (size_t i = 0; i + 2 < tris.size(); i += 3)
 		ConvexSpans(&tris[i], 3, nWidth, nHeight, raw);

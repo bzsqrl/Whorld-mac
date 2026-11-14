@@ -48,10 +48,11 @@ struct Figure {
 
 // Spans are sorted by row, then x, and don't overlap. Coordinates are DIPs,
 // scaled to pixels by fScale; the target is nWidth x nHeight pixels.
+// fTolerance: how far, in pixels, flattened curves may stray (0.1: as Metal's default)
 void	FillSpans(const Figure* pFig, size_t nFigs, double fScale, int nWidth, int nHeight,
-	std::vector<Span>& spans);	// the even-odd fill of the figures begun filled
+	std::vector<Span>& spans, float fTolerance = 0.1f);	// the even-odd fill of the figures begun filled
 void	StrokeSpans(const Figure* pFig, size_t nFigs, float fWidth, double fScale, int nWidth, int nHeight,
-	std::vector<Span>& spans);	// fWidth in DIPs, positive
+	std::vector<Span>& spans, float fTolerance = 0.1f);	// fWidth in DIPs, positive
 void	RectSpans(const RectF& rect, double fScale, int nWidth, int nHeight, std::vector<Span>& spans);
 
 // Blends the spans in rows [y0, y1), clipped to x < xMax and y < yMax,

@@ -135,6 +135,17 @@ void CGBitmapRenderer::ApplyBaseState()
 	CGContextSetMiterLimit(m_ctx, kMiterLimit);
 	CGContextSetLineCap(m_ctx, kCGLineCapButt);
 	CGContextSetBlendMode(m_ctx, kCGBlendModeNormal);	// source-over, premultiplied
+	ApplyFlatness(m_ctx);
+}
+
+// Curve quality below High: Core Graphics flattens antialiased curves
+// itself, coarser by its flatness (about 11% faster at 1 px, measured with
+// typhoon and bloom). At High (0.1) the context's default is left alone,
+// which draws the same (and as timed) as flatness 0.1.
+void CGBitmapRenderer::ApplyFlatness(CGContextRef ctx) const
+{
+	if (m_fTolerance > 0.1f)
+		CGContextSetFlatness(ctx, m_fTolerance);
 }
 
 void CGBitmapRenderer::BeginFrame()
@@ -533,11 +544,12 @@ void CGBitmapRenderer::BuildSpans(Op& op) const
 {
 	switch (op.type) {
 	case Op::FILL:
-		aliased::FillSpans(op.pFigures->data(), op.pFigures->size(), m_fScale, m_nWidth, m_nHeight, op.spans);
+		aliased::FillSpans(op.pFigures->data(), op.pFigures->size(), m_fScale, m_nWidth, m_nHeight, op.spans,
+			m_fTolerance);
 		break;
 	case Op::STROKE:
 		aliased::StrokeSpans(op.pFigures->data(), op.pFigures->size(), op.fWidth, m_fScale,
-			m_nWidth, m_nHeight, op.spans);
+			m_nWidth, m_nHeight, op.spans, m_fTolerance);
 		break;
 	case Op::RECT:
 		aliased::RectSpans(op.rect, m_fScale, m_nWidth, m_nHeight, op.spans);
@@ -620,6 +632,7 @@ void CGBitmapRenderer::Flush()
 		CGContextSetMiterLimit(ctx, kMiterLimit);
 		CGContextSetLineCap(ctx, kCGLineCapButt);
 		CGContextSetShouldAntialias(ctx, true);	// default; frames begin with an ANTIALIAS op
+		ApplyFlatness(ctx);
 		aBand[b] = Band{ctx, false};
 	}
 	Band*	pBands = aBand.data();

@@ -100,6 +100,22 @@ final class AppModel: ObservableObject {
 			fullScreen.setRender(scale: renderScale, smooth: smoothUpscaling)
 		}
 	}
+	/// Settings > Rendering > Curve quality (Mac addition), 0 (Low) to 1
+	/// (High): the live view's curve flattening tolerance, 1 px to 0.1 px
+	@Published var curveQuality: Double = {
+		Preferences.register()
+		return UserDefaults.standard.double(forKey: "Render_fCurveQuality")
+	}() {
+		didSet {
+			UserDefaults.standard.set(curveQuality, forKey: "Render_fCurveQuality")
+			engine.curveTolerance = Self.curveTolerance(curveQuality)
+		}
+	}
+	/// High (1) is 0.1 px, as exports and the golden tests draw; each step
+	/// down is a factor of 10 over the slider's length (0.5: about 0.32 px)
+	static func curveTolerance(_ quality: Double) -> Float {
+		Float(0.1 * pow(10, 1 - min(max(quality, 0), 1)))
+	}
 	/// the choices, in the View menu and Settings
 	static let renderScales: [(value: Double, name: String)] = [
 		(1, "100% (full resolution)"), (0.75, "75%"), (0.5, "50%"), (1.0 / 3, "33%"),
@@ -161,6 +177,7 @@ final class AppModel: ObservableObject {
 		engine.preferMetal = Preferences.preferMetal
 		engine.maxFrameRate = Preferences.maxFrameRate
 		engine.setRingFadeEased(Preferences.ringFadeEased)
+		engine.curveTolerance = Self.curveTolerance(curveQuality)	// Curve quality (Mac addition)
 		engine.setHueFromPatch(Preferences.hueFromPatch)
 		restartOSC()
 		applySyphon()
