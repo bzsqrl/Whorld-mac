@@ -311,6 +311,45 @@ TEST(MetalGoldenSnapshots) {
 	CHECK(nCompared > 0);
 }
 
+// Letterbox bars (FillRect): snapshots exported wider and taller than they
+// were taken, so bars are drawn left and right, then above and below
+TEST(MetalLetterboxMatchesCoreGraphics) {
+	if (!MetalAvailable())
+		return;
+	std::string	err;
+	auto	pSnap = Snapshot::Read((fs::path(WHORLD_TESTDATA_DIR) / "snapshots" / "yin yang_cvx.whs").string(), &err);
+	CHECK(pSnap != nullptr);
+	if (!pSnap)
+		return;
+	for (IntSize sz : {IntSize{1600, 600}, IntSize{600, 1000}}) {
+		SnapshotExportOptions	opts;
+		opts.szImage = sz;
+		auto	pCG = RenderSnapshotExport(*pSnap, opts);
+		CHECK(pCG != nullptr);
+		WhorldEngine	eng;
+		IntSize	szCap = PrepareSnapshotExport(eng, *pSnap, opts);
+		MetalRenderer	mr(szCap.cx, szCap.cy, 1, 0);
+		CHECK(mr.IsValid());
+		if (!pCG || !mr.IsValid())
+			continue;
+		mr.BeginFrame();
+		eng.DrawCapture(mr, opts.nFlags, opts.szImage);
+		mr.EndFrame();
+		mr.WaitUntilDone();
+		ImageRGBA	cg = CoreGraphicsImage(*pCG), mine = MetalImage(mr);
+		// the bars are there: the middle of each outer edge is black
+		bool	bWide = sz.cx * 3 > sz.cy * 4;
+		int	x = bWide ? 1 : mine.nWidth / 2, y = bWide ? mine.nHeight / 2 : 1;
+		const uint8_t	*p = &mine.aPixel[(static_cast<size_t>(y) * mine.nWidth + x) * 4];
+		CHECK(p[0] == 0 && p[1] == 0 && p[2] == 0);
+		ImageDiff	d = CompareImages(cg, mine, kThreshold);
+		bool	bPass = d.bSameSize && d.fMeanAbs <= kAAMaxMeanAbs && d.fFracOver <= kAAMaxFracOver;
+		std::printf("  letterboxed %dx%d: mean %.3f, %.3f%% over %d against Core Graphics %s\n", sz.cx, sz.cy,
+			d.fMeanAbs, d.fFracOver * 100, kThreshold, bPass ? "ok" : "FAIL");
+		CHECK(bPass);
+	}
+}
+
 TEST(MetalMatchesCoreGraphicsAntialiased) {
 	ComparePatches(AA_ON, kAAMaxMeanAbs, kAAMaxFracOver);
 }
