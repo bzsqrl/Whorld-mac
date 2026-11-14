@@ -444,6 +444,8 @@ struct PositionSlider: View {
 	var step: ((Double, Int, KeyStep) -> Double)? = nil
 	/// the narrowest it gets; it widens to fill its row
 	var width: CGFloat = PositionSlider.minWidth
+	/// the control audio modulation may move: a marker shows where it is
+	var marker: ModMarkers.Target? = nil
 
 	static let minWidth: CGFloat = 120
 
@@ -452,7 +454,8 @@ struct PositionSlider: View {
 		KeySlider(position: min(max(norm(value), lo), hi), range: lo...hi,
 			set: { commit(denorm($0)) },
 			reset: { commit(defaultValue) },
-			step: step.map { f in { d, k in commit(f(value, d, k)) } })
+			step: step.map { f in { d, k in commit(f(value, d, k)) } },
+			marker: marker)
 			.frame(minWidth: width, maxWidth: .infinity, minHeight: 18, maxHeight: 18)
 	}
 }
@@ -463,8 +466,37 @@ struct KeySlider: NSViewRepresentable {
 	let set: (Double) -> Void
 	let reset: () -> Void
 	var step: ((Int, KeyStep) -> Void)? = nil	// replaces the plain-position step
+	var marker: ModMarkers.Target? = nil	// audio modulation's marker (ModMarkers)
 
 	final class Slider: NSSlider {
+		/// Where audio modulation has the control, in slider units, or nil:
+		/// drawn as a faint second knob (Mac addition; ModMarkers sets it)
+		var markerPosition: Double? {
+			didSet {
+				if markerPosition != oldValue { needsDisplay = true }
+			}
+		}
+		var markerTarget: ModMarkers.Target?
+
+		override func draw(_ dirtyRect: NSRect) {
+			super.draw(dirtyRect)
+			guard let p = markerPosition, maxValue > minValue, let cell = cell as? NSSliderCell else { return }
+			// the knob's center travels the bar, inset by half a knob at each end
+			let bar = cell.barRect(flipped: isFlipped)
+			let knob = cell.knobRect(flipped: isFlipped)
+			let d = min(knob.width, knob.height)
+			let t = (min(max(p, minValue), maxValue) - minValue) / (maxValue - minValue)
+			let x = bar.minX + d / 2 + t * max(bar.width - d, 0)
+			let r = NSRect(x: x - d / 2, y: knob.midY - d / 2, width: d, height: d).insetBy(dx: 1, dy: 1)
+			let accent = NSColor.controlAccentColor
+			accent.withAlphaComponent(0.25).setFill()
+			NSBezierPath(ovalIn: r).fill()
+			let ring = NSBezierPath(ovalIn: r)
+			ring.lineWidth = 1.5
+			accent.withAlphaComponent(0.8).setStroke()
+			ring.stroke()
+		}
+
 		var onSet: ((Double) -> Void)?
 		var onReset: (() -> Void)?
 		var onStep: ((Int, KeyStep) -> Void)?
@@ -559,6 +591,9 @@ struct KeySlider: NSViewRepresentable {
 		s.onSet = set
 		s.onReset = reset
 		s.onStep = step
+		if s.markerTarget != marker {
+			MainActor.assumeIsolated { ModMarkers.shared.register(s, marker) }
+		}
 		if s.minValue != range.lowerBound || s.maxValue != range.upperBound {
 			s.minValue = range.lowerBound
 			s.maxValue = range.upperBound
@@ -570,6 +605,83 @@ struct KeySlider: NSViewRepresentable {
 
 	func sizeThatFits(_ proposal: ProposedViewSize, nsView: Slider, context: Context) -> CGSize? {
 		CGSize(width: proposal.width ?? PositionSlider.minWidth, height: 18)
+	}
+}
+
+// MARK: Modulation markers
+
+/// Audio modulation on the panels (Mac addition, at the user's request):
+/// each slider of a control a modulation row moves shows a faint second
+/// knob where the control is this frame, beside the patch's own value. The
+/// sliders register themselves; a timer reads the engine's state about 30
+/// times a second and sets their markers directly, so only those sliders
+/// redraw, never the panels' rows.
+@MainActor
+final class ModMarkers {
+	static let shared = ModMarkers()
+
+	enum Target: Hashable {
+		case param(Int)		// a parameter's Val column
+		case global(Int)	// a parameter's Global column
+		case master(Int)	// a master property
+		case hue
+	}
+
+	private let sliders = NSHashTable<KeySlider.Slider>.weakObjects()
+	private var timer: Timer?
+	private var shown = false	// some marker is showing
+
+	func register(_ s: KeySlider.Slider, _ target: Target?) {
+		s.markerTarget = target
+		if target == nil {
+			sliders.remove(s)
+			s.markerPosition = nil
+			return
+		}
+		sliders.add(s)
+		if timer == nil {
+			let t = Timer(timeInterval: 1.0 / 30, repeats: true) { _ in
+				MainActor.assumeIsolated { ModMarkers.shared.tick() }
+			}
+			RunLoop.main.add(t, forMode: .common)	// also while a slider is dragged
+			timer = t
+		}
+	}
+
+	private func tick() {
+		let e = AppModel.shared.engine
+		guard let state = e.modulationState() else {
+			if shown {
+				for s in sliders.allObjects { s.markerPosition = nil }
+				shown = false
+			}
+			return
+		}
+		shown = true
+		for s in sliders.allObjects {
+			guard let target = s.markerTarget, s.window != nil else { continue }
+			s.markerPosition = position(target, state, e)
+		}
+	}
+
+	/// The marker's place in slider units, or nil where nothing moves the control
+	private func position(_ target: Target, _ state: WHModState, _ e: WHEngine) -> Double? {
+		switch target {
+		case .param(let i):
+			let off = state.paramOffsets[i].doubleValue
+			return off == 0 ? nil : WHControls.paramPosition(i, value: e.paramValue(i, property: .val) + off)
+		case .global(let i):
+			let off = state.globalOffsets[i].doubleValue
+			return off == 0 ? nil : WHControls.globalPosition(i, value: e.paramValue(i, property: .global) + off)
+		case .master(let i):
+			let v = state.masterValues[i].doubleValue
+			return v == e.masterValue(i) ? nil : WHControls.masterPosition(i, value: v)
+		case .hue:
+			let off = state.hueOffset
+			guard off != 0 else { return nil }
+			let v = (e.hue + off).truncatingRemainder(dividingBy: 360)
+			return v < 0 ? v + 360 : v
+		}
 	}
 }
 
@@ -757,7 +869,8 @@ struct ParamRow: View {
 				denorm: { WHControls.paramValue(iParam, position: $0) },
 				commit: { model.setParam(iParam, .val, $0) },
 				defaultValue: model.engine.loadedParamValue(iParam, property: .val),
-				width: ParamColumn.slider)
+				width: ParamColumn.slider,
+				marker: .param(iParam))
 			field(.val, column: 0)
 				.frame(width: ParamColumn.field, alignment: .leading)
 			Picker("", selection: Binding(
@@ -818,7 +931,8 @@ struct MasterRow: View {
 				denorm: { WHControls.masterValue(i, position: $0) },
 				commit: { model.setMaster(i, $0) },
 				defaultValue: model.engine.loadedMasterValue(i),
-				step: { masterStep(i, ci, $0, $1, $2) })
+				step: { masterStep(i, ci, $0, $1, $2) },
+				marker: .master(i))
 			NumberField(
 				value: value,
 				format: { WHControls.formatMaster(i, value: $0) },
@@ -852,7 +966,8 @@ struct HueRow: View {
 			KeySlider(position: min(max(value, 0), 360), range: 0...360,
 				set: { model.setHue($0) },
 				reset: { model.setHue(model.engine.loadedHue) },
-				step: { d, k in model.setHue(step(value, d, k)) })
+				step: { d, k in model.setHue(step(value, d, k)) },
+				marker: .hue)
 				.frame(minWidth: PositionSlider.minWidth, maxWidth: .infinity, minHeight: 18, maxHeight: 18)
 			NumberField(
 				value: value,
@@ -902,7 +1017,8 @@ struct GlobalRow: View {
 				norm: { WHControls.globalPosition(i, value: $0) },
 				denorm: { WHControls.globalValue(i, position: $0) },
 				commit: { model.setParam(i, .global, $0) },
-				defaultValue: model.engine.loadedParamValue(i, property: .global))
+				defaultValue: model.engine.loadedParamValue(i, property: .global),
+				marker: .global(i))
 			NumberField(
 				value: value,
 				format: { WHControls.format($0, control: ci) },

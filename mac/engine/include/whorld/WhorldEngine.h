@@ -108,6 +108,13 @@ public:
 	void	SetModulation(const ModOutput& mod) { m_mod = mod; }
 	// the master properties as drawing uses them: the patch's plus offsets
 	const MASTER_PROPS&	GetEffectiveMaster() const { return m_masterEff; }
+	// and the rest, as the last frame applied them (for the panels' markers):
+	// the Val and Global offsets in value units (clamped to the sliders),
+	// degrees added to Hue, and whether any row moves a control
+	double	GetParamModulation(int iParam) const { return m_aParamMod[iParam]; }
+	double	GetGlobalModulation(int iParam) const { return m_aGlobalMod[iParam]; }
+	double	GetHueModulation() const { return m_fHueMod; }
+	bool	IsModulationActive() const { return m_mod.bActive; }
 
 // Commands (ported from CWhorldThread::OnRenderCommand and handlers)
 	void	OnRenderCommand(const RenderCmd& cmd);

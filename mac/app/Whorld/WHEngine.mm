@@ -339,6 +339,9 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 	return a;
 }
 
+@implementation WHModState
+@end
+
 @implementation WHModSync
 - (instancetype)init
 {
@@ -532,6 +535,13 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 	double	_aqRenderSum;
 	int		_aqRenderFrames;
 	std::atomic<float>	_aqTolerance;	// 0: the setting's
+	// Audio modulation as the last frame applied it (under _mutex), for the
+	// panels' markers
+	bool	_modShown;
+	double	_modParam[whorld::WhorldBase::PARAM_COUNT];
+	double	_modGlobal[whorld::WhorldBase::PARAM_COUNT];
+	double	_modMaster[whorld::WhorldBase::MASTER_COUNT];
+	double	_modHue;
 	std::atomic<double>	_aqScale;	// times the view's pixel size
 }
 
@@ -2094,6 +2104,18 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		double	ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 		size_t	nRings = _engine->GetRingCount();
 		whorld::DPoint	ptOrigin = _engine->GetOrigin();
+		bool	bModShown = _engine->IsModulationActive();
+		double	aModParam[whorld::WhorldBase::PARAM_COUNT], aModGlobal[whorld::WhorldBase::PARAM_COUNT];
+		double	aModMaster[whorld::WhorldBase::MASTER_COUNT], fModHue = 0;
+		if (bModShown) {	// for the panels' markers
+			for (int i = 0; i < whorld::WhorldBase::PARAM_COUNT; i++) {
+				aModParam[i] = _engine->GetParamModulation(i);
+				aModGlobal[i] = _engine->GetGlobalModulation(i);
+			}
+			for (int i = 0; i < whorld::WhorldBase::MASTER_COUNT; i++)
+				aModMaster[i] = _engine->GetEffectiveMaster().a[i];
+			fModHue = _engine->GetHueModulation();
+		}
 		whorld::WhorldEngine::MovieState	movieState = _engine->GetMovieState();
 		if (movieState.nIOState != _lastMovieIO) {	// tell the main thread (the movie bar)
 			_lastMovieIO = movieState.nIOState;
@@ -2107,6 +2129,13 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		{
 			std::lock_guard<std::mutex>	lock(_mutex);
 			_liveOrigin = ptOrigin;
+			_modShown = bModShown;
+			if (bModShown) {
+				std::copy(std::begin(aModParam), std::end(aModParam), _modParam);
+				std::copy(std::begin(aModGlobal), std::end(aModGlobal), _modGlobal);
+				std::copy(std::begin(aModMaster), std::end(aModMaster), _modMaster);
+				_modHue = fModHue;
+			}
 			_liveMovie = movieState;
 			_liveTarget = whorld::SizeF{float(w / scale), float(h / scale)};
 			_statRenderSum += ms;
@@ -2436,6 +2465,33 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		_handoff->metalFailed = false;	// choosing Metal again retries it
 }
 - (NSInteger)ringCount { return _ringCount; }
+
+#pragma mark - Modulation markers
+
+- (WHModState *)modulationState
+{
+	NSMutableArray<NSNumber *>	*param = [NSMutableArray array], *global = [NSMutableArray array];
+	NSMutableArray<NSNumber *>	*master = [NSMutableArray array];
+	double	fHue;
+	{
+		std::lock_guard<std::mutex>	lock(_mutex);
+		if (!_modShown)
+			return nil;
+		for (int i = 0; i < whorld::WhorldBase::PARAM_COUNT; i++) {
+			[param addObject:@(_modParam[i])];
+			[global addObject:@(_modGlobal[i])];
+		}
+		for (int i = 0; i < whorld::WhorldBase::MASTER_COUNT; i++)
+			[master addObject:@(_modMaster[i])];
+		fHue = _modHue;
+	}
+	WHModState	*state = [[WHModState alloc] init];
+	state.paramOffsets = param;
+	state.globalOffsets = global;
+	state.masterValues = master;
+	state.hueOffset = fHue;
+	return state;
+}
 
 #pragma mark - Automatic quality
 
