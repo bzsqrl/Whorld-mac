@@ -204,7 +204,7 @@ struct WhorldCommands: Commands {
 					.keyboardShortcut(id.shortcut, modifiers: [.command, .shift])
 			}
 			Divider()
-			Menu("Render Scale") {	// Settings > Rendering; replaces Full Resolution
+			Menu("Render Scale") {	// Settings > Display; replaces Full Resolution
 				Picker("Render Scale", selection: $model.renderScale) {
 					ForEach(AppModel.renderScales, id: \.value) { s in
 						Text(s.name).tag(s.value)
@@ -216,7 +216,7 @@ struct WhorldCommands: Commands {
 				Toggle("Smooth Upscaling", isOn: $model.smoothUpscaling)
 					.disabled(model.renderScale >= 1 && !model.autoQuality)
 				Divider()
-				Toggle("Automatic Quality", isOn: $model.autoQuality)	// Settings > Rendering
+				Toggle("Automatic Quality", isOn: $model.autoQuality)	// Settings > Display
 			}
 			Toggle("Show Frame Rate", isOn: $model.showFrameRate)
 				.keyboardShortcut("f", modifiers: [.command, .option])	// not Ctrl-Cmd-F, macOS's full screen key

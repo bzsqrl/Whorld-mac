@@ -242,10 +242,10 @@ typedef struct {
 - (void)setZoom:(double)zoom damping:(BOOL)damping;
 // snapshot letterbox option (COptions m_Snapshot_bLetterbox)
 - (void)setSnapshotLetterbox:(BOOL)enable;
-// Ring fade curve (Settings > Rings; WhorldEngine::SetRingFadeEased): the
+// Ring fade curve (Settings > Display; WhorldEngine::SetRingFadeEased): the
 // Fade master property's fade follows an S-curve if YES, else a line.
 - (void)setRingFadeEased:(BOOL)eased;
-// Settings > Rendering > Patch colors on load (Mac addition): a loaded patch
+// Settings > Display > Patch colors on load (Mac addition): a loaded patch
 // starts the hue from its own Hue, or carries on from the previous patch
 - (void)setHueFromPatch:(BOOL)fromPatch;
 // Modulation (Mac addition, AUDIO_PLAN.md): the routing rows, stepped on the
@@ -413,11 +413,11 @@ typedef struct {
 // run it (it needs an Apple GPU) or a frame fails; setting YES retries it.
 // Exports use Metal wherever it can, whatever this says.
 @property (nonatomic) BOOL preferMetal;
-// Settings > Rendering > Curve quality (Mac addition): how far, in pixels,
+// Settings > Display > Curve quality (Mac addition): how far, in pixels,
 // the live view's flattened curves may stray (0.1, High, to 1, Low).
 // Exports always draw at High.
 @property (atomic) float curveTolerance;
-// Settings > Rendering > Automatic quality (Mac addition): when the live
+// Settings > Display > Automatic quality (Mac addition): when the live
 // view misses refreshes it steps down, curve quality toward Low first, then
 // render scale toward 50%; with headroom it steps back up, never past the
 // settings (curveTolerance, userRenderScale). The view multiplies its pixel
@@ -462,7 +462,7 @@ typedef struct {
 // engine for one frame per display refresh.
 @interface WHRenderView : NSView
 @property (nonatomic, strong, nullable) WHEngine *engine;
-// Settings > Rendering > Render scale (Mac addition): frames are drawn at
+// Settings > Display > Render scale (Mac addition): frames are drawn at
 // this fraction of the display's pixels (1: full resolution; 0.25 to 1) and
 // the layer scales them up to the view, smoothly or as sharp pixels
 @property (nonatomic) double renderScale;

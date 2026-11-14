@@ -80,7 +80,7 @@ final class AppModel: ObservableObject {
 	let undoManager = UndoManager()
 	@Published private(set) var title = "Untitled"
 	@Published var showFrameRate = false
-	/// Settings > Rendering > Render scale and Upscaling (Mac addition): the
+	/// Settings > Display > Render scale and Upscaling (Mac addition): the
 	/// picture is drawn at this fraction of the display's pixels and scaled up
 	@Published var renderScale: Double = {
 		Preferences.register()
@@ -101,7 +101,7 @@ final class AppModel: ObservableObject {
 			fullScreen.setRender(scale: renderScale, smooth: smoothUpscaling)
 		}
 	}
-	/// Settings > Rendering > Automatic quality (Mac addition): steps curve
+	/// Settings > Display > Automatic quality (Mac addition): steps curve
 	/// quality, then render scale, down when frames are missed (WHEngine)
 	@Published var autoQuality: Bool = {
 		Preferences.register()
@@ -112,7 +112,7 @@ final class AppModel: ObservableObject {
 			engine.autoQuality = autoQuality
 		}
 	}
-	/// Settings > Rendering > Curve quality (Mac addition), 0 (Low) to 1
+	/// Settings > Display > Curve quality (Mac addition), 0 (Low) to 1
 	/// (High): the live view's curve flattening tolerance, 1 px to 0.1 px
 	@Published var curveQuality: Double = {
 		Preferences.register()
@@ -944,7 +944,7 @@ final class AppModel: ObservableObject {
 		let panel = NSSavePanel()
 		panel.allowedContentTypes = [.whorldPatch]
 		panel.nameFieldStringValue = title + ".whp"
-		// the patch's author, or for a patch without one Settings > Your name
+		// the patch's author, or for a patch without one Settings > General > Your name
 		let author = NSTextField(string: authorToSuggest)
 		author.placeholderString = "who made this patch (optional)"
 		author.widthAnchor.constraint(equalToConstant: 280).isActive = true
@@ -1079,7 +1079,7 @@ final class AppModel: ObservableObject {
 	@Published private(set) var oscError: String?
 	private var oscTimer: Timer?
 
-	/// Starts (or stops) OSC remote control as Settings > OSC says. Whorld
+	/// Starts (or stops) OSC remote control as Settings > Control > OSC says. Whorld
 	/// sends what changed about 10 times a second, but only while some
 	/// device is listening (WHEngine oscSendState returns at once otherwise).
 	func restartOSC() {
@@ -1109,10 +1109,10 @@ final class AppModel: ObservableObject {
 
 	// MARK: Syphon
 
-	/// Syphon output is on (View > Syphon Output and Settings > Syphon)
+	/// Syphon output is on (View > Syphon Output and Settings > Output > Syphon)
 	@Published private(set) var syphonEnabled = false
 
-	/// Starts, stops or resizes Syphon output as Settings > Syphon says.
+	/// Starts, stops or resizes Syphon output as Settings > Output > Syphon says.
 	func applySyphon() {
 		let s = Preferences.syphon
 		syphonEnabled = s.enabled

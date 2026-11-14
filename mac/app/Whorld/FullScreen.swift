@@ -46,7 +46,7 @@ final class FullScreenController {
 		NSRect(x: 0, y: 0, width: screen.frame.width, height: screen.frame.height - screen.safeAreaInsets.top)
 	}
 
-	/// Settings > Rendering > Render scale and Upscaling, changed while full screen
+	/// Settings > Display > Render scale and Upscaling, changed while full screen
 	func setRender(scale: Double, smooth: Bool) {
 		view?.renderScale = scale
 		view?.smoothUpscaling = smooth

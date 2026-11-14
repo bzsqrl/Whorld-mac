@@ -109,7 +109,7 @@ enum Preferences {
 		return defaults.bool(forKey: "Rings_bFadeEased")
 	}
 
-	/// Settings > Rendering > Patch colors on load (Mac addition): true, a
+	/// Settings > Display > Patch colors on load (Mac addition): true, a
 	/// loaded patch starts from its own Hue; false, the hue carries on from
 	/// the previous patch (as Windows V2)
 	static var hueFromPatch: Bool {
@@ -182,23 +182,34 @@ struct PreferencesView: View {
 	@AppStorage("Syphon_nWidth") private var syphonWidth = 1920
 	@AppStorage("Syphon_nHeight") private var syphonHeight = 1080
 
+	@AppStorage("Settings_nTab") private var tab = 0	// the tab last shown
+
 	var body: some View {
-		// two columns, so everything shows without scrolling
-		HStack(alignment: .top, spacing: 0) {
-			Form {
-				leftColumn
-			}
-			.formStyle(.grouped)
-			Form {
-				rightColumn
-			}
-			.formStyle(.grouped)
+		// Tabs, as macOS settings windows have them: each one short, with
+		// room to grow (two columns on one page had filled up, 2026-11-14)
+		TabView(selection: $tab) {
+			Form { generalTab }
+				.formStyle(.grouped)
+				.tabItem { Label("General", systemImage: "gearshape") }
+				.tag(0)
+			Form { displayTab }
+				.formStyle(.grouped)
+				.tabItem { Label("Display", systemImage: "display") }
+				.tag(1)
+			Form { controlTab }
+				.formStyle(.grouped)
+				.tabItem { Label("Control", systemImage: "slider.horizontal.3") }
+				.tag(2)
+			Form { outputTab }
+				.formStyle(.grouped)
+				.tabItem { Label("Output", systemImage: "rectangle.portrait.and.arrow.right") }
+				.tag(3)
 		}
-		.frame(width: 860, height: 760)
+		.frame(width: 520, height: 500)
 		.onAppear { Preferences.register() }
 	}
 
-	@ViewBuilder private var leftColumn: some View {
+	@ViewBuilder private var generalTab: some View {
 			Section("General") {
 				Toggle("Reopen the last playlist and patch at launch", isOn: $reopenLast)
 				Toggle(isOn: $controlTips) {
@@ -223,6 +234,9 @@ struct PreferencesView: View {
 					InfoLabel("Your name", info: "Suggested as the Author when you save a patch that doesn't name one yet, or use File > Patch Author…. A patch's existing author is never replaced unless you change it.")
 				}
 			}
+	}
+
+	@ViewBuilder private var displayTab: some View {
 			Section("Rendering") {
 				Picker(selection: $useMetal) {
 					Text("Metal (GPU)").tag(true)
@@ -232,6 +246,30 @@ struct PreferencesView: View {
 						? "Draws the live view. Exports use Metal whatever this says, so they come out the same every time."
 						: "Draws the live view. Metal needs a Mac with Apple silicon, so this Mac uses Core Graphics, for exports too.")
 				}
+				.onChange(of: useMetal) { _, on in model.engine.preferMetal = on }
+				Picker(selection: $maxFrameRate) {
+					Text("Display refresh rate").tag(0)
+					Text("60 fps").tag(60)
+				} label: {
+					InfoLabel("Frame rate", info: "Rings move a step each frame, so at 120 Hz patches run twice as fast as on a 60 Hz display. 60 fps matches Windows on a typical monitor and uses about half the power.")
+				}
+				.onChange(of: maxFrameRate) { _, rate in model.engine.maxFrameRate = rate }
+				Picker(selection: $ringFadeEased) {
+					Text("Linear").tag(false)
+					Text("Eased").tag(true)
+				} label: {
+					InfoLabel("Ring fade curve", info: "How old rings fade out when Master > Fade is above 0: Linear fades evenly; Eased starts and ends the fade gently.")
+				}
+				.onChange(of: ringFadeEased) { _, eased in model.engine.setRingFadeEased(eased) }
+				Picker(selection: $hueFromPatch) {
+					Text("Continue").tag(false)
+					Text("Start from the patch").tag(true)
+				} label: {
+					InfoLabel("Patch colors", info: "When a patch is loaded. Continue: the hue carries on from the previous patch, as on Windows, so a patch's colors depend on what played before. Start from the patch: colors start from the patch's Hue (Master pane), so a patch looks the same each time it's opened.")
+				}
+				.onChange(of: hueFromPatch) { _, on in model.engine.setHueFromPatch(on) }
+			}
+			Section("Performance") {	// trading detail for frame rate (Mac additions)
 				Picker(selection: $model.renderScale) {
 					ForEach(AppModel.renderScales, id: \.value) { s in
 						Text(s.name).tag(s.value)
@@ -259,58 +297,10 @@ struct PreferencesView: View {
 				Toggle(isOn: $model.autoQuality) {
 					InfoLabel("Automatic quality", info: "When the picture can't keep up with the display (refreshes missed), Whorld lowers Curve quality first, then Render scale down to 50%, a step at a time, and raises them again once there's room to spare. It never goes above the settings above. Show Frame Rate says when it has stepped in. Exports aren't affected.")
 				}
-				.onChange(of: useMetal) { _, on in model.engine.preferMetal = on }
-				Picker(selection: $maxFrameRate) {
-					Text("Display refresh rate").tag(0)
-					Text("60 fps").tag(60)
-				} label: {
-					InfoLabel("Frame rate", info: "Rings move a step each frame, so at 120 Hz patches run twice as fast as on a 60 Hz display. 60 fps matches Windows on a typical monitor and uses about half the power.")
-				}
-				.onChange(of: maxFrameRate) { _, rate in model.engine.maxFrameRate = rate }
-				Picker(selection: $ringFadeEased) {
-					Text("Linear").tag(false)
-					Text("Eased").tag(true)
-				} label: {
-					InfoLabel("Ring fade curve", info: "How old rings fade out when Master > Fade is above 0: Linear fades evenly; Eased starts and ends the fade gently.")
-				}
-				.onChange(of: ringFadeEased) { _, eased in model.engine.setRingFadeEased(eased) }
-				Picker(selection: $hueFromPatch) {
-					Text("Continue").tag(false)
-					Text("Start from the patch").tag(true)
-				} label: {
-					InfoLabel("Patch colors", info: "When a patch is loaded. Continue: the hue carries on from the previous patch, as on Windows, so a patch's colors depend on what played before. Start from the patch: colors start from the patch's Hue (Master pane), so a patch looks the same each time it's opened.")
-				}
-				.onChange(of: hueFromPatch) { _, on in model.engine.setHueFromPatch(on) }
 			}
-			Section("Syphon") {
-				Toggle(isOn: $syphonEnabled) {
-					InfoLabel("Syphon output", info: "Sends Whorld's output to other apps on this Mac (Resolume, MadMapper, OBS, TouchDesigner…), where it's listed as Whorld, with transparency where the patch has any.")
-					SyphonStatus()
-				}
-				LabeledContent {
-					HStack {
-						Picker("Size", selection: $syphonFixedSize) {
-							Text("Same as the output").tag(false)
-							Text("Fixed").tag(true)
-						}
-						.labelsHidden()
-						.fixedSize()
-						if syphonFixedSize {
-							SizeFields(width: $syphonWidth, height: $syphonHeight)
-						}
-					}
-				} label: {
-					InfoLabel("Size", info: "Same as the output: the frames Whorld shows, at their size. Fixed: each frame drawn again at that size in pixels, the picture scaled to fit, with more of the pattern on the longer side; it's drawn only while an app is receiving.")
-				}
-				.disabled(!syphonEnabled)
-			}
-			.onChange(of: syphonEnabled) { model.applySyphon() }
-			.onChange(of: syphonFixedSize) { model.applySyphon() }
-			.onChange(of: syphonWidth) { model.applySyphon() }
-			.onChange(of: syphonHeight) { model.applySyphon() }
 	}
 
-	@ViewBuilder private var rightColumn: some View {
+	@ViewBuilder private var controlTab: some View {
 			Section("Control") {
 				let _ = model.changes.midi.n
 				Picker("MIDI input", selection: $midiInput) {
@@ -369,6 +359,9 @@ struct PreferencesView: View {
 			.onChange(of: oscEnabled) { model.restartOSC() }
 			.onChange(of: oscReceivePort) { model.restartOSC() }
 			.onChange(of: oscSendPort) { model.restartOSC() }
+	}
+
+	@ViewBuilder private var outputTab: some View {
 			Section("Export") {
 				LabeledContent("Image folder") {
 					HStack {
@@ -404,6 +397,32 @@ struct PreferencesView: View {
 					Text("1024 × 768 (XGA)").tag(2)
 				}
 			}
+			Section("Syphon") {
+				Toggle(isOn: $syphonEnabled) {
+					InfoLabel("Syphon output", info: "Sends Whorld's output to other apps on this Mac (Resolume, MadMapper, OBS, TouchDesigner…), where it's listed as Whorld, with transparency where the patch has any.")
+					SyphonStatus()
+				}
+				LabeledContent {
+					HStack {
+						Picker("Size", selection: $syphonFixedSize) {
+							Text("Same as the output").tag(false)
+							Text("Fixed").tag(true)
+						}
+						.labelsHidden()
+						.fixedSize()
+						if syphonFixedSize {
+							SizeFields(width: $syphonWidth, height: $syphonHeight)
+						}
+					}
+				} label: {
+					InfoLabel("Size", info: "Same as the output: the frames Whorld shows, at their size. Fixed: each frame drawn again at that size in pixels, the picture scaled to fit, with more of the pattern on the longer side; it's drawn only while an app is receiving.")
+				}
+				.disabled(!syphonEnabled)
+			}
+			.onChange(of: syphonEnabled) { model.applySyphon() }
+			.onChange(of: syphonFixedSize) { model.applySyphon() }
+			.onChange(of: syphonWidth) { model.applySyphon() }
+			.onChange(of: syphonHeight) { model.applySyphon() }
 	}
 
 	private func chooseFolder() {
@@ -488,7 +507,7 @@ private struct SizeFields: View {
 	}
 }
 
-/// Settings > Syphon's status line, checked once a second while Settings is
+/// Settings > Output > Syphon's status line, checked once a second while Settings is
 /// open.
 private struct SyphonStatus: View {
 	@EnvironmentObject private var model: AppModel
@@ -505,7 +524,7 @@ private struct SyphonStatus: View {
 	}
 }
 
-/// Settings > OSC's status line: listening where, and who's connected,
+/// Settings > Control > OSC's status line: listening where, and who's connected,
 /// checked once a second while Settings is open.
 private struct OSCStatus: View {
 	@EnvironmentObject private var model: AppModel
