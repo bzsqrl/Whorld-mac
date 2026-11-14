@@ -47,6 +47,7 @@ const double	kMaxMeanAbs = 1.5;
 bool	g_bSurface = false;	// perf: draw into IOSurfaces, as the app does
 bool	g_bOverlap = false;
 double	g_fPaceMs = 0;	// perf: start frames this far apart, as a display link would (0: back to back)	// perf: don't wait for each frame (up to three in flight)
+bool	g_bNoCG = false;	// perf: skip timing Core Graphics (slow antialiased, one thread)
 int		g_nAA = -1;	// perf: force antialiasing on (1) or off (0); -1 = as the patch says
 
 void SetAA(WhorldEngine& eng, bool b)
@@ -487,7 +488,7 @@ void Perf(const std::vector<std::string>& aPatch, const std::vector<int>& aSampl
 		Timing	tCG;
 		CGBitmapRenderer	cgr(sz.cx, sz.cy, fScale);
 		cgr.SetDeferred(!getenv("SPIKE_CG_DIRECT"));	// SPIKE_CG_DIRECT: CG without deferred mode
-		{
+		if (!g_bNoCG) {
 			WhorldEngine	eng;
 			eng.SetFrameRate(getenv("SPIKE_RATE") ? atoi(getenv("SPIKE_RATE")) : 60);
 			eng.OnResize(cgr.GetSizeDIPs());
@@ -643,6 +644,8 @@ int main(int argc, char **argv)
 			g_bSurface = true;
 		} else if (!std::strcmp(a, "--overlap")) {
 			g_bOverlap = true;
+		} else if (!std::strcmp(a, "--no-cg")) {
+			g_bNoCG = true;
 		} else if (!std::strcmp(a, "--no-perf")) {
 			bPerf = false;
 		} else if (!std::strcmp(a, "--patches")) {
