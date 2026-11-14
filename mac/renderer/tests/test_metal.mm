@@ -174,11 +174,10 @@ struct Worst {
 };
 
 // Run each sample patch from a fresh engine and compare Metal with Core
-// Graphics on the chosen frames. Core Graphics draws immediately: its
-// deferred mode rasterizes bands in parallel, and Core Graphics' antialiased
-// rasterizer gives slightly different pixels from run to run when threads
-// draw at once (PORT_PLAN Phase 8, "Core Graphics in parallel"), which would
-// make this test flaky.
+// Graphics on the chosen frames. Core Graphics draws immediately, the
+// simplest exact reference (its deferred mode, drawing bands on many
+// threads, wasn't repeatable on antialiased frames; PORT_PLAN Phase 8,
+// "Core Graphics in parallel").
 void ComparePatches(Mode mode, double fMaxMean, double fMaxFrac)
 {
 	if (!MetalAvailable())

@@ -11,11 +11,16 @@
 
 #include "CGRenderer.h"
 #include "TestHarness.h"
+#include "whorld/Patch.h"
+#include "whorld/WhorldEngine.h"
 
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
+#include <utility>
+#include <vector>
 
 using namespace whorld;
 
@@ -282,6 +287,85 @@ TEST(DeferredMatchesImmediate) {
 			CHECK_EQ(GetPx(b, 90, 15).b, GetPx(b, 30, 15).b);
 		}
 	}
+}
+
+namespace {
+// Sends every call to several renderers, so they draw the same frame
+class FanOutRenderer : public IRenderer {
+public:
+	explicit FanOutRenderer(std::vector<IRenderer*> a) : m_a(std::move(a)) {}
+	void	SetAntialiasing(bool b) override { for (auto *r : m_a) r->SetAntialiasing(b); }
+	void	Clear(const ColorF& c) override { for (auto *r : m_a) r->Clear(c); }
+	void	BeginPath() override { for (auto *r : m_a) r->BeginPath(); }
+	void	AddFigure(const PointF* p, int n, bool bCurved, bool bFilled) override
+	{
+		for (auto *r : m_a)
+			r->AddFigure(p, n, bCurved, bFilled);
+	}
+	void	EndPath() override { for (auto *r : m_a) r->EndPath(); }
+	void	FillPath(const ColorF& c) override { for (auto *r : m_a) r->FillPath(c); }
+	void	StrokePath(const ColorF& c, float w) override { for (auto *r : m_a) r->StrokePath(c, w); }
+	void	FillRect(const RectF& rc, const ColorF& c) override { for (auto *r : m_a) r->FillRect(rc, c); }
+	bool	BeginQuadMirror() override
+	{
+		bool	b = true;
+		for (auto *r : m_a)
+			b &= r->BeginQuadMirror();
+		return b;
+	}
+	bool	EndQuadMirror() override
+	{
+		bool	b = true;
+		for (auto *r : m_a)
+			b &= r->EndQuadMirror();
+		return b;
+	}
+
+private:
+	std::vector<IRenderer*>	m_a;
+};
+} // namespace
+
+// Deferred frames must come out the same every time. Core Graphics'
+// antialiased rasterizer, run on several threads at once, doesn't (PORT_PLAN
+// Phase 8, "Core Graphics in parallel"); typhoon_cvx's translucent strokes
+// showed it on 3 to 6% of pixels at this frame, before antialiased frames
+// were drawn as one band.
+TEST(DeferredAntialiasedIsRepeatable) {
+	Patch	patch;
+	std::string	err;
+	CHECK(patch.Read(std::string(WHORLD_TESTDATA_DIR) + "/patches/typhoon_cvx.whp", &err));
+	const int	w = 1024, h = 768, nFrames = 160;
+	CGBitmapRenderer	a(w, h), b(w, h), c(w, h);
+	for (CGBitmapRenderer *r : {&a, &b, &c})
+		r->SetDeferred(true);
+	FanOutRenderer	fan({&a, &b, &c});
+	WhorldEngine	eng;
+	eng.SetFrameRate(60);
+	eng.OnResize(a.GetSizeDIPs());
+	eng.OnSetPatch(patch);
+	WhorldEngine::VARIANT_PROP	prop{};
+	prop.boolVal = true;
+	eng.OnSetMainProp(WhorldBase::MAIN_Antialiasing, prop);
+	for (int i = 0; i < nFrames; i++) {
+		for (CGBitmapRenderer *r : {&a, &b, &c})
+			r->BeginFrame();
+		eng.Draw(fan);
+		for (CGBitmapRenderer *r : {&a, &b, &c})
+			r->EndFrame();
+	}
+	auto	Same = [&](CGBitmapRenderer& x, CGBitmapRenderer& y) {
+		size_t	nDiff = 0;
+		for (int row = 0; row < h; row++) {
+			if (std::memcmp(x.GetPixels() + row * x.GetStride(), y.GetPixels() + row * y.GetStride(), w * 4))
+				nDiff++;
+		}
+		if (nDiff)
+			std::fprintf(stderr, "  %zu of %d rows differ\n", nDiff, h);
+		return nDiff == 0;
+	};
+	CHECK(Same(a, b));
+	CHECK(Same(a, c));
 }
 
 int main() { return RunAllTests(); }

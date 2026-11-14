@@ -521,7 +521,19 @@ void CGBitmapRenderer::Flush()
 	// is unchanged and antialiasing coverage is identical. The CTM of the
 	// frame context is (translate 0, H; scale s, -s); a band whose top row
 	// is y0 and height is h needs (translate 0, y0 + h; scale s, -s).
-	const int	nBands = std::max(1, std::min(m_nHeight, 32));
+	// Antialiased frames are drawn as one band: Core Graphics' antialiased
+	// rasterizer, drawing on several threads at once, gives different pixels
+	// from run to run, with visible glitches (whole bands with strokes out of
+	// place), even with separate memory and paths per band; one thread is
+	// exact every time (PORT_PLAN Phase 8, "Core Graphics in parallel").
+	bool	bAntialiased = false, bOn = true;	// the bands' contexts start antialiased
+	for (const Op& op : m_aOp) {
+		if (op.type == Op::ANTIALIAS)
+			bOn = op.bFlag;
+		else if (op.type != Op::MIRROR_BEGIN && op.type != Op::MIRROR_END)
+			bAntialiased |= bOn;	// something drawn antialiased
+	}
+	const int	nBands = bAntialiased ? 1 : std::max(1, std::min(m_nHeight, 32));
 	struct Band {
 		CGContextRef	ctx;
 		bool	bMirrorClip;
