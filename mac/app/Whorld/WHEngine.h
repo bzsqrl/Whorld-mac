@@ -417,6 +417,16 @@ typedef struct {
 // the live view's flattened curves may stray (0.1, High, to 1, Low).
 // Exports always draw at High.
 @property (atomic) float curveTolerance;
+// Settings > Rendering > Automatic quality (Mac addition): when the live
+// view misses refreshes it steps down, curve quality toward Low first, then
+// render scale toward 50%; with headroom it steps back up, never past the
+// settings (curveTolerance, userRenderScale). The view multiplies its pixel
+// size by autoScaleFactor; autoQualityStatus says where it stands ("" at
+// the settings), for the frame rate line.
+@property (atomic) BOOL autoQuality;
+@property (atomic) double userRenderScale;
+@property (atomic, readonly) double autoScaleFactor;
+@property (nonatomic, readonly) NSString *autoQualityStatus;
 @property (class, nonatomic, readonly) BOOL metalAvailable;
 
 // Syphon output (new in the Mac port; WHSyphon): a Syphon server other apps

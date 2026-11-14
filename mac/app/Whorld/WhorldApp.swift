@@ -89,6 +89,7 @@ final class AppModel: ObservableObject {
 		didSet {
 			UserDefaults.standard.set(renderScale, forKey: "Render_fScale")
 			fullScreen.setRender(scale: renderScale, smooth: smoothUpscaling)
+			engine.userRenderScale = renderScale
 		}
 	}
 	@Published var smoothUpscaling: Bool = {
@@ -98,6 +99,17 @@ final class AppModel: ObservableObject {
 		didSet {
 			UserDefaults.standard.set(smoothUpscaling, forKey: "Render_bSmoothUpscale")
 			fullScreen.setRender(scale: renderScale, smooth: smoothUpscaling)
+		}
+	}
+	/// Settings > Rendering > Automatic quality (Mac addition): steps curve
+	/// quality, then render scale, down when frames are missed (WHEngine)
+	@Published var autoQuality: Bool = {
+		Preferences.register()
+		return UserDefaults.standard.bool(forKey: "Render_bAutoQuality")
+	}() {
+		didSet {
+			UserDefaults.standard.set(autoQuality, forKey: "Render_bAutoQuality")
+			engine.autoQuality = autoQuality
 		}
 	}
 	/// Settings > Rendering > Curve quality (Mac addition), 0 (Low) to 1
@@ -150,9 +162,10 @@ final class AppModel: ObservableObject {
 			let osc = e.oscClientCount > 0	// OSC monitoring: /w/stat/...
 			guard self.showFrameRate || Self.logStats || osc else { return }
 			let gpu = e.gpuMilliseconds > 0 ? String(format: " · gpu %.1f ms", e.gpuMilliseconds) : ""
-			let text = String(format: "%.0f fps · draw %.1f ms%@ · %d Hz · %ld missed · %ld rings · %@",
+			let auto = e.autoQualityStatus.isEmpty ? "" : " · " + e.autoQualityStatus
+			let text = String(format: "%.0f fps · draw %.1f ms%@ · %d Hz · %ld missed · %ld rings · %@%@",
 				e.framesPerSecond, e.renderMilliseconds, gpu, e.refreshRate, e.missedFrames, e.ringCount,
-				e.rendererName)
+				e.rendererName, auto)
 			if self.showFrameRate {
 				self.stats.text = text
 			}
@@ -178,6 +191,8 @@ final class AppModel: ObservableObject {
 		engine.maxFrameRate = Preferences.maxFrameRate
 		engine.setRingFadeEased(Preferences.ringFadeEased)
 		engine.curveTolerance = Self.curveTolerance(curveQuality)	// Curve quality (Mac addition)
+		engine.userRenderScale = renderScale	// and automatic quality, which steps below them
+		engine.autoQuality = autoQuality
 		engine.setHueFromPatch(Preferences.hueFromPatch)
 		restartOSC()
 		applySyphon()

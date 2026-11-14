@@ -214,7 +214,9 @@ struct WhorldCommands: Commands {
 				.labelsHidden()
 				Divider()
 				Toggle("Smooth Upscaling", isOn: $model.smoothUpscaling)
-					.disabled(model.renderScale >= 1)
+					.disabled(model.renderScale >= 1 && !model.autoQuality)
+				Divider()
+				Toggle("Automatic Quality", isOn: $model.autoQuality)	// Settings > Rendering
 			}
 			Toggle("Show Frame Rate", isOn: $model.showFrameRate)
 				.keyboardShortcut("f", modifiers: [.command, .option])	// not Ctrl-Cmd-F, macOS's full screen key

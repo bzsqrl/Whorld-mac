@@ -199,6 +199,8 @@ struct WHHandoff {
 	static const size_t	kMaxReady = 2;
 	double	gpuSum = 0;		// GPU milliseconds of Metal frames since the last read
 	int		gpuFrames = 0;
+	double	aqGpuSum = 0;	// the same, for automatic quality's half-second windows
+	int		aqGpuFrames = 0;
 	std::atomic<bool>	metalFailed{false};	// a Metal frame failed: use Core Graphics
 	std::atomic<bool>	metalActive{false};	// the last frame was drawn by Metal
 	std::atomic<int>	nDropped{0};	// frames replaced before being shown
@@ -517,6 +519,20 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 	int		_missed;	// refreshes this second with no new frame
 	BOOL	_presented;	// a frame has been shown
 	NSInteger	_missedFrames;
+	// Automatic quality: the step (0: the settings) and its window's counts
+	// (presenter thread), the render loop's frame times (under _mutex), and
+	// the step's effect, read by the render thread and the view
+	int		_aqLevel;
+	int		_aqRefreshes, _aqMissed;
+	CFTimeInterval	_aqWindowStart;
+	int		_aqSettle;	// windows to wait after a step
+	int		_aqCalm;	// calm windows in a row
+	int		_aqUpHold;	// calm windows needed to step up
+	int		_aqSinceUp;	// windows since the last step up
+	double	_aqRenderSum;
+	int		_aqRenderFrames;
+	std::atomic<float>	_aqTolerance;	// 0: the setting's
+	std::atomic<double>	_aqScale;	// times the view's pixel size
 }
 
 - (instancetype)init
@@ -557,6 +573,11 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 		_handoff = std::make_shared<WHHandoff>();
 		_preferMetal = true;
 		_curveTolerance = 0.1f;
+		_userRenderScale = 1;
+		_aqUpHold = 4;
+		_aqSinceUp = 1000;	// no step up yet
+		_aqTolerance = 0;
+		_aqScale = 1;
 		_usingMetal = false;
 		_gpuMs = 0;
 		_rendererName = @"";
@@ -2034,7 +2055,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 			// The frame is handed over when the GPU finishes it; until then
 			// the retain keeps the surface out of the pool.
 			_metal->SetTargetSurface(image);
-			_metal->SetTolerance(self.curveTolerance);
+			_metal->SetTolerance([self effectiveCurveTolerance]);
 			_metal->BeginFrame();
 			_engine->Draw(*_metal);
 			std::shared_ptr<WHHandoff>	handoff = _handoff;
@@ -2044,6 +2065,8 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 						std::lock_guard<std::mutex>	lock(handoff->m);
 						handoff->gpuSum += fGpuMs;
 						handoff->gpuFrames++;
+						handoff->aqGpuSum += fGpuMs;
+						handoff->aqGpuFrames++;
 					}
 					handoff->Put(image, scale);
 				} else {
@@ -2061,7 +2084,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 				pSurf->renderer->SetDeferred(true);	// parallel stroking and banded rasterizing
 			}
 			IOSurfaceLock(image, 0, nullptr);
-			pSurf->renderer->SetTolerance(self.curveTolerance);
+			pSurf->renderer->SetTolerance([self effectiveCurveTolerance]);
 			pSurf->renderer->BeginFrame();
 			_engine->Draw(*pSurf->renderer);
 			pSurf->renderer->EndFrame();
@@ -2087,6 +2110,8 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 			_liveMovie = movieState;
 			_liveTarget = whorld::SizeF{float(w / scale), float(h / scale)};
 			_statRenderSum += ms;
+			_aqRenderSum += ms;
+			_aqRenderFrames++;
 			_statFrames++;
 			_statRings = nRings;
 		}
@@ -2160,7 +2185,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	whorld::SizeF	szTarget{float(fw / fScale), float(fh / fScale)};
 	if (bMetal) {
 		_syphonMetal->SetTargetSurface(image);
-		_syphonMetal->SetTolerance(self.curveTolerance);
+		_syphonMetal->SetTolerance([self effectiveCurveTolerance]);
 		_syphonMetal->BeginFrame();
 		_engine->DrawAtSize(*_syphonMetal, szTarget);
 		_syphonMetal->EndFrame([syphon, image](bool bOk, double) {
@@ -2177,7 +2202,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 			pSurf->renderer->SetDeferred(true);
 		}
 		IOSurfaceLock(image, 0, nullptr);
-		pSurf->renderer->SetTolerance(self.curveTolerance);
+		pSurf->renderer->SetTolerance([self effectiveCurveTolerance]);
 		pSurf->renderer->BeginFrame();
 		_engine->DrawAtSize(*pSurf->renderer, szTarget);
 		pSurf->renderer->EndFrame();
@@ -2333,6 +2358,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		_missed++;	// still drawing (not counted before the first frame)
 	}
 	CFTimeInterval	now = CACurrentMediaTime();
+	[self autoQualityRefresh:!image && _presented now:now];
 	if (now - _statStart >= 1) {
 		double	sum;
 		int		n;
@@ -2410,6 +2436,144 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		_handoff->metalFailed = false;	// choosing Metal again retries it
 }
 - (NSInteger)ringCount { return _ringCount; }
+
+#pragma mark - Automatic quality
+
+// The steps down from the settings: curves at 0.3 px, then 1 px (Curve
+// quality's Low), then render scale 75%, then 50%, leaving out any the
+// settings already reach. Each: the tolerance (0: the setting's) and the
+// factor on the view's pixel size.
+static std::vector<std::pair<float, double>> AutoQualitySteps(float fUserTol, double fUserScale)
+{
+	std::vector<std::pair<float, double>>	a = {{0.0f, 1.0}};
+	for (float t : {0.3f, 1.0f}) {
+		if (t > fUserTol * 1.01f)
+			a.push_back({t, 1.0});
+	}
+	for (double s : {0.75, 0.5}) {
+		if (fUserScale > 0 && s < fUserScale * 0.99)
+			a.push_back({std::max(fUserTol, 1.0f), s / fUserScale});
+	}
+	return a;
+}
+
+- (void)applyAutoQualityStep:(const std::pair<float, double> &)step
+{
+	_aqTolerance = step.first;
+	_aqScale = step.second;
+}
+
+- (double)autoScaleFactor { return _aqScale; }
+
+// Render thread: the tolerance to draw with
+- (float)effectiveCurveTolerance
+{
+	float	fTol = self.curveTolerance;
+	return self.autoQuality ? std::max(fTol, _aqTolerance.load()) : fTol;
+}
+
+- (NSString *)autoQualityStatus
+{
+	if (!self.autoQuality)
+		return @"";
+	float	fTol = _aqTolerance;
+	double	fScale = _aqScale;
+	if (!(fTol > 0) && fScale >= 1)
+		return @"auto: as set";
+	NSString	*s = fTol > 0 ? [NSString stringWithFormat:@"auto: curves %.1f px", fTol] : @"auto:";
+	if (fScale < 1)
+		s = [s stringByAppendingFormat:@"%@ scale %.0f%%", fTol > 0 ? @"," : @"", self.userRenderScale * fScale * 100];
+	return s;
+}
+
+// Presenter thread, each refresh: every half second, one step down if more
+// than 8% of refreshes were missed; one step up after enough calm windows
+// (no misses, and the step up predicted to fit in 85% of the refresh),
+// waiting longer each time a step up has to be undone within two seconds. A second's pause after each
+// step lets new surfaces and timings settle.
+- (void)autoQualityRefresh:(bool)bMissed now:(CFTimeInterval)now
+{
+	if (!self.autoQuality) {
+		if (_aqLevel) {
+			_aqLevel = 0;
+			[self applyAutoQualityStep:{0.0f, 1.0}];
+		}
+		_aqRefreshes = _aqMissed = 0;
+		_aqWindowStart = now;
+		return;
+	}
+	_aqRefreshes++;
+	if (bMissed)
+		_aqMissed++;
+	if (now - _aqWindowStart < 0.5)
+		return;
+	double	cpuMs = 0, gpuMs = 0;
+	int		rate;
+	{
+		std::lock_guard<std::mutex>	lock(_mutex);
+		cpuMs = _aqRenderFrames ? _aqRenderSum / _aqRenderFrames : 0;
+		_aqRenderSum = 0;
+		_aqRenderFrames = 0;
+		rate = _reqRate;
+	}
+	{
+		std::lock_guard<std::mutex>	lock(_handoff->m);
+		gpuMs = _handoff->aqGpuFrames ? _handoff->aqGpuSum / _handoff->aqGpuFrames : 0;
+		_handoff->aqGpuSum = 0;
+		_handoff->aqGpuFrames = 0;
+	}
+	double	fMissRate = _aqRefreshes ? double(_aqMissed) / _aqRefreshes : 0;
+	double	fBudget = 1000.0 / std::max(rate, 1);
+	double	fCost = std::max(cpuMs, gpuMs);
+	_aqRefreshes = _aqMissed = 0;
+	_aqWindowStart = now;
+	auto	steps = AutoQualitySteps(self.curveTolerance, self.userRenderScale);
+	int		nMax = int(steps.size()) - 1;
+	if (_aqLevel > nMax)	// the settings changed
+		_aqLevel = nMax;
+	[self applyAutoQualityStep:steps[size_t(_aqLevel)]];
+	_aqSinceUp++;
+	if (_aqSinceUp == 5 && _aqUpHold > 4)	// the last step up held: wait less next time
+		_aqUpHold = std::max(4, _aqUpHold / 2);
+	if (_aqSettle > 0) {
+		_aqSettle--;
+		return;
+	}
+	if (fMissRate > 0.08) {
+		_aqCalm = 0;
+		if (_aqLevel < nMax) {
+			if (_aqSinceUp <= 4)	// stepped up too soon
+				_aqUpHold = std::min(_aqUpHold * 2, 64);
+			_aqLevel++;
+			[self applyAutoQualityStep:steps[size_t(_aqLevel)]];
+			_aqSettle = 2;
+		}
+	} else if (fMissRate == 0 && _aqLevel > 0) {
+		// what the step up would cost: a larger scale grows the GPU's work,
+		// less than its area as geometry stays (50% to 75%: 1.4 to 1.8 times,
+		// fish eye antialiased the most; as the scale ratio to the 1.5th
+		// power, 1.84); finer curves, everything by up to about 40% (boomer
+		// at 1 px against 0.3, measured)
+		const auto&	cur = steps[size_t(_aqLevel)];
+		const auto&	up = steps[size_t(_aqLevel - 1)];
+		double	fArea = std::pow(up.second / cur.second, 1.5);
+		double	fCurves = up.first != cur.first ? 1.4 : 1;
+		double	fNext = std::max(cpuMs * fCurves, gpuMs * fArea * fCurves);
+		if (fNext < 0.85 * fBudget) {
+			if (++_aqCalm >= _aqUpHold) {
+				_aqLevel--;
+				[self applyAutoQualityStep:steps[size_t(_aqLevel)]];
+				_aqSettle = 2;
+				_aqCalm = 0;
+				_aqSinceUp = 0;
+			}
+		} else {
+			_aqCalm = 0;
+		}
+	} else {
+		_aqCalm = 0;
+	}
+}
 - (int)refreshRate { return _refreshRate; }
 - (NSInteger)missedFrames { return _missedFrames; }
 
@@ -2534,6 +2698,12 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		w = _pixelWidth;
 		h = _pixelHeight;
 		scale = _pixelScale;
+	}
+	double	fAuto = engine.autoScaleFactor;	// automatic quality: fewer pixels, the same picture
+	if (fAuto < 1 && w > 0 && h > 0) {
+		w = std::max(1, (int)std::lround(w * fAuto));
+		h = std::max(1, (int)std::lround(h * fAuto));
+		scale *= fAuto;
 	}
 	CFTimeInterval	period = link.targetTimestamp - link.timestamp;
 	int		rate = period > 0 ? (int)std::lround(1 / period) : 60;

@@ -39,6 +39,7 @@ enum Preferences {
 			"Render_fScale": 1.0,
 			"Render_bSmoothUpscale": true,
 			"Render_fCurveQuality": 1.0,
+			"Render_bAutoQuality": false,
 			"Rings_bFadeEased": true,
 			"Rings_bHueFromPatch": false,
 			"OSC_bEnabled": true,
@@ -244,7 +245,7 @@ struct PreferencesView: View {
 				} label: {
 					InfoLabel("Upscaling", info: "How a picture drawn below 100% is scaled up. Smooth blends neighboring pixels; Sharp pixels keeps them square and crisp, which suits patches drawn without antialiasing and looks most even at 50%.")
 				}
-				.disabled(model.renderScale >= 1)
+				.disabled(model.renderScale >= 1 && !model.autoQuality)	// automatic quality may scale too
 				LabeledContent {
 					HStack(spacing: 6) {
 						Text("Low").font(.caption).foregroundStyle(.secondary)
@@ -254,6 +255,9 @@ struct PreferencesView: View {
 					}
 				} label: {
 					InfoLabel("Curve quality", info: "How smoothly curved rings are drawn. Curves are drawn as many short straight segments; lower quality uses fewer, which speeds up patches with large curved rings (bloom, typhoon, boomer) and helps where Render scale doesn't, since the work is in the rings, not the pixels. At the lowest setting curves may look slightly faceted, by up to a pixel. Straight-sided patches aren't affected. Exports always use High.")
+				}
+				Toggle(isOn: $model.autoQuality) {
+					InfoLabel("Automatic quality", info: "When the picture can't keep up with the display (refreshes missed), Whorld lowers Curve quality first, then Render scale down to 50%, a step at a time, and raises them again once there's room to spare. It never goes above the settings above. Show Frame Rate says when it has stepped in. Exports aren't affected.")
 				}
 				.onChange(of: useMetal) { _, on in model.engine.preferMetal = on }
 				Picker(selection: $maxFrameRate) {
