@@ -326,8 +326,8 @@ typedef struct {
 // Called on the main thread after the engine applied a MIDI change to the
 // document (kind: 0 main properties or draw mode changed, 1 pause toggled,
 // 2 play patch `value`, 3 learn message `value`, 5 parameter row `value`
-// changed, 6 master property `value` changed), and when the MIDI sources
-// change (kind 4).
+// changed, 6 master property `value` changed, 7 Mark Downbeat), and when
+// the MIDI sources change (kind 4).
 @property (nonatomic, copy, nullable) void (^midiHandler)(NSInteger kind, uint32_t value);
 
 // OSC remote control (new in the Mac port; WHOscServer, whorld::OscRemote):

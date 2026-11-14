@@ -62,6 +62,8 @@ public:
 // Attributes
 	static bool		IsValidEvent(int iEvent) { return iEvent >= 0 && iEvent < EVENTS; }
 	static bool		IsValidTarget(int iTarget) { return iTarget >= 0 && iTarget < TARGETS; }
+	// Mac additions (MappingDef.h): Windows Whorld doesn't have them
+	static bool		IsMacOnlyTarget(int iTarget) { return iTarget >= TARGET_Hue && iTarget < TARGETS; }
 	static bool		TargetHasProperty(int iTarget) { return iTarget < PARAM_COUNT; }	// parameters come first
 	static const char*	GetEventTag(int iEvent);
 	static std::string	GetEventName(int iEvent);

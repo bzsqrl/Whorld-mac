@@ -78,10 +78,15 @@ MAPPINGDEF_MISC_TARGET(RandomOrigin,	ACTION)
 MAPPINGDEF_MISC_TARGET(Clear,			ACTION)
 MAPPINGDEF_MISC_TARGET(Pause,			BOOL)
 MAPPINGDEF_MISC_TARGET(Patch,			RANGE)
-// Mac additions (V1's hue controls); Windows Whorld skips them in playlists
+// Mac additions, from Hue on (MappingBase::IsMacOnlyTarget). Windows Whorld
+// reads a target it doesn't know as the first (Ring Growth), so playlists
+// keep mappings to these in their own [MacMapping] section, which Windows
+// doesn't read. V1's hue controls:
 MAPPINGDEF_MISC_TARGET(Hue,				RANGE)
 MAPPINGDEF_MISC_TARGET(RotateHue,		ACTION)
 MAPPINGDEF_MISC_TARGET(InvertColor,		BOOL)
+// audio modulation: the beat's one (Bar ... 32-Bar)
+MAPPINGDEF_MISC_TARGET(MarkDownbeat,	ACTION)
 
 #undef MAPPINGDEF_MISC_TARGET
 #endif // MAPPINGDEF_MISC_TARGET

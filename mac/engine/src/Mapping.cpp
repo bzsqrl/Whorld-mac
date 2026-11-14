@@ -18,6 +18,8 @@ namespace whorld {
 
 #define RK_MAPPING_COUNT "Count"	// registry keys
 #define RK_MAPPING_SECTION "Mapping"
+#define RK_MAC_MAPPING_SECTION "MacMapping"	// Mac addition: mappings to Mac-only targets
+#define RK_MAC_MAPPING_POSITION "Position"	// where in the list each was
 #define RK_MAPPING_EVENT "Event"
 #define RK_MAPPING_TARGET "Target"
 #define RK_MAPPING_PROPERTY "Prop"
@@ -44,7 +46,7 @@ const char* const kMiscTargetName[MappingBase::MISC_TARGETS] = {
 	"Origin X", "Origin Y", "Fill", "Outline", "Mirror", "Origin Drag", "Origin Random", "Reverse",
 	"Convex", "Loop Hue", "Zoom Center", "Antialiasing", "Random Phase", "Random Origin", "Clear",
 	"Pause", "Patch",
-	"Hue", "Rotate Hue", "Invert Color",	// Mac additions
+	"Hue", "Rotate Hue", "Invert Color", "Mark Downbeat",	// Mac additions
 };
 
 const int kMiscTargetType[MappingBase::MISC_TARGETS] = {
@@ -252,7 +254,9 @@ void Mapping::Write(IniFile& fOut, const std::string& sSection) const
 	#include "whorld/MappingDef.h"	// generate profile writes for optional members
 }
 
-// ported from Mapping.cpp CMappingArray::Read
+// ported from Mapping.cpp CMappingArray::Read. Mac addition: then the
+// mappings to Mac-only targets, from their own section, each put back
+// where it was in the list.
 void MappingArray::Read(const IniFile& fIn)
 {
 	int	nItems = fIn.GetInt(RK_MAPPING_SECTION, RK_MAPPING_COUNT, 0);
@@ -260,15 +264,40 @@ void MappingArray::Read(const IniFile& fIn)
 	for (int iItem = 0; iItem < nItems; iItem++) {	// for each mapping
 		at(iItem).Read(fIn, RK_MAPPING_SECTION "\\" + std::to_string(iItem));
 	}
+	int	nMac = fIn.GetInt(RK_MAC_MAPPING_SECTION, RK_MAPPING_COUNT, 0);
+	for (int iItem = 0; iItem < nMac; iItem++) {
+		std::string	sSection = RK_MAC_MAPPING_SECTION "\\" + std::to_string(iItem);
+		if (MappingBase::FindTargetTag(fIn.GetString(sSection, RK_MAPPING_TARGET)) < 0)
+			continue;	// a later Mac version's target: skipped, not read as Ring Growth
+		Mapping	map;
+		map.Read(fIn, sSection);
+		int	iPos = fIn.GetInt(sSection, RK_MAC_MAPPING_POSITION, static_cast<int>(size()));
+		iPos = std::clamp(iPos, 0, static_cast<int>(size()));	// written in order, so earlier ones are in place
+		insert(begin() + iPos, map);
+	}
 }
 
-// ported from Mapping.cpp CMappingArray::Write
+// ported from Mapping.cpp CMappingArray::Write. Mac addition: mappings to
+// Mac-only targets go in their own section with their place in the list,
+// since Windows Whorld would read their targets as Ring Growth; the
+// section is left out when there are none, so such playlists are as before.
 void MappingArray::Write(IniFile& fOut) const
 {
-	int	nItems = static_cast<int>(size());
+	std::vector<int>	aWin, aMac;	// indices
+	for (int iItem = 0; iItem < static_cast<int>(size()); iItem++)
+		(MappingBase::IsMacOnlyTarget(at(iItem).m_iTarget) ? aMac : aWin).push_back(iItem);
+	int	nItems = static_cast<int>(aWin.size());
 	fOut.WriteInt(RK_MAPPING_SECTION, RK_MAPPING_COUNT, nItems);
 	for (int iItem = 0; iItem < nItems; iItem++) {	// for each mapping
-		at(iItem).Write(fOut, RK_MAPPING_SECTION "\\" + std::to_string(iItem));
+		at(aWin[iItem]).Write(fOut, RK_MAPPING_SECTION "\\" + std::to_string(iItem));
+	}
+	if (aMac.empty())
+		return;
+	fOut.WriteInt(RK_MAC_MAPPING_SECTION, RK_MAPPING_COUNT, static_cast<int>(aMac.size()));
+	for (size_t iItem = 0; iItem < aMac.size(); iItem++) {
+		std::string	sSection = RK_MAC_MAPPING_SECTION "\\" + std::to_string(iItem);
+		at(aMac[iItem]).Write(fOut, sSection);
+		fOut.WriteInt(sSection, RK_MAC_MAPPING_POSITION, aMac[iItem]);
 	}
 }
 

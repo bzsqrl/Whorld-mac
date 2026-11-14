@@ -193,8 +193,14 @@ TEST(MappingDefaultsAndNames) {
 	CHECK_EQ(m.m_iEvent, int(MIDI_CVM_CONTROL));
 	CHECK_EQ(m.m_iControl, 1);
 	CHECK_EQ(m.m_fEnd, 100.0);
-	// 17 miscellaneous targets on Windows, plus the Mac's Hue, Rotate Hue and Invert Color
-	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 20);
+	// 17 miscellaneous targets on Windows, plus the Mac's Hue, Rotate Hue, Invert Color and Mark Downbeat
+	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 21);
+	CHECK_EQ(MB::GetTargetName(MB::TARGET_MarkDownbeat), std::string("Mark Downbeat"));
+	CHECK_EQ(MB::GetTargetType(MB::TARGET_MarkDownbeat), int(MB::TT_ACTION));
+	CHECK(!MB::IsMacOnlyTarget(MB::TARGET_Patch));
+	CHECK(MB::IsMacOnlyTarget(MB::TARGET_Hue));
+	CHECK(MB::IsMacOnlyTarget(MB::TARGET_MarkDownbeat));
+	CHECK(!MB::IsMacOnlyTarget(MB::TARGETS));
 	CHECK_EQ(std::string(MB::GetTargetTag(MB::TARGET_RotateHue)), std::string("RotateHue"));
 	CHECK_EQ(MB::GetTargetName(MB::TARGET_InvertColor), std::string("Invert Color"));
 	CHECK_EQ(MB::GetTargetType(MB::TARGET_Hue), int(MB::TT_RANGE));
@@ -314,6 +320,77 @@ TEST(DispatchMasterAndMisc) {
 	CHECK_EQ(sink.cmds[0].m_nCmd, uint32_t(WhorldBase::RC_SET_MAIN));
 	CHECK_EQ(sink.cmds[0].m_nParam, uint32_t(WhorldBase::MAIN_OrgMotion));
 	CHECK_EQ(sink.cmds[0].m_prop.intVal, int(WhorldBase::OM_RANDOM));
+}
+
+TEST(MarkDownbeatOnPressOnly) {
+	RecordingSink	sink;
+	MidiManager	mgr(sink);
+	MappingArray	maps;
+	maps.push_back(MakeMapping(MIDI_CVM_NOTE_ON, 0, 40, MB::TARGET_MarkDownbeat));
+	mgr.m_midiMaps.SetArray(maps);
+	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 40, 100));
+	CHECK(sink.cmds.empty());
+	CHECK_EQ(sink.posts.size(), size_t(1));
+	CHECK_EQ(sink.posts[0].type, MidiManager::Post::MARK_DOWNBEAT);
+	sink.Clear();
+	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 40, 0));	// the release: nothing
+	CHECK(sink.cmds.empty());
+	CHECK(sink.posts.empty());
+}
+
+TEST(MacOnlyMappingsHaveTheirOwnSection) {
+	// Windows reads an unknown target as Ring Growth, so mappings to Mac-only
+	// targets go in [MacMapping], with their place in the list
+	Playlist	pl;
+	pl.m_arrPatch = {"a.whp"};
+	pl.m_arrMapping.push_back(MakeMapping(MIDI_CVM_CONTROL, 0, 1, MB::TARGET_Zoom));
+	pl.m_arrMapping.push_back(MakeMapping(MIDI_CVM_NOTE_ON, 0, 40, MB::TARGET_MarkDownbeat));
+	pl.m_arrMapping.push_back(MakeMapping(MIDI_CVM_CONTROL, 0, 2, MB::TARGET_Tempo));
+	pl.m_arrMapping.push_back(MakeMapping(MIDI_CVM_CONTROL, 0, 3, MB::TARGET_Hue));
+	IniFile	out;
+	pl.Write(out);
+	std::string	text = WriteIni(out);
+	CHECK(text.find("[Mapping]\r\nCount=2\r\n") != std::string::npos);	// what Windows reads
+	CHECK(text.find("[MacMapping]\r\nCount=2\r\n") != std::string::npos);
+	CHECK(text.find("[Mapping\\1]\r\nEvent=CONTROL\r\nTarget=Tempo") != std::string::npos);
+	CHECK(text.find("Target=MarkDownbeat") != std::string::npos);
+	CHECK(text.find("Position=1") != std::string::npos);
+	CHECK(text.find("Position=3") != std::string::npos);
+	std::istringstream	in(text);
+	IniFile	back;
+	back.Read(in);
+	Playlist	q;
+	CHECK(q.Read(back));
+	CHECK_EQ(q.m_arrMapping.size(), size_t(4));
+	if (q.m_arrMapping.size() == 4) {	// back in their places
+		CHECK_EQ(q.m_arrMapping[0].m_iTarget, int(MB::TARGET_Zoom));
+		CHECK_EQ(q.m_arrMapping[1].m_iTarget, int(MB::TARGET_MarkDownbeat));
+		CHECK_EQ(q.m_arrMapping[1].m_iControl, 40);
+		CHECK_EQ(q.m_arrMapping[2].m_iTarget, int(MB::TARGET_Tempo));
+		CHECK_EQ(q.m_arrMapping[3].m_iTarget, int(MB::TARGET_Hue));
+	}
+	// an older Mac playlist, with them in [Mapping]: read there, moved on writing
+	std::string	old = "[Mapping]\r\nCount=1\r\n[Mapping\\0]\r\nEvent=CONTROL\r\nTarget=Hue\r\nChannel=0\r\nControl=3\r\n";
+	std::istringstream	in2(old);
+	IniFile	ini2;
+	ini2.Read(in2);
+	MappingArray	arr;
+	arr.Read(ini2);
+	CHECK_EQ(arr.size(), size_t(1));
+	CHECK_EQ(arr[0].m_iTarget, int(MB::TARGET_Hue));
+	// a target a later version added: skipped, not read as Ring Growth
+	std::string	later = "[Mapping]\r\nCount=0\r\n[MacMapping]\r\nCount=1\r\n[MacMapping\\0]\r\nEvent=CONTROL\r\nTarget=NoSuch\r\nPosition=0\r\n";
+	std::istringstream	in3(later);
+	IniFile	ini3;
+	ini3.Read(in3);
+	MappingArray	arr3;
+	arr3.Read(ini3);
+	CHECK(arr3.empty());
+	// none: no section, as before
+	pl.m_arrMapping.resize(1);
+	IniFile	plain;
+	pl.Write(plain);
+	CHECK(WriteIni(plain).find("MacMapping") == std::string::npos);
 }
 
 TEST(LearnModeAndFiltering) {

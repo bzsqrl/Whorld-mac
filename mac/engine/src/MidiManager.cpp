@@ -198,6 +198,13 @@ void MidiManager::PushMiscTarget(int iMiscTarget, double fNormVal)
 	case MT_InvertColor:
 		PushMainBool(MAIN_InvertColor, fNormVal != 0);
 		break;
+	case MT_MarkDownbeat:
+		if (fNormVal > 0) {	// a press, not its release (a note-on of velocity 0, a button's 0)
+			Post	post;
+			post.type = Post::MARK_DOWNBEAT;
+			m_sink.PostToMain(post);
+		}
+		break;
 	}
 }
 
