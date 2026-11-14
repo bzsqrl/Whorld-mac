@@ -311,6 +311,71 @@ TEST(MetalGoldenSnapshots) {
 	CHECK(nCompared > 0);
 }
 
+// Windows Whorld's window showing a snapshot, full screen, with
+// antialiasing off ("<name>.png") and on ("<name>-aa.png"): the only
+// reference for aliased frames, since Windows' exports always antialias.
+// Each snapshot is drawn as the window shows it, at the screenshot's size.
+// Metal matches Windows' aliased rule (pixel centers); Core Graphics'
+// aliased output doesn't, and is reported, not checked.
+TEST(MetalMatchesWindowsScreenshots) {
+	if (!MetalAvailable())
+		return;
+	fs::path	dirShot = fs::path(WHORLD_TESTDATA_DIR) / "screenshots";
+	fs::path	dirSnap = fs::path(WHORLD_TESTDATA_DIR) / "snapshots";
+	int	nCompared = 0;
+	for (const auto& entry : fs::directory_iterator(dirShot)) {
+		if (entry.path().extension() != ".png")
+			continue;
+		std::string	stem = entry.path().stem().string(), err;
+		bool	bAA = stem.size() > 3 && stem.compare(stem.size() - 3, 3, "-aa") == 0;
+		std::string	name = bAA ? stem.substr(0, stem.size() - 3) : stem;
+		auto	pSnap = Snapshot::Read((dirSnap / (name + ".whs")).string(), &err);
+		CHECK(pSnap != nullptr);
+		if (!pSnap)
+			continue;
+		ImageRGBA	shot;
+		CHECK(LoadImageRGBA(entry.path().string(), shot, &err));
+		if (shot.nWidth <= 0)
+			continue;
+		WhorldEngine	eng;	// CWhorldDraw::SetSnapshot, in a full-screen view
+		eng.OnResize(SizeF{float(shot.nWidth), float(shot.nHeight)});
+		eng.OnDisplaySnapshot(*pSnap);
+		SetMainBool(eng, WhorldBase::MAIN_Antialiasing, bAA);
+		MetalRenderer	mr(shot.nWidth, shot.nHeight, 1, 0);
+		CGBitmapRenderer	cg(shot.nWidth, shot.nHeight, 1);
+		CHECK(mr.IsValid() && cg.IsValid());
+		if (!mr.IsValid() || !cg.IsValid())
+			continue;
+		TeeRenderer	tee(cg, mr);
+		cg.BeginFrame();
+		mr.BeginFrame();
+		eng.Draw(tee);
+		cg.EndFrame();
+		mr.EndFrame();
+		mr.WaitUntilDone();
+		ImageRGBA	mine = MetalImage(mr), diff;
+		ImageDiff	d = CompareImages(shot, mine, kThreshold, &diff);
+		ImageDiff	dc = CompareImages(shot, CoreGraphicsImage(cg), kThreshold);
+		// measured: aliased mean 0.002, 0.001% over; antialiased 0.33, 0.027%
+		double	fMaxMean = bAA ? kAAMaxMeanAbs : 0.1, fMaxFrac = bAA ? kAAMaxFracOver : 0.0005;
+		bool	bPass = d.bSameSize && d.fMeanAbs <= fMaxMean && d.fFracOver <= fMaxFrac;
+		std::printf("  %-36s mean %.3f, %.3f%% over %d %s (Core Graphics: mean %.3f, %.3f%%)\n",
+			stem.c_str(), d.fMeanAbs, d.fFracOver * 100, kThreshold, bPass ? "ok" : "FAIL",
+			dc.fMeanAbs, dc.fFracOver * 100);
+		if (!bPass) {
+			fs::path	pathOut = OutDir() / (stem + ".png"), pathDiff = OutDir() / (stem + "-diff.png");
+			SaveImageRGBA(pathOut.string(), mine);
+			SaveImageRGBA(pathDiff.string(), diff);
+			std::fprintf(stderr, "  output: %s\n  diff:   %s\n", pathOut.string().c_str(),
+				pathDiff.string().c_str());
+		}
+		CHECK(bPass);
+		nCompared++;
+	}
+	std::printf("  %d Windows screenshots compared (Metal, coverage mode)\n", nCompared);
+	CHECK(nCompared > 0);
+}
+
 // Letterbox bars (FillRect): snapshots exported wider and taller than they
 // were taken, so bars are drawn left and right, then above and below
 TEST(MetalLetterboxMatchesCoreGraphics) {
