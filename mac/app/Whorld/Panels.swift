@@ -622,7 +622,7 @@ enum ControlTips {
 		"The area rings live in, as a percentage of the window; a ring vanishes once it's wholly outside it.",
 		"Draws several groups of rings, evenly spaced in a circle around the origin (see Spread).",
 		"How far the Copies sit from the origin, in pixels.",
-		"Old rings fade out over this many rings before they leave the picture or the Rings limit removes them, whichever comes first; 0 is off.",
+		"Old rings fade out over this many rings before they leave the picture or are removed (by the Rings limit or at the canvas edge), whichever comes first; 0 is off.",
 	]
 
 	static let hue = "Shifts the color of new rings, in degrees (and the looped range, with Loop Hue). Rotate Hue (F3) also turns existing rings."

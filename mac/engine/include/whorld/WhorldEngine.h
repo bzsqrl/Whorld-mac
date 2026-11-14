@@ -256,9 +256,10 @@ protected:
 	void	DrawOutline(IRenderer& renderer, const RING& ring, float fLineWidth, float fFade = 1) const;
 	ColorF	RingBrush(const ColorF& clr, float fFade) const;	// Mac: ring fade and Invert Color
 	float	RingFadeFactor(double fRingsLeft, int nFadeRings) const;
-	// Ring fade at the view's edge (Mac port): how far, in DIPs, the ring's
-	// outline lies beyond the farthest corner of rView, from the ring's
-	// center; positive once the ring wholly encloses the view
+	// Ring fade at the view's edge (Mac port): how far, in DIPs, the ring is
+	// past its end: its outline beyond the farthest corner of rView from its
+	// center, or its vertices off the canvas (Draw then deletes it),
+	// whichever is further; positive once it's past
 	double	RingEdgeMargin(const RING& ring, double fZoom, double fSnapshotScale,
 		DPoint ptWndCenter, const RectF& rView) const;
 	double	RingFadeEdge(double fZoom, double fSnapshotScale, DPoint ptWndCenter) const;

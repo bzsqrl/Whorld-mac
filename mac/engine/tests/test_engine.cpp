@@ -383,6 +383,56 @@ TEST(RingFadeAtTheViewEdge) {
 	CHECK(nGone > 0);	// and rings past it, drawn fully faded until the canvas removes them
 }
 
+TEST(RingFadeBeforeTheCanvasRemovesThem) {
+	// A ring with no vertex left on the canvas is deleted, which with a
+	// small canvas and the origin off center happens while it's still on
+	// screen (a user's report: bullseye at Canvas 140, Rings 1000). With
+	// Fade on, a ring must be faded out by then, not blink out.
+	for (int nFade : {0, 6}) {
+		auto	eng = MakeEngine(400, 300);
+		eng->OnSetMasterProp(Patch::MASTER_CanvasScale, 1.4);
+		eng->OnSetOrigin(DPoint(0.8, 0.2), false);
+		eng->OnSetMasterProp(Patch::MASTER_Fade, nFade);
+		RunFrames(*eng, 300);
+		std::vector<float>	prev;
+		size_t	nPrevRings = 0;
+		double	fPrevFront = 0;
+		float	fWorst = 0;	// the brightest a removed ring was in its last frame
+		float	fJump = 0;	// the largest drop in a ring's alpha from one frame to the next
+		int		nRemoved = 0;
+		for (int f = 0; f < 200; f++) {
+			auto	a = RingAlphas(*eng);	// newest first, one stroke per ring
+			size_t	nRings = eng->GetRings().size();
+			size_t	nAdded = eng->GetRings().front().fRadius < fPrevFront ? 1 : 0;
+			if (!prev.empty() && nRings < nPrevRings + nAdded) {	// the oldest went
+				size_t	nGone = nPrevRings + nAdded - nRings;
+				for (size_t i = 0; i < nGone && i < prev.size(); i++) {
+					fWorst = std::max(fWorst, prev[prev.size() - 1 - i]);
+					nRemoved++;
+				}
+			}
+			if (nFade && !prev.empty()) {	// each ring, followed: only fainter, in small steps
+				for (size_t i = 0; i < prev.size() && i + nAdded < a.size(); i++) {
+					CHECK(a[i + nAdded] <= prev[i] + 1e-6f);
+					CHECK(prev[i] - a[i + nAdded] < 0.15f);
+					fJump = std::max(fJump, prev[i] - a[i + nAdded]);
+				}
+			}
+			prev = a;
+			nPrevRings = nRings;
+			fPrevFront = eng->GetRings().front().fRadius;
+		}
+		CHECK(nRemoved > 0);
+		if (nFade) {
+			CHECK(fWorst < 0.05f);	// faded out first
+			std::printf("  Fade %d: %d rings removed, brightest at removal %.3f, largest step %.3f\n",
+				nFade, nRemoved, fWorst, fJump);
+		}
+		else
+			CHECK_EQ(fWorst, 1.0f);	// Fade off: rings vanish at full strength, as on Windows
+	}
+}
+
 TEST(DrawAtSizeDoesNotAdvance) {
 	// Syphon's fixed size (Mac port): the same frame at another size, no tick
 	auto	eng = MakeEngine(800, 600);

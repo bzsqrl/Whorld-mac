@@ -723,10 +723,13 @@ double SegmentDistance(DPoint p, DPoint a, DPoint b)
 } // namespace
 
 // Ring fade at the view's edge (new in the Mac port): the ring's geometry as
-// Draw computes it, measured instead of drawn. The outline's nearest
-// approach to the ring's center (straight edges exactly; curves through
-// points along each Bezier), less half the line width, against the
-// farthest corner of the view from that center.
+// Draw computes it, measured instead of drawn. A ring ends at the view's
+// edge (the outline's nearest approach to the ring's center, straight edges
+// exactly and curves through points along each Bezier, less half the line
+// width, against the farthest corner of the view from that center) or when
+// Draw deletes it for having no vertex left on the canvas (the canvas
+// rectangle at the ring's origin; how far the nearest vertex is outside it),
+// whichever is first: the larger of the two margins.
 double WhorldEngine::RingEdgeMargin(const RING& ring, double fZoom, double fSnapshotScale,
 	DPoint ptWndCenter, const RectF& rView) const
 {
@@ -758,6 +761,10 @@ double WhorldEngine::RingEdgeMargin(const RING& ring, double fZoom, double fSnap
 		DPoint	d(c - ptShift);
 		fFar = std::max(fFar, std::sqrt(d.x * d.x + d.y * d.y));
 	}
+	// Draw's visibility test: a vertex inside the canvas, offset by the origin
+	RectF	rBounds(m_rCanvas);
+	OffsetRect(rBounds, DTOF(ptOrg.x), DTOF(ptOrg.y));
+	double	fCanvas = HUGE_VAL;	// the nearest vertex's distance outside it (<= 0: inside)
 	double	fNear = HUGE_VAL;	// the outline's nearest approach to the center
 	auto	Vertex = [&](int iVert) {
 		int	bOdd = iVert & 1;
@@ -767,6 +774,8 @@ double WhorldEngine::RingEdgeMargin(const RING& ring, double fZoom, double fSnap
 	DPoint	ptPrev = Vertex(nVertices - 1);
 	for (int iVert = 0; iVert < nVertices; iVert++) {
 		DPoint	pt = Vertex(iVert);
+		fCanvas = std::min(fCanvas, std::max(std::max(rBounds.left - pt.x, pt.x - rBounds.right),
+			std::max(rBounds.top - pt.y, pt.y - rBounds.bottom)));
 		if (bCurved) {	// the Bezier from the previous vertex, as Draw builds it
 			int	bPrevOdd = (iVert + nVertices - 1) & 1, bOdd = iVert & 1;
 			DPoint	v0(ptPrev - ptShift), v1(pt - ptShift);
@@ -786,12 +795,13 @@ double WhorldEngine::RingEdgeMargin(const RING& ring, double fZoom, double fSnap
 		}
 		ptPrev = pt;
 	}
-	return fNear - std::fabs(fLineWidth) / 2 - fFar;
+	return std::max(fNear - std::fabs(fLineWidth) / 2 - fFar, fCanvas);
 }
 
 // Where the view's edge falls among the rings, counting from the newest
-// (0) outward, as a fractional ring number: the first ring wholly beyond
-// the view, less how far the ring inside it still has to go. A ring fades
+// (0) outward, as a fractional ring number: the first ring past its end
+// (beyond the view, or off the canvas), less how far the ring inside it
+// still has to go; if none is past yet, projected beyond the oldest. A ring fades
 // out over the Fade rings before it reaches the edge, or the Rings limit,
 // whichever is first. Rings growing outward only; HUGE_VAL if none is past.
 double WhorldEngine::RingFadeEdge(double fZoom, double fSnapshotScale, DPoint ptWndCenter) const
@@ -804,7 +814,7 @@ double WhorldEngine::RingFadeEdge(double fZoom, double fSnapshotScale, DPoint pt
 		rView.right /= 2;
 		rView.bottom /= 2;
 	}
-	double	fPrevMargin = 0;
+	double	fPrevMargin = 0, fPrevPrevMargin = 0;
 	int		iRing = 0;
 	for (const RING& ring : m_aRing) {	// newest first
 		double	fMargin = RingEdgeMargin(ring, fZoom, fSnapshotScale, ptWndCenter, rView);
@@ -814,9 +824,16 @@ double WhorldEngine::RingFadeEdge(double fZoom, double fSnapshotScale, DPoint pt
 			// between the previous ring (inside, margin <= 0) and this one
 			return iRing - 1 + Clamp(-fPrevMargin / (fMargin - fPrevMargin), 0, 1);
 		}
+		fPrevPrevMargin = fPrevMargin;
 		fPrevMargin = fMargin;
 		iRing++;
 	}
+	// None past yet. Rings that end on the canvas are deleted as soon as
+	// they're past it, so usually none is: the edge is ahead of the oldest
+	// ring by its margin over the spacing between it and the ring inside it.
+	double	fStep = fPrevMargin - fPrevPrevMargin;	// margin gained per ring outward
+	if (iRing >= 2 && fStep > 0)
+		return iRing - 1 + -fPrevMargin / fStep;
 	return HUGE_VAL;
 }
 
