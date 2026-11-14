@@ -37,7 +37,7 @@ int Usage()
 	std::fprintf(stderr,
 		"usage:\n"
 		"  whorld-render <patch.whp> [--frames N] [--size WxH] [--scale S] [--deferred]\n"
-		"                [--ring-fade N [--eased]] [--antialias 0|1] [--metal] --out frame.png\n"
+		"                [--ring-fade N [--linear]] [--antialias 0|1] [--metal] --out frame.png\n"
 		"  whorld-render <snapshot.whs> [--size WxH] [--view WxH] [--fit none|width|height|both]\n"
 		"                [--use-view-size] [--no-letterbox] [--metal] --out frame.png\n"
 		"  whorld-render <snapshot.whs> --as-shown [--size WxH] [--antialias 0|1] [--metal] --out frame.png\n"
@@ -49,7 +49,8 @@ int Usage()
 		"  whorld-render <patch.whp> --audio music.mp3 --video out.mov [--size WxH] [--fps N] [--codec ...]\n"
 		"                [--mod modulation.json] [--audio-start S] [--duration S] [--preroll S]\n"
 		"                [--tempo BPM] [--downbeat S] [--gain dB] [--range dB] [--auto-level] [--hits T] [--cg]\n"
-		"  (videos are drawn with Metal where this Mac can; --cg draws them with Core Graphics)\n");
+		"  (videos are drawn with Metal where this Mac can; --cg draws them with Core Graphics)\n"
+		"  (ring fade, the patch's Fade or --ring-fade, is eased as in the app; --linear fades evenly)\n");
 	return 2;
 }
 
@@ -169,7 +170,7 @@ int main(int argc, char** argv)
 	bool	bAsShown = false;
 	int		nAntialias = -1;	// -1: the patch's own (or on, as shown)
 	int		nRingFade = 0;
-	bool	bRingFadeEased = false;
+	bool	bRingFadeEased = true;	// as the app's default (Settings > Rendering > Ring fade curve)
 	std::string	sVideo;
 	VideoWriter::Codec	codec = VideoWriter::CODEC_H264;
 	long long	nStart = 0, nEnd = -1, nFrame = -1;
@@ -219,8 +220,10 @@ int main(int argc, char** argv)
 			nAntialias = std::atoi(argv[++i]) != 0;
 		else if (!std::strcmp(a, "--ring-fade") && bHasArg)
 			nRingFade = std::atoi(argv[++i]);
-		else if (!std::strcmp(a, "--eased"))
+		else if (!std::strcmp(a, "--eased"))	// the default; kept for older commands
 			bRingFadeEased = true;
+		else if (!std::strcmp(a, "--linear"))
+			bRingFadeEased = false;
 		else if (!std::strcmp(a, "--video") && bHasArg)
 			sVideo = argv[++i];
 		else if (!std::strcmp(a, "--codec") && bHasArg) {
