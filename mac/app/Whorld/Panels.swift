@@ -481,13 +481,17 @@ struct KeySlider: NSViewRepresentable {
 		override func draw(_ dirtyRect: NSRect) {
 			super.draw(dirtyRect)
 			guard let p = markerPosition, maxValue > minValue, let cell = cell as? NSSliderCell else { return }
-			// the knob's center travels the bar, inset by half a knob at each end
+			// from the knob as drawn, moved along its travel (the bar, less a
+			// knob's width), so a marker at the knob's own value rings it exactly
 			let bar = cell.barRect(flipped: isFlipped)
 			let knob = cell.knobRect(flipped: isFlipped)
-			let d = min(knob.width, knob.height)
-			let t = (min(max(p, minValue), maxValue) - minValue) / (maxValue - minValue)
-			let x = bar.minX + d / 2 + t * max(bar.width - d, 0)
-			let r = NSRect(x: x - d / 2, y: knob.midY - d / 2, width: d, height: d).insetBy(dx: 1, dy: 1)
+			let travel = max(bar.width - knob.width, 0)
+			let dx = (min(max(p, minValue), maxValue) - doubleValue) / (maxValue - minValue) * travel
+			// the knob's rect is taller than the knob, for its shadow below:
+			// a circle as wide as the knob, at its top
+			let d = knob.width
+			let top = isFlipped ? knob.minY : knob.maxY - d
+			let r = NSRect(x: knob.minX + dx, y: top, width: d, height: d).insetBy(dx: 1, dy: 1)
 			let accent = NSColor.controlAccentColor
 			accent.withAlphaComponent(0.25).setFill()
 			NSBezierPath(ovalIn: r).fill()
@@ -611,8 +615,10 @@ struct KeySlider: NSViewRepresentable {
 // MARK: Modulation markers
 
 /// Audio modulation on the panels (Mac addition, at the user's request):
-/// each slider of a control a modulation row moves shows a faint second
-/// knob where the control is this frame, beside the patch's own value. The
+/// while modulation is on, each slider of a control a modulation row
+/// targets shows a faint second knob where the control is this frame,
+/// beside the patch's own value; in silence it rings the knob itself, so it
+/// also shows which controls are modulated (2026-11-14, the user's request). The
 /// sliders register themselves; a timer reads the engine's state about 30
 /// times a second and sets their markers directly, so only those sliders
 /// redraw, never the panels' rows.
@@ -658,28 +664,46 @@ final class ModMarkers {
 			return
 		}
 		shown = true
+		let targeted = Self.targetedControls()
 		for s in sliders.allObjects {
 			guard let target = s.markerTarget, s.window != nil else { continue }
-			s.markerPosition = position(target, state, e)
+			s.markerPosition = targeted.contains(target) ? position(target, state, e) : nil
 		}
 	}
 
-	/// The marker's place in slider units, or nil where nothing moves the control
-	private func position(_ target: Target, _ state: WHModState, _ e: WHEngine) -> Double? {
+	/// The controls the modulation rows that are on move (not actions)
+	static func targetedControls() -> Set<Target> {
+		var set = Set<Target>()
+		let nParams = WHMappingInfo.paramTargetCount, nMaster = WHMappingInfo.masterTargetCount
+		for r in ModMap.shared.rows where r.on && !r.isAction && r.isKnown {
+			let i = WHMappingInfo.target(forTag: r.target)
+			if i >= 0 && i < nParams {
+				if r.prop == WHParamProperty.val.rawValue {
+					set.insert(.param(i))
+				} else if r.prop == WHParamProperty.global.rawValue {
+					set.insert(.global(i))
+				}
+			} else if i >= nParams && i < nParams + nMaster {
+				set.insert(.master(i - nParams))
+			} else if r.target == "Hue" {
+				set.insert(.hue)
+			}
+		}
+		return set
+	}
+
+	/// The marker's place in slider units: where the control is this frame
+	/// (the patch's own value while the sound is silent)
+	private func position(_ target: Target, _ state: WHModState, _ e: WHEngine) -> Double {
 		switch target {
 		case .param(let i):
-			let off = state.paramOffsets[i].doubleValue
-			return off == 0 ? nil : WHControls.paramPosition(i, value: e.paramValue(i, property: .val) + off)
+			return WHControls.paramPosition(i, value: e.paramValue(i, property: .val) + state.paramOffsets[i].doubleValue)
 		case .global(let i):
-			let off = state.globalOffsets[i].doubleValue
-			return off == 0 ? nil : WHControls.globalPosition(i, value: e.paramValue(i, property: .global) + off)
+			return WHControls.globalPosition(i, value: e.paramValue(i, property: .global) + state.globalOffsets[i].doubleValue)
 		case .master(let i):
-			let v = state.masterValues[i].doubleValue
-			return v == e.masterValue(i) ? nil : WHControls.masterPosition(i, value: v)
+			return WHControls.masterPosition(i, value: state.masterValues[i].doubleValue)
 		case .hue:
-			let off = state.hueOffset
-			guard off != 0 else { return nil }
-			let v = (e.hue + off).truncatingRemainder(dividingBy: 360)
+			let v = (e.hue + state.hueOffset).truncatingRemainder(dividingBy: 360)
 			return v < 0 ? v + 360 : v
 		}
 	}
