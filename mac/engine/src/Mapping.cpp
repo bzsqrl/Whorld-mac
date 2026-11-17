@@ -47,7 +47,7 @@ const char* const kMiscTargetName[MappingBase::MISC_TARGETS] = {
 	"Convex", "Loop Hue", "Zoom Center", "Antialiasing", "Random Phase", "Random Origin", "Clear",
 	"Pause", "Patch",
 	"Hue", "Rotate Hue", "Invert Color", "Mark Downbeat", "Modulation On", "Modulation Depth",	// Mac additions
-	"Geometry Mode",
+	"Geometry Mode", "Reset Bar Count",
 };
 
 const int kMiscTargetType[MappingBase::MISC_TARGETS] = {

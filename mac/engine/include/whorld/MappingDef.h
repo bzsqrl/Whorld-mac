@@ -91,6 +91,8 @@ MAPPINGDEF_MISC_TARGET(ModOn,			BOOL)
 MAPPINGDEF_MISC_TARGET(ModDepth,		RANGE)
 // V1's patch mode: on plays patches in Geometry mode (Playlist::m_nPatchMode)
 MAPPINGDEF_MISC_TARGET(GeometryMode,	BOOL)
+// the bar nearest a press becomes bar 1, keeping the beat (BeatTracker::ResetBars)
+MAPPINGDEF_MISC_TARGET(ResetBars,		ACTION)
 
 #undef MAPPINGDEF_MISC_TARGET
 #endif // MAPPINGDEF_MISC_TARGET

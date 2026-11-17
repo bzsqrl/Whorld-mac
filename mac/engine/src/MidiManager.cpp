@@ -199,10 +199,11 @@ void MidiManager::PushMiscTarget(int iMiscTarget, double fNormVal)
 		PushMainBool(MAIN_InvertColor, fNormVal != 0);
 		break;
 	case MT_MarkDownbeat:
+	case MT_ResetBars:
 		if (fNormVal > 0) {	// a press, not its release (a note-on of velocity 0, a button's 0)
 			Post	post;
 			post.type = Post::MODULATION;
-			post.iVal = 2;
+			post.iVal = iMiscTarget == MT_MarkDownbeat ? 2 : 3;
 			post.fVal = 1;
 			m_sink.PostToMain(post);
 		}

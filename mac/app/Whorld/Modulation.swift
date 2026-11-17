@@ -399,7 +399,7 @@ private struct AudioMeter: View {
 			Button("Reset Bars") { ModMap.resetBars() }
 				.controlSize(.small)
 				.fixedSize()
-				.help("Start the bar count again: the nearest bar becomes bar 1, for 4-Bar ... 32-Bar, without moving the beat (Mark Downbeat moves the beat too). Press anywhere in the first half of a bar for that bar, in the second half for the next. Image > Reset Bar Count (⇧⌥⌘8).")
+				.help("Start the bar count again: the nearest bar becomes bar 1, for 4-Bar ... 32-Bar, without moving the beat (Mark Downbeat moves the beat too). Press anywhere in the first half of a bar for that bar, in the second half for the next. Image > Reset Bar Count (⇧⌥⌘8), OSC /w/mod/bars and the Reset Bar Count MIDI target do the same.")
 		}
 		.padding(.top, 4)
 		.help("The beat tracker learns the tempo from the hits and keeps a steady beat through kicks it can't hear (a busy mix, a breakdown). Beat is a source like the hits.")
@@ -778,11 +778,13 @@ final class ModMap: ObservableObject {
 		}
 	}
 
-	/// OSC: /w/mod/on (kind 0: 1, 0, or -1 to toggle), /w/mod/depth (kind 1)
-	/// and /w/mod/downbeat (kind 2)
+	/// OSC: /w/mod/on (kind 0: 1, 0, or -1 to toggle), /w/mod/depth (kind 1),
+	/// /w/mod/downbeat (kind 2) and /w/mod/bars (kind 3); and the MIDI targets
 	func osc(kind: Int, value: Double) {
 		if kind == 2 {
 			Self.markDownbeat()
+		} else if kind == 3 {
+			Self.resetBars()
 		} else if kind == 0 {
 			bypass = value < 0 ? !bypass : value == 0
 		} else {

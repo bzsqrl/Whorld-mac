@@ -41,7 +41,7 @@ public:
 			PLAY_PATCH,			// UWM_PLAY_PATCH: iVal is the playlist index
 			MIDI_EVENT,			// UWM_MIDI_EVENT to the mapping bar (learn mode): nMsg
 			ROTATE_HUE,			// Mac addition: the main thread rotates the hue 90 degrees
-			MODULATION,			// Mac addition, audio modulation: iVal 0 on (fVal 1 or 0), 1 depth (fVal 0 to 1), 2 Mark Downbeat
+			MODULATION,			// Mac addition, audio modulation: iVal 0 on (fVal 1 or 0), 1 depth (fVal 0 to 1), 2 Mark Downbeat, 3 Reset Bar Count
 			PATCH_MODE,			// Mac addition: iVal 1 Geometry, 0 Full (V1's MIDI PatchMode)
 		};
 		Type	type;

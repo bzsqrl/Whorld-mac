@@ -220,8 +220,11 @@ TEST(MappingDefaultsAndNames) {
 	CHECK_EQ(m.m_iControl, 1);
 	CHECK_EQ(m.m_fEnd, 100.0);
 	// 17 miscellaneous targets on Windows, plus the Mac's Hue, Rotate Hue, Invert Color,
-	// Mark Downbeat, Modulation On, Modulation Depth and Geometry Mode
-	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 24);
+	// Mark Downbeat, Modulation On, Modulation Depth, Geometry Mode and Reset Bar Count
+	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 25);
+	CHECK_EQ(MB::GetTargetName(MB::TARGET_ResetBars), std::string("Reset Bar Count"));
+	CHECK_EQ(MB::GetTargetType(MB::TARGET_ResetBars), int(MB::TT_ACTION));
+	CHECK(MB::IsMacOnlyTarget(MB::TARGET_ResetBars));
 	CHECK_EQ(MB::GetTargetName(MB::TARGET_GeometryMode), std::string("Geometry Mode"));
 	CHECK_EQ(MB::GetTargetType(MB::TARGET_GeometryMode), int(MB::TT_BOOL));
 	CHECK_EQ(MB::GetTargetName(MB::TARGET_ModDepth), std::string("Modulation Depth"));
@@ -362,6 +365,7 @@ TEST(ModulationTargets) {
 	maps.push_back(MakeMapping(MIDI_CVM_NOTE_ON, 0, 40, MB::TARGET_MarkDownbeat));
 	maps.push_back(MakeMapping(MIDI_CVM_NOTE_ON, 0, 41, MB::TARGET_ModOn));
 	maps.push_back(MakeMapping(MIDI_CVM_CONTROL, 0, 7, MB::TARGET_ModDepth));
+	maps.push_back(MakeMapping(MIDI_CVM_NOTE_ON, 0, 43, MB::TARGET_ResetBars));
 	mgr.m_midiMaps.SetArray(maps);
 	using Post = MidiManager::Post;
 	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 40, 100));
@@ -385,6 +389,14 @@ TEST(ModulationTargets) {
 	CHECK_EQ(sink.posts[0].iVal, 1);
 	CHECK_NEAR(sink.posts[0].fVal, 1.0, 1e-12);
 	CHECK(sink.cmds.empty());
+	sink.Clear();
+	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 43, 100));	// Reset Bar Count, on a press
+	CHECK_EQ(sink.posts.size(), size_t(1));
+	CHECK_EQ(sink.posts[0].type, Post::MODULATION);
+	CHECK_EQ(sink.posts[0].iVal, 3);
+	sink.Clear();
+	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 43, 0));	// not on its release
+	CHECK(sink.posts.empty());
 }
 
 TEST(GeometryModeTarget) {
