@@ -108,6 +108,27 @@ void BeatTracker::MarkDownbeat()
 	}
 }
 
+void BeatTracker::ResetBars()
+{
+	if (!m_bLocked || m_iBeat < 0) {
+		m_bMarkNext = true;
+		return;
+	}
+	int64_t	iInBar = m_iBeat % 4;
+	double	fInBar = static_cast<double>(iInBar) + GetPhase();	// beats into the bar
+	if (fInBar < 0.5) {		// the bar began a moment ago: bar 1, beginning every span
+		for (int i = 0; i < SPANS; i++) {
+			if (m_iBeat % kSpanBeats[i] != 0)	// those that didn't begin with it
+				m_aSpanCount[i]++;
+		}
+		m_iBeat = 0;
+	} else if (fInBar < 2) {	// this bar is bar 1
+		m_iBeat = iInBar;
+	} else {				// the next is: this is the phrase's last bar
+		m_iBeat = kSpanBeats[SPANS - 1] - 4 + iInBar;
+	}
+}
+
 int BeatTracker::GetBeatInBar() const
 {
 	return m_iBeat < 0 ? -1 : static_cast<int>(m_iBeat % 4);

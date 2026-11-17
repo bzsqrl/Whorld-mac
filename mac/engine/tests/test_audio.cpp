@@ -568,4 +568,58 @@ TEST(MarkDownbeatMovesTheOne) {
 	CHECK_EQ(an.GetSources().aCount[Src::SRC_Bar], nBars + 1);
 }
 
+TEST(ResetBarsKeepsTheBeat) {
+	// the nearest bar becomes bar 1 of the phrase; the beat within the bar
+	// stays (Mark Downbeat would move it)
+	std::vector<float>	a = Sine(440, 0.02, 40);
+	for (double t : Grid(124, 0.5, 39.5))
+		AddKick(a, static_cast<size_t>(t * 48000), 0.7);
+	AudioAnalyzer	an;
+	an.Reset(48000);
+	const BeatTracker&	bt = an.GetBeatTracker();
+	size_t	i = 0;
+	auto	until = [&](auto done) {
+		for (; i + 512 <= a.size() && !done(); i += 512)
+			an.Process(&a[i], 512);
+	};
+	auto	step = [&] {	// sources update with the next analysis
+		an.Process(&a[i], 512);
+		i += 512;
+	};
+	// early in a bar (beat 2, a quarter in): this bar is bar 1
+	until([&] { return bt.GetBarInPhrase() >= 2 && bt.GetBeatInBar() == 1 && bt.GetPhase() > 0.2; });
+	CHECK(bt.GetBarInPhrase() >= 2);
+	uint32_t	n4 = an.GetSources().aCount[Src::SRC_Bar4];
+	an.ResetBars();
+	step();
+	CHECK_EQ(bt.GetBarInPhrase(), 0);
+	CHECK_EQ(bt.GetBeatInBar(), 1);	// the beat kept
+	CHECK_EQ(an.GetSources().aCount[Src::SRC_Bar4], n4);	// nothing fires mid-bar
+	// late in a bar (beat 4): the next bar is bar 1, and begins every span
+	until([&] { return bt.GetBeatInBar() == 3 && bt.GetPhase() > 0.2; });
+	an.ResetBars();
+	step();
+	CHECK_EQ(bt.GetBarInPhrase(), 31);	// the phrase's last bar, until the next
+	CHECK_EQ(bt.GetBeatInBar(), 3);
+	n4 = an.GetSources().aCount[Src::SRC_Bar4];
+	uint32_t	n32 = an.GetSources().aCount[Src::SRC_Bar32];
+	uint32_t	nBeats = bt.GetBeatCount();
+	until([&] { return bt.GetBeatCount() == nBeats + 1; });
+	step();
+	CHECK_EQ(bt.GetBarInPhrase(), 0);
+	CHECK_EQ(bt.GetBeatInBar(), 0);
+	CHECK_EQ(an.GetSources().aCount[Src::SRC_Bar4], n4 + 1);
+	CHECK_EQ(an.GetSources().aCount[Src::SRC_Bar32], n32 + 1);
+	// just after a bar began (bar 2, a quarter beat in): bar 1 now, its spans fire now
+	until([&] { return bt.GetBarInPhrase() == 1 && bt.GetBeatInBar() == 0 && bt.GetPhase() > 0.2; });
+	n4 = an.GetSources().aCount[Src::SRC_Bar4];
+	uint32_t	nBar = an.GetSources().aCount[Src::SRC_Bar];
+	an.ResetBars();
+	step();
+	CHECK_EQ(bt.GetBarInPhrase(), 0);
+	CHECK_EQ(bt.GetBeatInBar(), 0);
+	CHECK_EQ(an.GetSources().aCount[Src::SRC_Bar4], n4 + 1);
+	CHECK_EQ(an.GetSources().aCount[Src::SRC_Bar], nBar);	// the bar itself had fired already
+}
+
 int main() { return RunAllTests(); }

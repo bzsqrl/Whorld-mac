@@ -192,6 +192,8 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut("8")
 			Button("Mark Downbeat") { ModMap.markDownbeat() }	// the "one" for Bar ... 32-Bar
 				.keyboardShortcut("8", modifiers: [.command, .option])
+			Button("Reset Bar Count") { ModMap.resetBars() }	// the nearest bar is bar 1, the beat kept
+				.keyboardShortcut("8", modifiers: [.command, .option, .shift])
 		}
 
 		CommandGroup(after: .toolbar) {

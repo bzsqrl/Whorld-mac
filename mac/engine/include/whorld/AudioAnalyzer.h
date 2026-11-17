@@ -74,6 +74,7 @@ public:
 	uint64_t	GetAnalysisCount() const { return m_nAnalyses; }
 	const BeatTracker&	GetBeatTracker() const { return m_beat; }
 	void	MarkDownbeat() { m_beat.MarkDownbeat(); }
+	void	ResetBars() { m_beat.ResetBars(); }	// Mac addition
 	size_t	GetWindowSize() const { return m_nWindow; }
 	size_t	GetHopSize() const { return m_nHop; }
 	double	GetSampleRate() const { return m_fSampleRate; }

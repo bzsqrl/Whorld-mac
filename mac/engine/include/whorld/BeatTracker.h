@@ -52,6 +52,13 @@ public:
 	// it's less than half a beat ago, and then every span fires at once; else
 	// the next). 4 beats to a bar.
 	void	MarkDownbeat();
+	// Mac addition (user's request, 2026-11-17): the bar nearest now becomes
+	// bar 1 of the phrase, keeping the beat within the bar (Mark Downbeat
+	// moves that too). In a bar's first half, it's that bar (begun less than
+	// half a beat ago: its 4-Bar ... 32-Bar spans fire now, as Mark
+	// Downbeat's); in its second half, the next bar. Unlocked: as
+	// MarkDownbeat, the next beat counted is the one.
+	void	ResetBars();
 	int		GetBeatInBar() const;	// 0 to 3, the beat just counted (-1 before any)
 	// beats since the one, continuous (as the beats are shifted), while locked
 	double	GetBeatPosition() const { return static_cast<double>(m_iBeat) + GetPhase(); }

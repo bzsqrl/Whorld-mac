@@ -95,6 +95,8 @@ typedef struct {
 - (WHAudioReading)reading;
 /// The beat nearest now is "the one" for Bar ... 32-Bar (BeatTracker::MarkDownbeat).
 - (void)markDownbeat;
+/// The bar nearest now is bar 1, keeping the beat (BeatTracker::ResetBars).
+- (void)resetBars;
 @end
 
 NS_ASSUME_NONNULL_END

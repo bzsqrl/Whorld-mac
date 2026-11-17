@@ -34,6 +34,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)beatPosition:(double *)position;
 /// The beat nearest now is "the one" for Bar ... 32-Bar.
 - (void)markDownbeat;
+// The nearest bar becomes bar 1, keeping the beat within the bar
+- (void)resetBars;
 /// Called on the main thread when peers, tempo or the transport change.
 @property (nonatomic, copy, nullable) void (^changeHandler)(void);
 @end

@@ -213,6 +213,19 @@ double Now()
 	_oneOffset = std::fmod(std::round(fBeat), 128.0);
 }
 
+- (void)resetBars
+{
+	if (!self.drivesBeat)
+		return;
+	double	fBeat = _link->captureAppSessionState().beatAtTime(_link->clock().micros(), kQuantum);
+	std::lock_guard<std::mutex>	lock(_offsetMutex);
+	// the nearest bar (as counted from the one) becomes bar 1: the one moves
+	// by whole bars, so the beat within the bar stays
+	double	fPos = fBeat - _oneOffset;
+	double	fBar = std::round(fPos / kQuantum) * kQuantum;
+	_oneOffset = std::fmod(std::fmod(_oneOffset + fBar, 128.0) + 128.0, 128.0);
+}
+
 @end
 
 bool WHLinkRead(whorld::ModSources& sources)

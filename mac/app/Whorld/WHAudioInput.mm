@@ -331,6 +331,7 @@ NSString *RateText(double fRate)
 	double	_resetRate;		// 0: silent
 	bool	_resetPending;
 	std::atomic<bool>	_markDownbeat;
+	std::atomic<bool>	_resetBars;
 	// analysis thread → readers
 	TripleBuffer	_forRender;
 	TripleBuffer	_forMeter;
@@ -435,6 +436,7 @@ NSString *RateText(double fRate)
 		_sem = dispatch_semaphore_create(0);
 		_quit = false;
 		_markDownbeat = false;
+		_resetBars = false;
 		_settingsChanged = true;
 		_resetRate = 0;
 		_resetPending = true;
@@ -541,6 +543,8 @@ NSString *RateText(double fRate)
 			continue;
 		if (_markDownbeat.exchange(false))
 			analyzer.MarkDownbeat();
+		if (_resetBars.exchange(false))
+			analyzer.ResetBars();
 		uint64_t	nBefore = analyzer.GetAnalysisCount();
 		size_t	n;
 		while ((n = _ring->Pop(chunk.data(), chunk.size())) > 0)
@@ -588,6 +592,12 @@ NSString *RateText(double fRate)
 - (void)markDownbeat
 {
 	_markDownbeat = true;
+	dispatch_semaphore_signal(_sem);
+}
+
+- (void)resetBars
+{
+	_resetBars = true;
 	dispatch_semaphore_signal(_sem);
 }
 

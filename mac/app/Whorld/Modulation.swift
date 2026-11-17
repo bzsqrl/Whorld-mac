@@ -396,6 +396,10 @@ private struct AudioMeter: View {
 				.controlSize(.small)
 				.fixedSize()	// the text gives way, not the button
 				.help("Press on the \"one\" (a drop, the start of a phrase): the beat nearest the press becomes beat 1 of bar 1, for Bar, 4-Bar ... 32-Bar. Image > Mark Downbeat (⌥⌘8) and OSC /w/mod/downbeat do the same.")
+			Button("Reset Bars") { ModMap.resetBars() }
+				.controlSize(.small)
+				.fixedSize()
+				.help("Start the bar count again: the nearest bar becomes bar 1, for 4-Bar ... 32-Bar, without moving the beat (Mark Downbeat moves the beat too). Press anywhere in the first half of a bar for that bar, in the second half for the next. Image > Reset Bar Count (⇧⌥⌘8).")
 		}
 		.padding(.top, 4)
 		.help("The beat tracker learns the tempo from the hits and keeps a steady beat through kicks it can't hear (a busy mix, a breakdown). Beat is a source like the hits.")
@@ -792,6 +796,16 @@ final class ModMap: ObservableObject {
 			WHLink.shared.markDownbeat()
 		} else {
 			WHAudioInput.shared.markDownbeat()
+		}
+	}
+
+	/// Reset Bar Count: the nearest bar is bar 1, keeping the beat (Link's
+	/// while it drives, else the tracker's)
+	static func resetBars() {
+		if WHLink.shared.drivesBeat {
+			WHLink.shared.resetBars()
+		} else {
+			WHAudioInput.shared.resetBars()
 		}
 	}
 
