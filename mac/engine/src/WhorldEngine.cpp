@@ -1350,7 +1350,7 @@ void WhorldEngine::OnSetMainProp(int iProp, const VARIANT_PROP& prop)
 }
 
 // ported from WhorldThread.cpp CWhorldThread::OnSetPatch
-void WhorldEngine::OnSetPatch(const Patch& patch)
+void WhorldEngine::OnSetPatch(const Patch& patch, bool bKeepHue)
 {
 	Patch&	self = *this;	// upcast to patch data base class
 	self = patch;	// copy patch data to base class
@@ -1366,7 +1366,7 @@ void WhorldEngine::OnSetPatch(const Patch& patch)
 		m_aOsc[iParam].SetWaveform(row.iWave);
 		m_aOsc[iParam].SetPulseWidth(row.fPW);
 	}
-	if (m_bHueFromPatch) {	// Mac addition: start from the patch's Hue (V1's SetMainInfo)
+	if (m_bHueFromPatch && !bKeepHue) {	// Mac addition: start from the patch's Hue (V1's SetMainInfo); not in Geometry mode
 		m_fHue = 0;	// new rings then get the patch's Hue, which offsets them
 		m_fHueLoopPos = 0;
 		m_fHueLoopBase = 0;	// and a looped range starts there (OnHueSpanChange below)

@@ -37,6 +37,13 @@ public:
 	// one-line JSON (opaque here), or empty. A [Layout] section, which
 	// Windows Whorld ignores (and drops if it saves the playlist).
 	std::string	m_sLayout;
+	// Mac addition, V1's patch mode (Playlist.cpp "MFPatchMode"): what
+	// playing a patch changes. PM_FULL: everything (Windows V2's only
+	// behavior); PM_GEOMETRY: only the shape and motion parameters
+	// (Patch::MergeGeometry). A [MacPlaylist] section, written only for
+	// Geometry, which Windows Whorld ignores (and drops if it saves).
+	enum { PM_FULL, PM_GEOMETRY };
+	int		m_nPatchMode = PM_FULL;
 
 // Operations
 	bool	Read(const std::string& sPath, std::string* pError = nullptr, bool* pbNewer = nullptr);

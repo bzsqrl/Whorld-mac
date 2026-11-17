@@ -126,7 +126,7 @@ public:
 	void	OnSetGlobalParam(int iParam, double fGlobal);
 	void	OnSetMasterProp(int iProp, double fVal);
 	void	OnSetMainProp(int iProp, const VARIANT_PROP& prop);
-	void	OnSetPatch(const Patch& patch);
+	void	OnSetPatch(const Patch& patch, bool bKeepHue = false);	// bKeepHue: Geometry mode (Mac)
 	void	OnGetPatch(Patch& patch) const;
 	void	OnGetStatus(Status& status) const;
 	bool	OnSetFrameRate(uint32_t nFrameRate);

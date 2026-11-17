@@ -50,6 +50,7 @@ From the Windows accelerator table (`Whorld.rc`, `IDR_MAINFRAME`), with Ctrl map
 | Convex | Ctrl+Tab | ⌃Tab (⌘Tab switches apps) |
 | Loop Hue | F2 | F2 |
 | Zoom Center | Shift+W | ⇧W |
+| Patch Mode: Full / Geometry (Mac, V1's) | — | ⇧F / ⇧G |
 | Antialiasing | Ctrl+Alt+A | ⌥⌘A |
 | Origin Center | Ctrl+0 | ⌘0 |
 | Origin Drag | Ctrl+D | ⌘D |

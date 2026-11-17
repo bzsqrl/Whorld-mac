@@ -137,6 +137,14 @@ struct WhorldCommands: Commands {
 			Divider()
 			Toggle("MIDI Learn", isOn: Binding(get: { model.midiLearn }, set: { model.midiLearn = $0 }))
 				.keyboardShortcut("l", modifiers: [.command, .shift])
+			Divider()
+			// V1's Edit > Patch Mode, with its shortcuts (Mac addition)
+			Menu("Patch Mode") {
+				Toggle("Full", isOn: Binding(get: { !e.geometryMode }, set: { _ in model.setGeometryMode(false) }))
+					.keyboardShortcut("f", modifiers: .shift)
+				Toggle("Geometry", isOn: Binding(get: { e.geometryMode }, set: { _ in model.setGeometryMode(true) }))
+					.keyboardShortcut("g", modifiers: .shift)
+			}
 		}
 
 		// The function keys are Windows Whorld's; on a Mac keyboard they need

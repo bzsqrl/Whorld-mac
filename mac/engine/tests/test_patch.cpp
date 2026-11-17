@@ -429,3 +429,50 @@ TEST(SamplePatchesRoundTrip) {
 }
 
 int main() { return RunAllTests(); }
+
+TEST(MergeGeometryKeepsColorsMasterMainAndGlobals) {
+	// Mac addition, Geometry patch mode: only the shape and motion rows
+	// (value and oscillator) come from the new patch
+	Patch	cur, next;
+	cur.SetDefaults();
+	next.SetDefaults();
+	for (int i = 0; i < WhorldBase::PARAM_COUNT; i++) {
+		WhorldBase::PARAM_ROW&	a = cur.GetParamRow(i);
+		WhorldBase::PARAM_ROW&	b = next.GetParamRow(i);
+		a.fVal = 1; a.iWave = 1; a.fAmp = 0.1; a.fFreq = 0.2; a.fPW = 0.3; a.fGlobal = 0.4;
+		b.fVal = 2; b.iWave = 4; b.fAmp = 0.5; b.fFreq = 0.6; b.fPW = 0.7; b.fGlobal = 0.8;
+	}
+	cur.m_master.fZoom = 1.5;
+	next.m_master.fZoom = 0.5;
+	cur.m_main.bMirror = true;
+	next.m_main.bMirror = false;
+	cur.m_main.fHue = 90;
+	next.m_main.fHue = 200;
+	cur.m_main.bAntialiasing = false;
+	next.m_main.bAntialiasing = true;
+	Patch	merged = cur;
+	merged.MergeGeometry(next);
+	int	nGeometry = 0;
+	for (int i = 0; i < WhorldBase::PARAM_COUNT; i++) {
+		const WhorldBase::PARAM_ROW&	r = merged.GetParamRow(i);
+		const WhorldBase::PARAM_ROW&	want = Patch::IsGeometryParam(i) ? next.GetParamRow(i) : cur.GetParamRow(i);
+		CHECK_EQ(r.fVal, want.fVal);
+		CHECK_EQ(r.iWave, want.iWave);
+		CHECK_EQ(r.fAmp, want.fAmp);
+		CHECK_EQ(r.fFreq, want.fFreq);
+		CHECK_EQ(r.fPW, want.fPW);
+		CHECK_EQ(r.fGlobal, 0.4);	// Global always kept
+		nGeometry += Patch::IsGeometryParam(i);
+	}
+	CHECK_EQ(nGeometry, 14);	// RingGrowth ... Pinwheel and the four curve rows
+	CHECK(Patch::IsGeometryParam(WhorldBase::PARAM_StarFactor));
+	CHECK(Patch::IsGeometryParam(WhorldBase::PARAM_LineWidth));
+	CHECK(!Patch::IsGeometryParam(WhorldBase::PARAM_ColorSpeed));
+	CHECK(!Patch::IsGeometryParam(WhorldBase::PARAM_BkAlpha));
+	CHECK(!Patch::IsGeometryParam(-1));
+	CHECK(!Patch::IsGeometryParam(WhorldBase::PARAM_COUNT));
+	CHECK_EQ(merged.m_master.fZoom, 1.5);
+	CHECK(merged.m_main.bMirror);
+	CHECK_EQ(merged.m_main.fHue, 90.0);
+	CHECK(!merged.m_main.bAntialiasing);
+}

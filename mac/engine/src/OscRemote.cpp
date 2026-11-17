@@ -91,6 +91,7 @@ const char* const	kMiscName[] = {
 	"mod/downbeat",	// MarkDownbeat (the app takes /w/mod/... before the table)
 	"mod/on",	// ModOn
 	"mod/depth",	// ModDepth
+	"geometry",	// GeometryMode
 };
 static_assert(sizeof(kMiscName) / sizeof(kMiscName[0]) == MappingBase::MISC_TARGETS, "a name per miscellaneous target");
 

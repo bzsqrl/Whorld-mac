@@ -88,6 +88,36 @@ void Patch::SetDefaults()
 	m_sAuthor.clear();	// Mac addition
 }
 
+bool Patch::IsGeometryParam(int iParam)
+{
+	switch (iParam) {
+	case PARAM_ColorSpeed:
+	case PARAM_Lightness:
+	case PARAM_Saturation:
+	case PARAM_Alpha:
+	case PARAM_BkHue:
+	case PARAM_BkLightness:
+	case PARAM_BkSaturation:
+	case PARAM_BkAlpha:
+		return false;
+	default:
+		return IsValidParamIdx(iParam);
+	}
+}
+
+void Patch::MergeGeometry(const Patch& src)
+{
+	for (int iParam = 0; iParam < PARAM_COUNT; iParam++) {
+		if (!IsGeometryParam(iParam))
+			continue;
+		PARAM_ROW&	row = m_aParam.row[iParam];
+		const PARAM_ROW&	from = src.m_aParam.row[iParam];
+		double	fGlobal = row.fGlobal;	// globals belong to the performance (V1 kept them in the playlist)
+		row = from;
+		row.fGlobal = fGlobal;
+	}
+}
+
 // ported from Patch.cpp CPatch::GetParamRC
 void Patch::GetParamRC(int iParam, int iProp, VARIANT_PROP& prop) const
 {

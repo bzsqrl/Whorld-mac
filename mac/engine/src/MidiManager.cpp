@@ -217,6 +217,14 @@ void MidiManager::PushMiscTarget(int iMiscTarget, double fNormVal)
 			m_sink.PostToMain(post);
 		}
 		break;
+	case MT_GeometryMode:	// the app owns the playlist's patch mode
+		{
+			Post	post;
+			post.type = Post::PATCH_MODE;
+			post.iVal = fNormVal != 0;
+			m_sink.PostToMain(post);
+		}
+		break;
 	}
 }
 

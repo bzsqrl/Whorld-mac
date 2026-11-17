@@ -335,7 +335,8 @@ typedef struct {
 // document (kind: 0 main properties or draw mode changed, 1 pause toggled,
 // 2 play patch `value`, 3 learn message `value`, 5 parameter row `value`
 // changed, 6 master property `value` changed), and when the MIDI sources
-// change (kind 4). The modulation targets go to modulationOscHandler.
+// change (kind 4); kind 7: the Geometry Mode target set geometryMode. The
+// modulation targets go to modulationOscHandler.
 @property (nonatomic, copy, nullable) void (^midiHandler)(NSInteger kind, uint32_t value);
 
 // OSC remote control (new in the Mac port; WHOscServer, whorld::OscRemote):
@@ -366,6 +367,13 @@ typedef struct {
 // The panel layout saved with the playlist (Mac addition: its [Layout]
 // section, the app's one-line JSON), or nil
 @property (nonatomic, copy, nullable) NSString *playlistLayout;
+// V1's patch mode (Mac addition), saved with the playlist: NO, Full (a
+// patch changes everything, as on Windows V2); YES, Geometry (a patch
+// changes only the shape and motion parameters, whorld::Patch::
+// MergeGeometry, keeping colors, Hue, master and main properties and the
+// Global column). Applies to New, Open and playing a patch. Changed by
+// the MIDI and OSC Geometry Mode target too (midiHandler kind 7).
+@property (nonatomic) BOOL geometryMode;
 // Loads a patch as an untitled document (CWhorldDoc::SetPatch, from
 // CPlaylistBar::Play). Returns NO if it can't be read.
 - (BOOL)playPatchAtPath:(NSString *)path;

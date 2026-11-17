@@ -25,6 +25,8 @@ const char* const Playlist::m_pszPlaylistExt = "whl";
 #define RK_PATCH_PATH		"Path"
 #define RK_LAYOUT_SECTION	"Layout"	// Mac addition
 #define RK_LAYOUT_DATA		"Data"
+#define RK_MAC_SECTION		"MacPlaylist"	// Mac addition
+#define RK_MAC_PATCH_MODE	"PatchMode"
 
 // ported from Playlist.cpp CPlaylist::OnOpenDocument, ValidateFileType, ReadPatches
 bool Playlist::Read(const IniFile& fIn, std::string* pError, bool* pbNewer)
@@ -47,6 +49,8 @@ bool Playlist::Read(const IniFile& fIn, std::string* pError, bool* pbNewer)
 	}
 	m_arrMapping.Read(fIn);	// CMidiManager::ReadMappings
 	m_sLayout = fIn.GetString(RK_LAYOUT_SECTION, RK_LAYOUT_DATA, "");	// Mac addition
+	m_nPatchMode = fIn.GetInt(RK_MAC_SECTION, RK_MAC_PATCH_MODE, PM_FULL) == PM_GEOMETRY	// Mac addition
+		? PM_GEOMETRY : PM_FULL;
 	return true;
 }
 
@@ -61,6 +65,8 @@ void Playlist::Write(IniFile& fOut) const
 		fOut.WriteUnicodeString(RK_PATCH_SECTION "\\" + std::to_string(iPatch), RK_PATCH_PATH, m_arrPatch[iPatch]);
 	}
 	m_arrMapping.Write(fOut);	// CMidiManager::WriteMappings
+	if (m_nPatchMode == PM_GEOMETRY)	// Mac addition, only when not the default
+		fOut.WriteInt(RK_MAC_SECTION, RK_MAC_PATCH_MODE, m_nPatchMode);
 	// Mac addition, last and only when there is one, so other playlists are
 	// byte for byte the Windows format; one line (line breaks would end it)
 	if (!m_sLayout.empty() && m_sLayout.find_first_of("\r\n") == std::string::npos)

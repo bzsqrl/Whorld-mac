@@ -694,14 +694,36 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 
 #pragma mark - Document
 
+// Makes patch the document and sends it (CWhorldView::OnUpdate HINT_NONE).
+// In Geometry mode (Mac addition, V1's CMainFrame::OnNewDocument, which
+// restores master and main settings only in Full mode) the document keeps
+// everything but the new patch's shape and motion rows.
+- (void)applyPatch:(const whorld::Patch&)patch
+{
+	if (_geometryMode) {
+		whorld::Patch	merged = _doc;
+		merged.MergeGeometry(patch);
+		merged.m_sAuthor = patch.m_sAuthor;	// whose patch is playing
+		_doc = merged;
+		whorld::WhorldEngine	*pEngine = _engine.get();
+		[self pushJob:[pEngine, merged] {
+			pEngine->OnSetPatch(merged, true);	// keeping the running hue
+		}];
+	} else {
+		_doc = patch;
+		[self pushPatch];
+	}
+	_loaded = _doc;
+	_modified = NO;
+}
+
 // CWhorldDoc::OnNewDocument: default patch
 - (void)newPatch
 {
-	_doc.SetDefaults();
-	_loaded = _doc;
+	whorld::Patch	patch;
+	patch.SetDefaults();
 	_patchPath = nil;
-	_modified = NO;
-	[self pushPatch];
+	[self applyPatch:patch];
 }
 
 - (BOOL)openPatchAtPath:(NSString *)path error:(NSError **)error
@@ -716,11 +738,8 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 		}
 		return NO;
 	}
-	_doc = patch;
-	_loaded = patch;
 	_patchPath = [path copy];
-	_modified = NO;
-	[self pushPatch];	// CWhorldView::OnUpdate HINT_NONE
+	[self applyPatch:patch];	// CWhorldView::OnUpdate HINT_NONE
 	return YES;
 }
 
@@ -1583,6 +1602,11 @@ static NSString *SourceName(MIDIEndpointRef src)
 		if (_modulationOscHandler)
 			_modulationOscHandler(post.iVal, post.fVal);
 		return;
+	case Post::PATCH_MODE:	// Mac addition: V1's MIDI PatchMode
+		_geometryMode = post.iVal != 0;
+		if (_midiHandler)
+			_midiHandler(7, (uint32_t)post.iVal);
+		return;
 	}
 	if (_midiHandler)
 		_midiHandler(0, 0);
@@ -1808,6 +1832,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	[self oscSend:p + "/patch/author" arg:OscArg::String(_doc.m_sAuthor)];
 	[self oscSend:p + "/playlist/name" arg:OscArg::String(playlistName.UTF8String ?: "")];
 	[self oscSend:p + "/fs" arg:OscArg::Float(fullScreen ? 1 : 0)];
+	[self oscSend:p + "/geometry" arg:OscArg::Float(_geometryMode ? 1 : 0)];
 	double	fDepth;
 	bool	bBypass;
 	{
@@ -1848,6 +1873,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	_playlistPatches.clear();
 	_midiMgr->m_midiMaps.RemoveAll();
 	_playlistLayout = nil;
+	_geometryMode = NO;	// V1's CMainFrame::SetDefaults: PM_FULL
 }
 
 // ported from Playlist.cpp CPlaylist::OnOpenDocument
@@ -1866,6 +1892,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	}
 	_playlistPatches = pl.m_arrPatch;
 	_playlistLayout = pl.m_sLayout.empty() ? nil : ToNS(pl.m_sLayout);
+	_geometryMode = pl.m_nPatchMode == whorld::Playlist::PM_GEOMETRY;
 	_midiMgr->m_midiMaps.SetArray(pl.m_arrMapping);
 	return YES;
 }
@@ -1877,6 +1904,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	pl.m_arrPatch = _playlistPatches;
 	pl.m_arrMapping = _midiMgr->m_midiMaps.GetArray();
 	pl.m_sLayout = _playlistLayout.UTF8String ?: "";
+	pl.m_nPatchMode = _geometryMode ? whorld::Playlist::PM_GEOMETRY : whorld::Playlist::PM_FULL;
 	std::string	sErr;
 	if (!pl.Write(path.fileSystemRepresentation, &sErr)) {
 		if (error) {
@@ -1904,11 +1932,8 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	whorld::Patch	patch;
 	if (!patch.Read(path.fileSystemRepresentation))
 		return NO;
-	_doc = patch;
-	_loaded = patch;
 	_patchPath = nil;
-	_modified = NO;
-	[self pushPatch];
+	[self applyPatch:patch];
 	return YES;
 }
 

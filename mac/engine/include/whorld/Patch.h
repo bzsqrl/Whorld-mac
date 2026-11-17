@@ -64,6 +64,15 @@ public:
 	void	SetMainProp(int iProp, const VARIANT_PROP& prop);
 	double	GetGlobalParam(int iParam) const;
 	void	SetGlobalParam(int iParam, double fVal);
+	// Mac addition, Geometry patch mode (V1's Edit > Patch Mode > Geometry,
+	// narrowed at the user's request): the parameters a patch played in
+	// Geometry mode changes, the ring's shape and motion. Ring color
+	// (Color Speed, Lightness, Saturation, Alpha) and background color
+	// (Bk Hue, Bk Lightness, Bk Saturation, Bk Alpha) are kept.
+	static bool	IsGeometryParam(int iParam);
+	// Copies src's geometry rows (value and oscillator: Val, Wave, Amp, Freq,
+	// PW), not their Global column; master and main properties are kept
+	void	MergeGeometry(const Patch& src);
 
 // Operations
 	static std::string	ParamToString(int iProp, const VARIANT_PROP& prop);

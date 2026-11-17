@@ -165,6 +165,32 @@ TEST(PlaylistLayoutSection) {
 	CHECK(WriteIni(bad).find("Layout") == std::string::npos);
 }
 
+TEST(PlaylistPatchMode) {
+	// Mac addition, V1's patch mode: a [MacPlaylist] section, only for Geometry
+	Playlist	pl;
+	pl.m_arrPatch = {"a.whp"};
+	IniFile	full;
+	pl.Write(full);
+	CHECK(WriteIni(full).find("MacPlaylist") == std::string::npos);	// Full: the Windows format
+	pl.m_nPatchMode = Playlist::PM_GEOMETRY;
+	IniFile	geo;
+	pl.Write(geo);
+	std::string	text = WriteIni(geo);
+	CHECK(text.find("[MacPlaylist]\r\nPatchMode=1\r\n") != std::string::npos);
+	std::istringstream	in(text);
+	IniFile	back;
+	back.Read(in);
+	Playlist	q;
+	CHECK(q.Read(back));
+	CHECK_EQ(q.m_nPatchMode, int(Playlist::PM_GEOMETRY));
+	std::istringstream	inFull(WriteIni(full));	// a playlist without it: Full
+	IniFile	backFull;
+	backFull.Read(inFull);
+	q.m_nPatchMode = Playlist::PM_GEOMETRY;
+	CHECK(q.Read(backFull));
+	CHECK_EQ(q.m_nPatchMode, int(Playlist::PM_FULL));
+}
+
 TEST(SamplePlaylistValues) {
 	fs::path	path = fs::path(WHORLD_TESTDATA_DIR) / "playlists" / "SMC-Mixer_Logitech_8BitDo.whl";
 	if (!fs::exists(path))
@@ -194,8 +220,10 @@ TEST(MappingDefaultsAndNames) {
 	CHECK_EQ(m.m_iControl, 1);
 	CHECK_EQ(m.m_fEnd, 100.0);
 	// 17 miscellaneous targets on Windows, plus the Mac's Hue, Rotate Hue, Invert Color,
-	// Mark Downbeat, Modulation On and Modulation Depth
-	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 23);
+	// Mark Downbeat, Modulation On, Modulation Depth and Geometry Mode
+	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 24);
+	CHECK_EQ(MB::GetTargetName(MB::TARGET_GeometryMode), std::string("Geometry Mode"));
+	CHECK_EQ(MB::GetTargetType(MB::TARGET_GeometryMode), int(MB::TT_BOOL));
 	CHECK_EQ(MB::GetTargetName(MB::TARGET_ModDepth), std::string("Modulation Depth"));
 	CHECK_EQ(MB::GetTargetType(MB::TARGET_ModOn), int(MB::TT_BOOL));
 	CHECK(MB::IsMacOnlyTarget(MB::TARGET_ModDepth));
@@ -357,6 +385,26 @@ TEST(ModulationTargets) {
 	CHECK_EQ(sink.posts[0].iVal, 1);
 	CHECK_NEAR(sink.posts[0].fVal, 1.0, 1e-12);
 	CHECK(sink.cmds.empty());
+}
+
+TEST(GeometryModeTarget) {
+	// Mac addition: V1's MIDI PatchMode, carried out by the app
+	CHECK(MB::IsMacOnlyTarget(MB::TARGET_GeometryMode));	// so in [MacMapping]
+	RecordingSink	sink;
+	MidiManager	mgr(sink);
+	MappingArray	maps;
+	maps.push_back(MakeMapping(MIDI_CVM_NOTE_ON, 0, 42, MB::TARGET_GeometryMode));
+	mgr.m_midiMaps.SetArray(maps);
+	using Post = MidiManager::Post;
+	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 42, 100));	// on
+	CHECK(sink.cmds.empty());
+	CHECK_EQ(sink.posts.size(), size_t(1));
+	CHECK_EQ(sink.posts[0].type, Post::PATCH_MODE);
+	CHECK_EQ(sink.posts[0].iVal, 1);
+	sink.Clear();
+	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 42, 0));	// off
+	CHECK_EQ(sink.posts[0].type, Post::PATCH_MODE);
+	CHECK_EQ(sink.posts[0].iVal, 0);
 }
 
 TEST(MacOnlyMappingsHaveTheirOwnSection) {

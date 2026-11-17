@@ -952,6 +952,11 @@ struct PlaylistPanel: View {
 					.help("Move down")
 					.disabled(model.playlistSelection.isEmpty)
 				Spacer()
+				Toggle("Geometry", isOn: Binding(get: { model.engine.geometryMode },
+					set: { model.setGeometryMode($0) }))
+					.toggleStyle(.button)
+					.controlSize(.small)
+					.help("Geometry mode: playing a patch changes only its shape and motion, keeping colors, Hue, Master, Properties and Global values. Off, Full mode: everything changes. Saved with the playlist (Playlist > Patch Mode).")
 				Text(model.playlistTitle + (model.playlistModified ? " — Edited" : ""))
 					.font(.caption)
 					.foregroundStyle(.secondary)

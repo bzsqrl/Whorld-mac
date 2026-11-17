@@ -289,6 +289,9 @@ final class AppModel: ObservableObject {
 			learn(value)
 		case 4:	// MIDI sources changed
 			changes.midi.bump()
+		case 7:	// the Geometry Mode target (engine.geometryMode is already set)
+			changes.playlist.bump()
+			changes.menus.bump()
 		case 5:	// a parameter, from a mapping
 			midiPending.params.insert(Int(value))
 			scheduleMidiRefresh()
@@ -478,6 +481,20 @@ final class AppModel: ObservableObject {
 			updateTitle()
 			changed()
 		}
+	}
+
+	/// V1's patch mode (Mac addition, saved with the playlist): in Geometry
+	/// mode New, Open and playing a patch change only its shape and motion
+	/// parameters (WHEngine geometryMode). Set from the menu or the panel,
+	/// it marks the playlist edited; from MIDI or OSC (onMidi kind 7) it
+	/// doesn't, as V1's PatchMode controller didn't, so live switching
+	/// doesn't leave a playlist to save.
+	func setGeometryMode(_ on: Bool) {
+		guard on != engine.geometryMode else { return }
+		engine.geometryMode = on
+		playlistModified = true
+		changes.playlist.bump()
+		changes.menus.bump()
 	}
 
 	/// The playlist's next (+1) or previous (-1) patch, wrapping around at
