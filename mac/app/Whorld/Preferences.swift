@@ -7,6 +7,7 @@
 // Software Foundation, either version 3 of the License, or (at your option)
 // any later version. See the LICENSE file at the repository root.
 
+import AppKit
 import SwiftUI
 
 /// Options from OptionsDef.h, stored in UserDefaults under the Windows
@@ -206,6 +207,7 @@ struct PreferencesView: View {
 				.tag(3)
 		}
 		.frame(width: 520, height: 500)
+		.background(NoInitialFocus(tab: tab))
 		.onAppear { Preferences.register() }
 	}
 
@@ -476,6 +478,52 @@ private struct InfoButton: View {
 				.fixedSize(horizontal: false, vertical: true)
 				.frame(width: 300, alignment: .leading)
 				.padding(12)
+		}
+	}
+}
+
+/// Clears the Settings window's first responder when it opens and when the
+/// tab changes: AppKit gives the first text field on the page focus, which
+/// selects its text (the author name, an OSC port) as if it were about to be
+/// typed over. A field takes focus when it's clicked, as usual.
+private struct NoInitialFocus: NSViewRepresentable {
+	let tab: Int
+
+	func makeNSView(context: Context) -> Probe { Probe() }
+
+	func updateNSView(_ view: Probe, context: Context) {
+		guard view.tab != tab else { return }
+		view.tab = tab
+		view.clearSoon()
+	}
+
+	final class Probe: NSView {
+		var tab: Int?
+		private var observer: NSObjectProtocol?
+
+		override func viewDidMoveToWindow() {
+			super.viewDidMoveToWindow()
+			if let observer { NotificationCenter.default.removeObserver(observer) }
+			observer = nil
+			guard let window else { return }
+			// the window is kept when closed, so clear again each time it opens
+			observer = NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification,
+				object: window, queue: .main) { [weak self] _ in
+				MainActor.assumeIsolated { self?.clearSoon() }
+			}
+			clearSoon()
+		}
+
+		/// After AppKit has picked the key view for the page
+		func clearSoon() {
+			DispatchQueue.main.async { [weak self] in
+				guard let window = self?.window, window.firstResponder is NSText else { return }
+				window.makeFirstResponder(nil)
+			}
+		}
+
+		deinit {
+			if let observer { NotificationCenter.default.removeObserver(observer) }
 		}
 	}
 }
