@@ -349,8 +349,16 @@ private struct AudioMeter: View {
 				.font(.caption)
 				.monospacedDigit()
 				.foregroundStyle(.secondary)
+				// a fixed width (the widest reading, "-150 dB"), so the column
+				// beside doesn't move as the reading's length changes
+				.frame(width: Self.detailWidth, alignment: .leading)
 		}
 	}
+
+	private static let detailWidth: CGFloat = {
+		let font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .caption1).pointSize, weight: .regular)
+		return ceil(("-150 dB" as NSString).size(withAttributes: [.font: font]).width) + 2
+	}()
 
 	/// Ableton Link's beat now, while it drives the beat (nil otherwise; a
 	/// nil beat while stopped)
