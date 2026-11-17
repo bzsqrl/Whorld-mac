@@ -34,8 +34,8 @@ From the Windows accelerator table (`Whorld.rc`, `IDR_MAINFRAME`), with Ctrl map
 | Load Snapshot | Ctrl+L | ⌘L |
 | Export image | Ctrl+E | ⌘E |
 | First / Previous / Next / Last snapshot | Home / Page Up / Page Down / End | same |
-| Record movie | Ctrl+M | ⌘M |
-| Play movie | Ctrl+Shift+M | ⇧⌘M |
+| Record movie, Play movie | Ctrl+M, Ctrl+Shift+M | none (Movie menu) |
+| Modulation window, open or close (Mac) | — | ⌘M |
 | Rewind movie | Ctrl+Home | ⌘Home |
 | MIDI Mapping window | Shift+I | ⇧⌘I |
 | MIDI Learn | Shift+L | ⇧⌘L |

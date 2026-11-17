@@ -24,6 +24,20 @@ struct WhorldCommands: Commands {
 		return same ? "\(name) — \(url.deletingLastPathComponent().lastPathComponent)" : name
 	}
 
+	/// Command-M: closes the Modulation window if it's in front, brings it
+	/// forward if it's open behind, and opens it otherwise
+	private func toggleModulation() {
+		if let w = NSApp.windows.first(where: { $0.identifier?.rawValue.hasPrefix("modulation") == true && $0.isVisible }) {
+			if w.isKeyWindow {
+				w.close()
+			} else {
+				w.makeKeyAndOrderFront(nil)
+			}
+		} else {
+			openWindow(id: "modulation")
+		}
+	}
+
 	/// A menu item with a standard check mark, reading its state from the
 	/// engine's document and toggling it through the given action.
 	private func toggle(_ title: String, _ isOn: Bool, _ action: @escaping () -> Void) -> some View {
@@ -99,12 +113,11 @@ struct WhorldCommands: Commands {
 
 		CommandMenu("Movie") {
 			let ms = model.engine.movieState
+			// no shortcuts (the user's choice, 2026-11-17: Windows' Ctrl+M,
+			// Command-M here, opens the Modulation window instead)
 			Button(ms.io == .writing ? "Stop Recording" : "Record…") { model.toggleRecordMovie() }
-				.keyboardShortcut("m")
 				.disabled(ms.io == .reading)
 			Button(ms.io == .reading ? "Stop Playing" : "Play…") { model.togglePlayMovie() }
-				// Windows' Ctrl+Shift+M would be Shift-Cmd-M, the Master panel's
-				.keyboardShortcut("m", modifiers: [.control, .command])
 				.disabled(ms.io == .writing)
 			Button("Rewind") { model.rewindMovie() }
 				.keyboardShortcut(.home, modifiers: .command)
@@ -259,7 +272,8 @@ struct WhorldCommands: Commands {
 			Button("Reset Layout…") { model.resetLayout() }
 			Button("Save Layout…") { model.saveLayout() }
 			Button("Open Layout…") { model.openLayout() }
-			Button("Modulation…") { openWindow(id: "modulation") }	// audio modulation
+			Button("Modulation…") { toggleModulation() }	// audio modulation
+				.keyboardShortcut("m")	// (macOS's Minimize key; Minimize stays in this menu)
 			Button("Key Map…") { openWindow(id: "keymap") }	// keys held over the picture
 			Divider()
 		}
