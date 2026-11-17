@@ -61,6 +61,10 @@ enum AudioSettings {
 struct ModulationView: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: 0) {
+			ModTopBar()
+				.padding(.horizontal, 16)
+				.padding(.vertical, 10)
+			Divider()
 			AudioInputSection()
 				.padding(16)
 			Divider()
@@ -68,6 +72,34 @@ struct ModulationView: View {
 		}
 		.frame(minWidth: 1200, minHeight: 640)
 		.onAppear { AudioSettings.register() }
+	}
+}
+
+/// The top row: modulation on or off and its depth, then the rows' files.
+private struct ModTopBar: View {
+	@ObservedObject private var map = ModMap.shared
+
+	var body: some View {
+		HStack(spacing: 12) {
+			Toggle("Modulation", isOn: Binding(get: { !map.bypass }, set: { map.bypass = !$0 }))
+				.toggleStyle(.switch)
+				.help("All rows on or off; off, the patches play as they are. Image > Audio Modulation (⌘8), OSC /w/mod/on.")
+			Text("Depth")
+				.padding(.leading, 8)
+			Slider(value: $map.depth, in: 0...1)
+				.frame(width: 160)
+				.help("Scales every row at once. OSC /w/mod/depth.")
+			Text(String(format: "%.0f%%", map.depth * 100))
+				.monospacedDigit()
+				.frame(width: 40, alignment: .trailing)
+			Spacer()
+			Button("Restore Defaults") { map.restoreDefaults() }
+				.help("The starting rows: bass widens the lines, a kick pulses the zoom.")
+			Button("Import…") { map.importFile() }
+				.help("Replace the rows with a saved file's.")
+			Button("Export…") { map.export() }
+				.help("Save the rows, depth and on/off in a file.")
+		}
 	}
 }
 
@@ -884,34 +916,16 @@ private struct ModTablesSection: View {
 		VStack(spacing: 0) {
 			rowsTable
 			Divider()
-			VStack(alignment: .leading, spacing: 8) {
+			HStack(spacing: 12) {
+				Button { add() } label: { Image(systemName: "plus") }
+					.help("Add a row (a copy of the selected one, if any)")
+				Button { remove() } label: { Image(systemName: "minus") }
+					.help("Remove the selected rows")
+					.disabled(selection.isEmpty)
 				if let notice = map.notice {
 					Text(notice).font(.caption).foregroundStyle(.orange)
 				}
-				Text("Each row moves a control by a share of its slider as the sound (or a hit) rises, from the patch's own value; the patch itself never changes. Rows on the same control add up. Attack and release smooth the movement (ms); a hit's pulse fades over its release. Actions fire on a hit, or when a sound rises past the threshold. The Beat LFO is a wave locked to the beat; set its length, shape and phase with the menu beside it. A Frequency target locks a parameter's own oscillator to the beat instead: one cycle every beat, bar or so many bars (finer lengths and the phase in the menu beside the source), keeping the patch's waveform and amplitude.")
-					.font(.caption)
-					.foregroundStyle(.secondary)
-					.fixedSize(horizontal: false, vertical: true)
-				HStack(spacing: 12) {
-					Button { add() } label: { Image(systemName: "plus") }
-						.help("Add a row (a copy of the selected one, if any)")
-					Button { remove() } label: { Image(systemName: "minus") }
-						.help("Remove the selected rows")
-						.disabled(selection.isEmpty)
-					Divider().frame(height: 16)
-					Toggle("Modulation on", isOn: Binding(get: { !map.bypass }, set: { map.bypass = !$0 }))
-						.help("Image > Audio Modulation (⌘8). Off: the patches as they are.")
-					Text("Depth")
-					Slider(value: $map.depth, in: 0...1)
-						.frame(width: 140)
-					Text(String(format: "%.0f%%", map.depth * 100))
-						.monospacedDigit()
-						.frame(width: 40, alignment: .trailing)
-					Spacer()
-					Button("Restore Defaults") { map.restoreDefaults() }
-					Button("Import…") { map.importFile() }
-					Button("Export…") { map.export() }
-				}
+				Spacer()
 			}
 			.padding(10)
 		}
@@ -936,11 +950,11 @@ private struct ModTablesSection: View {
 
 	private var rowsTable: some View {
 			Table($map.rows, selection: $selection) {
-				TableColumn("On") { $r in
+				TableColumn("On" + ColumnTips.mark) { $r in
 					Toggle("", isOn: $r.on).labelsHidden()
 				}
-				.width(30)
-				TableColumn("Source") { $r in
+				.width(46)
+				TableColumn("Source" + ColumnTips.mark) { $r in
 					HStack(spacing: 2) {
 						if r.isOscillator {	// the beat's spans: the cycle's length
 							Picker("", selection: Binding(get: { r.source }, set: {
@@ -980,12 +994,12 @@ private struct ModTablesSection: View {
 						}
 					}
 				}
-				.width(min: 100, ideal: 210)
-				TableColumn("Live") { $r in
+				.width(min: 100, ideal: 160)
+				TableColumn("Live" + ColumnTips.mark) { $r in
 					LevelBar(value: level(of: r.id))
 				}
 				.width(60)
-				TableColumn("Target") { $r in
+				TableColumn("Target" + ColumnTips.mark) { $r in
 					Picker("", selection: Binding(
 						get: { ModMap.TargetChoice(target: r.isAction ? "" : r.target, prop: r.isAction ? 0 : r.prop, action: r.action) },
 						set: { c in
@@ -1009,8 +1023,8 @@ private struct ModTablesSection: View {
 					}
 					.labelsHidden()
 				}
-				.width(min: 150, ideal: 170)
-				TableColumn("Amount") { $r in
+				.width(min: 140, ideal: 160)
+				TableColumn("Amount" + ColumnTips.mark) { $r in
 					if r.isAction {
 						Text("fires").foregroundStyle(.secondary)
 					} else if r.isOscillator {	// what the lock keeps
@@ -1024,8 +1038,8 @@ private struct ModTablesSection: View {
 						}
 					}
 				}
-				.width(min: 150, ideal: 170)
-				TableColumn("Curve") { $r in
+				.width(min: 140, ideal: 150)
+				TableColumn("Curve" + ColumnTips.mark) { $r in
 					if r.isOscillator {
 						Text("—").foregroundStyle(.secondary)
 					} else {
@@ -1039,7 +1053,7 @@ private struct ModTablesSection: View {
 					}
 				}
 				.width(min: 70, ideal: 80)
-				TableColumn("Polarity") { $r in
+				TableColumn("Polarity" + ColumnTips.mark) { $r in
 					if r.isAction || r.isOscillator {
 						Text("—").foregroundStyle(.secondary)
 					} else {
@@ -1051,7 +1065,7 @@ private struct ModTablesSection: View {
 					}
 				}
 				.width(min: 80, ideal: 90)
-				TableColumn("Attack · Release") { $r in	// one column: a Table takes ten at most
+				TableColumn("Attack · Release" + ColumnTips.mark) { $r in	// one column: a Table takes ten at most
 					HStack(spacing: 4) {
 						if r.isLFO || r.isOscillator {	// locked to the beat: not smoothed
 							Text("—").foregroundStyle(.secondary)
@@ -1070,7 +1084,7 @@ private struct ModTablesSection: View {
 					}
 				}
 				.width(124)
-				TableColumn("Offset") { $r in
+				TableColumn("Offset" + ColumnTips.mark) { $r in
 					if r.isTrigger || r.isLFO || r.isOscillator {
 						OffsetField(value: $r.offsetMs, earlyAllowed: r.isBeatBased || r.isLFO)
 					} else {
@@ -1078,7 +1092,7 @@ private struct ModTablesSection: View {
 					}
 				}
 				.width(64)
-				TableColumn("Threshold") { $r in
+				TableColumn("Threshold" + ColumnTips.mark) { $r in
 					if !r.isOscillator && (r.curve == 3 || (r.isAction && !r.isTrigger)) {
 						TextField("", value: $r.threshold, format: .number.precision(.fractionLength(2)))
 							.multilineTextAlignment(.trailing)
@@ -1087,13 +1101,54 @@ private struct ModTablesSection: View {
 						Text("—").foregroundStyle(.secondary)
 					}
 				}
-				.width(64)
+				.width(92)
 			}
+			.background(ColumnTips())
 	}
 
 	private func level(of id: ModRowSetting.ID) -> Double {
 		guard let i = map.rows.firstIndex(where: { $0.id == id }), i < levels.levels.count else { return 0 }
 		return levels.levels[i]
+	}
+}
+
+/// Tooltips on the routing table's column headers (SwiftUI's TableColumn
+/// takes only a text title): the table underneath is an NSTableView, whose
+/// columns have header tooltips; each title ends with an info mark.
+private struct ColumnTips: NSViewRepresentable {
+	static let mark = "  ⓘ"
+	static let tips: [String: String] = [
+		"On": "Turn the row on or off.",
+		"Source": "What moves the target: a level, a band, a hit, the beat, or the Beat LFO (a wave locked to the beat: length, shape and phase in the menu beside it).",
+		"Live": "The source now, after smoothing and the curve.",
+		"Target": "The control the row moves, from the patch's own value (the patch never changes; rows on one control add up); an action, fired on a hit; or a parameter's Frequency, which locks its oscillator to the beat (length and phase beside the source).",
+		"Amount": "How far the target moves at full level, as a share of its slider; negative moves it down.",
+		"Curve": "Linear; Soft (quiet passages count more); Hard (only loud ones); Gate (all or nothing at the threshold).",
+		"Polarity": "Up: from the value upward. Centered: either side of it.",
+		"Attack · Release": "How quickly the movement rises and falls, in ms. A hit's pulse fades over its release.",
+		"Offset": "Moves beat rows this many ms early (−) or late. Hits can only be late.",
+		"Threshold": "For the Gate curve, and actions on a sound: the level, 0 to 1, that sets them off.",
+	]
+
+	func makeNSView(context: Context) -> NSView { NSView() }
+
+	func updateNSView(_ view: NSView, context: Context) {
+		DispatchQueue.main.async {	// once the table is in the window
+			guard let root = view.window?.contentView, let table = Self.table(in: root) else { return }
+			for column in table.tableColumns {
+				let title = column.headerCell.stringValue
+				let name = title.hasSuffix(Self.mark) ? String(title.dropLast(Self.mark.count)) : title
+				column.headerToolTip = Self.tips[name]
+			}
+		}
+	}
+
+	private static func table(in view: NSView) -> NSTableView? {
+		if let t = view as? NSTableView { return t }
+		for sub in view.subviews {
+			if let t = table(in: sub) { return t }
+		}
+		return nil
 	}
 }
 
