@@ -263,6 +263,7 @@ private struct AudioInputSection: View {
 			}
 			GridRow(alignment: .top) {
 				Text("Hearing")
+					.help("What Whorld hears, live: the level and bands, the hits (lights and hits a second), and the beat. The beat tracker learns the tempo from the hits and keeps a steady beat through kicks it can't hear (a busy mix, a breakdown).")
 				AudioMeter()
 			}
 		}
@@ -325,44 +326,47 @@ private struct AudioMeter: View {
 	@State private var history: [(time: Date, counts: [UInt32])] = []	// the last few seconds, for rates
 
 	var body: some View {
-		TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
-			let r = WHAudioInput.shared.reading()
-			let now = context.date
-			let link = linkBeat()
-			HStack(alignment: .top, spacing: 24) {
-				VStack(alignment: .leading, spacing: 4) {
-					bar("Level", r.level, detail: r.levelDb > -150 ? String(format: "%.0f dB", r.levelDb) : "")
-					bar("Bass", r.bass)
-					bar("Low Mid", r.lowMid)
-					bar("High Mid", r.highMid)
-					bar("Treble", r.treble)
-					bar("Brightness", r.brightness)
+		HStack(alignment: .bottom, spacing: 6) {
+			TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
+				let r = WHAudioInput.shared.reading()
+				let now = context.date
+				let link = linkBeat()
+				HStack(alignment: .top, spacing: 24) {
+					VStack(alignment: .leading, spacing: 4) {
+						bar("Level", r.level, detail: r.levelDb > -150 ? String(format: "%.0f dB", r.levelDb) : "")
+						bar("Bass", r.bass)
+						bar("Low Mid", r.lowMid)
+						bar("High Mid", r.highMid)
+						bar("Treble", r.treble)
+						bar("Brightness", r.brightness)
+					}
+					VStack(alignment: .leading, spacing: 8) {
+						light("Hit", lit: now < flashUntil[0], rate: rate(0))
+						light("Kick", lit: now < flashUntil[1], rate: rate(1))
+						light("Hats", lit: now < flashUntil[2], rate: rate(2))
+						Text("hits a second, over 4 s")
+							.font(.caption2)
+							.foregroundStyle(.secondary)
+						beatRow(r, link: link, lit: now < flashUntil[3])
+					}
 				}
-				VStack(alignment: .leading, spacing: 8) {
-					light("Hit", lit: now < flashUntil[0], rate: rate(0))
-					light("Kick", lit: now < flashUntil[1], rate: rate(1))
-					light("Hats", lit: now < flashUntil[2], rate: rate(2))
-					Text("hits a second, over 4 s")
-						.font(.caption2)
-						.foregroundStyle(.secondary)
-					beatRow(r, link: link, lit: now < flashUntil[3])
+				.onChange(of: link?.beat) { _, beat in	// Ableton Link's beats flash the Beat light
+					if beat != nil {
+						flashUntil[3] = Date().addingTimeInterval(0.12)
+					}
+				}
+				.onChange(of: [r.hits, r.kicks, r.hats, r.beats]) { _, counts in
+					for i in 0..<4 where counts[i] != lastCounts[i] {
+						flashUntil[i] = Date().addingTimeInterval(0.12)
+					}
+					lastCounts = counts
+				}
+				.onChange(of: Int(now.timeIntervalSinceReferenceDate * 4)) {	// four times a second
+					history.append((now, [r.hits, r.kicks, r.hats, r.beats]))
+					history.removeAll { now.timeIntervalSince($0.time) > 4.1 }
 				}
 			}
-			.onChange(of: link?.beat) { _, beat in	// Ableton Link's beats flash the Beat light
-				if beat != nil {
-					flashUntil[3] = Date().addingTimeInterval(0.12)
-				}
-			}
-			.onChange(of: [r.hits, r.kicks, r.hats, r.beats]) { _, counts in
-				for i in 0..<4 where counts[i] != lastCounts[i] {
-					flashUntil[i] = Date().addingTimeInterval(0.12)
-				}
-				lastCounts = counts
-			}
-			.onChange(of: Int(now.timeIntervalSinceReferenceDate * 4)) {	// four times a second
-				history.append((now, [r.hits, r.kicks, r.hats, r.beats]))
-				history.removeAll { now.timeIntervalSince($0.time) > 4.1 }
-			}
+			beatButtons
 		}
 	}
 
@@ -424,6 +428,14 @@ private struct AudioMeter: View {
 				.lineLimit(1)
 				.truncationMode(.tail)
 				.frame(minWidth: 180, maxWidth: 300, alignment: .leading)
+		}
+		.padding(.top, 4)
+	}
+
+	/// Mark Downbeat and Reset Bars, outside the TimelineView: a view it
+	/// redraws (30 times a second) can't keep a tooltip showing
+	private var beatButtons: some View {
+		HStack(spacing: 6) {
 			Button("Mark Downbeat") { ModMap.markDownbeat() }
 				.controlSize(.small)
 				.fixedSize()	// the text gives way, not the button
@@ -433,8 +445,6 @@ private struct AudioMeter: View {
 				.fixedSize()
 				.help("Start the bar count again: the nearest bar becomes bar 1, for 4-Bar ... 32-Bar, without moving the beat (Mark Downbeat moves the beat too). Press anywhere in the first half of a bar for that bar, in the second half for the next. Image > Reset Bar Count (⇧⌥⌘8), OSC /w/mod/bars and the Reset Bar Count MIDI target do the same.")
 		}
-		.padding(.top, 4)
-		.help("The beat tracker learns the tempo from the hits and keeps a steady beat through kicks it can't hear (a busy mix, a breakdown). Beat is a source like the hits.")
 	}
 
 	/// hits a second of one kind over the last 4 seconds (nil until there's enough)
@@ -882,6 +892,10 @@ final class ModMap: ObservableObject {
 /// The rows' live levels, polled from the engine while the window shows.
 @MainActor
 private final class ModLevels: ObservableObject {
+	// shared, and observed only by each row's meter (RowLevel): a view that
+	// holds it redraws whenever it changes, and the table redrawing 20 times
+	// a second dismissed the tooltips in it and on its headers
+	static let shared = ModLevels()
 	@Published var levels: [Double] = []
 	private var timer: Timer?
 
@@ -909,7 +923,7 @@ private final class ModLevels: ObservableObject {
 /// parameter's Frequency target.)
 private struct ModTablesSection: View {
 	@ObservedObject private var map = ModMap.shared
-	@StateObject private var levels = ModLevels()
+	private let levels = ModLevels.shared	// not observed here (see ModLevels)
 	@State private var selection = Set<ModRowSetting.ID>()
 
 	var body: some View {
@@ -996,7 +1010,7 @@ private struct ModTablesSection: View {
 				}
 				.width(min: 100, ideal: 160)
 				TableColumn("Live" + ColumnTips.mark) { $r in
-					LevelBar(value: level(of: r.id))
+					RowLevel(index: map.rows.firstIndex(where: { $0.id == r.id }) ?? -1)
 				}
 				.width(60)
 				TableColumn("Target" + ColumnTips.mark) { $r in
@@ -1106,9 +1120,15 @@ private struct ModTablesSection: View {
 			.background(ColumnTips())
 	}
 
-	private func level(of id: ModRowSetting.ID) -> Double {
-		guard let i = map.rows.firstIndex(where: { $0.id == id }), i < levels.levels.count else { return 0 }
-		return levels.levels[i]
+}
+
+/// A row's live level: the only view that observes the levels
+private struct RowLevel: View {
+	let index: Int
+	@ObservedObject private var levels = ModLevels.shared
+
+	var body: some View {
+		LevelBar(value: index >= 0 && index < levels.levels.count ? levels.levels[index] : 0)
 	}
 }
 
@@ -1138,7 +1158,9 @@ private struct ColumnTips: NSViewRepresentable {
 			for column in table.tableColumns {
 				let title = column.headerCell.stringValue
 				let name = title.hasSuffix(Self.mark) ? String(title.dropLast(Self.mark.count)) : title
-				column.headerToolTip = Self.tips[name]
+				if column.headerToolTip != Self.tips[name] {	// setting it again would dismiss one showing
+					column.headerToolTip = Self.tips[name]
+				}
 			}
 		}
 	}
