@@ -439,7 +439,7 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 	var on = true
 	var source = "Bass"
 	var target = "LineWidth"	// a control's mapping tag
-	var prop = 0				// a parameter's column: Val, Global, Amp, or Freq for its Oscillator (WHParamProperty)
+	var prop = 0				// a parameter's column: Val, Global, Amp, or Freq (locks its oscillator to the beat) (WHParamProperty)
 	var action = ""				// a ModActions tag: the row fires it instead of moving a control
 	var amount = 0.25			// -1 to 1, of the target's slider travel
 	var curve = 0				// ModRow::CURVE_*
@@ -448,7 +448,7 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 	var releaseMs = 200.0
 	var threshold = 0.5			// for the gate curve and for actions
 	var offsetMs = 0.0			// -300 to 300: beat-based sources fire early (-) or late; hits only late
-	var lfoBeats = 4.0			// the Beat LFO, or an Oscillator row: beats per cycle (ModSyncSetting.divisions)
+	var lfoBeats = 4.0			// the Beat LFO, or a Frequency row: beats per cycle (ModSyncSetting.divisions)
 	var lfoShape = 0			// ModRow::LFO_*
 	var lfoPhaseDeg = 0.0		// 0 to 359: where in the cycle the one falls
 
@@ -483,7 +483,7 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 	var isTrigger: Bool { WHModRow.isTriggerSource(source) }
 	/// Beat, Bar ... 32-Bar: from the beat's position, so they can fire early
 	var isBeatBased: Bool { Self.spanSources.contains(source) }
-	/// the beat sources, and the cycle each gives an Oscillator row
+	/// the beat sources, and the cycle each gives a Frequency row
 	static let spanSources = ["Beat", "Bar", "Bar4", "Bar8", "Bar16", "Bar32"]
 	static let spanBeats: [String: Double] = ["Beat": 1, "Bar": 4, "Bar4": 16, "Bar8": 32, "Bar16": 64, "Bar32": 128]
 	/// the beat source for a cycle: the longest span that fits in it (at least Beat)
@@ -493,7 +493,7 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 
 	/// Locks the target parameter's oscillator to the beat, instead of moving
 	/// a control (ModRow::IsOscillatorLock): the target's Frequency column,
-	/// shown as "Oscillator". One cycle every lfoBeats beats (the source's
+	/// the Target menu's Frequency group. One cycle every lfoBeats beats (the source's
 	/// span, or a finer length from the menu beside it), at lfoPhaseDeg.
 	var isOscillator: Bool { !isAction && prop == WHParamProperty.freq.rawValue }
 
@@ -707,7 +707,7 @@ final class ModMap: ObservableObject {
 	private func apply() {
 		// every row, so the engine's row levels line up with these;
 		// rows it doesn't know (from a newer Whorld) do nothing
-		// (Oscillator rows lock oscillators: the engine makes them syncs)
+		// (Frequency rows lock oscillators: the engine makes them syncs)
 		engine?.setModulationRows(rows.map { $0.engineRow() }, syncs: [],
 			depth: depth, bypass: bypass, followTempo: followTempo)
 	}
@@ -831,8 +831,8 @@ final class ModMap: ObservableObject {
 				groups.append((g.title, choices))
 			}
 		}
-		// a parameter's oscillator, locked to the beat (ModRowSetting.isOscillator)
-		groups.append(("Oscillators", WHControls.paramDisplayOrder.filter { $0 < WHMappingInfo.paramTargetCount }.map {
+		// a parameter's Frequency: its oscillator locked to the beat (ModRowSetting.isOscillator)
+		groups.append(("Frequency", WHControls.paramDisplayOrder.filter { $0 < WHMappingInfo.paramTargetCount }.map {
 			TargetChoice(target: WHMappingInfo.targetTag($0), prop: WHParamProperty.freq.rawValue)
 		}))
 		groups.append(("Actions", WHModRow.actionTags.map { TargetChoice(action: $0) }))
@@ -843,11 +843,7 @@ final class ModMap: ObservableObject {
 		if !c.action.isEmpty {
 			return WHModRow.actionName(c.action)
 		}
-		if c.prop == WHParamProperty.freq.rawValue {	// an Oscillator row
-			let i = WHMappingInfo.target(forTag: c.target)
-			return i >= 0 ? WHControls.paramName(i) + " Oscillator" : c.target + " (unknown)"
-		}
-		return KeyMap.name(target: c.target, prop: c.prop)
+		return KeyMap.name(target: c.target, prop: c.prop)	// a Frequency row: "Star Factor Frequency"
 	}
 }
 
@@ -878,7 +874,7 @@ private final class ModLevels: ObservableObject {
 
 /// The routing rows and the controls below them. (Oscillators locked to the
 /// beat were a second table until 2026-11-17; they're rows now, on a
-/// parameter's Oscillator target.)
+/// parameter's Frequency target.)
 private struct ModTablesSection: View {
 	@ObservedObject private var map = ModMap.shared
 	@StateObject private var levels = ModLevels()
@@ -892,7 +888,7 @@ private struct ModTablesSection: View {
 				if let notice = map.notice {
 					Text(notice).font(.caption).foregroundStyle(.orange)
 				}
-				Text("Each row moves a control by a share of its slider as the sound (or a hit) rises, from the patch's own value; the patch itself never changes. Rows on the same control add up. Attack and release smooth the movement (ms); a hit's pulse fades over its release. Actions fire on a hit, or when a sound rises past the threshold. The Beat LFO is a wave locked to the beat; set its length, shape and phase with the menu beside it. An Oscillator target locks a parameter's own oscillator to the beat instead: one cycle every beat, bar or so many bars (finer lengths and the phase in the menu beside the source), keeping the patch's waveform and amplitude.")
+				Text("Each row moves a control by a share of its slider as the sound (or a hit) rises, from the patch's own value; the patch itself never changes. Rows on the same control add up. Attack and release smooth the movement (ms); a hit's pulse fades over its release. Actions fire on a hit, or when a sound rises past the threshold. The Beat LFO is a wave locked to the beat; set its length, shape and phase with the menu beside it. A Frequency target locks a parameter's own oscillator to the beat instead: one cycle every beat, bar or so many bars (finer lengths and the phase in the menu beside the source), keeping the patch's waveform and amplitude.")
 					.font(.caption)
 					.foregroundStyle(.secondary)
 					.fixedSize(horizontal: false, vertical: true)
@@ -1144,7 +1140,7 @@ private struct LfoMenu: View {
 	}
 }
 
-/// An Oscillator row's cycle and phase, beside its source: a finer length
+/// A Frequency row's cycle and phase, beside its source: a finer length
 /// than the source names (the source follows, to the longest span that fits)
 private struct LockMenu: View {
 	@Binding var row: ModRowSetting

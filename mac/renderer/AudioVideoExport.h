@@ -59,7 +59,7 @@ struct AudioVideoOptions {
 // Reads a modulation file as the Modulation window exports it (JSON: depth,
 // bypass, followTempo, rows, syncs) into the options' modulation. Rows and
 // syncs this build doesn't know are skipped; bypass leaves no rows. Rows on
-// a parameter's Oscillator (ModRow::IsOscillatorLock) add to the syncs.
+// a parameter's Frequency (ModRow::IsOscillatorLock) add to the syncs.
 bool ReadModulationFile(const std::string& sPath, AudioVideoOptions& opts, std::string* pError = nullptr);
 
 // Renders patch with the audio at sAudioPath into a movie at sPath.

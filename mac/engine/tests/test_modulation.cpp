@@ -158,7 +158,7 @@ TEST(SmoothingIsFrameRateIndependent) {
 
 TEST(OscillatorRowsBecomeSyncs) {
 	// a row on a parameter's Frequency column locks its oscillator (the
-	// Routing table's Oscillator targets); it moves nothing itself
+	// Routing table's Frequency targets); it moves nothing itself
 	CHECK(ModRow::IsOscillatorLock(MB::TARGET_StarFactor, MB::PARAM_PROP_Freq));
 	CHECK(!ModRow::IsOscillatorLock(MB::TARGET_StarFactor, MB::PARAM_PROP_Val));
 	CHECK(!ModRow::IsOscillatorLock(MB::TARGET_Zoom, MB::PARAM_PROP_Freq));	// not a parameter

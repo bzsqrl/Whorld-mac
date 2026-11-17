@@ -111,7 +111,7 @@ struct ModRow {
 	// whether the row's target is one a modulation can move
 	static bool	IsModulatable(int iTarget, int iProp);
 	// A row on a parameter's Frequency column (the Routing table's
-	// "Oscillator" targets, 2026-11-17) locks that parameter's oscillator to
+	// Frequency targets, 2026-11-17) locks that parameter's oscillator to
 	// the beat instead of moving a control: one cycle every fLfoBeats beats,
 	// fLfoPhase, fOffset and bOn as a ModSync's. It moves nothing in Step.
 	static bool	IsOscillatorLock(int iTarget, int iProp);

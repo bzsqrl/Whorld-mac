@@ -366,7 +366,7 @@ bool ReadModulationFile(const std::string& sPath, AudioVideoOptions& opts, std::
 			opts.aRow.push_back(row);
 	}
 	// the older form of oscillator locks (a second table, before 2026-11-17),
-	// then the rows' Oscillator targets
+	// then the rows' Frequency targets
 	for (NSDictionary *y in file[@"syncs"]) {
 		if (![y isKindOfClass:NSDictionary.class])
 			continue;

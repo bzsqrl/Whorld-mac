@@ -282,7 +282,7 @@ TEST(ModulationFileReadsTheBeatLfo) {	// the Modulation window's export, as whor
 }
 
 TEST(ModulationFileReadsOscillatorRowsAndOlderSyncs) {
-	// Oscillator targets (a row on a parameter's Frequency column) lock the
+	// Frequency targets (a row on a parameter's Frequency column) lock the
 	// oscillator; a file from before them keeps its "syncs", which come first
 	fs::path	path = fs::temp_directory_path() / "whorld_test_mod_osc.json";
 	FILE	*f = fopen(path.c_str(), "w");

@@ -443,7 +443,7 @@ extension AppModel {
 		o.autoLevel = d.bool(forKey: AudioSettings.autoLevelKey)
 		o.hitThreshold = d.double(forKey: AudioSettings.hitThresholdKey)
 		o.rows = map.bypass ? [] : map.rows.map { $0.engineRow() }
-		o.syncs = []	// the rows' Oscillator targets become syncs in the engine
+		o.syncs = []	// the rows' Frequency targets become syncs in the engine
 		o.depth = map.depth
 		o.followTempo = map.followTempo
 		o.playlistIndex = playingPatch
