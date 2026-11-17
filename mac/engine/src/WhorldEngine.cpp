@@ -101,6 +101,7 @@ WhorldEngine::WhorldEngine()
 	std::fill(std::begin(m_abOscLocked), std::end(m_abOscLocked), false);
 	std::fill(std::begin(m_aParamMod), std::end(m_aParamMod), 0.0);
 	std::fill(std::begin(m_aGlobalMod), std::end(m_aGlobalMod), 0.0);
+	std::fill(std::begin(m_aAmpMod), std::end(m_aAmpMod), 0.0);
 	m_fHueMod = 0;
 	m_ptOriginMod = DPoint(0, 0);
 	m_fZoomMod = 1;
@@ -356,6 +357,7 @@ void WhorldEngine::ComputeModulation()
 	m_masterEff = m_master;
 	std::fill(std::begin(m_aParamMod), std::end(m_aParamMod), 0.0);
 	std::fill(std::begin(m_aGlobalMod), std::end(m_aGlobalMod), 0.0);
+	std::fill(std::begin(m_aAmpMod), std::end(m_aAmpMod), 0.0);
 	m_fHueMod = 0;
 	m_ptOriginMod = DPoint(0, 0);
 	m_fZoomMod = 1;
@@ -374,6 +376,10 @@ void WhorldEngine::ComputeModulation()
 			m_aParamMod[iParam] = limit(row.fVal, fOff * (info.fMaxVal - info.fMinVal),
 				info.fMinVal, info.fMaxVal) - row.fVal;
 		}
+		// Amplitude has no slider and no range: an offset is in the Val
+		// slider's travel (the units the oscillator swings the value in)
+		if (double fOff = m_mod.aAmp[iParam])
+			m_aAmpMod[iParam] = fOff * (info.fMaxVal - info.fMinVal);
 		if (double fOff = m_mod.aGlobal[iParam]) {	// the Global slider spans -max to max
 			if (MapParamToGlobal(iParam) >= 0) {
 				m_aGlobalMod[iParam] = limit(row.fGlobal, fOff * info.fMaxVal * 2,
@@ -558,7 +564,7 @@ void WhorldEngine::TimerHook()
 	static const int RG = PARAM_RingGrowth;
 	const PARAM_ROW&	rowRG = m_aParam.row[RG];
 	m_aOsc[RG].SetClock(afPrevClock[RG] + 1);
-	double	fGrowth = rowRG.fVal + m_aOsc[RG].GetVal() * rowRG.fAmp;
+	double	fGrowth = rowRG.fVal + m_aOsc[RG].GetVal() * (rowRG.fAmp + m_aAmpMod[RG]);	// Mac: Amp modulated
 	if (m_aParamMod[RG])	// Mac: modulated
 		fGrowth += m_aParamMod[RG];
 	m_fNewGrowth = fGrowth * fSpeed;
@@ -570,7 +576,7 @@ void WhorldEngine::TimerHook()
 			const PARAM_ROW&	prev = m_aPrevParam.row[iParam];
 			const PARAM_ROW&	cur = m_aParam.row[iParam];
 			m_aOsc[iParam].SetClock(afPrevClock[iParam] + fFracTick);
-			double	fAmp = prev.fAmp + (cur.fAmp - prev.fAmp) * fFracTick;
+			double	fAmp = prev.fAmp + (cur.fAmp - prev.fAmp) * fFracTick + m_aAmpMod[iParam];	// Mac: + modulation
 			m_params.a[iParam] = prev.fVal + (cur.fVal - prev.fVal) * fFracTick
 				+ m_aOsc[iParam].GetVal() * fAmp;
 			if (m_aParamMod[iParam])	// Mac: modulated
@@ -591,7 +597,7 @@ void WhorldEngine::TimerHook()
 		m_aOsc[iParam].SetClock(afPrevClock[iParam] + 1);
 		if (cur.fFreq != m_aPrevParam.row[iParam].fFreq && !m_abOscLocked[iParam])	// Mac: unless locked
 			m_aOsc[iParam].SetFreq(cur.fFreq);
-		m_params.a[iParam] = cur.fVal + m_aOsc[iParam].GetVal() * cur.fAmp;
+		m_params.a[iParam] = cur.fVal + m_aOsc[iParam].GetVal() * (cur.fAmp + m_aAmpMod[iParam]);	// Mac: Amp modulated
 		if (m_aParamMod[iParam])	// Mac: modulated
 			m_params.a[iParam] += m_aParamMod[iParam];
 	}

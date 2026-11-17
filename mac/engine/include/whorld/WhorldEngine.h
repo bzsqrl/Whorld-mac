@@ -113,6 +113,7 @@ public:
 	// degrees added to Hue, and whether any row moves a control
 	double	GetParamModulation(int iParam) const { return m_aParamMod[iParam]; }
 	double	GetGlobalModulation(int iParam) const { return m_aGlobalMod[iParam]; }
+	double	GetAmpModulation(int iParam) const { return m_aAmpMod[iParam]; }
 	double	GetHueModulation() const { return m_fHueMod; }
 	bool	IsModulationActive() const { return m_mod.bActive; }
 
@@ -233,6 +234,7 @@ protected:
 	MASTER_PROPS	m_masterEff;	// m_master plus offsets; drawing reads this
 	double	m_aParamMod[PARAM_COUNT];	// Val offsets, in value units (clamped)
 	double	m_aGlobalMod[PARAM_COUNT];	// Global offsets, in value units (clamped)
+	double	m_aAmpMod[PARAM_COUNT];		// Amplitude offsets, in value units (not clamped: amplitude has no range)
 	double	m_fHueMod;		// degrees added to the patch's Hue
 	DPoint	m_ptOriginMod;	// DIPs added to the origin target
 	double	m_fZoomMod;		// zoom target factor

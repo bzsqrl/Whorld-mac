@@ -89,7 +89,7 @@ struct ModRow {
 	int		iSource = ModSources::SRC_Level;
 	int		iAction = -1;	// if a valid action, the row fires it instead of moving a control
 	int		iTarget = MappingBase::TARGET_RingGrowth;	// a mapping target (a control)
-	int		iProp = MappingBase::PARAM_PROP_Val;	// parameters: Val or Global
+	int		iProp = MappingBase::PARAM_PROP_Val;	// parameters: Val, Global or Amp
 	double	fAmount = 0;	// -1 to 1, of the target's travel
 	int		nCurve = CURVE_Linear;
 	bool	bCentered = false;	// -amount/2 to +amount/2, instead of 0 to amount
@@ -127,6 +127,7 @@ struct ModOutput {
 	bool	bActive = false;	// some row moves a control (offsets may still be 0)
 	double	aParam[MappingBase::PARAM_COUNT] = {};	// Val column
 	double	aGlobal[MappingBase::PARAM_COUNT] = {};	// Global column
+	double	aAmp[MappingBase::PARAM_COUNT] = {};	// Amplitude column, in Val slider travel
 	double	aMaster[MappingBase::MASTER_COUNT] = {};
 	double	fHue = 0;		// of the hue wheel
 	double	fOriginX = 0;	// of the view

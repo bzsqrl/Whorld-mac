@@ -100,8 +100,8 @@ int ModActions::FindTag(const std::string& sTag)
 bool ModRow::IsModulatable(int iTarget, int iProp)
 {
 	if (iTarget >= 0 && iTarget < MappingBase::PARAM_COUNT) {	// a parameter
-		if (iProp == MappingBase::PARAM_PROP_Val)
-			return true;
+		if (iProp == MappingBase::PARAM_PROP_Val || iProp == MappingBase::PARAM_PROP_Amp)
+			return true;	// Amp: the oscillator's swing (2026-11-17)
 		return iProp == MappingBase::PARAM_PROP_Global && MappingBase::MapParamToGlobal(iTarget) >= 0;
 	}
 	if (iTarget >= MappingBase::TARGET_Speed && iTarget < MappingBase::TARGET_Speed + MappingBase::MASTER_COUNT)
@@ -304,6 +304,8 @@ void Modulator::Step(const ModSources& src, double dt, ModOutput& out)
 		if (row.iTarget < MappingBase::PARAM_COUNT) {	// rows on one target add up
 			if (row.iProp == MappingBase::PARAM_PROP_Global)
 				out.aGlobal[row.iTarget] += fOffset;
+			else if (row.iProp == MappingBase::PARAM_PROP_Amp)
+				out.aAmp[row.iTarget] += fOffset;
 			else
 				out.aParam[row.iTarget] += fOffset;
 		} else if (row.iTarget < MappingBase::TARGET_Speed + MappingBase::MASTER_COUNT) {

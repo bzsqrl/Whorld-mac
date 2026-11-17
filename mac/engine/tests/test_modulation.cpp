@@ -113,7 +113,10 @@ TEST(ModulatableTargets) {
 	CHECK(ModRow::IsModulatable(MB::TARGET_RingSpacing, MB::PARAM_PROP_Val));
 	CHECK(ModRow::IsModulatable(MB::TARGET_Pinwheel, MB::PARAM_PROP_Global));
 	CHECK(!ModRow::IsModulatable(MB::TARGET_RingGrowth, MB::PARAM_PROP_Global));	// not a global
-	CHECK(!ModRow::IsModulatable(MB::TARGET_RingSpacing, MB::PARAM_PROP_Amp));
+	CHECK(ModRow::IsModulatable(MB::TARGET_RingSpacing, MB::PARAM_PROP_Amp));	// the oscillator's swing
+	CHECK(ModRow::IsModulatable(MB::TARGET_RingGrowth, MB::PARAM_PROP_Amp));
+	CHECK(!ModRow::IsModulatable(MB::TARGET_RingSpacing, MB::PARAM_PROP_Freq));
+	CHECK(!ModRow::IsModulatable(MB::TARGET_RingSpacing, MB::PARAM_PROP_PW));
 	CHECK(ModRow::IsModulatable(MB::TARGET_Zoom, 0));
 	CHECK(ModRow::IsModulatable(MB::TARGET_Hue, 0));
 	CHECK(ModRow::IsModulatable(MB::TARGET_OriginY, 0));
@@ -172,7 +175,8 @@ TEST(CurvesPolarityDepthAndSums) {
 	ModRow	master = MakeRow(ModSources::SRC_Level, MB::TARGET_Speed, 1);
 	ModRow	hue = MakeRow(ModSources::SRC_Level, MB::TARGET_Hue, 1);
 	ModRow	orgX = MakeRow(ModSources::SRC_Level, MB::TARGET_OriginX, 0.4);
-	m.SetRows({soft, hard, gate, centered, twice, global, master, hue, orgX});
+	ModRow	amp = MakeRow(ModSources::SRC_Level, MB::TARGET_SkewRadius, 0.8, MB::PARAM_PROP_Amp);
+	m.SetRows({soft, hard, gate, centered, twice, global, master, hue, orgX, amp});
 	m.Step(src, 1.0 / 60, out);
 	CHECK_NEAR(out.aParam[MB::TARGET_RingSpacing], 0.5, 1e-12);
 	CHECK_NEAR(out.aParam[MB::TARGET_LineWidth], 0.0625, 1e-12);
@@ -183,6 +187,8 @@ TEST(CurvesPolarityDepthAndSums) {
 	CHECK_NEAR(out.aMaster[Patch::MASTER_Speed], 0.25, 1e-12);
 	CHECK_NEAR(out.fHue, 0.25, 1e-12);
 	CHECK_NEAR(out.fOriginX, 0.1, 1e-12);
+	CHECK_NEAR(out.aAmp[MB::TARGET_SkewRadius], 0.2, 1e-12);
+	CHECK_EQ(out.aParam[MB::TARGET_SkewRadius], 0.0);	// the Amplitude column, not Val
 	m.SetDepth(0.5);
 	m.Step(src, 1.0 / 60, out);
 	CHECK_NEAR(out.aParam[MB::TARGET_RingSpacing], 0.25, 1e-12);
@@ -197,10 +203,10 @@ TEST(OffRowsAndOtherTargetsDoNothing) {
 	src.aValue[ModSources::SRC_Level] = 1;
 	ModRow	off = MakeRow(ModSources::SRC_Level, MB::TARGET_RingSpacing, 1);
 	off.bOn = false;
-	ModRow	amp = MakeRow(ModSources::SRC_Level, MB::TARGET_RingSpacing, 1, MB::PARAM_PROP_Amp);
+	ModRow	freq = MakeRow(ModSources::SRC_Level, MB::TARGET_RingSpacing, 1, MB::PARAM_PROP_Freq);
 	ModRow	fill = MakeRow(ModSources::SRC_Level, MB::TARGET_Fill, 1);
 	Modulator	m;
-	m.SetRows({off, amp, fill});
+	m.SetRows({off, freq, fill});
 	ModOutput	out;
 	m.Step(src, 1.0 / 60, out);
 	CHECK(!out.bActive);
@@ -596,6 +602,51 @@ TEST(ParamOffsetIsRenderOnly) {
 	eng->SetModulation(ModOutput());	// off: back to the patch's value exactly
 	RunFrames(*eng, 2);
 	CHECK_EQ(eng->GetParamValues().a[RS], fBase);
+}
+
+TEST(AmpOffsetWidensTheOscillatorsSwing) {
+	// Amplitude offsets are in Val slider travel and scale the oscillator's
+	// swing around the value; render-only, as the others
+	const int	LW = Patch::PARAM_LineWidth, RG = Patch::PARAM_RingGrowth;
+	Patch	p = StillPatch();
+	for (int i : {LW, RG}) {
+		Patch::PARAM_ROW&	row = p.GetParamRow(i);
+		row.iWave = 1;	// sine
+		row.fAmp = 2;
+		row.fFreq = 0.7;
+	}
+	auto	a = MakeEngine();
+	auto	b = MakeEngine();
+	a->OnSetPatch(p);
+	b->OnSetPatch(p);
+	ModOutput	mod;
+	mod.bActive = true;
+	mod.aAmp[LW] = 0.1;
+	mod.aAmp[RG] = -0.1;
+	b->SetModulation(mod);
+	const double	fLW = 0.1 * ValRange(LW), fRG = -0.1 * ValRange(RG);
+	int	nChecked = 0;
+	for (int i = 0; i < 120; i++) {
+		RunFrames(*a, 1);
+		RunFrames(*b, 1);
+		double	fDevA = a->GetParamValues().a[LW] - p.GetParamRow(LW).fVal;
+		double	fDevB = b->GetParamValues().a[LW] - p.GetParamRow(LW).fVal;
+		if (std::fabs(fDevA) > 0.2) {	// the same phase in both: the swing scales by (amp + offset) / amp
+			CHECK_NEAR(fDevB / fDevA, (2 + fLW) / 2, 1e-9);
+			nChecked++;
+		}
+	}
+	CHECK(nChecked > 20);
+	// Ring Growth's swing too (it has its own path in TimerHook)
+	double	fGrowA = a->GetParamValues().a[RG] - p.GetParamRow(RG).fVal;
+	double	fGrowB = b->GetParamValues().a[RG] - p.GetParamRow(RG).fVal;
+	if (std::fabs(fGrowA) > 0.05)
+		CHECK_NEAR(fGrowB / fGrowA, (2 + fRG) / 2, 1e-9);
+	CHECK_NEAR(b->GetAmpModulation(LW), fLW, 1e-12);
+	CHECK_EQ(b->GetPatch().GetParamRow(LW).fAmp, 2.0);	// the patch is untouched
+	b->SetModulation(ModOutput());
+	RunFrames(*b, 1);
+	CHECK_EQ(b->GetAmpModulation(LW), 0.0);
 }
 
 TEST(OffsetsStopAtTheSliderEnds) {
