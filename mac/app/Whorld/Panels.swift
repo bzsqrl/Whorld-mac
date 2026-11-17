@@ -235,6 +235,28 @@ func masterStep(_ i: Int, _ ci: WHControlInfo, _ v: Double, _ d: Int, _ k: KeySt
 	return x
 }
 
+/// Only what a number can contain can be typed or pasted into an edit box:
+/// ported from NumEdit.cpp CNumEdit::IsValidChar (digits, '-', '.', 'e';
+/// Windows has no fraction boxes here, and E is the same as e to atof).
+/// Without it, letters reached atof and were committed as 0.
+final class NumberCharsFormatter: Formatter {
+	static let allowed = CharacterSet(charactersIn: "0123456789-.eE")
+
+	override func string(for obj: Any?) -> String? { obj as? String }
+
+	override func getObjectValue(_ obj: AutoreleasingUnsafeMutablePointer<AnyObject?>?,
+		for string: String, errorDescription error: AutoreleasingUnsafeMutablePointer<NSString?>?) -> Bool {
+		obj?.pointee = string as NSString
+		return true
+	}
+
+	override func isPartialStringValid(_ partial: String,
+		newEditingString: AutoreleasingUnsafeMutablePointer<NSString?>?,
+		errorDescription error: AutoreleasingUnsafeMutablePointer<NSString?>?) -> Bool {
+		partial.unicodeScalars.allSatisfy { Self.allowed.contains($0) }	// as OnChar: an invalid key does nothing
+	}
+}
+
 /// NumberField's edit box, on NSTextField: SwiftUI's TextField can't see the
 /// up and down arrows (its field editor takes them), and the delegate can.
 struct KeyTextField: NSViewRepresentable {
@@ -316,10 +338,20 @@ struct KeyTextField: NSViewRepresentable {
 			field.toolTip = fits ? nil : shown
 		}
 
+		/// the typed text, if it's a number (Mac: "-" or an empty box, which
+		/// Windows' atof reads as 0, keep the value instead)
+		func typed(_ field: NSTextField) -> Double? {
+			let t = field.stringValue.trimmingCharacters(in: .whitespaces)
+			return Double(t) != nil ? parent.parse(t) : nil
+		}
+
 		// ported from NumEdit.cpp CNumEdit::OnKillfocus: commit only if modified
 		func apply(_ field: NSTextField) {
 			guard field.stringValue != shown else { return }
-			let v = parent.parse(field.stringValue)
+			guard let v = typed(field) else {	// not a number: back to the value
+				show(field, parent.value)
+				return
+			}
 			parent.commit(v)
 			show(field, v)
 		}
@@ -334,7 +366,7 @@ struct KeyTextField: NSViewRepresentable {
 		/// a trackpad swipe: n arrow-key steps from the value shown
 		func swipe(_ field: NSTextField, _ n: Int, _ k: KeyStep) {
 			guard let step = parent.step else { return }
-			var v = field.stringValue != shown ? parent.parse(field.stringValue) : parent.parse(shown)
+			var v = field.stringValue != shown ? typed(field) ?? parent.value : parent.parse(shown)
 			for _ in 0..<abs(n) {
 				v = step(v, n > 0 ? 1 : -1, k)
 			}
@@ -365,6 +397,12 @@ struct KeyTextField: NSViewRepresentable {
 				textView.selectAll(nil)
 				return true
 			}
+			if sel == #selector(NSResponder.cancelOperation(_:)) {	// Escape (Mac): undo the typing
+				show(field, parent.value)
+				textView.string = shown
+				textView.selectAll(nil)
+				return true
+			}
 			// the up and down arrows, whatever the modifiers bind them to
 			guard let step = parent.step, let e = NSApp.currentEvent, e.type == .keyDown,
 				e.keyCode == 126 || e.keyCode == 125, let k = KeyStep(e.modifierFlags) else { return false }
@@ -373,7 +411,7 @@ struct KeyTextField: NSViewRepresentable {
 				guard let v = up ? parent.hi : parent.lo else { NSSound.beep(); return true }
 				set(field, v)
 			} else {
-				let base = field.stringValue != shown ? parent.parse(field.stringValue) : parent.value
+				let base = field.stringValue != shown ? typed(field) ?? parent.value : parent.value
 				set(field, step(base, up ? 1 : -1, k))
 			}
 			return true
@@ -389,6 +427,7 @@ struct KeyTextField: NSViewRepresentable {
 		f.font = NumberField.font
 		f.alignment = .right
 		f.delegate = context.coordinator
+		f.formatter = NumberCharsFormatter()
 		f.cell?.isScrollable = true
 		f.cell?.lineBreakMode = .byClipping
 		let c = context.coordinator
