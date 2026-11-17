@@ -1,6 +1,6 @@
 # Whorld macOS Port Plan
 
-Status: **Phases 0–9 done (Phase 7: unnotarized ad-hoc build; Developer ID signing still to do, low priority). Open: which renderer matches Direct2D on stroke loops tighter than half the width (Phase 8 task 1, needs Windows), zero-width strokes (unverified); next: showing modulation on the sliders (AUDIO_PLAN)** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
+Status: **Phases 0–9 done (Phase 7: unnotarized ad-hoc build; Developer ID signing still to do, low priority). Open: which renderer matches Direct2D on stroke loops tighter than half the width (Phase 8 task 1) and on zero-width strokes (unverified), both waiting on Windows renders of `mac/testdata/windows-checks`; the starter rows for the Modulation window's Restore Defaults (AUDIO_PLAN, to tune by ear)** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
 
 ## Goal
 
@@ -257,7 +257,7 @@ Output must stay within the golden-image tolerance (mean ≤ 1.5, at most 1% of 
 - **Self-overlapping rings** (`boomer_cvx`) make a lot of geometry and stencil work. It may stay below 120 Hz, but should still be several times faster than on the CPU.
 - **CI.** GitHub's macOS runners may not expose a Metal device. If so, Metal tests run locally only, and CI keeps covering the CG path.
 
-### Phase 9 — Audio reactivity and Ableton Link (planned 2026-11-13)
+### Phase 9 — Audio reactivity and Ableton Link (planned 2026-11-13, built 2026-11-13 to 2026-11-14)
 
 A Mac addition, at the user's request: Whorld responds to music from an audio input (analysis) and keeps time with Ableton Link. Modulation is a render-only offset added beside each control's oscillator, so patches are never changed. The design, decisions and test plan are in `AUDIO_PLAN.md`.
 

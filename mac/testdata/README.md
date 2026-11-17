@@ -14,6 +14,7 @@ testdata/
   screenshots/ screenshots of Windows Whorld's window showing a snapshot from
                snapshots/, same base name: antialiasing off, or "-aa" on
   movies/      one short .whm movie (optional, for Phase 6)
+  windows-checks/ snapshots waiting for Windows screenshots (see its README)
 ```
 
 ## Checklist for exporting from Windows

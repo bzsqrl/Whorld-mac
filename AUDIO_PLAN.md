@@ -1,6 +1,6 @@
 # Audio reactivity and Ableton Link — plan
 
-Status: **planned 2026-11-13**, not started. A Mac addition (Windows Whorld has nothing like it). The checklist is in `PORT_PLAN.md`, Phase 9; this file is the design.
+Status: **built** (planned 2026-11-13; every task in `PORT_PLAN.md` Phase 9 done by 2026-11-14). Still open: the starter rows for Restore Defaults ("Open questions"). A Mac addition (Windows Whorld has nothing like it). The checklist is in `PORT_PLAN.md`, Phase 9; this file is the design, with notes on what was built.
 
 ## Goal
 
@@ -185,7 +185,7 @@ Core Audio process taps (`AudioHardwareCreateProcessTap` with an aggregate devic
 - Permission: `NSAudioCaptureUsageDescription`; macOS asks when the tap starts. Refused, the tap delivers zeros, and there's no public way to ask, so after three seconds of digital silence the status line says where to allow it.
 - Ad-hoc signing: each new build is a new app to macOS, so it asks again.
 
-## Offline render (later; designed for now)
+## Offline render (built 2026-11-13)
 
 **File > Export Audio-Reactive Video…** (and `whorld-render --audio`): pick an audio file, a size, fps and codec. Whorld renders the current patch frame by frame at a fixed dt, feeds the analyzer the audio at each frame's time, and writes the video **with the audio track** (AVAssetWriter, as Export Video does).
 
@@ -243,6 +243,6 @@ All of this is already in the design above.
 
 ## Open questions (decide while building)
 
-- A small set of starter rows for Restore Defaults: for example Bass → Ring Growth, Hit → Random Phase, Treble → Line Width. Tune these by ear with the user.
+- A small set of starter rows for Restore Defaults. *Still open:* the current rows (Bass → Line Width +30%, Kick → Zoom +8%, Hit → Random Phase, off) are a first guess; tune them by ear with the user.
 - Whether the panels should show modulation, for example a faint second marker on a slider at the modulated value. *Built 2026-11-14:* a ghost knob (accent color) on the slider of each control a row moves (Parameters' Val, Globals, Master, Hue), at the value the last frame used (`WhorldEngine::GetParamModulation` and the like, copied by the render thread; `WHEngine modulationState`). `ModMarkers` (Panels.swift) sets the sliders' markers 30 times a second from a timer, so only those sliders redraw, never the rows; shown for every control a row that's on targets, whenever modulation is on, ringing the knob itself in silence (the user's request, so the markers show what's modulated), and hidden when modulation is off. Cost: about 3 points of CPU while three markers move, nothing measurable while they're still. Origin X and Y have no slider.
 - MIDI targets for Depth and Bypass: done 2026-11-14, `ModDepth` and `ModOn` ("Modulation Depth", "Modulation On"), saved in playlists' `[MacMapping]`, as Mark Downbeat is (Windows reads unknown targets as Ring Growth).
