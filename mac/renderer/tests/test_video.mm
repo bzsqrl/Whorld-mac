@@ -281,4 +281,34 @@ TEST(ModulationFileReadsTheBeatLfo) {	// the Modulation window's export, as whor
 	CHECK_EQ(opts.aRow[2].fLfoPhase, 0.0);
 }
 
+TEST(ModulationFileReadsOscillatorRowsAndOlderSyncs) {
+	// Oscillator targets (a row on a parameter's Frequency column) lock the
+	// oscillator; a file from before them keeps its "syncs", which come first
+	fs::path	path = fs::temp_directory_path() / "whorld_test_mod_osc.json";
+	FILE	*f = fopen(path.c_str(), "w");
+	CHECK(f != nullptr);
+	if (!f)
+		return;
+	fputs("{\"rows\": ["
+		"{\"source\": \"Bar\", \"target\": \"StarFactor\", \"prop\": 3, \"lfoBeats\": 2, \"lfoPhaseDeg\": 90, \"offsetMs\": -20},"
+		"{\"source\": \"Bass\", \"target\": \"Fill\", \"prop\": 3}],"	// not a parameter, nor modulatable: skipped
+		"\"syncs\": [{\"param\": \"PolySides\", \"beats\": 16}]}", f);
+	fclose(f);
+	AudioVideoOptions	opts;
+	std::string	err;
+	CHECK(ReadModulationFile(path.string(), opts, &err));
+	fs::remove(path);
+	CHECK_EQ(opts.aRow.size(), size_t(1));
+	CHECK_EQ(opts.aSync.size(), size_t(2));
+	if (opts.aSync.size() != 2)
+		return;
+	CHECK_EQ(opts.aSync[0].iParam, int(WhorldBase::PARAM_PolySides));	// the older form
+	CHECK_EQ(opts.aSync[0].fBeats, 16.0);
+	CHECK_EQ(opts.aSync[1].iParam, int(WhorldBase::PARAM_StarFactor));	// the row
+	CHECK_EQ(opts.aSync[1].fBeats, 2.0);
+	CHECK_NEAR(opts.aSync[1].fPhase, 0.25, 1e-12);
+	CHECK_NEAR(opts.aSync[1].fOffset, -0.02, 1e-12);
+	CHECK(opts.aSync[1].bOn);
+}
+
 int main() { return RunAllTests(); }

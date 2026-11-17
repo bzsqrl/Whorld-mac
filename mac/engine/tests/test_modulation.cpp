@@ -156,6 +156,48 @@ TEST(SmoothingIsFrameRateIndependent) {
 	CHECK_NEAR(oa.aParam[MB::TARGET_LineWidth], ob.aParam[MB::TARGET_LineWidth], 1e-12);
 }
 
+TEST(OscillatorRowsBecomeSyncs) {
+	// a row on a parameter's Frequency column locks its oscillator (the
+	// Routing table's Oscillator targets); it moves nothing itself
+	CHECK(ModRow::IsOscillatorLock(MB::TARGET_StarFactor, MB::PARAM_PROP_Freq));
+	CHECK(!ModRow::IsOscillatorLock(MB::TARGET_StarFactor, MB::PARAM_PROP_Val));
+	CHECK(!ModRow::IsOscillatorLock(MB::TARGET_Zoom, MB::PARAM_PROP_Freq));	// not a parameter
+	ModRow	lock = MakeRow(ModSources::SRC_Bar, MB::TARGET_StarFactor, 0, MB::PARAM_PROP_Freq);
+	lock.fLfoBeats = 2;
+	lock.fLfoPhase = 0.25;
+	lock.fOffset = -0.02;
+	ModRow	off = MakeRow(ModSources::SRC_Beat, MB::TARGET_PolySides, 0, MB::PARAM_PROP_Freq);
+	off.bOn = false;
+	ModRow	plain = MakeRow(ModSources::SRC_Level, MB::TARGET_StarFactor, 1);
+	ModRow	action = MakeRow(ModSources::SRC_Hit, MB::TARGET_StarFactor, 0, MB::PARAM_PROP_Freq);
+	action.iAction = ModActions::ACT_Clear;	// an action, whatever its target says
+	auto	aSync = ModRow::SyncsFromRows({lock, plain, off, action});
+	CHECK_EQ(aSync.size(), size_t(2));
+	if (aSync.size() == 2) {
+		CHECK(aSync[0].bOn);
+		CHECK_EQ(aSync[0].iParam, int(MB::TARGET_StarFactor));
+		CHECK_EQ(aSync[0].fBeats, 2.0);
+		CHECK_EQ(aSync[0].fPhase, 0.25);
+		CHECK_EQ(aSync[0].fOffset, -0.02);
+		CHECK(!aSync[1].bOn);	// kept, off: its oscillator runs free
+		CHECK_EQ(aSync[1].iParam, int(MB::TARGET_PolySides));
+	}
+	ModSources	src;
+	src.bBeat = true;
+	src.fTempo = 120;
+	src.aValue[ModSources::SRC_Bar] = 1;
+	Modulator	m;
+	m.SetRows({lock});
+	ModOutput	out;
+	m.Step(src, 1.0 / 60, out);
+	CHECK_EQ(out.aParam[MB::TARGET_StarFactor], 0.0);	// moves no control
+	CHECK(!out.bActive);
+	m.SetSyncs(aSync);	// as the app and the video export pass it
+	m.Step(src, 1.0 / 60, out);
+	CHECK_NEAR(out.aOscFreq[MB::TARGET_StarFactor], 120.0 / 60 / 2, 1e-12);	// a cycle every 2 beats
+	CHECK_EQ(out.aOscFreq[MB::TARGET_PolySides], 0.0);
+}
+
 TEST(CurvesPolarityDepthAndSums) {
 	ModSources	src;
 	src.aValue[ModSources::SRC_Level] = 0.25;

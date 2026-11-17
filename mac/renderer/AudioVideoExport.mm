@@ -360,10 +360,13 @@ bool ReadModulationFile(const std::string& sPath, AudioVideoOptions& opts, std::
 		double	fLfoDeg = std::fmod(num(r, @"lfoPhaseDeg", 0), 360);
 		row.fLfoPhase = (fLfoDeg < 0 ? fLfoDeg + 360 : fLfoDeg) / 360;
 		bool	bKnown = ModSources::IsValid(row.iSource)
-			&& (sAction.empty() ? ModRow::IsModulatable(row.iTarget, row.iProp) : row.IsAction());
+			&& (sAction.empty() ? ModRow::IsModulatable(row.iTarget, row.iProp)
+				|| ModRow::IsOscillatorLock(row.iTarget, row.iProp) : row.IsAction());
 		if (bKnown)
 			opts.aRow.push_back(row);
 	}
+	// the older form of oscillator locks (a second table, before 2026-11-17),
+	// then the rows' Oscillator targets
 	for (NSDictionary *y in file[@"syncs"]) {
 		if (![y isKindOfClass:NSDictionary.class])
 			continue;
@@ -377,6 +380,8 @@ bool ReadModulationFile(const std::string& sPath, AudioVideoOptions& opts, std::
 		if (sync.iParam >= 0 && sync.iParam < MappingBase::PARAM_COUNT && sync.fBeats > 0)
 			opts.aSync.push_back(sync);
 	}
+	auto	aRowSync = ModRow::SyncsFromRows(opts.aRow);
+	opts.aSync.insert(opts.aSync.end(), aRowSync.begin(), aRowSync.end());
 	return true;
 }
 

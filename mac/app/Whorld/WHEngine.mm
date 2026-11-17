@@ -884,6 +884,8 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 {
 	std::vector<whorld::ModRow>	a = ModRowsFrom(rows);
 	std::vector<whorld::ModSync>	aSync = ModSyncsFrom(syncs);
+	auto	aRowSync = whorld::ModRow::SyncsFromRows(a);	// the rows' Oscillator targets
+	aSync.insert(aSync.end(), aRowSync.begin(), aRowSync.end());
 	std::lock_guard<std::mutex>	lock(_mutex);
 	_modRows = std::move(a);
 	_modSyncs = std::move(aSync);
@@ -1334,6 +1336,8 @@ static std::string CaptureToPNG(whorld::WhorldEngine& eng, uint32_t nFlags, whor
 	opts.analyzer.fHitThreshold = o.hitThreshold;
 	opts.aRow = ModRowsFrom(o.rows);
 	opts.aSync = ModSyncsFrom(o.syncs);
+	auto	aRowSync = whorld::ModRow::SyncsFromRows(opts.aRow);	// the rows' Oscillator targets
+	opts.aSync.insert(opts.aSync.end(), aRowSync.begin(), aRowSync.end());
 	opts.fDepth = o.depth;
 	opts.bFollowTempo = o.followTempo;
 	opts.aPlaylist = _playlistPatches;

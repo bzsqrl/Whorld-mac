@@ -67,6 +67,8 @@ struct ModActions {
 	static int			FindTag(const std::string& sTag);
 };
 
+struct ModSync;
+
 // A routing row. Amount is a fraction of the target's slider travel
 // (-1 to 1): for Hue, of the hue wheel; for Origin X and Y, of the view.
 struct ModRow {
@@ -108,6 +110,15 @@ struct ModRow {
 	bool	IsAction() const { return ModActions::IsValid(iAction); }
 	// whether the row's target is one a modulation can move
 	static bool	IsModulatable(int iTarget, int iProp);
+	// A row on a parameter's Frequency column (the Routing table's
+	// "Oscillator" targets, 2026-11-17) locks that parameter's oscillator to
+	// the beat instead of moving a control: one cycle every fLfoBeats beats,
+	// fLfoPhase, fOffset and bOn as a ModSync's. It moves nothing in Step.
+	static bool	IsOscillatorLock(int iTarget, int iProp);
+	bool	IsOscillatorLock() const { return !IsAction() && IsOscillatorLock(iTarget, iProp); }
+	// The oscillator locks the rows make, in row order (on several rows for
+	// one parameter, the last one on wins, as with ModSyncs)
+	static std::vector<ModSync>	SyncsFromRows(const std::vector<ModRow>& aRow);
 };
 
 // A parameter's oscillator locked to the beat (AUDIO_PLAN.md, 9.7): one

@@ -110,6 +110,28 @@ bool ModRow::IsModulatable(int iTarget, int iProp)
 		|| iTarget == MappingBase::TARGET_OriginY;
 }
 
+bool ModRow::IsOscillatorLock(int iTarget, int iProp)
+{
+	return iTarget >= 0 && iTarget < MappingBase::PARAM_COUNT && iProp == MappingBase::PARAM_PROP_Freq;
+}
+
+std::vector<ModSync> ModRow::SyncsFromRows(const std::vector<ModRow>& aRow)
+{
+	std::vector<ModSync>	aSync;
+	for (const ModRow& row : aRow) {
+		if (!row.IsOscillatorLock())
+			continue;
+		ModSync	sync;
+		sync.bOn = row.bOn;
+		sync.iParam = row.iTarget;
+		sync.fBeats = row.fLfoBeats;
+		sync.fPhase = row.fLfoPhase;
+		sync.fOffset = row.fOffset;
+		aSync.push_back(sync);
+	}
+	return aSync;
+}
+
 void Modulator::SetRows(const std::vector<ModRow>& aRow)
 {
 	m_aRow = aRow;
