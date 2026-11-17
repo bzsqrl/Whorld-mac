@@ -14,7 +14,6 @@ testdata/
   screenshots/ screenshots of Windows Whorld's window showing a snapshot from
                snapshots/, same base name: antialiasing off, or "-aa" on
   movies/      one short .whm movie (optional, for Phase 6)
-  windows-checks/ snapshots waiting for Windows screenshots (see its README)
 ```
 
 ## Checklist for exporting from Windows
@@ -37,3 +36,4 @@ testdata/
 - `patches/`: 86 files (1 `WHORLD2`, 71 `WHORLD3`, 14 `WHORLD4`). Nine of the `_cvx` version 4 files have hand-edited `RingSpacing` and `LineWidth` lines with an empty field (a double tab), and `swirligig.whp` has `Trail 0.92.85`. Whorld reads them fine, but they aren't byte-for-byte writer output, so the round-trip test only requires those lines to parse.
 - `golden/EXPORT_SETTINGS.txt`: Whorld 2.0.20.0 x64, 1024×768, scale-to-fit off, Windows display scaling 125%.
 - `screenshots/` (2026-11-14): Windows Whorld V2 full screen (F11) at 1920×1080, File > Load Snapshot, then a screenshot with Image > Antialiasing off (`<name>.png`) and on (`<name>-aa.png`), other settings at their defaults. They show what Windows draws live, aliased frames included, which its exports can't (Export always antialiases). The aliased ones were saved by Paint as palette PNGs and converted to RGB (lossless; the frames have under 256 colors). `test_metal` (`MetalMatchesWindowsScreenshots`) draws each snapshot as the window shows it at the screenshot's size. Screenshots must be taken with nothing changed since loading the snapshot: zooming, or a different patch live when it's loaded, moves the rings.
+- `screenshots/` (2026-11-17): `tight loops` and `zero width` are made-up snapshots (white line rings on black, made by a throwaway generator) answering two questions about Direct2D: which stroke geometry it matches on loops tighter than half the line width (the Mac's tessellator, not Core Graphics' stroker), and whether a zero-width stroke draws anything (no). Same procedure as above; these were also palette PNGs, converted to RGB exactly.
