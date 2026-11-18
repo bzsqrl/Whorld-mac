@@ -93,52 +93,55 @@ struct WhorldCommands: Commands {
 			Button("Save Playlist As…") { model.savePlaylistAs() }
 				.keyboardShortcut("s", modifiers: [.command, .option, .shift])
 			Divider()
-			Button("Take Snapshot…") { model.takeSnapshot() }
-				.keyboardShortcut("t")
-			Button("Load Snapshot…") { model.loadSnapshots() }
-				.keyboardShortcut("l")
+			// snapshots and movies, folded into File (they were menus of
+			// their own; the user's menu audit, 2026-11-18): important, not
+			// for a live set; their keys work from the submenus as before
+			Menu("Snapshots") {
+				Button("Take Snapshot…") { model.takeSnapshot() }
+					.keyboardShortcut("t")
+				Button("Load Snapshot…") { model.loadSnapshots() }
+					.keyboardShortcut("l")
+				Divider()
+				Button("First") { model.snapshotFirst() }
+					.keyboardShortcut(.home, modifiers: [])
+					.disabled(!model.hasSnapshots)
+				Button("Previous") { model.snapshotPrev() }
+					.keyboardShortcut(.pageUp, modifiers: [])
+					.disabled(!model.hasSnapshots)
+				Button("Next") { model.snapshotNext() }
+					.keyboardShortcut(.pageDown, modifiers: [])
+					.disabled(!model.hasSnapshots)
+				Button("Last") { model.snapshotLast() }
+					.keyboardShortcut(.end, modifiers: [])
+					.disabled(!model.hasSnapshots)
+				Divider()
+				Button("Export All…") { model.exportAllSnapshots() }
+					.disabled(!model.hasSnapshots)
+				Button("Info…") { model.snapshotInfo() }
+					.disabled(!model.isCurrentSnapshotValid)
+			}
+			Menu("Movie") {
+				let ms = model.engine.movieState
+				// no shortcuts (the user's choice, 2026-11-17: Windows' Ctrl+M,
+				// Command-M here, opens the Modulation panel instead)
+				Button(ms.io == .writing ? "Stop Recording" : "Record…") { model.toggleRecordMovie() }
+					.disabled(ms.io == .reading)
+				Button(ms.io == .reading ? "Stop Playing" : "Play…") { model.togglePlayMovie() }
+					.disabled(ms.io == .writing)
+				Button("Rewind") { model.rewindMovie() }
+					.keyboardShortcut(.home, modifiers: .command)
+					.disabled(ms.io != .reading)
+				Divider()
+				Button("Export Image Sequence…") { model.exportMovie() }
+					.disabled(ms.io != .reading || model.movieExportProgress != nil)
+				Button("Export Video…") { model.exportMovieVideo() }
+					.disabled(ms.io != .reading || model.movieExportProgress != nil)
+			}
+			Divider()
 			Button("Export…") { model.exportImage() }
 				.keyboardShortcut("e")
 			Button("Export Audio-Reactive Video…") { model.exportAudioVideo() }
 				.disabled(model.movieExportProgress != nil)
-		}
-
-		CommandMenu("Snapshot") {
-			Button("First") { model.snapshotFirst() }
-				.keyboardShortcut(.home, modifiers: [])
-				.disabled(!model.hasSnapshots)
-			Button("Previous") { model.snapshotPrev() }
-				.keyboardShortcut(.pageUp, modifiers: [])
-				.disabled(!model.hasSnapshots)
-			Button("Next") { model.snapshotNext() }
-				.keyboardShortcut(.pageDown, modifiers: [])
-				.disabled(!model.hasSnapshots)
-			Button("Last") { model.snapshotLast() }
-				.keyboardShortcut(.end, modifiers: [])
-				.disabled(!model.hasSnapshots)
-			Divider()
-			Button("Export All…") { model.exportAllSnapshots() }
-				.disabled(!model.hasSnapshots)
-			Button("Info…") { model.snapshotInfo() }
-				.disabled(!model.isCurrentSnapshotValid)
-		}
-
-		CommandMenu("Movie") {
-			let ms = model.engine.movieState
-			// no shortcuts (the user's choice, 2026-11-17: Windows' Ctrl+M,
-			// Command-M here, opens the Modulation window instead)
-			Button(ms.io == .writing ? "Stop Recording" : "Record…") { model.toggleRecordMovie() }
-				.disabled(ms.io == .reading)
-			Button(ms.io == .reading ? "Stop Playing" : "Play…") { model.togglePlayMovie() }
-				.disabled(ms.io == .writing)
-			Button("Rewind") { model.rewindMovie() }
-				.keyboardShortcut(.home, modifiers: .command)
-				.disabled(ms.io != .reading)
-			Divider()
-			Button("Export Image Sequence…") { model.exportMovie() }
-				.disabled(ms.io != .reading || model.movieExportProgress != nil)
-			Button("Export Video…") { model.exportMovieVideo() }
-				.disabled(ms.io != .reading || model.movieExportProgress != nil)
 		}
 
 		CommandGroup(replacing: .undoRedo) {

@@ -1387,7 +1387,7 @@ final class OutputKeys {
 			return true
 		}
 		// Command-Left and Command-Right: the previous and next snapshot
-		// (Snapshot > Previous and Next, Page Up and Page Down), in full
+		// (File > Snapshots > Previous and Next, Page Up and Page Down), in full
 		// screen or with the pointer over the picture
 		if !up, code == 123 || code == 124, modifiers == NSEvent.ModifierFlags.command.rawValue,
 			AppModel.shared.hasSnapshots, AppModel.shared.isFullScreen || Self.pointerOverOutput() {
