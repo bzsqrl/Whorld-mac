@@ -206,7 +206,10 @@ struct WhorldCommands: Commands {
 			Button("Rotate Hue") { model.rotateHue() }	// V1's (Mac addition)
 				.keyboardShortcut("6")	// and F3
 			toggle("Zoom Center", e.zoomCenter) { model.toggle(.zoomCenter) }
-				.keyboardShortcut("w", modifiers: .shift)
+				// Windows' Shift+W until the user's menu audit (2026-11-18):
+				// W is a key-map letter, so Shift then W over the picture
+				// toggled this instead
+				.keyboardShortcut("z", modifiers: [.command, .option])
 			toggle("Antialiasing", e.antialiasing) { model.toggle(.antialiasing) }
 				.keyboardShortcut("a", modifiers: [.command, .option])
 			// not on Windows' Image menu (its Properties grid only); here the

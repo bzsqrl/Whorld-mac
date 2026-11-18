@@ -1324,8 +1324,8 @@ final class AppModel: ObservableObject {
 /// (KeyMap.swift) is held with the pointer over the output (docked,
 /// detached or full screen), a trackpad swipe up or down, or the mouse
 /// wheel, moves that key's control instead of zooming. Plain keys only:
-/// with Shift, Command, Control or Option they're shortcuts (Shift-W is
-/// Zoom Center, Command-S Save...), and with the pointer elsewhere they
+/// with Shift, Command, Control or Option they're shortcuts (Shift-Space
+/// is Step, Command-S Save...), and with the pointer elsewhere they
 /// type as usual.
 @MainActor
 final class OutputKeys {
