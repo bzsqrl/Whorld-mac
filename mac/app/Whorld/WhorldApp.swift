@@ -1297,6 +1297,11 @@ final class AppModel: ObservableObject {
 	func workspaceWindowAppeared(_ w: NSWindow) {
 		guard !didFitWorkspace else { return }
 		didFitWorkspace = true
+		// nothing focused at first: AppKit would focus the first number box
+		// (Ring Growth's), for no reason (the user's menu audit, 2026-11-18)
+		DispatchQueue.main.async {
+			if w.firstResponder is NSTextView { w.makeFirstResponder(nil) }
+		}
 		if layout.layout.detached {
 			outputWindow.show(model: self, near: w.frame)
 		}
@@ -1350,8 +1355,9 @@ final class OutputKeys {
 			let code = e.keyCode
 			let up = e.type == .keyUp
 			let mods = e.modifierFlags.intersection([.shift, .command, .control, .option]).rawValue
+			let isRepeat = e.type == .keyDown && e.isARepeat
 			let take = MainActor.assumeIsolated {
-				AppModel.shared.outputKeys.takes(key: key, code: code, up: up, modifiers: mods)
+				AppModel.shared.outputKeys.takes(key: key, code: code, up: up, modifiers: mods, isRepeat: isRepeat)
 			}
 			return take ? nil : e
 		}
@@ -1362,8 +1368,24 @@ final class OutputKeys {
 	}
 
 	/// true: the key event is this feature's (not passed on)
-	func takes(key: String?, code: CGKeyCode, up: Bool, modifiers: UInt) -> Bool {
+	func takes(key: String?, code: CGKeyCode, up: Bool, modifiers: UInt, isRepeat: Bool = false) -> Bool {
 		guard let key else { return false }
+		// Space and Shift-Space: Pause and Step (Image menu), taken before
+		// the focused control, which could otherwise swallow them (a number
+		// box, focused when the window opens, or the playlist; the user's
+		// menu audit, 2026-11-18). Held, Space pauses once; Shift-Space
+		// keeps stepping.
+		if !up, code == 49, modifiers == 0 || modifiers == NSEvent.ModifierFlags.shift.rawValue, Self.takesSpace() {
+			let m = AppModel.shared
+			if modifiers == 0 {
+				if !isRepeat, !(m.keyboardSpaceAction?() ?? false) {	// a focused Properties row takes it
+					m.engine.togglePause()
+				}
+			} else {
+				m.engine.singleStep()
+			}
+			return true
+		}
 		// Command-Left and Command-Right: the previous and next snapshot
 		// (Snapshot > Previous and Next, Page Up and Page Down), in full
 		// screen or with the pointer over the picture
@@ -1387,6 +1409,25 @@ final class OutputKeys {
 		held = key
 		heldCode = code
 		return true
+	}
+
+	/// Whether Space is Pause's here: not in a dialog, nor while the Key Map
+	/// waits for a key, nor where a space is typed (a text field other than
+	/// a number box, which takes no spaces) or presses something (a focused
+	/// button or menu, with Full Keyboard Access).
+	private static func takesSpace() -> Bool {
+		guard NSApp.modalWindow == nil, KeyMap.shared.capturing == nil,
+			let w = NSApp.keyWindow, w.attachedSheet == nil, !w.isSheet else { return false }
+		switch w.firstResponder {
+		case let text as NSTextView:
+			return text.isFieldEditor && text.delegate is KeyTextField.Field
+		case is NSTableView, is NSSlider:
+			return true
+		case is NSButton, is NSSegmentedControl, is NSTextField:
+			return false
+		default:
+			return true
+		}
 	}
 
 	/// the pointer is over a picture (WHRenderView) in the topmost window under it
