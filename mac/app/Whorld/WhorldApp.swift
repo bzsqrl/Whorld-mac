@@ -499,7 +499,7 @@ final class AppModel: ObservableObject {
 
 	/// The playlist's next (+1) or previous (-1) patch, wrapping around at
 	/// the ends; with none playing, the first or last. (A Mac addition:
-	/// Command-Down and Command-Up over the picture or in full screen.)
+	/// Image > Next Patch and Previous Patch, Command-Down and Command-Up.)
 	func stepPatch(_ step: Int) {
 		let n = engine.playlistPatches.count
 		guard n > 0 else { return }
@@ -1364,15 +1364,9 @@ final class OutputKeys {
 	/// true: the key event is this feature's (not passed on)
 	func takes(key: String?, code: CGKeyCode, up: Bool, modifiers: UInt) -> Bool {
 		guard let key else { return false }
-		// Command-Up and Command-Down: the playlist's previous and next patch,
-		// in full screen or with the pointer over the picture
-		if !up, code == 126 || code == 125, modifiers == NSEvent.ModifierFlags.command.rawValue,
-			AppModel.shared.isFullScreen || Self.pointerOverOutput() {
-			AppModel.shared.stepPatch(code == 125 ? 1 : -1)
-			return true
-		}
 		// Command-Left and Command-Right: the previous and next snapshot
-		// (Snapshot > Previous and Next, Page Up and Page Down), likewise
+		// (Snapshot > Previous and Next, Page Up and Page Down), in full
+		// screen or with the pointer over the picture
 		if !up, code == 123 || code == 124, modifiers == NSEvent.ModifierFlags.command.rawValue,
 			AppModel.shared.hasSnapshots, AppModel.shared.isFullScreen || Self.pointerOverOutput() {
 			if code == 124 { AppModel.shared.snapshotNext() } else { AppModel.shared.snapshotPrev() }

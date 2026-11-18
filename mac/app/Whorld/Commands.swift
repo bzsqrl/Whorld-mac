@@ -24,8 +24,20 @@ struct WhorldCommands: Commands {
 		return same ? "\(name) — \(url.deletingLastPathComponent().lastPathComponent)" : name
 	}
 
-	/// Command-M: closes the Modulation window if it's in front, brings it
-	/// forward if it's open behind, and opens it otherwise
+	/// Command-Down or Command-Up as a menu command (Next and Previous
+	/// Patch), except in a text area of several lines, where they keep
+	/// their usual meaning: to the end or the start. A number box (one
+	/// line, nearly always focused) gives them up: it steps with the
+	/// arrows, Shift-arrows and Shift-Command-arrows, not Command-arrows.
+	static func arrowOrStep(down: Bool, _ step: () -> Void) {
+		if let text = NSApp.keyWindow?.firstResponder as? NSTextView, text.isEditable, !text.isFieldEditor {
+			text.doCommand(by: down ? #selector(NSResponder.moveToEndOfDocument(_:))
+				: #selector(NSResponder.moveToBeginningOfDocument(_:)))
+		} else {
+			step()
+		}
+	}
+
 	/// A menu item with a standard check mark, reading its state from the
 	/// engine's document and toggling it through the given action.
 	private func toggle(_ title: String, _ isOn: Bool, _ action: @escaping () -> Void) -> some View {
@@ -153,6 +165,33 @@ struct WhorldCommands: Commands {
 		// menu shows Command-digit keys and the F-keys work too (SecondKeys,
 		// in WhorldApp.swift).
 		CommandMenu("Image") {
+			// the live controls first (the user's menu audit, 2026-11-18):
+			// Pause, Step and Clear were in the Window menu, as on Windows
+			toggle("Pause", e.paused) {
+				// Space pressed while a Properties row has focus toggles the row
+				let ev = NSApp.currentEvent
+				if ev?.type == .keyDown, ev?.charactersIgnoringModifiers == " ",
+					let take = model.keyboardSpaceAction, take() {
+					return
+				}
+				e.togglePause()
+			}
+				.keyboardShortcut(.space, modifiers: [])
+			Button("Step") { e.singleStep() }
+				.keyboardShortcut(.space, modifiers: .shift)
+			Button("Clear") { e.clear() }
+				.keyboardShortcut("k")	// and Cmd-Forward Delete (Windows' Ctrl+Delete), which laptops lack
+			Divider()
+			// the playlist's next and previous patch, wrapping at the ends
+			// (were Command-Down and Command-Up over the picture only);
+			// they work in a number box too (arrowOrStep)
+			Button("Next Patch") { Self.arrowOrStep(down: true) { model.stepPatch(1) } }
+				.keyboardShortcut(.downArrow, modifiers: .command)
+				.disabled(model.playlistPatches.isEmpty)
+			Button("Previous Patch") { Self.arrowOrStep(down: false) { model.stepPatch(-1) } }
+				.keyboardShortcut(.upArrow, modifiers: .command)
+				.disabled(model.playlistPatches.isEmpty)
+			Divider()
 			toggle("Fill", e.fill) { model.toggleFill() }
 				.keyboardShortcut("1")	// and F6
 			toggle("Outline", e.outline) { model.toggleOutline() }
@@ -247,20 +286,6 @@ struct WhorldCommands: Commands {
 		}
 
 		CommandGroup(before: .windowSize) {
-			toggle("Pause", e.paused) {
-				// Space pressed while a Properties row has focus toggles the row
-				let ev = NSApp.currentEvent
-				if ev?.type == .keyDown, ev?.charactersIgnoringModifiers == " ",
-					let take = model.keyboardSpaceAction, take() {
-					return
-				}
-				e.togglePause()
-			}
-				.keyboardShortcut(.space, modifiers: [])
-			Button("Step") { e.singleStep() }
-				.keyboardShortcut(.space, modifiers: .shift)
-			Button("Clear") { e.clear() }
-				.keyboardShortcut("k")	// and Cmd-Forward Delete (Windows' Ctrl+Delete), which laptops lack
 			// CMainFrame::OnWindowDetach
 			Toggle("Detach", isOn: Binding(get: { model.isDetached }, set: { _ in model.toggleDetach() }))
 				.keyboardShortcut("d", modifiers: [.command, .shift])	// Windows: Ctrl+F12
