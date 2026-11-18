@@ -82,6 +82,17 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut("s", modifiers: [.command, .shift])
 			Button("Patch Author…") { model.editPatchAuthor() }
 			Divider()
+			// the playlist's files, from the Playlist menu (Windows' File >
+			// Playlist; the user's menu audit, 2026-11-18)
+			Button("New Playlist") { model.newPlaylist() }
+				.keyboardShortcut("n", modifiers: [.command, .shift])
+			Button("Open Playlist…") { model.openPlaylist() }
+				.keyboardShortcut("o", modifiers: [.command, .shift])
+			Button("Save Playlist") { model.savePlaylist() }
+				.keyboardShortcut("s", modifiers: [.command, .option])
+			Button("Save Playlist As…") { model.savePlaylistAs() }
+				.keyboardShortcut("s", modifiers: [.command, .option, .shift])
+			Divider()
 			Button("Take Snapshot…") { model.takeSnapshot() }
 				.keyboardShortcut("t")
 			Button("Load Snapshot…") { model.loadSnapshots() }
@@ -137,20 +148,6 @@ struct WhorldCommands: Commands {
 			Button(model.undoManager.canRedo ? model.undoManager.redoMenuItemTitle : "Redo") { model.redo() }
 				.keyboardShortcut("z", modifiers: [.command, .shift])
 				.disabled(!model.undoManager.canRedo)
-		}
-
-		CommandMenu("Playlist") {
-			Button("New Playlist") { model.newPlaylist() }
-				.keyboardShortcut("n", modifiers: [.command, .shift])
-			Button("Open Playlist…") { model.openPlaylist() }
-				.keyboardShortcut("o", modifiers: [.command, .shift])
-			Button("Save Playlist") { model.savePlaylist() }
-				.keyboardShortcut("s", modifiers: [.command, .option])
-			Button("Save Playlist As…") { model.savePlaylistAs() }
-				.keyboardShortcut("s", modifiers: [.command, .option, .shift])
-			Divider()
-			Toggle("MIDI Learn", isOn: Binding(get: { model.midiLearn }, set: { model.midiLearn = $0 }))
-				.keyboardShortcut("l", modifiers: [.command, .shift])
 		}
 
 		// The function keys are Windows Whorld's; on a Mac keyboard they need
@@ -292,6 +289,10 @@ struct WhorldCommands: Commands {
 					// Modulation's key is on Audio > Modulation Panel (a key
 					// belongs to one item)
 					.keyboardShortcut(id == .modulation ? nil : KeyboardShortcut(id.shortcut, modifiers: id.shortcutModifiers))
+				if id == .mapping {	// beside MIDI Mapping (was in the Playlist menu, as on Windows' View menu)
+					Toggle("MIDI Learn", isOn: Binding(get: { model.midiLearn }, set: { model.midiLearn = $0 }))
+						.keyboardShortcut("l", modifiers: [.command, .shift])
+				}
 			}
 			Divider()
 			Menu("Render Scale") {	// Settings > Display; replaces Full Resolution
