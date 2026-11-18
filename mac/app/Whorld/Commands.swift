@@ -150,14 +150,6 @@ struct WhorldCommands: Commands {
 			Divider()
 			Toggle("MIDI Learn", isOn: Binding(get: { model.midiLearn }, set: { model.midiLearn = $0 }))
 				.keyboardShortcut("l", modifiers: [.command, .shift])
-			Divider()
-			// V1's Edit > Patch Mode, with its shortcuts (Mac addition)
-			Menu("Patch Mode") {
-				Toggle("Full", isOn: Binding(get: { !e.geometryMode }, set: { _ in model.setGeometryMode(false) }))
-					.keyboardShortcut("f", modifiers: .shift)
-				Toggle("Geometry", isOn: Binding(get: { e.geometryMode }, set: { _ in model.setGeometryMode(true) }))
-					.keyboardShortcut("g", modifiers: .shift)
-			}
 		}
 
 		// The function keys are Windows Whorld's; on a Mac keyboard they need
@@ -191,6 +183,12 @@ struct WhorldCommands: Commands {
 			Button("Previous Patch") { Self.arrowOrStep(down: false) { model.stepPatch(-1) } }
 				.keyboardShortcut(.upArrow, modifiers: .command)
 				.disabled(model.playlistPatches.isEmpty)
+			// V1's Edit > Patch Mode (Mac addition), one toggle: on, playing a
+			// patch changes only its geometry; off, everything (Full). Was a
+			// submenu on Shift-F and Shift-G, letters the key map uses (the
+			// user's menu audit, 2026-11-18)
+			toggle("Geometry Only", e.geometryMode) { model.setGeometryMode(!e.geometryMode) }
+				.keyboardShortcut("g", modifiers: [.command, .option])
 			Divider()
 			toggle("Fill", e.fill) { model.toggleFill() }
 				.keyboardShortcut("1")	// and F6

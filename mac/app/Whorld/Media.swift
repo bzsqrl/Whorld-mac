@@ -952,14 +952,20 @@ struct PlaylistPanel: View {
 					.help("Move down")
 					.disabled(model.playlistSelection.isEmpty)
 				Spacer()
-				Toggle("Geometry", isOn: Binding(get: { model.engine.geometryMode },
-					set: { model.setGeometryMode($0) }))
-					.toggleStyle(.button)
-					.controlSize(.small)
-					.help("Geometry mode: playing a patch changes only its shape and motion, keeping colors, Hue, Master, Properties and Global values. Off, Full mode: everything changes. Saved with the playlist (Playlist > Patch Mode).")
 				Text(model.playlistTitle + (model.playlistModified ? " — Edited" : ""))
 					.font(.caption)
 					.foregroundStyle(.secondary)
+					.lineLimit(1)
+					.truncationMode(.middle)
+				// the patch mode, named as it is now (the user's request,
+				// 2026-11-18): Geom or Full; click for the other
+				let geometry = model.engine.geometryMode
+				Button(geometry ? "Geom" : "Full") { model.setGeometryMode(!geometry) }
+					.controlSize(.small)
+					.fixedSize()
+					.help(geometry
+						? "Geometry mode: playing a patch changes only its shape and motion, keeping colors, Hue, Master, Properties and Global values. Click for Full mode, where everything changes. Saved with the playlist (Image > Geometry Only, ⌥⌘G)."
+						: "Full mode: playing a patch changes everything. Click for Geometry mode, where only its shape and motion change, keeping colors, Hue, Master, Properties and Global values. Saved with the playlist (Image > Geometry Only, ⌥⌘G).")
 			}
 			.padding(8)
 		}
