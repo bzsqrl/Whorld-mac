@@ -154,6 +154,10 @@ private struct AudioInputSection: View {
 		let devices = WHAudioInput.devices
 		let apps = WHAudioInput.apps
 		let selected = selectedDevice(devices)
+		// two columns: the input's settings, and what Whorld hears with the
+		// beat's buttons (the user's request, 2026-11-18: the window's top half
+		// was mostly empty)
+		HStack(alignment: .top, spacing: 20) {
 		Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 10) {
 			GridRow {
 				Text("Input").gridColumnAlignment(.trailing)
@@ -183,7 +187,7 @@ private struct AudioInputSection: View {
 						}
 					}
 					.labelsHidden()
-					.frame(width: 260)
+					.frame(width: 220)
 					Picker("", selection: channelBinding) {
 						Text("All channels, mixed").tag(ChannelChoice(first: 0, count: 0))
 						let n = selected?.channels ?? 0
@@ -199,7 +203,7 @@ private struct AudioInputSection: View {
 						}
 					}
 					.labelsHidden()
-					.frame(width: 200)
+					.frame(width: 170)
 					.disabled((selected?.channels ?? 0) < 2)
 				}
 			}
@@ -207,7 +211,7 @@ private struct AudioInputSection: View {
 				Text("Gain")
 				HStack {
 					StepSlider(value: gainDb, range: -24...24, step: 0.5, defaultValue: 0) { gainDb = $0 }	// half-dB steps, no tick marks
-						.frame(width: 260)
+						.frame(width: 220)
 					Text(String(format: "%+.1f dB", gainDb + 0))	// + 0: never "-0.0"
 						.monospacedDigit()
 						.frame(width: 64, alignment: .trailing)
@@ -219,7 +223,7 @@ private struct AudioInputSection: View {
 				Text("Range")
 				HStack {
 					StepSlider(value: rangeDb, range: 12...60, step: 1, defaultValue: 36) { rangeDb = $0 }
-						.frame(width: 260)
+						.frame(width: 220)
 					Text(String(format: "%.0f dB", rangeDb))
 						.monospacedDigit()
 						.frame(width: 64, alignment: .trailing)
@@ -234,7 +238,7 @@ private struct AudioInputSection: View {
 				HStack {
 					// the analyzer's threshold, in deviations: lower is more sensitive
 					StepSlider(value: 10 - hitThreshold, range: 2...8, step: 0.1, defaultValue: 6) { hitThreshold = 10 - $0 }
-						.frame(width: 260)
+						.frame(width: 220)
 					Text("fewer ← → more")
 						.font(.caption)
 						.foregroundStyle(.secondary)
@@ -252,6 +256,8 @@ private struct AudioInputSection: View {
 					Text(linkStatus)
 						.font(.caption)
 						.foregroundStyle(.secondary)
+						.lineLimit(2)
+						.frame(width: 200, alignment: .leading)	// beside the meter: it wraps
 				}
 				.help("Keeps time with Ableton Live and other Link apps on this Mac or the network: while the session has other apps, its tempo, beats and bars drive Beat and the bars, in place of the beat Whorld hears in the music.")
 			}
@@ -264,15 +270,19 @@ private struct AudioInputSection: View {
 				Text("")
 				AudioStatus(state: input.state, text: input.statusText)
 			}
-			GridRow(alignment: .top) {
-				Text("Hearing")
-					.help("What Whorld hears, live: the level and bands, the hits (lights and hits a second), and the beat. The beat tracker learns the tempo from the hits and keeps a steady beat through kicks it can't hear (a busy mix, a breakdown).")
-				HStack(alignment: .bottom, spacing: 6) {
-					OwnHost { AudioMeter() }
-					beatButtons
-				}
-			}
 		}
+		.fixedSize()
+		Divider()
+		VStack(alignment: .leading, spacing: 10) {
+			Text("Hearing")
+				.help("What Whorld hears, live: the level and bands, the hits (lights and hits a second), and the beat. The beat tracker learns the tempo from the hits and keeps a steady beat through kicks it can't hear (a busy mix, a breakdown).")
+			OwnHost { AudioMeter() }
+			beatButtons
+		}
+		.fixedSize()
+		Spacer(minLength: 0)
+		}
+		.fixedSize(horizontal: false, vertical: true)	// as tall as its columns: the divider would take all it's offered
 		.onChange(of: inputUID) { AudioSettings.selectInput() }
 		.onChange(of: channelFirst) { AudioSettings.selectInput() }
 		.onChange(of: channelCount) { AudioSettings.selectInput() }
@@ -485,9 +495,9 @@ private struct AudioMeter: View {
 			ZStack(alignment: .leading) {
 				RoundedRectangle(cornerRadius: 2).fill(Color.secondary.opacity(0.2))
 				RoundedRectangle(cornerRadius: 2).fill(Color.accentColor)
-					.frame(width: max(0, CGFloat(min(max(value, 0), 1))) * 220)
+					.frame(width: max(0, CGFloat(min(max(value, 0), 1))) * Self.barWidth)
 			}
-			.frame(width: 220, height: 8)
+			.frame(width: Self.barWidth, height: 8)
 			Text(detail)
 				.font(.caption)
 				.monospacedDigit()
@@ -498,6 +508,7 @@ private struct AudioMeter: View {
 		}
 	}
 
+	private static let barWidth: CGFloat = 130	// (220 until the meter moved beside the settings)
 	private static let detailWidth: CGFloat = {
 		let font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .caption1).pointSize, weight: .regular)
 		return ceil(("-150 dB" as NSString).size(withAttributes: [.font: font]).width) + 2
@@ -569,7 +580,7 @@ private struct AudioMeter: View {
 				.foregroundStyle(.secondary)
 				.lineLimit(1)
 				.truncationMode(.tail)
-				.frame(width: 280, alignment: .leading)	// a steady width: the meter's size never changes (see OwnHost)
+				.frame(width: 230, alignment: .leading)	// a steady width: the meter's size never changes (see OwnHost)
 		}
 		.padding(.top, 4)
 	}
