@@ -280,7 +280,12 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut(PanelID.modulation.shortcut, modifiers: PanelID.modulation.shortcutModifiers)
 		}
 
-		CommandGroup(after: .toolbar) {
+		// The View menu, after Audio and before Window (the user's choice,
+		// 2026-11-18): Whorld's own menu, since the standard one is fixed
+		// after Edit; its standard groups are emptied, so it doesn't show
+		CommandGroup(replacing: .toolbar) {}
+		CommandGroup(replacing: .sidebar) {}
+		CommandMenu("View") {
 			// Whorld's own full screen (FullScreen.swift), on Shift-Cmd-F (the
 			// user's choice). It replaces AppKit's automatic Enter Full Screen
 			// item, which drives macOS's full screen (turned off; see
@@ -324,7 +329,6 @@ struct WhorldCommands: Commands {
 			Toggle("Show Frame Rate", isOn: $model.showFrameRate)
 				.keyboardShortcut("f", modifiers: [.command, .option])	// not Ctrl-Cmd-F, macOS's full screen key
 			Toggle("Syphon Output", isOn: Binding(get: { model.syphonEnabled }, set: { model.setSyphonEnabled($0) }))
-			Divider()
 		}
 
 		CommandGroup(before: .windowSize) {

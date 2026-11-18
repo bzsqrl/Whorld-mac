@@ -1444,6 +1444,34 @@ final class OutputKeys {
 	}
 }
 
+/// The View menu is Whorld's own, after Audio (WhorldCommands, the user's
+/// choice, 2026-11-18); SwiftUI keeps the standard one after Edit even with
+/// its groups emptied (it holds a separator), so that one is taken out of
+/// the menu bar whenever SwiftUI builds or rebuilds it.
+@MainActor
+enum StandardViewMenu {
+	private static var observer: Any?
+
+	static func removeWhenAdded() {
+		remove()
+		guard observer == nil, let bar = NSApp.mainMenu else { return }
+		observer = NotificationCenter.default.addObserver(forName: NSMenu.didAddItemNotification,
+			object: bar, queue: .main) { _ in
+			MainActor.assumeIsolated { remove() }
+		}
+	}
+
+	/// a View menu with nothing in it but separators
+	private static func remove() {
+		guard let bar = NSApp.mainMenu else { return }
+		for item in bar.items where item.title == "View" {
+			if let sub = item.submenu, sub.items.allSatisfy(\.isSeparatorItem) {
+				bar.removeItem(item)
+			}
+		}
+	}
+}
+
 /// Keys that do what a menu item does, besides the item's own shortcut: the
 /// Windows Whorld keys where the menu shows a Mac one (the F-keys need fn
 /// on a Mac keyboard; laptops have no Forward Delete), and macOS's usual
@@ -1487,6 +1515,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 	private var secondKeysMonitor: Any?
 
 	func applicationDidFinishLaunching(_ notification: Notification) {
+		StandardViewMenu.removeWhenAdded()
 		// second shortcuts for menu commands (a menu item has only one)
 		secondKeysMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
 			let code = event.keyCode
