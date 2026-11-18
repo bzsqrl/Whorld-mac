@@ -179,6 +179,16 @@ struct NumberField: View {
 	var hi: Double? = nil
 	var defaultValue: Double? = nil
 	var width: CGFloat = NumberField.standardWidth
+	/// also takes a fraction, such as 1/3 (Mac addition: the Modulation
+	/// window's lengths); `parse` then gets it as typed (see fraction)
+	var fractions = false
+
+	/// a fraction as typed, "1/3" or "3/2", or nil
+	static func fraction(_ t: String) -> Double? {
+		let parts = t.split(separator: "/", omittingEmptySubsequences: false)
+		guard parts.count == 2, let n = Double(parts[0]), let d = Double(parts[1]), d != 0 else { return nil }
+		return n / d
+	}
 
 	/// fits ten characters of %g (such as -0.0132785) in the box's font
 	static let standardWidth: CGFloat = 96
@@ -186,7 +196,7 @@ struct NumberField: View {
 
 	var body: some View {
 		KeyTextField(value: value, format: format, parse: parse, commit: commit,
-			step: step, lo: lo, hi: hi, defaultValue: defaultValue)
+			step: step, lo: lo, hi: hi, defaultValue: defaultValue, fractions: fractions)
 			.frame(width: width, height: 22)
 	}
 }
@@ -241,6 +251,13 @@ func masterStep(_ i: Int, _ ci: WHControlInfo, _ v: Double, _ d: Int, _ k: KeySt
 /// Without it, letters reached atof and were committed as 0.
 final class NumberCharsFormatter: Formatter {
 	static let allowed = CharacterSet(charactersIn: "0123456789-.eE")
+	private var allowed = NumberCharsFormatter.allowed
+
+	/// fractions: '/' too (NumberField.fractions)
+	convenience init(fractions: Bool) {
+		self.init()
+		if fractions { allowed.insert("/") }
+	}
 
 	override func string(for obj: Any?) -> String? { obj as? String }
 
@@ -253,7 +270,7 @@ final class NumberCharsFormatter: Formatter {
 	override func isPartialStringValid(_ partial: String,
 		newEditingString: AutoreleasingUnsafeMutablePointer<NSString?>?,
 		errorDescription error: AutoreleasingUnsafeMutablePointer<NSString?>?) -> Bool {
-		partial.unicodeScalars.allSatisfy { Self.allowed.contains($0) }	// as OnChar: an invalid key does nothing
+		partial.unicodeScalars.allSatisfy { allowed.contains($0) }	// as OnChar: an invalid key does nothing
 	}
 }
 
@@ -268,6 +285,7 @@ struct KeyTextField: NSViewRepresentable {
 	let lo: Double?
 	let hi: Double?
 	let defaultValue: Double?
+	var fractions = false
 
 	/// Right-clicking (or Control-clicking) restores the default, whether or
 	/// not the box is being edited (then the field editor gets the click, and
@@ -342,7 +360,8 @@ struct KeyTextField: NSViewRepresentable {
 		/// Windows' atof reads as 0, keep the value instead)
 		func typed(_ field: NSTextField) -> Double? {
 			let t = field.stringValue.trimmingCharacters(in: .whitespaces)
-			return Double(t) != nil ? parent.parse(t) : nil
+			let number = Double(t) != nil || (parent.fractions && NumberField.fraction(t) != nil)
+			return number ? parent.parse(t) : nil
 		}
 
 		// ported from NumEdit.cpp CNumEdit::OnKillfocus: commit only if modified
@@ -427,7 +446,7 @@ struct KeyTextField: NSViewRepresentable {
 		f.font = NumberField.font
 		f.alignment = .right
 		f.delegate = context.coordinator
-		f.formatter = NumberCharsFormatter()
+		f.formatter = NumberCharsFormatter(fractions: fractions)
 		f.cell?.isScrollable = true
 		f.cell?.lineBreakMode = .byClipping
 		let c = context.coordinator

@@ -72,7 +72,7 @@ struct ModulationView: View {
 			ModTablesSection()
 		}
 		.background(NoSliderFocus())
-		.frame(minWidth: 1200, minHeight: 640)
+		.frame(minWidth: 1270, minHeight: 640)
 		.onAppear { AudioSettings.register() }
 	}
 }
@@ -568,7 +568,8 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 	var releaseMs = 200.0
 	var threshold = 0.5			// for the gate curve and for actions
 	var offsetMs = 0.0			// -300 to 300: beat-based sources fire early (-) or late; hits only late
-	var lfoBeats = 4.0			// the Beat LFO, or a Frequency row: beats per cycle (ModSyncSetting.divisions)
+	var lfoBeats = 4.0			// the Beat LFO, or a Frequency row: beats per cycle (any, minBeats to maxBeats)
+	var lfoInBars = true		// its length is shown, and typed, in bars (4 beats) or beats
 	var lfoShape = 0			// ModRow::LFO_*
 	var lfoPhaseDeg = 0.0		// 0 to 359: where in the cycle the one falls
 
@@ -591,6 +592,7 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 		threshold = (try? c.decodeIfPresent(Double.self, forKey: .threshold)) ?? d.threshold
 		offsetMs = (try? c.decodeIfPresent(Double.self, forKey: .offsetMs)) ?? d.offsetMs
 		lfoBeats = (try? c.decodeIfPresent(Double.self, forKey: .lfoBeats)) ?? d.lfoBeats
+		lfoInBars = (try? c.decodeIfPresent(Bool.self, forKey: .lfoInBars)) ?? Self.inBars(lfoBeats)	// (older settings: whole bars in bars)
 		lfoShape = (try? c.decodeIfPresent(Int.self, forKey: .lfoShape)) ?? d.lfoShape
 		lfoPhaseDeg = (try? c.decodeIfPresent(Double.self, forKey: .lfoPhaseDeg)) ?? d.lfoPhaseDeg
 	}
@@ -606,6 +608,34 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 	/// the beat sources, and the cycle each gives a Frequency row
 	static let spanSources = ["Beat", "Bar", "Bar4", "Bar8", "Bar16", "Bar32"]
 	static let spanBeats: [String: Double] = ["Beat": 1, "Bar": 4, "Bar4": 16, "Bar8": 32, "Bar16": 64, "Bar32": 128]
+	/// A cycle's length: any number of beats or bars, fractions too (1/3
+	/// beat for triplets); shorter than a sixteenth of a beat flickers
+	static let minBeats = 1.0 / 16
+	static let maxBeats = 512.0	// 128 bars
+
+	/// whole bars, shown in bars (older settings and files, which had no unit)
+	static func inBars(_ beats: Double) -> Bool {
+		beats >= 4 && (beats / 4).rounded() == beats / 4
+	}
+
+	/// a length's number as typed: whole, a simple fraction ("1/3",
+	/// "3/2"), or a decimal
+	static func lengthText(_ n: Double) -> String {
+		if n == n.rounded() { return String(format: "%.0f", n) }
+		for d in [2.0, 3, 4, 6, 8, 12, 16] {
+			let k = (n * d).rounded()
+			if abs(n * d - k) < 1e-9 { return String(format: "%.0f/%.0f", k, d) }
+		}
+		return String(format: "%g", n)
+	}
+
+	/// "Bar", "3 beats", "1/3 beat", "2 bars"
+	var lengthName: String {
+		let n = lfoInBars ? lfoBeats / 4 : lfoBeats
+		let unit = lfoInBars ? "bar" : "beat"
+		return n == 1 ? unit.capitalized : Self.lengthText(n) + " " + unit + (n > 1 ? "s" : "")
+	}
+
 	/// the beat source for a cycle: the longest span that fits in it (at least Beat)
 	static func spanSource(forBeats beats: Double) -> String {
 		spanSources.last { (spanBeats[$0] ?? 1) <= beats } ?? "Beat"
@@ -638,6 +668,7 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 		r.target = y.param
 		r.prop = WHParamProperty.freq.rawValue
 		r.lfoBeats = y.beats > 0 ? y.beats : 4
+		r.lfoInBars = inBars(r.lfoBeats)
 		r.source = spanSource(forBeats: r.lfoBeats)
 		r.lfoPhaseDeg = y.phaseDeg
 		r.offsetMs = y.offsetMs
@@ -717,18 +748,6 @@ struct ModSyncSetting: Codable, Identifiable, Equatable {
 		y.offset = min(max(offsetMs, -300), 300) / 1000
 		return y
 	}
-
-	/// a cycle's length, in beats and bars (4 beats): a Frequency row's
-	/// Source menu, and the Beat LFO's submenu in the Source menu
-	static func divisionName(_ beats: Double) -> String {
-		divisions.first(where: { $0.beats == beats })?.name ?? String(format: "%g beats", beats)
-	}
-
-	/// a cycle's length: beats and bars (4 beats)
-	static let divisions: [(beats: Double, name: String)] = [
-		(0.25, "1/4 beat"), (0.5, "1/2 beat"), (1, "Beat"), (2, "2 beats"),
-		(4, "Bar"), (8, "2 bars"), (16, "4 bars"), (32, "8 bars"), (64, "16 bars"), (128, "32 bars"),
-	]
 }
 
 /// The routing rows, depth and bypass: a setting (Modulation_v1), applied to
@@ -1112,29 +1131,24 @@ private struct ModTablesSection: View {
 					stable(r) {
 						HStack(spacing: 2) {
 							if r.isOscillator {	// the cycle's length, then its phase
-								Picker("", selection: Binding(get: { r.lfoBeats }, set: {
-									r.lfoBeats = $0
-									r.source = ModRowSetting.spanSource(forBeats: $0)	// the longest span that fits
-								})) {
-									ForEach(ModSyncSetting.divisions, id: \.beats) { d in
-										Text(d.name).tag(d.beats)
-									}
-									if !ModSyncSetting.divisions.contains(where: { $0.beats == r.lfoBeats }) {
-										Text(ModSyncSetting.divisionName(r.lfoBeats)).tag(r.lfoBeats)
-									}
-								}
-								.labelsHidden()
+								LengthField(row: $r)
+								UnitPicker(row: $r)
 								LockMenu(row: $r)
 							} else {
-								SourceMenu(row: $r)
-								if r.isLFO {
+								if r.isLFO {	// its length, then its shape and phase
+									SourceMenu(row: $r)
+										.fixedSize()	// "LFO": the length gives way, not this
+									LengthField(row: $r)
+									UnitPicker(row: $r)
 									LfoMenu(row: $r)
+								} else {
+									SourceMenu(row: $r)
 								}
 							}
 						}
 					}
 				}
-				.width(min: 100, ideal: 180)
+				.width(min: 100, ideal: 250)	// a Beat LFO row: the source, length, unit, shape and phase
 				TableColumn("Live" + ColumnTips.mark) { $r in
 					RowLevel(index: map.rows.firstIndex(where: { $0.id == r.id }) ?? -1)
 				}
@@ -1349,12 +1363,12 @@ private struct TargetMenu: View {
 		if row.isOscillator {	// its source is the cycle: a beat span
 			if !row.isBeatBased { row.source = "Bar" }
 			row.lfoBeats = ModRowSetting.spanBeats[row.source] ?? 4
+			row.lfoInBars = ModRowSetting.inBars(row.lfoBeats)
 		}
 	}
 }
 
-/// The Beat LFO's shape and phase, beside its source (its length is in the
-/// Source menu)
+/// The Beat LFO's shape and phase, beside its length
 private struct LfoMenu: View {
 	@Binding var row: ModRowSetting
 
@@ -1381,15 +1395,75 @@ private struct LfoMenu: View {
 		.help("The Beat LFO: \(lengthName), \(shapeName), phase \(String(format: "%.0f°", row.lfoPhaseDeg)). One cycle every so many beats, from the one (Mark Downbeat); Ableton Link's beat, or the beat Whorld hears.")
 	}
 
-	private var lengthName: String { ModSyncSetting.divisionName(row.lfoBeats) }
+	private var lengthName: String { row.lengthName.lowercased() }
 	private var phaseName: String { String(format: "%.0f°", row.lfoPhaseDeg) }
 	private var shapeName: String {
 		row.lfoShape >= 0 && row.lfoShape < ModRowSetting.lfoShapes.count ? ModRowSetting.lfoShapes[row.lfoShape] : "Sine"
 	}
 }
 
-/// A Frequency row's phase, beside its length (the Source menu): where
-/// in the cycle the one falls
+/// A Frequency row's or Beat LFO's length: a number of beats or bars
+/// (UnitPicker), whole, a fraction (1/3 for triplets) or a decimal. The
+/// arrow keys, a swipe up or down or the wheel step it (by one, or halving
+/// and doubling below one; with Shift, halving and doubling); right-click
+/// for 1.
+private struct LengthField: View {
+	@Binding var row: ModRowSetting
+
+	var body: some View {
+		let unit = row.lfoInBars ? 4.0 : 1.0
+		let lo = ModRowSetting.minBeats / unit, hi = ModRowSetting.maxBeats / unit
+		NumberField(value: row.lfoBeats / unit, format: ModRowSetting.lengthText,
+			parse: { NumberField.fraction($0) ?? Double($0) ?? 1 },
+			commit: { v in setLength(v * unit) },
+			step: { v, d, k in
+				var x: Double
+				if k == .coarse || (d > 0 ? v < 1 : v <= 1) {
+					x = d > 0 ? v * 2 : v / 2
+					if d > 0 && v < 1 { x = min(x, 1) }	// halves up to one
+				} else {
+					x = d > 0 ? v.rounded(.down) + 1 : v.rounded(.up) - 1	// whole numbers
+				}
+				return min(max(x, lo), hi)
+			},
+			lo: lo, hi: hi, defaultValue: 1, width: 46, fractions: true)
+			.help("The cycle's length, in \(row.lfoInBars ? "bars" : "beats"): any number, or a fraction such as 1/3 (triplets). ↑ ↓ or a swipe step it.")
+	}
+
+	private func setLength(_ beats: Double) {
+		guard beats.isFinite else { return }
+		row.lfoBeats = min(max(beats, ModRowSetting.minBeats), ModRowSetting.maxBeats)
+		if row.isOscillator {	// its stored source: the longest span that fits
+			row.source = ModRowSetting.spanSource(forBeats: row.lfoBeats)
+		}
+	}
+}
+
+/// Beats or bars, for LengthField: changing it keeps the number (2 beats
+/// becomes 2 bars)
+private struct UnitPicker: View {
+	@Binding var row: ModRowSetting
+
+	var body: some View {
+		let n = row.lfoInBars ? row.lfoBeats / 4 : row.lfoBeats
+		Picker("", selection: Binding(get: { row.lfoInBars }, set: { bars in
+			guard bars != row.lfoInBars else { return }
+			row.lfoInBars = bars
+			row.lfoBeats = min(max(n * (bars ? 4 : 1), ModRowSetting.minBeats), ModRowSetting.maxBeats)
+			if row.isOscillator {
+				row.source = ModRowSetting.spanSource(forBeats: row.lfoBeats)
+			}
+		})) {
+			Text(n == 1 ? "Beat" : "Beats").tag(false)
+			Text(n == 1 ? "Bar" : "Bars").tag(true)
+		}
+		.labelsHidden()
+		.fixedSize()
+	}
+}
+
+/// A Frequency row's phase, beside its length: where in the cycle the one
+/// falls
 private struct LockMenu: View {
 	@Binding var row: ModRowSetting
 
@@ -1414,8 +1488,7 @@ private struct LockMenu: View {
 }
 
 /// A row's source (but a Frequency row's): a pull-down of the sounds, the
-/// hits and the beat, and the Beat LFO, a submenu of its lengths; the one
-/// chosen has a check mark.
+/// hits and the beat, and the Beat LFO; the one chosen has a check mark.
 private struct SourceMenu: View {
 	@Binding var row: ModRowSetting
 
@@ -1431,20 +1504,13 @@ private struct SourceMenu: View {
 				ForEach(tags.filter { WHModRow.isTriggerSource($0) }, id: \.self) { t in
 					item(WHModRow.sourceName(t), t)
 				}
-				Menu(WHModRow.sourceName("BeatLFO")) {
-					ForEach(ModSyncSetting.divisions, id: \.beats) { d in
-						Toggle(d.name, isOn: Binding(get: { row.isLFO && row.lfoBeats == d.beats }, set: { _ in
-							row.source = "BeatLFO"
-							row.lfoBeats = d.beats
-						}))
-					}
-				}
+				item(WHModRow.sourceName("BeatLFO"), "BeatLFO")
 			}
 			if !tags.contains(row.source) {
 				item(row.source + " (unknown)", row.source)
 			}
 		} label: {
-			Text(row.isLFO ? Self.lfoName(row.lfoBeats)
+			Text(row.isLFO ? "LFO"	// short: its length, shape and phase follow
 				: tags.contains(row.source) ? WHModRow.sourceName(row.source) : row.source + " (unknown)")
 		}
 	}
@@ -1453,16 +1519,6 @@ private struct SourceMenu: View {
 		Toggle(label, isOn: Binding(get: { row.source == tag }, set: { _ in row.source = tag }))
 	}
 
-	/// short, to fit the column beside the shape and phase: "2-bar LFO",
-	/// "Beat LFO", "1/4-beat LFO"
-	static func lfoName(_ beats: Double) -> String {
-		var n = ModSyncSetting.divisionName(beats)
-		if let space = n.firstIndex(of: " ") {	// "2 bars" -> "2-bar"
-			n = n[..<space] + "-" + n[n.index(after: space)...]
-			if n.hasSuffix("s") { n.removeLast() }
-		}
-		return n + " LFO"
-	}
 }
 
 /// A parameter's oscillator in the patch: what a lock keeps (the waveform
