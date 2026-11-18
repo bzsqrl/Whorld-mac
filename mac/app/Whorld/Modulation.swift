@@ -70,6 +70,7 @@ struct ModulationView: View {
 			Divider()
 			ModTablesSection()
 		}
+		.background(NoSliderFocus())
 		.frame(minWidth: 1200, minHeight: 640)
 		.onAppear { AudioSettings.register() }
 	}
@@ -86,7 +87,7 @@ private struct ModTopBar: View {
 				.help("All rows on or off; off, the patches play as they are. Image > Audio Modulation (⌘8), OSC /w/mod/on.")
 			Text("Depth")
 				.padding(.leading, 8)
-			Slider(value: $map.depth, in: 0...1)
+			StepSlider(value: map.depth, range: 0...1, step: 0.01, defaultValue: 1) { map.depth = $0 }
 				.frame(width: 160)
 				.help("Scales every row at once. OSC /w/mod/depth.")
 			Text(String(format: "%.0f%%", map.depth * 100))
@@ -203,7 +204,7 @@ private struct AudioInputSection: View {
 			GridRow {
 				Text("Gain")
 				HStack {
-					Slider(value: Binding(get: { gainDb }, set: { gainDb = ($0 * 2).rounded() / 2 }), in: -24...24)	// half-dB steps, no tick marks
+					StepSlider(value: gainDb, range: -24...24, step: 0.5, defaultValue: 0) { gainDb = $0 }	// half-dB steps, no tick marks
 						.frame(width: 260)
 					Text(String(format: "%+.1f dB", gainDb + 0))	// + 0: never "-0.0"
 						.monospacedDigit()
@@ -215,7 +216,7 @@ private struct AudioInputSection: View {
 			GridRow {
 				Text("Range")
 				HStack {
-					Slider(value: Binding(get: { rangeDb }, set: { rangeDb = $0.rounded() }), in: 12...60)
+					StepSlider(value: rangeDb, range: 12...60, step: 1, defaultValue: 36) { rangeDb = $0 }
 						.frame(width: 260)
 					Text(String(format: "%.0f dB", rangeDb))
 						.monospacedDigit()
@@ -230,7 +231,7 @@ private struct AudioInputSection: View {
 				Text("Hit sensitivity")
 				HStack {
 					// the analyzer's threshold, in deviations: lower is more sensitive
-					Slider(value: Binding(get: { 10 - hitThreshold }, set: { hitThreshold = 10 - $0 }), in: 2...8)
+					StepSlider(value: 10 - hitThreshold, range: 2...8, step: 0.1, defaultValue: 6) { hitThreshold = 10 - $0 }
 						.frame(width: 260)
 					Text("fewer ← → more")
 						.font(.caption)
@@ -335,6 +336,45 @@ extension AudioInputSection {
 				.fixedSize()
 				.help("Start the bar count again: the nearest bar becomes bar 1, for 4-Bar ... 32-Bar, without moving the beat (Mark Downbeat moves the beat too). Press anywhere in the first half of a bar for that bar, in the second half for the next. Image > Reset Bar Count (⇧⌥⌘8), OSC /w/mod/bars and the Reset Bar Count MIDI target do the same.")
 		}
+	}
+}
+
+/// AppKit gives the window's first slider (Depth) focus as the window
+/// opens, with its focus ring; this clears it. A slider takes focus when
+/// it's clicked, as usual.
+private struct NoSliderFocus: NSViewRepresentable {
+	func makeNSView(context: Context) -> Probe { Probe() }
+	func updateNSView(_ view: Probe, context: Context) {}
+
+	final class Probe: NSView {
+		override func viewDidMoveToWindow() {
+			super.viewDidMoveToWindow()
+			DispatchQueue.main.async { [weak self] in	// after AppKit has picked the key view
+				guard let window = self?.window, window.firstResponder is KeySlider.Slider else { return }
+				window.makeFirstResponder(nil)
+			}
+		}
+	}
+}
+
+/// A slider in steps, on the panels' slider (KeySlider), so it works as
+/// theirs do: a sideways two-finger swipe or a mouse wheel over it moves it,
+/// clicking gives it focus for the left and right arrows, and right-clicking
+/// restores `defaultValue`. (SwiftUI's Slider ignores swipes.)
+private struct StepSlider: View {
+	let value: Double
+	let range: ClosedRange<Double>
+	let step: Double	// the value of one position
+	let defaultValue: Double
+	let set: (Double) -> Void
+
+	var body: some View {
+		let perUnit = 1 / step	// whole (100, 10, 2), so values come out as 0.29, not 0.29000000000000004
+		let lo = (range.lowerBound * perUnit).rounded(), hi = (range.upperBound * perUnit).rounded()
+		KeySlider(position: value * perUnit, range: lo...hi,
+			set: { set(min(max($0, lo), hi) / perUnit) },
+			reset: { set(defaultValue) },
+			controlSize: .regular)
 	}
 }
 
@@ -1071,7 +1111,7 @@ private struct ModTablesSection: View {
 						PatchOscillator(iParam: WHMappingInfo.target(forTag: r.target))
 					} else {
 						HStack(spacing: 4) {
-							Slider(value: Binding(get: { r.amount }, set: { r.amount = ($0 * 100).rounded() / 100 }), in: -1...1)
+							StepSlider(value: r.amount, range: -1...1, step: 0.01, defaultValue: ModRowSetting().amount) { r.amount = $0 }
 							Text(String(format: "%+.0f%%", r.amount * 100))
 								.monospacedDigit()
 								.frame(width: 44, alignment: .trailing)

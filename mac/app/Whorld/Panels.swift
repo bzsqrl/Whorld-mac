@@ -506,6 +506,7 @@ struct KeySlider: NSViewRepresentable {
 	let reset: () -> Void
 	var step: ((Int, KeyStep) -> Void)? = nil	// replaces the plain-position step
 	var marker: ModMarkers.Target? = nil	// audio modulation's marker (ModMarkers)
+	var controlSize: NSControl.ControlSize = .small	// the panels' size; the Modulation window's are regular
 
 	final class Slider: NSSlider {
 		/// Where audio modulation has the control, in slider units, or nil:
@@ -620,7 +621,7 @@ struct KeySlider: NSViewRepresentable {
 
 	func makeNSView(context: Context) -> Slider {
 		let s = Slider()
-		s.controlSize = .small
+		s.controlSize = controlSize
 		s.isContinuous = true
 		s.target = s
 		s.action = #selector(Slider.changed(_:))
@@ -647,7 +648,8 @@ struct KeySlider: NSViewRepresentable {
 	}
 
 	func sizeThatFits(_ proposal: ProposedViewSize, nsView: Slider, context: Context) -> CGSize? {
-		CGSize(width: proposal.width ?? PositionSlider.minWidth, height: 18)
+		CGSize(width: proposal.width ?? PositionSlider.minWidth,
+			height: controlSize == .small ? 18 : nsView.intrinsicContentSize.height)
 	}
 }
 
