@@ -97,7 +97,7 @@ Make Whorld respond to music, for synaesthetic visuals: live from an audio input
 - **Actions** (trigger targets): Random Phase, Rotate Hue, next / previous playlist patch, next / previous snapshot, Clear. Actions that change the document (Rotate Hue moves the Hue value) mark it Edited, as they do from the menu; that's documented.
 - **Menus and remote control:**
   - **Window > Modulation…** opens the window;
-  - **Image > Audio Modulation** (on / off) gets **⌘8**, which is free and sits between the image toggles and Random Phase;
+  - **Audio > Audio Modulation (the Image menu until the 2026-11-18 menu audit gave audio a menu of its own)** (on / off) gets **⌘8**, which is free and sits between the image toggles and Random Phase;
   - **OSC:** `/w/mod/on` and `/w/mod/depth` to start with. MIDI targets for them would add new tags to the playlist's mapping section; check first that Windows ignores unknown targets before adding them.
 - **Storage:**
   - Routing: UserDefaults `Modulation_v1`, JSON — `{ "version": 1, "depth": 1, "bypass": false, "rows": [ { "id", "on", "source", "target" (mapping tag, as the key map stores it), "prop", "amount", "curve", "polarity", "attackMs", "releaseMs", "options": {…} } ] }`.

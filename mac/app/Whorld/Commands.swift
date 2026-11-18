@@ -16,6 +16,7 @@ import SwiftUI
 struct WhorldCommands: Commands {
 	@ObservedObject var model: AppModel
 	@Environment(\.openWindow) private var openWindow
+	@AppStorage(AudioSettings.linkKey) private var linkEnabled = false	// Audio > Ableton Link
 
 	/// A recent file's name, with its folder if another recent file has the same name.
 	static func recentTitle(_ url: URL, in all: [URL]) -> String {
@@ -227,12 +228,19 @@ struct WhorldCommands: Commands {
 			Divider()
 			Button("Random Phase") { e.randomPhase() }
 				.keyboardShortcut("9")	// and F9
-			Divider()
-			// Mac addition (AUDIO_PLAN.md): the Modulation window's rows on or off
+		}
+
+		// Audio response in a menu of its own, apart from the picture (the
+		// user's menu audit, 2026-11-18; these were at the end of Image):
+		// the rows on or off, keeping the rows' phrases with the music's,
+		// where the beat comes from, and the Modulation panel
+		CommandMenu("Audio") {
+			// Mac addition (AUDIO_PLAN.md): the Modulation panel's rows on or off
 			toggle("Audio Modulation", !ModMap.shared.bypass) { ModMap.shared.bypass.toggle() }
 				.keyboardShortcut("8")
+			Divider()
 			// the count, to keep the rows' phrases with the music's (the
-			// Modulation window's beat buttons; Reset Bar Count, the nearest
+			// Modulation panel's beat buttons; Reset Bar Count, the nearest
 			// bar is bar 1, is a MIDI target and /w/mod/bars only, since 2026-11-18)
 			Button("Reset to 1.1") { ModMap.markDownbeat() }	// the beat nearest now is the one
 				.keyboardShortcut("8", modifiers: [.command, .option])
@@ -246,6 +254,20 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut("]", modifiers: [.command, .option, .shift])
 			Button("Shift Half Beat") { ModMap.shiftHalfBeat() }
 				.keyboardShortcut("\\", modifiers: [.command, .option])
+			Divider()
+			// the Modulation panel's switches, kept in step with them: the
+			// setting is Link_bEnabled (the panel's AppStorage)
+			Toggle("Ableton Link", isOn: Binding(get: { linkEnabled }, set: {
+				linkEnabled = $0
+				WHLink.shared.enabled = $0
+			}))
+			Toggle("Tempo Follows the Beat", isOn: Binding(get: { ModMap.shared.followTempo },
+				set: { ModMap.shared.followTempo = $0 }))
+			Divider()
+			Toggle("Modulation Panel", isOn: Binding(
+				get: { model.layout.isShown(.modulation) },
+				set: { model.layout.setShown(.modulation, $0) }))
+				.keyboardShortcut(PanelID.modulation.shortcut, modifiers: PanelID.modulation.shortcutModifiers)
 		}
 
 		CommandGroup(after: .toolbar) {
@@ -263,7 +285,9 @@ struct WhorldCommands: Commands {
 				Toggle(id.title, isOn: Binding(
 					get: { model.layout.isShown(id) },
 					set: { model.layout.setShown(id, $0) }))
-					.keyboardShortcut(id.shortcut, modifiers: id.shortcutModifiers)
+					// Modulation's key is on Audio > Modulation Panel (a key
+					// belongs to one item)
+					.keyboardShortcut(id == .modulation ? nil : KeyboardShortcut(id.shortcut, modifiers: id.shortcutModifiers))
 			}
 			Divider()
 			Menu("Render Scale") {	// Settings > Display; replaces Full Resolution

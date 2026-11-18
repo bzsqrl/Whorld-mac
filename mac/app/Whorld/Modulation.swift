@@ -158,7 +158,7 @@ private struct ModTopBar: View {
 	@ViewBuilder private var switchAndDepth: some View {
 			Toggle("Modulation", isOn: Binding(get: { !map.bypass }, set: { map.bypass = !$0 }))
 				.toggleStyle(.switch)
-				.help("All rows on or off; off, the patches play as they are. Image > Audio Modulation (⌘8), OSC /w/mod/on.")
+				.help("All rows on or off; off, the patches play as they are. Audio > Audio Modulation (⌘8), OSC /w/mod/on.")
 			Text("Depth")
 				.padding(.leading, 8)
 			StepSlider(value: map.depth, range: 0...1, step: 0.01, defaultValue: 1) { map.depth = $0 }
@@ -426,21 +426,21 @@ extension AudioInputSection {
 			Button("Reset to 1.1") { ModMap.markDownbeat() }
 				.controlSize(.small)
 				.fixedSize()	// the text gives way, not the button
-				.help("Press on the \"one\" (a drop, the start of a phrase): the beat nearest the press becomes beat 1 of bar 1, a little early or late alike. Image > Reset to 1.1 (⌥⌘8), OSC /w/mod/downbeat.")
+				.help("Press on the \"one\" (a drop, the start of a phrase): the beat nearest the press becomes beat 1 of bar 1, a little early or late alike. Audio > Reset to 1.1 (⌥⌘8), OSC /w/mod/downbeat.")
 			Button { ModMap.nudge(beats: link || shift() ? -4 : -1) } label: { Text("\u{2212}").frame(minWidth: 10) }	// text, not a symbol: docked, the symbols sometimes didn't draw
 				.controlSize(.small)
-				.help(link ? "The count a bar back (Ableton Link sets the beat within the bar). Image > Bar Back (⇧⌥⌘[), OSC /w/mod/barback."
-					: "The count a beat back, so the music's \"one\" comes a beat later in it; with ⇧, a bar back. Nothing fires, and waves ease to their new place. Image > Beat Back (⌥⌘[), Bar Back (⇧⌥⌘[), OSC /w/mod/beatback, /w/mod/barback.")
+				.help(link ? "The count a bar back (Ableton Link sets the beat within the bar). Audio > Bar Back (⇧⌥⌘[), OSC /w/mod/barback."
+					: "The count a beat back, so the music's \"one\" comes a beat later in it; with ⇧, a bar back. Nothing fires, and waves ease to their new place. Audio > Beat Back (⌥⌘[), Bar Back (⇧⌥⌘[), OSC /w/mod/beatback, /w/mod/barback.")
 			Button { ModMap.nudge(beats: link || shift() ? 4 : 1) } label: { Text("+").frame(minWidth: 10) }
 				.controlSize(.small)
-				.help(link ? "The count a bar on (Ableton Link sets the beat within the bar). Image > Bar Forward (⇧⌥⌘]), OSC /w/mod/barfwd."
-					: "The count a beat on; with ⇧, a bar on. Nothing fires, and waves ease to their new place. Image > Beat Forward (⌥⌘]), Bar Forward (⇧⌥⌘]), OSC /w/mod/beatfwd, /w/mod/barfwd.")
+				.help(link ? "The count a bar on (Ableton Link sets the beat within the bar). Audio > Bar Forward (⇧⌥⌘]), OSC /w/mod/barfwd."
+					: "The count a beat on; with ⇧, a bar on. Nothing fires, and waves ease to their new place. Audio > Beat Forward (⌥⌘]), Bar Forward (⇧⌥⌘]), OSC /w/mod/beatfwd, /w/mod/barfwd.")
 			Button("½ Beat") { ModMap.shiftHalfBeat() }
 				.controlSize(.small)
 				.fixedSize()
 				.disabled(link)
 				.help(link ? "Ableton Link's beat is the session's: no half-beat shift."
-					: "The beat itself half a beat later, or back: for a beat Whorld found on the off-beats (the Beat light flashes between the kicks). Image > Shift Half Beat (⌥⌘\\), OSC /w/mod/halfbeat.")
+					: "The beat itself half a beat later, or back: for a beat Whorld found on the off-beats (the Beat light flashes between the kicks). Audio > Shift Half Beat (⌥⌘\\), OSC /w/mod/halfbeat.")
 		}
 	}
 }
@@ -1080,7 +1080,7 @@ final class ModMap {
 		didSet {
 			changed()
 			if bypass != oldValue {
-				// Image > Audio Modulation's check mark; only then, since a bump
+				// Audio > Audio Modulation's check mark; only then, since a bump
 				// redraws the menus and panels, too much for every step of a slider
 				AppModel.shared.changes.main.bump()
 			}
