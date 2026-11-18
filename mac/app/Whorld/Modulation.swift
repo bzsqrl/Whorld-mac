@@ -1237,9 +1237,9 @@ private struct ModTablesSection: View {
 									Text("—").foregroundStyle(.secondary)	// a hit's pulse starts at once
 										.frame(width: 52)
 								} else {
-									MsField(value: $r.attackMs)
+									MsField(value: $r.attackMs, defaultValue: ModRowSetting().attackMs)
 								}
-								MsField(value: $r.releaseMs)
+								MsField(value: $r.releaseMs, defaultValue: ModRowSetting().releaseMs)
 							}
 						}
 					}
@@ -1258,9 +1258,8 @@ private struct ModTablesSection: View {
 				TableColumn("Threshold" + ColumnTips.mark) { $r in
 					stable(r) {
 						if !r.isOscillator && (r.curve == 3 || (r.isAction && !r.isTrigger)) {
-							TextField("", value: $r.threshold, format: .number.precision(.fractionLength(2)))
-								.multilineTextAlignment(.trailing)
-								.frame(width: 48)
+							RowNumber(value: $r.threshold, lo: 0, hi: 1, fine: 0.01, coarse: 0.1,
+								defaultValue: ModRowSetting().threshold, decimals: 2, width: 52)
 						} else {
 							Text("—").foregroundStyle(.secondary)
 						}
@@ -1616,23 +1615,50 @@ private struct OffsetField: View {
 	let earlyAllowed: Bool
 
 	var body: some View {
-		TextField("", value: Binding(get: { value }, set: { value = min(max($0.rounded(), -300), 300) }), format: .number)
-			.multilineTextAlignment(.trailing)
-			.frame(width: 52)
-			.foregroundStyle(!earlyAllowed && value < 0 ? Color.secondary : Color.primary)
+		RowNumber(value: $value, lo: earlyAllowed ? -300 : 0, hi: 300, fine: 1, coarse: 10, defaultValue: 0, width: 52)
 			.help(earlyAllowed
-				? "Milliseconds before (negative) or after (positive) the beat, bar or phrase that the row fires, -300 to 300."
-				: "Milliseconds after the hit that the row fires, up to 300. A hit can't be anticipated, so negative values do nothing here; Beat and the bars can fire early.")
+				? "Milliseconds before (negative) or after (positive) the beat or bar that the row fires, -300 to 300."
+				: "Milliseconds after the hit that the row fires, up to 300 (a hit can't be anticipated).")
 	}
 }
 
-/// A time in milliseconds, 0 to 5000.
+/// A time in milliseconds, 0 to 5000: an attack or release
 private struct MsField: View {
 	@Binding var value: Double
+	let defaultValue: Double
 
 	var body: some View {
-		TextField("", value: Binding(get: { value }, set: { value = min(max($0.rounded(), 0), 5000) }), format: .number)
-			.multilineTextAlignment(.trailing)
-			.frame(width: 52)
+		RowNumber(value: $value, lo: 0, hi: 5000, fine: 10, coarse: 100, defaultValue: defaultValue, width: 52)
+	}
+}
+
+/// A row's number box, as the panels' (NumberField): type a value, or step
+/// it with the arrow keys, a swipe up or down or the mouse wheel (`fine`
+/// steps, `coarse` with Shift, to either end with Command-Shift);
+/// right-click for `defaultValue`. Kept within lo to hi, on the fine step's
+/// grid when stepped (250 steps to 260, then with Shift to 360).
+private struct RowNumber: View {
+	@Binding var value: Double
+	let lo: Double
+	let hi: Double
+	let fine: Double
+	let coarse: Double
+	let defaultValue: Double
+	var decimals = 0
+	let width: CGFloat
+
+	var body: some View {
+		NumberField(value: value,
+			format: { String(format: "%.\(decimals)f", $0 + 0) },	// + 0: never "-0"
+			parse: { Double($0) ?? value },
+			commit: {	// to what's shown: whole milliseconds, hundredths of the threshold
+				let unit = pow(10, Double(decimals))
+				value = min(max(($0 * unit).rounded() / unit, lo), hi)
+			},
+			step: { v, d, k in
+				let x = v + Double(d) * (k == .coarse ? coarse : fine)
+				return min(max((x / fine).rounded() * fine, lo), hi)	// on the fine step's grid, as KeyStep
+			},
+			lo: lo, hi: hi, defaultValue: defaultValue, width: width)
 	}
 }
