@@ -190,8 +190,18 @@ struct NumberField: View {
 		return n / d
 	}
 
-	/// fits ten characters of %g (such as -0.0132785) in the box's font
-	static let standardWidth: CGFloat = 96
+	/// fits nine characters in the box's font (the user's request,
+	/// 2026-11-18: was ten, 96 points): every value a slider sets (the
+	/// longest, "-179.64", "10000.00") and 99.5% of those the sample
+	/// patches show; a longer one scrolls in the box
+	static let standardWidth: CGFloat = width(characters: 9)
+
+	/// a box that fits so many characters in its font, with the bezel's
+	/// and the text's margins (17 points, measured) and a little to spare
+	static func width(characters n: Int) -> CGFloat {
+		let digit = ("0" as NSString).size(withAttributes: [.font: font]).width
+		return ceil(CGFloat(n) * digit) + 20
+	}
 	static let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
 
 	var body: some View {
@@ -891,7 +901,7 @@ struct ParamsPanel: View {
 					Color.clear.frame(width: ParamColumn.field, height: 1)
 					Text("Waveform").frame(width: ParamColumn.wave, alignment: .leading)
 					Text("Amplitude").frame(width: ParamColumn.field, alignment: .leading)
-					Text("Frequency").frame(width: ParamColumn.field, alignment: .leading)
+					Text("Frequency").frame(width: ParamColumn.freq, alignment: .leading)
 					Text("Pulse Width").frame(width: ParamColumn.pw, alignment: .leading)
 				}
 				.font(.caption)
@@ -911,11 +921,16 @@ enum ParamColumn {
 	static let spacing: CGFloat = 8
 	static let name: CGFloat = 96
 	static let slider: CGFloat = PositionSlider.minWidth	// the narrowest; it stretches
-	static let field: CGFloat = 96
+	// sized to the values the sample patches show (2026-11-18): Value,
+	// Amplitude and Pulse Width fit nine characters in 99.5% (Pulse Width
+	// was 70 points, which clipped one in twenty); Frequency often needs
+	// ten (0.00972658)
+	static let field: CGFloat = NumberField.standardWidth	// Value and Amplitude
+	static let freq: CGFloat = NumberField.width(characters: 10)
 	static let wave: CGFloat = 104
-	static let pw: CGFloat = 70
+	static let pw: CGFloat = NumberField.standardWidth
 	/// the narrowest the panel gets: every column, the gaps, the padding
-	static let panelMin: CGFloat = name + slider + field + wave + field + field + pw + 6 * spacing + 20
+	static let panelMin: CGFloat = name + slider + field + wave + field + freq + pw + 6 * spacing + 20
 }
 
 struct ParamRow: View {
@@ -971,9 +986,9 @@ struct ParamRow: View {
 			.frame(width: ParamColumn.wave)
 			field(.amp, column: 1)
 				.frame(width: ParamColumn.field, alignment: .leading)
-			field(.freq, column: 2)
-				.frame(width: ParamColumn.field, alignment: .leading)
-			field(.PW, column: 3, width: 70)
+			field(.freq, column: 2, width: ParamColumn.freq)
+				.frame(width: ParamColumn.freq, alignment: .leading)
+			field(.PW, column: 3, width: ParamColumn.pw)
 				.frame(width: ParamColumn.pw, alignment: .leading)
 		}
 	}
