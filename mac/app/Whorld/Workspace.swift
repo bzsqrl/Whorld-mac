@@ -253,6 +253,12 @@ indirect enum DockNode: Codable, Equatable {
 		}
 	}
 
+	/// With `id` along one side of the whole arrangement: below it all, say,
+	/// as wide as everything here (a span; 2026-11-18).
+	func adding(_ id: PanelID, at edge: DockEdge) -> DockNode {
+		Self.make(edge.axis, edge.isAfter ? [self, .panel(id)] : [.panel(id), self])!
+	}
+
 	/// With `id` added at the end along `axis` (a region's own direction).
 	func appending(_ id: PanelID, along axis: SplitAxis) -> DockNode {
 		if case .split(let a, let kids) = self, a == axis {
@@ -555,6 +561,41 @@ final class LayoutModel: ObservableObject {
 	var pendingFloatOrigin: [PanelID: NSPoint] = [:]
 	/// the docked panel whose title bar (or tab) is being dragged (PanelDragSource)
 	var draggedPanel: PanelID?
+	/// the regions' views, for spans (as paneViews)
+	var regionViews: [Region: WeakView] = [:]
+	/// a span a title bar dragged now would dock along (its highlight)
+	@Published var titleDragSpan: SpanHover?
+
+	/// the span a highlight shows on a region now, from either kind of drag
+	func spanShown(on r: Region) -> DockEdge? {
+		if case .span(let sr, let e)? = windowDragHover, sr == r { return e }
+		if let h = titleDragSpan, h.region == r { return h.edge }
+		return nil
+	}
+	func showSpan(_ t: DragTarget?, owner: String) {
+		var new: SpanHover? = nil
+		if case .span(let r, let e)? = t { new = SpanHover(owner: owner, region: r, edge: e) }
+		if new != nil || titleDragSpan?.owner == owner, titleDragSpan != new { titleDragSpan = new }
+	}
+
+	/// how near a region's outer side (in points) a panel goes along it all
+	static let spanBand: CGFloat = 24
+
+	/// A span from a point on a pane (its own coordinates, y down): within
+	/// spanBand of a side the pane shares with its region (on the top, just
+	/// under the title bar, which takes tabs), when the region has more than
+	/// the one pane.
+	func span(onPane pane: PanelID, at p: CGPoint, size: CGSize) -> DragTarget? {
+		guard let r = layout.region(of: pane), let root = layout.root(r), !root.isPane,
+			let v = paneViews[pane]?.view, let main = v.window,
+			let pf = frame(paneViews[pane], in: main), let rf = frame(regionViews[r], in: main) else { return nil }
+		let b = Self.spanBand, h = DockedPanel.headerHeight
+		if abs(pf.maxY - rf.maxY) < 2, p.y >= h, p.y < h + b { return .span(r, .top) }
+		if abs(pf.minY - rf.minY) < 2, p.y > size.height - b { return .span(r, .bottom) }
+		if abs(pf.minX - rf.minX) < 2, p.x < b, p.y >= h { return .span(r, .leading) }
+		if abs(pf.maxX - rf.maxX) < 2, p.x > size.width - b, p.y >= h { return .span(r, .trailing) }
+		return nil
+	}
 
 	/// What a panel dropped at a point in the Whorld window would do: as the
 	/// drop delegates decide, on a pane (PanelDropDelegate.spot) or near the
@@ -562,14 +603,14 @@ final class LayoutModel: ObservableObject {
 	func dragTarget(at p: CGPoint, dragging id: PanelID, in main: NSWindow) -> DragTarget? {
 		for (pane, w) in paneViews {
 			guard let r = frame(w, in: main), r.contains(p) else { continue }
-			if pane == id { return nil }	// onto itself
 			// window coordinates have y up; a pane's own, as SwiftUI's, down
 			let local = CGPoint(x: p.x - r.minX, y: r.maxY - p.y)
+			if let s = span(onPane: pane, at: local, size: r.size) { return s }
+			if pane == id { return nil }	// onto itself
 			return .pane(pane, PanelDropDelegate.spot(at: local, size: r.size))
 		}
-		if let r = frame(outputView, in: main), r.contains(p),
-			let region = EdgeDropDelegate.region(CGPoint(x: p.x - r.minX, y: r.maxY - p.y), size: r.size) {
-			return .region(region)
+		if let r = frame(outputView, in: main), r.contains(p) {
+			return EdgeDropDelegate.target(CGPoint(x: p.x - r.minX, y: r.maxY - p.y), size: r.size, layout: self)
 		}
 		return nil
 	}
@@ -579,6 +620,20 @@ final class LayoutModel: ObservableObject {
 		case .pane(let other, .tab): tab(id, with: other)
 		case .pane(let other, .edge(let e)): move(id, to: e, of: other)
 		case .region(let r): move(id, to: r)
+		case .span(let r, let e): span(id, along: e, of: r)
+		}
+	}
+
+	/// Docks the panel along one side of a whole region: below all the
+	/// bottom's panes, as wide as they are, say.
+	func span(_ id: PanelID, along edge: DockEdge, of r: Region) {
+		let wasFloating = isFloating(id)
+		var l = layout
+		l.remove(id)
+		l.setRoot(l.root(r)?.adding(id, at: edge) ?? .panel(id), r)
+		layout = l
+		if wasFloating {
+			closeFloating?(id)
 		}
 	}
 
@@ -848,7 +903,7 @@ struct SplitView: NSViewRepresentable {
 	func updateNSView(_ s: DockSplitView, context: Context) {
 		let c = context.coordinator
 		c.parent = self
-		if c.items != items || c.autosave != autosave {
+		if c.items != items || c.autosave != autosave || s.isVertical != vertical {
 			rebuild(s, c)
 		} else {
 			for id in items {
@@ -863,6 +918,7 @@ struct SplitView: NSViewRepresentable {
 
 	private func rebuild(_ s: DockSplitView, _ c: Coordinator) {
 		s.autosaveName = nil
+		s.isVertical = vertical	// SwiftUI may hand back the view a split the other way had
 		for v in s.arrangedSubviews {
 			s.removeArrangedSubview(v)
 			v.removeFromSuperview()
@@ -888,6 +944,15 @@ struct SplitView: NSViewRepresentable {
 	}
 
 	/// Starting sizes, at the next layout (and saved).
+	/// Puts the dividers at these positions. A divider only trades space
+	/// between its two panes, so one beside a pane with none yet (a pane
+	/// just added) can't move far: last to first, then first to last,
+	/// each finds room.
+	private static func place(_ s: NSSplitView, _ at: [CGFloat]) {
+		for i in at.indices.reversed() { s.setPosition(at[i], ofDividerAt: i) }
+		for i in at.indices { s.setPosition(at[i], ofDividerAt: i) }
+	}
+
 	private func arrange(_ s: DockSplitView) {
 		let name = autosave, ids = items, initial = initialSize, isVertical = vertical
 		let shares = SplitShares.current[name]
@@ -898,26 +963,35 @@ struct SplitView: NSViewRepresentable {
 			if let shares, shares.count == ids.count, ids.count > 1 {	// a saved layout's proportions
 				let room = total - t * CGFloat(ids.count - 1)
 				let sum = max(shares.reduce(0, +), 1e-9)
-				var pos: CGFloat = 0
+				var pos: CGFloat = 0, at: [CGFloat] = []
 				for i in 0..<(ids.count - 1) {
 					pos += room * CGFloat(shares[i] / sum)
-					s.setPosition(pos, ofDividerAt: i)
+					at.append(pos)
 					pos += t
 				}
+				Self.place(s, at)
 				s.autosaveName = name
 				s.redisplayWindowSoon()
 				return true
 			}
-			let fixed = ids.map(initial)
-			let nFlex = fixed.filter { $0 == nil }.count
+			var fixed = ids.map(initial)
+			var nFlex = fixed.filter { $0 == nil }.count
+			let room = total - t * CGFloat(max(ids.count - 1, 0))
+			// the forms' sizes don't leave the rest room (a pane spanning a
+			// small region, say): all share it alike
+			if fixed.compactMap({ $0 }).reduce(0, +) + CGFloat(nFlex) * Coordinator.minPane > room {
+				fixed = ids.map { _ in nil }
+				nFlex = ids.count
+			}
 			let used = fixed.compactMap { $0 }.reduce(0, +) + t * CGFloat(max(ids.count - 1, 0))
 			let flex = nFlex > 0 ? max((total - used) / CGFloat(nFlex), Coordinator.minPane) : 0
-			var pos: CGFloat = 0
+			var pos: CGFloat = 0, at: [CGFloat] = []
 			for i in 0..<max(ids.count - 1, 0) {
 				pos += fixed[i] ?? flex
-				s.setPosition(pos, ofDividerAt: i)
+				at.append(pos)
 				pos += t
 			}
+			Self.place(s, at)
 			s.autosaveName = name
 			s.redisplayWindowSoon()
 			return true
@@ -988,10 +1062,20 @@ enum DropSpot: Equatable {
 }
 
 /// Where a panel dragged over the Whorld window would go: a pane's spot,
-/// or a region beside the output.
+/// a region beside the output, or along one side of a whole region, as
+/// long as it (a span: across all the bottom's panes, say; 2026-11-18).
 enum DragTarget: Equatable {
 	case pane(PanelID, DropSpot)
 	case region(Region)
+	case span(Region, DockEdge)
+}
+
+/// A span shown while a title bar is dragged (the drop delegate whose it
+/// is, so another's leaving doesn't clear it)
+struct SpanHover: Equatable {
+	let owner: String	// a pane's panel, or "output"
+	let region: Region
+	let edge: DockEdge
 }
 
 /// A docked pane: one panel, or a stack of tabs showing one of them, under
@@ -1155,18 +1239,26 @@ struct PanelDropDelegate: DropDelegate {
 	func validateDrop(info: DropInfo) -> Bool { info.hasItemsConforming(to: [.whorldPanel]) }
 
 	func dropUpdated(info: DropInfo) -> DropProposal? {
+		let span = layout.span(onPane: id, at: info.location, size: size)
+		layout.showSpan(span, owner: id.rawValue)
 		// over its own pane: no highlight, and let go there it stays put
-		spot = layout.draggedPanel == id ? nil : spot(at: info.location)
+		spot = span != nil || layout.draggedPanel == id ? nil : spot(at: info.location)
 		return DropProposal(operation: .move)
 	}
 
-	func dropExited(info: DropInfo) { spot = nil }
+	func dropExited(info: DropInfo) {
+		spot = nil
+		layout.showSpan(nil, owner: id.rawValue)
+	}
 
 	func performDrop(info: DropInfo) -> Bool {
+		let span = layout.span(onPane: id, at: info.location, size: size)
 		let s = spot(at: info.location)
 		spot = nil
+		layout.showSpan(nil, owner: id.rawValue)
 		let target = id, layout = layout
 		return loadPanel(info.itemProviders(for: [.whorldPanel])) { dragged in
+			if let span { layout.dock(dragged, at: span); return }
 			switch s {
 			case .tab: layout.tab(dragged, with: target)
 			case .edge(let e): layout.move(dragged, to: e, of: target)
@@ -1463,6 +1555,27 @@ struct WorkspaceView: View {
 
 	private func region(_ r: Region) -> some View {
 		node(layout.layout.root(r), region: r)
+			.overlay { spanHighlight(r) }
+			.background(DockFrameProbe { [layout] v in layout.regionViews[r] = .init(v) })
+	}
+
+	/// A span a drop now would make: a band along that side of the whole
+	/// region, as a pane edge's highlight is along the pane's.
+	@ViewBuilder private func spanHighlight(_ r: Region) -> some View {
+		if let e = layout.spanShown(on: r) {
+			GeometryReader { g in
+				let rowAxis = e.axis == .row
+				ZStack(alignment: e.alignment) {
+					Rectangle().fill(Color.accentColor.opacity(0.22))
+					Rectangle().fill(Color.accentColor)
+						.frame(width: rowAxis ? 4 : nil, height: rowAxis ? nil : 4)
+				}
+				.frame(width: rowAxis ? min(g.size.width / 3, 320) : g.size.width,
+					height: rowAxis ? g.size.height : min(g.size.height / 3, 200))
+				.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: e.alignment)
+			}
+			.allowsHitTesting(false)
+		}
 	}
 
 	/// A region's arrangement, drawn as split views inside split views.
@@ -1503,7 +1616,7 @@ struct OutputArea: View {
 
 	var body: some View {
 		GeometryReader { g in
-			OutputView()
+			OutputView(panelDrop: EdgeDropDelegate(size: g.size, layout: layout, target: $target))
 				.overlay {
 					if let target = target ?? hoverRegion {
 						let w = g.size.width / 4, h = g.size.height / 4
@@ -1514,7 +1627,6 @@ struct OutputArea: View {
 							.allowsHitTesting(false)
 					}
 				}
-				.onDrop(of: [.whorldPanel], delegate: EdgeDropDelegate(size: g.size, layout: layout, target: $target))
 		}
 		.background(DockFrameProbe { [layout] v in layout.outputView = .init(v) })
 	}
@@ -1530,8 +1642,6 @@ struct EdgeDropDelegate: DropDelegate {
 	let layout: LayoutModel
 	@Binding var target: Region?
 
-	private func region(_ p: CGPoint) -> Region? { Self.region(p, size: size) }
-
 	static func region(_ p: CGPoint, size: CGSize) -> Region? {
 		if p.x < size.width / 4 { return .left }
 		if p.x > size.width * 3 / 4 { return .right }
@@ -1539,20 +1649,40 @@ struct EdgeDropDelegate: DropDelegate {
 		return nil
 	}
 
+	/// What a drop at a point does: right by an edge the output shares with
+	/// a region (within LayoutModel.spanBand), along that region's whole
+	/// side (across all the bottom's panes, say); nearer the edge than the
+	/// middle, into that region, at its end.
+	static func target(_ p: CGPoint, size: CGSize, layout: LayoutModel) -> DragTarget? {
+		let b = LayoutModel.spanBand, l = layout.layout
+		if p.y > size.height - b, l.bottom != nil { return .span(.bottom, .top) }
+		if p.x < b, l.left != nil { return .span(.left, .trailing) }
+		if p.x > size.width - b, l.right != nil { return .span(.right, .leading) }
+		return region(p, size: size).map { .region($0) }
+	}
+
+	private func target(_ p: CGPoint) -> DragTarget? { Self.target(p, size: size, layout: layout) }
+
 	func validateDrop(info: DropInfo) -> Bool { info.hasItemsConforming(to: [.whorldPanel]) }
 
 	func dropUpdated(info: DropInfo) -> DropProposal? {
-		target = region(info.location)
-		return DropProposal(operation: target == nil ? .forbidden : .move)
+		let t = self.target(info.location)
+		if case .region(let r)? = t { target = r } else { target = nil }
+		layout.showSpan(t, owner: "output")
+		return DropProposal(operation: t == nil ? .forbidden : .move)
 	}
 
-	func dropExited(info: DropInfo) { target = nil }
+	func dropExited(info: DropInfo) {
+		target = nil
+		layout.showSpan(nil, owner: "output")
+	}
 
 	func performDrop(info: DropInfo) -> Bool {
-		guard let r = region(info.location) else { target = nil; return false }
 		target = nil
+		layout.showSpan(nil, owner: "output")
+		guard let t = self.target(info.location) else { return false }
 		let layout = layout
-		return loadPanel(info.itemProviders(for: [.whorldPanel])) { id in layout.move(id, to: r) }
+		return loadPanel(info.itemProviders(for: [.whorldPanel])) { id in layout.dock(id, at: t) }
 	}
 }
 

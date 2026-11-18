@@ -37,6 +37,9 @@ private struct DocumentTitle: ViewModifier {
 /// output window.
 struct OutputView: View {
 	@EnvironmentObject private var model: AppModel
+	/// in the workspace, panels dropped near its edges (one drop target for
+	/// both: an inner one would take every drag over it, panels' too)
+	var panelDrop: EdgeDropDelegate? = nil
 
 	var body: some View {
 		RenderView(engine: model.engine, renderScale: model.renderScale, smoothUpscaling: model.smoothUpscaling)
@@ -50,22 +53,49 @@ struct OutputView: View {
 					StatsOverlay(stats: model.stats)
 				}
 			}
-			.onDrop(of: [.fileURL], isTargeted: nil) { providers in
-				guard let provider = providers.first else { return false }
-				_ = provider.loadObject(ofClass: URL.self) { url, _ in
-					guard let url else { return }
-					Task { @MainActor in
-						switch url.pathExtension.lowercased() {
-						case "whp": model.open(url)
-						case "whl": if model.confirmDiscardPlaylist() { model.openPlaylist(url) }
-						case "whs": model.loadSnapshots([url])
-						case "whm": model.playMovie(url)
-						default: break
-						}
-					}
+			.onDrop(of: panelDrop == nil ? [.fileURL] : [.fileURL, .whorldPanel],
+				delegate: OutputDropDelegate(model: model, panels: panelDrop))
+	}
+}
+
+/// Files dropped on the output open; panels go to the workspace's
+/// EdgeDropDelegate.
+struct OutputDropDelegate: DropDelegate {
+	let model: AppModel
+	let panels: EdgeDropDelegate?
+
+	private func panelDelegate(_ info: DropInfo) -> EdgeDropDelegate? {
+		info.hasItemsConforming(to: [.whorldPanel]) ? panels : nil
+	}
+
+	func validateDrop(info: DropInfo) -> Bool {
+		panelDelegate(info) != nil || info.hasItemsConforming(to: [.fileURL])
+	}
+
+	func dropUpdated(info: DropInfo) -> DropProposal? {
+		if let p = panelDelegate(info) { return p.dropUpdated(info: info) }
+		return info.hasItemsConforming(to: [.whorldPanel]) ? DropProposal(operation: .forbidden) : nil
+	}
+
+	func dropExited(info: DropInfo) { panels?.dropExited(info: info) }
+
+	func performDrop(info: DropInfo) -> Bool {
+		if let p = panelDelegate(info) { return p.performDrop(info: info) }
+		guard let provider = info.itemProviders(for: [.fileURL]).first else { return false }
+		let model = model
+		_ = provider.loadObject(ofClass: URL.self) { url, _ in
+			guard let url else { return }
+			Task { @MainActor in
+				switch url.pathExtension.lowercased() {
+				case "whp": model.open(url)
+				case "whl": if model.confirmDiscardPlaylist() { model.openPlaylist(url) }
+				case "whs": model.loadSnapshots([url])
+				case "whm": model.playMovie(url)
+				default: break
 				}
-				return true
 			}
+		}
+		return true
 	}
 }
 
