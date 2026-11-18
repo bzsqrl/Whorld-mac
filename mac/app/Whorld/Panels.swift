@@ -517,6 +517,9 @@ struct KeySlider: NSViewRepresentable {
 			}
 		}
 		var markerTarget: ModMarkers.Target?
+		/// its height, worked out once: asking AppKit on every layout is slow
+		/// enough to matter while a swipe redraws a table of them
+		lazy var fitHeight: CGFloat = controlSize == .small ? 18 : intrinsicContentSize.height
 
 		override func draw(_ dirtyRect: NSRect) {
 			super.draw(dirtyRect)
@@ -649,7 +652,7 @@ struct KeySlider: NSViewRepresentable {
 
 	func sizeThatFits(_ proposal: ProposedViewSize, nsView: Slider, context: Context) -> CGSize? {
 		CGSize(width: proposal.width ?? PositionSlider.minWidth,
-			height: controlSize == .small ? 18 : nsView.intrinsicContentSize.height)
+			height: nsView.fitHeight)
 	}
 }
 

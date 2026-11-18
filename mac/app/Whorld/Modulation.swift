@@ -17,6 +17,7 @@
 
 import AppKit
 import SwiftUI
+import Observation
 
 /// The audio input's settings, kept in Whorld's settings.
 enum AudioSettings {
@@ -78,7 +79,7 @@ struct ModulationView: View {
 
 /// The top row: modulation on or off and its depth, then the rows' files.
 private struct ModTopBar: View {
-	@ObservedObject private var map = ModMap.shared
+	@Bindable private var map = ModMap.shared
 
 	var body: some View {
 		HStack(spacing: 12) {
@@ -127,7 +128,8 @@ private struct AudioInputSection: View {
 	@AppStorage(AudioSettings.hitThresholdKey) private var hitThreshold = 4.0
 	@AppStorage(AudioSettings.linkKey) private var linkEnabled = false
 	@AppStorage(AudioSettings.linkSyncKey) private var linkSync = false
-	@ObservedObject private var map = ModMap.shared
+	// not ModMap: a view that observes it redraws on every step of a slider,
+	// and this one lists the audio devices as it draws (FollowTempoToggle)
 
 	private var input: WHAudioInput { .shared }
 
@@ -255,7 +257,7 @@ private struct AudioInputSection: View {
 			}
 			GridRow {
 				Text("Tempo")
-				Toggle("Whorld's Tempo follows the beat", isOn: $map.followTempo)
+				FollowTempoToggle()
 					.help("Master > Tempo (which times Origin Random) follows the beat's tempo, from Ableton Link or the music, while there's a beat. The patch's own Tempo isn't changed.")
 			}
 			GridRow {
@@ -372,7 +374,7 @@ private struct StepSlider: View {
 		let perUnit = 1 / step	// whole (100, 10, 2), so values come out as 0.29, not 0.29000000000000004
 		let lo = (range.lowerBound * perUnit).rounded(), hi = (range.upperBound * perUnit).rounded()
 		KeySlider(position: value * perUnit, range: lo...hi,
-			set: { set(min(max($0, lo), hi) / perUnit) },
+			set: { set(min(max($0, lo), hi) / perUnit + 0) },	// + 0: never -0 ("-0%")
 			reset: { set(defaultValue) },
 			controlSize: .regular)
 	}
@@ -399,6 +401,16 @@ private struct OwnHost<Content: View>: NSViewRepresentable {
 
 	func sizeThatFits(_ proposal: ProposedViewSize, nsView host: NSHostingView<Content>, context: Context) -> CGSize? {
 		host.intrinsicContentSize
+	}
+}
+
+/// Tempo follows the beat: the one part of the input section that's a
+/// ModMap setting, in a view of its own (see AudioInputSection)
+private struct FollowTempoToggle: View {
+	@Bindable private var map = ModMap.shared
+
+	var body: some View {
+		Toggle("Whorld's Tempo follows the beat", isOn: $map.followTempo)
 	}
 }
 
@@ -716,7 +728,8 @@ struct ModSyncSetting: Codable, Identifiable, Equatable {
 /// The routing rows, depth and bypass: a setting (Modulation_v1), applied to
 /// the engine whenever it changes.
 @MainActor
-final class ModMap: ObservableObject {
+@Observable
+final class ModMap {
 	static let shared = ModMap()
 	private static let defaultsKey = "Modulation_v1"
 
@@ -761,13 +774,22 @@ final class ModMap: ObservableObject {
 		var allRows: [ModRowSetting] { rows + syncs.map(ModRowSetting.fromSync) }
 	}
 
-	@Published var rows: [ModRowSetting] { didSet { changed() } }
-	@Published var depth: Double { didSet { changed() } }	// 0 to 1, scales every row
-	@Published var bypass: Bool { didSet { changed() } }	// off: the patches as they are
-	@Published var followTempo: Bool { didSet { changed() } }	// Tempo follows the beat
+	var rows: [ModRowSetting] { didSet { changed() } }
+	var depth: Double { didSet { changed() } }	// 0 to 1, scales every row
+	var bypass: Bool {	// off: the patches as they are
+		didSet {
+			changed()
+			if bypass != oldValue {
+				// Image > Audio Modulation's check mark; only then, since a bump
+				// redraws the menus and panels, too much for every step of a slider
+				AppModel.shared.changes.main.bump()
+			}
+		}
+	}
+	var followTempo: Bool { didSet { changed() } }	// Tempo follows the beat
 	/// what an import skipped, for the window to say
-	@Published var notice: String?
-	private weak var engine: WHEngine?
+	var notice: String?
+	@ObservationIgnored private weak var engine: WHEngine?
 
 	private init() {
 		var f = File(rows: Self.standard)
@@ -809,7 +831,6 @@ final class ModMap: ObservableObject {
 			UserDefaults.standard.set(data, forKey: Self.defaultsKey)
 		}
 		apply()
-		AppModel.shared.changes.main.bump()	// Image > Audio Modulation's check mark
 	}
 
 	private func apply() {
@@ -988,7 +1009,7 @@ private final class ModLevels: ObservableObject {
 /// beat were a second table until 2026-11-17; they're rows now, on a
 /// parameter's Frequency target.)
 private struct ModTablesSection: View {
-	@ObservedObject private var map = ModMap.shared
+	@Bindable private var map = ModMap.shared
 	private let levels = ModLevels.shared	// not observed here (see ModLevels)
 	@State private var selection = Set<ModRowSetting.ID>()
 
@@ -1028,49 +1049,64 @@ private struct ModTablesSection: View {
 		selection = []
 	}
 
+	/// A row's cell that redraws only when its row changes, other than its
+	/// Amount: swiping an Amount slider changes the rows many times a
+	/// second, and redrawing every row's menus each time made it lag.
+	/// (Keyed by place too, since a cell's binding reaches its row by place.)
+	private func stable<C: View>(_ r: ModRowSetting, @ViewBuilder _ content: @escaping () -> C) -> some View {
+		var key = r
+		key.amount = 0
+		return SameRow(index: map.rows.firstIndex(where: { $0.id == r.id }) ?? -1, row: key, content: content)
+			.equatable()
+	}
+
 	private var rowsTable: some View {
 			Table($map.rows, selection: $selection) {
 				TableColumn("On" + ColumnTips.mark) { $r in
-					Toggle("", isOn: $r.on).labelsHidden()
+					stable(r) {
+						Toggle("", isOn: $r.on).labelsHidden()
+					}
 				}
 				.width(46)
 				TableColumn("Source" + ColumnTips.mark) { $r in
-					HStack(spacing: 2) {
-						if r.isOscillator {	// the beat's spans: the cycle's length
-							Picker("", selection: Binding(get: { r.source }, set: {
-								r.source = $0
-								r.lfoBeats = ModRowSetting.spanBeats[$0] ?? 4
-							})) {
-								ForEach(ModRowSetting.spanSources, id: \.self) { t in
-									Text(WHModRow.sourceName(t)).tag(t)
+					stable(r) {
+						HStack(spacing: 2) {
+							if r.isOscillator {	// the beat's spans: the cycle's length
+								Picker("", selection: Binding(get: { r.source }, set: {
+									r.source = $0
+									r.lfoBeats = ModRowSetting.spanBeats[$0] ?? 4
+								})) {
+									ForEach(ModRowSetting.spanSources, id: \.self) { t in
+										Text(WHModRow.sourceName(t)).tag(t)
+									}
+									if !r.isBeatBased {
+										Text(WHModRow.sourceName(r.source)).tag(r.source)
+									}
 								}
-								if !r.isBeatBased {
-									Text(WHModRow.sourceName(r.source)).tag(r.source)
+								.labelsHidden()
+								LockMenu(row: $r)
+							} else {
+							Picker("", selection: $r.source) {
+								let tags = WHModRow.sourceTags
+								Section("Sound") {
+									ForEach(tags.filter { !WHModRow.isTriggerSource($0) && $0 != "BeatLFO" }, id: \.self) { t in
+										Text(WHModRow.sourceName(t)).tag(t)
+									}
+								}
+								Section("Hits and the beat") {
+									ForEach(tags.filter { WHModRow.isTriggerSource($0) || $0 == "BeatLFO" }, id: \.self) { t in
+										Text(WHModRow.sourceName(t)).tag(t)
+									}
+								}
+								if !tags.contains(r.source) {
+									Text(r.source + " (unknown)").tag(r.source)
 								}
 							}
 							.labelsHidden()
-							LockMenu(row: $r)
-						} else {
-						Picker("", selection: $r.source) {
-							let tags = WHModRow.sourceTags
-							Section("Sound") {
-								ForEach(tags.filter { !WHModRow.isTriggerSource($0) && $0 != "BeatLFO" }, id: \.self) { t in
-									Text(WHModRow.sourceName(t)).tag(t)
-								}
+							if r.isLFO {
+								LfoMenu(row: $r)
 							}
-							Section("Hits and the beat") {
-								ForEach(tags.filter { WHModRow.isTriggerSource($0) || $0 == "BeatLFO" }, id: \.self) { t in
-									Text(WHModRow.sourceName(t)).tag(t)
-								}
 							}
-							if !tags.contains(r.source) {
-								Text(r.source + " (unknown)").tag(r.source)
-							}
-						}
-						.labelsHidden()
-						if r.isLFO {
-							LfoMenu(row: $r)
-						}
 						}
 					}
 				}
@@ -1080,28 +1116,30 @@ private struct ModTablesSection: View {
 				}
 				.width(60)
 				TableColumn("Target" + ColumnTips.mark) { $r in
-					Picker("", selection: Binding(
-						get: { ModMap.TargetChoice(target: r.isAction ? "" : r.target, prop: r.isAction ? 0 : r.prop, action: r.action) },
-						set: { c in
-							r.action = c.action
-							if c.action.isEmpty {
-								r.target = c.target
-								r.prop = c.prop
-							}
-							if r.isOscillator {	// its source is the cycle: a beat span
-								if !r.isBeatBased { r.source = "Bar" }
-								r.lfoBeats = ModRowSetting.spanBeats[r.source] ?? 4
-							}
-						})) {
-						ForEach(ModMap.targetGroups, id: \.title) { g in
-							Section(g.title) {
-								ForEach(g.choices, id: \.self) { c in
-									Text(ModMap.name(c)).tag(c)
+					stable(r) {
+						Picker("", selection: Binding(
+							get: { ModMap.TargetChoice(target: r.isAction ? "" : r.target, prop: r.isAction ? 0 : r.prop, action: r.action) },
+							set: { c in
+								r.action = c.action
+								if c.action.isEmpty {
+									r.target = c.target
+									r.prop = c.prop
+								}
+								if r.isOscillator {	// its source is the cycle: a beat span
+									if !r.isBeatBased { r.source = "Bar" }
+									r.lfoBeats = ModRowSetting.spanBeats[r.source] ?? 4
+								}
+							})) {
+							ForEach(ModMap.targetGroups, id: \.title) { g in
+								Section(g.title) {
+									ForEach(g.choices, id: \.self) { c in
+										Text(ModMap.name(c)).tag(c)
+									}
 								}
 							}
 						}
+						.labelsHidden()
 					}
-					.labelsHidden()
 				}
 				.width(min: 140, ideal: 160)
 				TableColumn("Amount" + ColumnTips.mark) { $r in
@@ -1120,65 +1158,75 @@ private struct ModTablesSection: View {
 				}
 				.width(min: 140, ideal: 150)
 				TableColumn("Curve" + ColumnTips.mark) { $r in
-					if r.isOscillator {
-						Text("—").foregroundStyle(.secondary)
-					} else {
-						Picker("", selection: $r.curve) {
-							Text("Linear").tag(0)
-							Text("Soft").tag(1)
-							Text("Hard").tag(2)
-							Text("Gate").tag(3)
+					stable(r) {
+						if r.isOscillator {
+							Text("—").foregroundStyle(.secondary)
+						} else {
+							Picker("", selection: $r.curve) {
+								Text("Linear").tag(0)
+								Text("Soft").tag(1)
+								Text("Hard").tag(2)
+								Text("Gate").tag(3)
+							}
+							.labelsHidden()
 						}
-						.labelsHidden()
 					}
 				}
 				.width(min: 70, ideal: 80)
 				TableColumn("Polarity" + ColumnTips.mark) { $r in
-					if r.isAction || r.isOscillator {
-						Text("—").foregroundStyle(.secondary)
-					} else {
-						Picker("", selection: $r.centered) {
-							Text("Up").tag(false)
-							Text("Centered").tag(true)
+					stable(r) {
+						if r.isAction || r.isOscillator {
+							Text("—").foregroundStyle(.secondary)
+						} else {
+							Picker("", selection: $r.centered) {
+								Text("Up").tag(false)
+								Text("Centered").tag(true)
+							}
+							.labelsHidden()
 						}
-						.labelsHidden()
 					}
 				}
 				.width(min: 80, ideal: 90)
-				TableColumn("Attack · Release" + ColumnTips.mark) { $r in	// one column: a Table takes ten at most
-					HStack(spacing: 4) {
-						if r.isLFO || r.isOscillator {	// locked to the beat: not smoothed
-							Text("—").foregroundStyle(.secondary)
-								.frame(width: 52)
-							Text("—").foregroundStyle(.secondary)
-								.frame(width: 52)
-						} else {
-							if r.isTrigger {
-								Text("—").foregroundStyle(.secondary)	// a hit's pulse starts at once
+				TableColumn("Attack · Release" + ColumnTips.mark) { $r in
+					stable(r) {	// one column: a Table takes ten at most
+						HStack(spacing: 4) {
+							if r.isLFO || r.isOscillator {	// locked to the beat: not smoothed
+								Text("—").foregroundStyle(.secondary)
+									.frame(width: 52)
+								Text("—").foregroundStyle(.secondary)
 									.frame(width: 52)
 							} else {
-								MsField(value: $r.attackMs)
+								if r.isTrigger {
+									Text("—").foregroundStyle(.secondary)	// a hit's pulse starts at once
+										.frame(width: 52)
+								} else {
+									MsField(value: $r.attackMs)
+								}
+								MsField(value: $r.releaseMs)
 							}
-							MsField(value: $r.releaseMs)
 						}
 					}
 				}
 				.width(124)
 				TableColumn("Offset" + ColumnTips.mark) { $r in
-					if r.isTrigger || r.isLFO || r.isOscillator {
-						OffsetField(value: $r.offsetMs, earlyAllowed: r.isBeatBased || r.isLFO)
-					} else {
-						Text("—").foregroundStyle(.secondary)
+					stable(r) {
+						if r.isTrigger || r.isLFO || r.isOscillator {
+							OffsetField(value: $r.offsetMs, earlyAllowed: r.isBeatBased || r.isLFO)
+						} else {
+							Text("—").foregroundStyle(.secondary)
+						}
 					}
 				}
 				.width(64)
 				TableColumn("Threshold" + ColumnTips.mark) { $r in
-					if !r.isOscillator && (r.curve == 3 || (r.isAction && !r.isTrigger)) {
-						TextField("", value: $r.threshold, format: .number.precision(.fractionLength(2)))
-							.multilineTextAlignment(.trailing)
-							.frame(width: 48)
-					} else {
-						Text("—").foregroundStyle(.secondary)
+					stable(r) {
+						if !r.isOscillator && (r.curve == 3 || (r.isAction && !r.isTrigger)) {
+							TextField("", value: $r.threshold, format: .number.precision(.fractionLength(2)))
+								.multilineTextAlignment(.trailing)
+								.frame(width: 48)
+						} else {
+							Text("—").foregroundStyle(.secondary)
+						}
 					}
 				}
 				.width(92)
@@ -1186,6 +1234,17 @@ private struct ModTablesSection: View {
 			.background(ColumnTips())
 	}
 
+}
+
+/// See ModTablesSection.stable
+private struct SameRow<Content: View>: View, Equatable {
+	let index: Int
+	let row: ModRowSetting
+	@ViewBuilder let content: () -> Content
+
+	static func == (a: Self, b: Self) -> Bool { a.index == b.index && a.row == b.row }
+
+	var body: some View { content() }
 }
 
 /// A row's live level: the only view that observes the levels
