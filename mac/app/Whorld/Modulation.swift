@@ -357,7 +357,7 @@ private struct AudioInputSection: View {
 		VStack(alignment: .leading, spacing: 10) {
 			Text("Hearing")
 				.help("What Whorld hears, live: the level and bands, the hits (lights and hits a second), and the beat. The beat tracker learns the tempo from the hits and keeps a steady beat through kicks it can't hear (a busy mix, a breakdown).")
-			OwnHost { AudioMeter() }
+			AudioMeter()
 			beatButtons
 		}
 		.fixedSize()
@@ -417,8 +417,8 @@ private struct AudioStatus: View {
 
 extension AudioInputSection {
 	/// Reset to 1.1, the count a beat back or on (with Shift, a bar), and
-	/// the beat half a beat later: beside the meter (outside its own hosting
-	/// view, see OwnHost), to keep the rows' phrases with the music's
+	/// the beat half a beat later: beside the meter, to keep the rows'
+	/// phrases with the music's
 	private var beatButtons: some View {
 		let link = WHLink.shared.drivesBeat	// whose beat within the bar is the session's
 		let shift = { NSEvent.modifierFlags.contains(.shift) }
@@ -427,11 +427,11 @@ extension AudioInputSection {
 				.controlSize(.small)
 				.fixedSize()	// the text gives way, not the button
 				.help("Press on the \"one\" (a drop, the start of a phrase): the beat nearest the press becomes beat 1 of bar 1, a little early or late alike. Image > Reset to 1.1 (⌥⌘8), OSC /w/mod/downbeat.")
-			Button { ModMap.nudge(beats: link || shift() ? -4 : -1) } label: { Image(systemName: "minus") }
+			Button { ModMap.nudge(beats: link || shift() ? -4 : -1) } label: { Text("\u{2212}").frame(minWidth: 10) }	// text, not a symbol: docked, the symbols sometimes didn't draw
 				.controlSize(.small)
 				.help(link ? "The count a bar back (Ableton Link sets the beat within the bar). Image > Bar Back (⇧⌥⌘[), OSC /w/mod/barback."
 					: "The count a beat back, so the music's \"one\" comes a beat later in it; with ⇧, a bar back. Nothing fires, and waves ease to their new place. Image > Beat Back (⌥⌘[), Bar Back (⇧⌥⌘[), OSC /w/mod/beatback, /w/mod/barback.")
-			Button { ModMap.nudge(beats: link || shift() ? 4 : 1) } label: { Image(systemName: "plus") }
+			Button { ModMap.nudge(beats: link || shift() ? 4 : 1) } label: { Text("+").frame(minWidth: 10) }
 				.controlSize(.small)
 				.help(link ? "The count a bar on (Ableton Link sets the beat within the bar). Image > Bar Forward (⇧⌥⌘]), OSC /w/mod/barfwd."
 					: "The count a beat on; with ⇧, a bar on. Nothing fires, and waves ease to their new place. Image > Beat Forward (⌥⌘]), Bar Forward (⇧⌥⌘]), OSC /w/mod/beatfwd, /w/mod/barfwd.")
@@ -484,30 +484,6 @@ private struct StepSlider: View {
 	}
 }
 
-/// A view in its own NSHostingView. SwiftUI dismisses every tooltip in a
-/// hosting view whenever anything in it redraws, so the Hearing meter (30
-/// times a second while there's sound) gets a host of its own, like the
-/// routing table's cells, and the rest of the window keeps its tooltips.
-/// The content should keep a steady size: a change of size would relayout
-/// the window's host.
-private struct OwnHost<Content: View>: NSViewRepresentable {
-	@ViewBuilder let content: () -> Content
-
-	func makeNSView(context: Context) -> NSHostingView<Content> {
-		let host = NSHostingView(rootView: content())
-		host.sizingOptions = [.intrinsicContentSize]
-		return host
-	}
-
-	func updateNSView(_ host: NSHostingView<Content>, context: Context) {
-		host.rootView = content()
-	}
-
-	func sizeThatFits(_ proposal: ProposedViewSize, nsView host: NSHostingView<Content>, context: Context) -> CGSize? {
-		host.intrinsicContentSize
-	}
-}
-
 /// Tempo follows the beat: the one part of the input section that's a
 /// ModMap setting, in a view of its own (see AudioInputSection)
 private struct FollowTempoToggle: View {
@@ -518,99 +494,178 @@ private struct FollowTempoToggle: View {
 	}
 }
 
-/// What the analysis hears: bars for the level, bands and brightness, and
-/// lights that flash on hits. Thirty times a second while shown.
+/// What the analysis hears: bars for the level, bands and brightness,
+/// lights that flash on hits, the beat and the phrase. The labels are
+/// SwiftUI and never change; what moves is drawn by small AppKit views
+/// that MeterFeed redraws, thirty times a second while shown. (Mac
+/// addition, the user's report, 2026-11-18: any SwiftUI update in the
+/// meter, however it was driven, laid out every pane of the Whorld window
+/// again, and each layout dropped that pane's tooltips, so with Modulation
+/// docked no tooltip in the window stayed up while music played. An AppKit
+/// redraw lays out nothing.)
 private struct AudioMeter: View {
-	@State private var lastCounts: [UInt32] = [0, 0, 0, 0]
-	@State private var flashUntil: [Date] = [.distantPast, .distantPast, .distantPast, .distantPast]
-	@State private var history: [(time: Date, counts: [UInt32])] = []	// the last few seconds, for rates
-
 	var body: some View {
-		TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
-			let r = WHAudioInput.shared.reading()
-			let now = context.date
-			let link = linkBeat()
-			HStack(alignment: .top, spacing: 24) {
-				VStack(alignment: .leading, spacing: 4) {
-					bar("Level", r.level, detail: r.levelDb > -150 ? String(format: "%.0f dB", r.levelDb) : "")
-					bar("Bass", r.bass)
-					bar("Low Mid", r.lowMid)
-					bar("High Mid", r.highMid)
-					bar("Treble", r.treble)
-					bar("Brightness", r.brightness)
-				}
-				VStack(alignment: .leading, spacing: 8) {
-					light("Hit", lit: now < flashUntil[0], rate: rate(0))
-					light("Kick", lit: now < flashUntil[1], rate: rate(1))
-					light("Hats", lit: now < flashUntil[2], rate: rate(2))
-					Text("hits a second, over 4 s")
-						.font(.caption2)
-						.foregroundStyle(.secondary)
-					beatRow(r, link: link, lit: now < flashUntil[3])
-					phraseRow(r, link: link)
-				}
+		HStack(alignment: .top, spacing: 24) {
+			VStack(alignment: .leading, spacing: 4) {
+				bar("Level", 0, detail: true)
+				bar("Bass", 1)
+				bar("Low Mid", 2)
+				bar("High Mid", 3)
+				bar("Treble", 4)
+				bar("Brightness", 5)
 			}
-			.onChange(of: link?.beat) { _, beat in	// Ableton Link's beats flash the Beat light
-				if beat != nil {
-					flashUntil[3] = Date().addingTimeInterval(0.12)
-				}
-			}
-			.onChange(of: [r.hits, r.kicks, r.hats, r.beats]) { _, counts in
-				for i in 0..<4 where counts[i] != lastCounts[i] {
-					flashUntil[i] = Date().addingTimeInterval(0.12)
-				}
-				lastCounts = counts
-			}
-			.onChange(of: Int(now.timeIntervalSinceReferenceDate * 4)) {	// four times a second
-				history.append((now, [r.hits, r.kicks, r.hats, r.beats]))
-				history.removeAll { now.timeIntervalSince($0.time) > 4.1 }
+			VStack(alignment: .leading, spacing: 8) {
+				light("Hit", 0)
+				light("Kick", 1)
+				light("Hats", 2)
+				Text("hits a second, over 4 s")
+					.font(.caption2)
+					.foregroundStyle(.secondary)
+				beatRow
+				phraseRow
 			}
 		}
 	}
 
-	private func bar(_ name: String, _ value: Float, detail: String = "") -> some View {
+	private func bar(_ name: String, _ i: Int, detail: Bool = false) -> some View {
 		HStack(spacing: 8) {
 			Text(name)
 				.font(.caption)
 				.frame(width: 70, alignment: .trailing)
-			ZStack(alignment: .leading) {
-				RoundedRectangle(cornerRadius: 2).fill(Color.secondary.opacity(0.2))
-				RoundedRectangle(cornerRadius: 2).fill(Color.accentColor)
-					.frame(width: max(0, CGFloat(min(max(value, 0), 1))) * Self.barWidth)
-			}
-			.frame(width: Self.barWidth, height: 8)
-			Text(detail)
-				.font(.caption)
-				.monospacedDigit()
-				.foregroundStyle(.secondary)
-				// a fixed width (the widest reading, "-150 dB"), so the column
-				// beside doesn't move as the reading's length changes
-				.frame(width: Self.detailWidth, alignment: .leading)
+			MeterLive(part: .bar(i))
+				.frame(width: MeterFeed.barWidth, height: 8)
+			// a fixed width (the widest reading, "-150 dB"), so the column
+			// beside doesn't move as the reading's length changes
+			MeterLive(part: detail ? .levelDb : .none)
+				.frame(width: MeterFeed.detailWidth, height: MeterFeed.textHeight)
 		}
 	}
 
-	private static let barWidth: CGFloat = 130	// (220 until the meter moved beside the settings)
-	private static let detailWidth: CGFloat = {
-		let font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .caption1).pointSize, weight: .regular)
-		return ceil(("-150 dB" as NSString).size(withAttributes: [.font: font]).width) + 2
-	}()
+	private func light(_ name: String, _ i: Int) -> some View {
+		HStack(spacing: 6) {
+			MeterLive(part: .light(i))
+				.frame(width: 12, height: 12)
+			Text(name).font(.caption)
+				.frame(width: 34, alignment: .leading)
+			MeterLive(part: .rate(i))
+				.frame(width: 44, height: MeterFeed.textHeight)
+		}
+	}
 
-	/// Ableton Link's beat now, while it drives the beat (nil otherwise; a
-	/// nil beat while stopped)
-	private func linkBeat() -> (beat: Int?, text: String)? {
-		let link = WHLink.shared
-		guard link.drivesBeat else { return nil }
-		var pos = 0.0
-		guard link.beatPosition(&pos) else { return (nil, "Ableton Link · stopped") }
-		let beat = Int(pos.rounded(.down))
-		let inBar = ((beat % 4) + 4) % 4, bar = (((beat / 4) % 32) + 32) % 32	// (pos may be just below 0)
-		return (beat, String(format: "Ableton Link · %.1f BPM · bar %d · beat %d", link.tempo, bar + 1, inBar + 1))
+	/// the beat's light (the tracker's, or Ableton Link's while it drives
+	/// the beat), its tempo and place
+	private var beatRow: some View {
+		HStack(spacing: 6) {
+			MeterLive(part: .light(3))
+				.frame(width: 12, height: 12)
+			Text("Beat").font(.caption)
+				.frame(width: 34, alignment: .leading)
+			MeterLive(part: .beatText)
+				.frame(width: 230, height: MeterFeed.textHeight)
+		}
+		.padding(.top, 4)
 	}
 
 	/// Where the count is in an 8-bar phrase: a box a bar, the current one
 	/// lit, orange on the phrase's one (1.1), so you can see whether the
 	/// rows' phrases start where the music's do
-	private func phraseRow(_ r: WHAudioReading, link: (beat: Int?, text: String)?) -> some View {
+	private var phraseRow: some View {
+		HStack(spacing: 6) {
+			Color.clear.frame(width: 12, height: 12)	// under the lights
+			Text("Phrase").font(.caption)
+				.frame(width: 34, alignment: .leading)
+			MeterLive(part: .phrase)
+				.frame(width: MeterFeed.phraseWidth, height: 8)
+			MeterLive(part: .phraseText)
+				.frame(width: 70, height: MeterFeed.textHeight)
+		}
+	}
+}
+
+/// The meter's moving parts, read from the analysis (and Ableton Link)
+/// thirty times a second while a meter shows; the parts' views redraw when
+/// what they show changes.
+@MainActor
+private final class MeterFeed {
+	static let shared = MeterFeed()
+
+	static let barWidth: CGFloat = 130	// (220 until the meter moved beside the settings)
+	static let phraseWidth: CGFloat = 8 * 14 + 7 * 3
+	static let font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .caption1).pointSize, weight: .regular)
+	static let textHeight: CGFloat = ceil(font.ascender - font.descender + font.leading)
+	static let detailWidth: CGFloat = ceil(("-150 dB" as NSString).size(withAttributes: [.font: font]).width) + 2
+
+	struct Shown: Equatable {
+		var bars = [Float](repeating: 0, count: 6)
+		var levelDb = ""
+		var lit = [false, false, false, false]	// hit, kick, hats, beat
+		var rates = ["", "", ""]
+		var beatText = ""
+		var phraseBox = -1		// the bar lit, 0 to 7; -1: no count
+		var phraseOne = false	// on the phrase's one: orange
+		var phraseText = ""
+	}
+	private(set) var shown = Shown()
+
+	private let views = NSHashTable<MeterLive.View>.weakObjects()
+	private var timer: Timer?
+	private var lastCounts: [UInt32]?
+	private var lastLinkBeat: Int?
+	private var flashUntil = [Date](repeating: .distantPast, count: 4)
+	private var history: [(time: Date, counts: [UInt32])] = []	// the last few seconds, for rates
+	private var lastQuarter = 0
+
+	func add(_ v: MeterLive.View) {
+		views.add(v)
+		guard timer == nil else { return }
+		let t = Timer(timeInterval: 1.0 / 30, repeats: true) { _ in
+			MainActor.assumeIsolated { MeterFeed.shared.tick() }
+		}
+		RunLoop.main.add(t, forMode: .common)	// also while a slider is dragged
+		timer = t
+		tick()
+	}
+
+	func remove(_ v: MeterLive.View) {
+		views.remove(v)
+		if views.allObjects.isEmpty {
+			timer?.invalidate()
+			timer = nil
+		}
+	}
+
+	private func tick() {
+		let r = WHAudioInput.shared.reading()
+		let now = Date()
+		let link = Self.linkBeat()
+		// a light flashes on each new hit, and on Ableton Link's beats
+		let counts = [r.hits, r.kicks, r.hats, r.beats]
+		if let last = lastCounts {
+			for i in 0..<4 where counts[i] != last[i] {
+				flashUntil[i] = now.addingTimeInterval(0.12)
+			}
+		}
+		lastCounts = counts
+		if let b = link?.beat, b != lastLinkBeat {
+			flashUntil[3] = now.addingTimeInterval(0.12)
+		}
+		lastLinkBeat = link?.beat
+		let quarter = Int(now.timeIntervalSinceReferenceDate * 4)	// four times a second
+		if quarter != lastQuarter {
+			lastQuarter = quarter
+			history.append((now, counts))
+			history.removeAll { now.timeIntervalSince($0.time) > 4.1 }
+		}
+
+		var s = Shown()
+		s.bars = [r.level, r.bass, r.lowMid, r.highMid, r.treble, r.brightness]
+		s.levelDb = r.levelDb > -150 ? String(format: "%.0f dB", r.levelDb) : ""
+		s.lit = flashUntil.map { now < $0 }
+		s.rates = (0..<3).map { i in rate(i).map { String(format: "%.1f/s", $0) } ?? "" }
+		let place = r.beatInBar >= 0 ? String(format: " · bar %d · beat %d", r.barInPhrase + 1, r.beatInBar + 1) : ""
+		let heard: String = r.beatLocked.boolValue ? String(format: "%.1f BPM", r.tempo) + place
+			: (r.level > 0 ? "finding the beat…" : "")
+		s.beatText = link?.text ?? heard
 		var bar = -1, beat = -1	// 0 to 31, 0 to 3; -1: no count
 		if let link {
 			if let b = link.beat {
@@ -621,49 +676,15 @@ private struct AudioMeter: View {
 			bar = Int(r.barInPhrase)
 			beat = Int(r.beatInBar)
 		}
-		let inPhrase = bar >= 0 ? bar % 8 : -1
-		return HStack(spacing: 6) {
-			Color.clear.frame(width: 12, height: 12)	// under the lights
-			Text("Phrase").font(.caption)
-				.frame(width: 34, alignment: .leading)
-			HStack(spacing: 3) {
-				ForEach(0..<8, id: \.self) { i in
-					RoundedRectangle(cornerRadius: 2)
-						.fill(i == inPhrase ? (i == 0 && beat == 0 ? Color.orange : Color.accentColor)
-							: Color.secondary.opacity(i == 0 ? 0.45 : 0.2))	// its first bar a little brighter
-						.frame(width: 14, height: 8)
-				}
-			}
-			Text(inPhrase >= 0 ? "bar \(inPhrase + 1) of 8" : "")
-				.font(.caption)
-				.monospacedDigit()
-				.foregroundStyle(.secondary)
-				.frame(width: 70, alignment: .leading)	// a steady width (see OwnHost)
+		s.phraseBox = bar >= 0 ? bar % 8 : -1
+		s.phraseOne = s.phraseBox == 0 && beat == 0
+		s.phraseText = s.phraseBox >= 0 ? "bar \(s.phraseBox + 1) of 8" : ""
+		guard s != shown else { return }
+		let old = shown
+		shown = s
+		for v in views.allObjects where v.window != nil && v.part.changed(old, s) {
+			v.needsDisplay = true
 		}
-	}
-
-	/// the beat's light (the tracker's, or Ableton Link's while it drives
-	/// the beat), its tempo and place, and Mark Downbeat
-	private func beatRow(_ r: WHAudioReading, link: (beat: Int?, text: String)?, lit: Bool) -> some View {
-		let place = r.beatInBar >= 0 ? String(format: " · bar %d · beat %d", r.barInPhrase + 1, r.beatInBar + 1) : ""
-		let heard: String = r.beatLocked.boolValue ? String(format: "%.1f BPM", r.tempo) + place
-			: (r.level > 0 ? "finding the beat…" : "")
-		let text = link?.text ?? heard
-		return HStack(spacing: 6) {
-			Circle()
-				.fill(lit ? Color.orange : Color.secondary.opacity(0.25))
-				.frame(width: 12, height: 12)
-			Text("Beat").font(.caption)
-				.frame(width: 34, alignment: .leading)
-			Text(text)
-				.font(.caption)
-				.monospacedDigit()
-				.foregroundStyle(.secondary)
-				.lineLimit(1)
-				.truncationMode(.tail)
-				.frame(width: 230, alignment: .leading)	// a steady width: the meter's size never changes (see OwnHost)
-		}
-		.padding(.top, 4)
 	}
 
 	/// hits a second of one kind over the last 4 seconds (nil until there's enough)
@@ -674,19 +695,117 @@ private struct AudioMeter: View {
 		return Double(last.counts[i] &- first.counts[i]) / dt
 	}
 
-	private func light(_ name: String, lit: Bool, rate: Double?) -> some View {
-		HStack(spacing: 6) {
-			Circle()
-				.fill(lit ? Color.accentColor : Color.secondary.opacity(0.25))
-				.frame(width: 12, height: 12)
-			Text(name).font(.caption)
-				.frame(width: 34, alignment: .leading)
-			Text(rate.map { String(format: "%.1f/s", $0) } ?? "")
-				.font(.caption)
-				.monospacedDigit()
-				.foregroundStyle(.secondary)
-				.frame(width: 44, alignment: .leading)	// a steady width: the column doesn't wobble
+	/// Ableton Link's beat now, while it drives the beat (nil otherwise; a
+	/// nil beat while stopped)
+	private static func linkBeat() -> (beat: Int?, text: String)? {
+		let link = WHLink.shared
+		guard link.drivesBeat else { return nil }
+		var pos = 0.0
+		guard link.beatPosition(&pos) else { return (nil, "Ableton Link · stopped") }
+		let beat = Int(pos.rounded(.down))
+		let inBar = ((beat % 4) + 4) % 4, bar = (((beat / 4) % 32) + 32) % 32	// (pos may be just below 0)
+		return (beat, String(format: "Ableton Link · %.1f BPM · bar %d · beat %d", link.tempo, bar + 1, inBar + 1))
+	}
+}
+
+/// One of the meter's moving parts (MeterFeed), drawn in AppKit
+private struct MeterLive: NSViewRepresentable {
+	enum Part: Equatable {
+		case none, bar(Int), levelDb, light(Int), rate(Int), beatText, phrase, phraseText
+
+		/// whether it shows something else from `a` to `b`
+		func changed(_ a: MeterFeed.Shown, _ b: MeterFeed.Shown) -> Bool {
+			switch self {
+			case .none: false
+			case .bar(let i): a.bars[i] != b.bars[i]
+			case .levelDb: a.levelDb != b.levelDb
+			case .light(let i): a.lit[i] != b.lit[i]
+			case .rate(let i): a.rates[i] != b.rates[i]
+			case .beatText: a.beatText != b.beatText
+			case .phrase: a.phraseBox != b.phraseBox || a.phraseOne != b.phraseOne
+			case .phraseText: a.phraseText != b.phraseText
+			}
 		}
+	}
+	let part: Part
+
+	final class View: NSView {
+		var part: Part = .none {
+			didSet { if part != oldValue { needsDisplay = true } }
+		}
+
+		override var isFlipped: Bool { true }
+		override func hitTest(_ point: NSPoint) -> NSView? { nil }	// the meter's tips are its labels'
+
+		override func viewDidMoveToWindow() {
+			super.viewDidMoveToWindow()
+			if window != nil { MeterFeed.shared.add(self) } else { MeterFeed.shared.remove(self) }
+		}
+
+		override func viewDidChangeEffectiveAppearance() {
+			super.viewDidChangeEffectiveAppearance()
+			needsDisplay = true
+		}
+
+		/// as SwiftUI's Color.secondary.opacity(f)
+		private func secondary(_ f: CGFloat) -> NSColor {
+			let c = NSColor.secondaryLabelColor.usingColorSpace(.sRGB) ?? .gray
+			return c.withAlphaComponent(c.alphaComponent * f)
+		}
+
+		private func text(_ s: String) {
+			guard !s.isEmpty else { return }
+			let style = NSMutableParagraphStyle()
+			style.lineBreakMode = .byTruncatingTail
+			let attrs: [NSAttributedString.Key: Any] = [.font: MeterFeed.font,
+				.foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: style]
+			(s as NSString).draw(with: bounds, options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], attributes: attrs)
+		}
+
+		override func draw(_ dirtyRect: NSRect) {
+			let s = MeterFeed.shared.shown
+			switch part {
+			case .none:
+				break
+			case .bar(let i):
+				secondary(0.2).setFill()
+				NSBezierPath(roundedRect: bounds, xRadius: 2, yRadius: 2).fill()
+				let w = CGFloat(min(max(s.bars[i], 0), 1)) * bounds.width
+				if w > 0 {
+					NSColor.controlAccentColor.setFill()
+					NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: w, height: bounds.height), xRadius: 2, yRadius: 2).fill()
+				}
+			case .levelDb:
+				text(s.levelDb)
+			case .light(let i):
+				(s.lit[i] ? (i == 3 ? NSColor.systemOrange : NSColor.controlAccentColor) : secondary(0.25)).setFill()
+				NSBezierPath(ovalIn: bounds).fill()
+			case .rate(let i):
+				text(s.rates[i])
+			case .beatText:
+				text(s.beatText)
+			case .phrase:
+				for i in 0..<8 {
+					let color = i == s.phraseBox ? (s.phraseOne ? NSColor.systemOrange : NSColor.controlAccentColor)
+						: secondary(i == 0 ? 0.45 : 0.2)	// its first bar a little brighter
+					color.setFill()
+					NSBezierPath(roundedRect: NSRect(x: CGFloat(i) * 17, y: 0, width: 14, height: bounds.height),
+						xRadius: 2, yRadius: 2).fill()
+				}
+			case .phraseText:
+				text(s.phraseText)
+			}
+		}
+	}
+
+	func makeNSView(context: Context) -> View {
+		let v = View()
+		v.part = part
+		return v
+	}
+
+	func updateNSView(_ v: View, context: Context) {
+		v.part = part
 	}
 }
 
