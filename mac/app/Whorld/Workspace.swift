@@ -553,6 +553,8 @@ final class LayoutModel: ObservableObject {
 	}
 	/// where a panel dragged out goes: its window's top left, on screen
 	var pendingFloatOrigin: [PanelID: NSPoint] = [:]
+	/// the docked panel whose title bar (or tab) is being dragged (PanelDragSource)
+	var draggedPanel: PanelID?
 
 	/// What a panel dropped at a point in the Whorld window would do: as the
 	/// drop delegates decide, on a pane (PanelDropDelegate.spot) or near the
@@ -580,7 +582,7 @@ final class LayoutModel: ObservableObject {
 		}
 	}
 
-	/// A docked panel's title bar dragged out of the Whorld window: it floats
+	/// A docked panel's title bar let go away from a dock spot: it floats
 	/// in a window there (its top left at the point).
 	func float(_ id: PanelID, at screenPoint: NSPoint) {
 		pendingFloatOrigin[id] = screenPoint
@@ -1026,7 +1028,7 @@ struct DockedPanel: View {
 			HStack(spacing: 6) {
 				Image(systemName: "line.3.horizontal")
 					.foregroundStyle(.tertiary)
-					.overlay(PanelDragSource(id: id, layout: layout, help: "Drag to move \(id.title); out of the window to float it"))
+					.overlay(PanelDragSource(id: id, layout: layout, help: "Drag to move \(id.title); let go away from a dock spot to float it"))
 				if tabs.count > 1 {
 					tabStrip
 					Spacer(minLength: 0)
@@ -1036,7 +1038,7 @@ struct DockedPanel: View {
 							.font(.caption.weight(.semibold))
 						Spacer(minLength: 0)
 					}
-					.overlay(PanelDragSource(id: id, layout: layout, help: "Drag to move \(id.title); out of the window to float it"))
+					.overlay(PanelDragSource(id: id, layout: layout, help: "Drag to move \(id.title); let go away from a dock spot to float it"))
 				}
 				Menu {
 					ForEach(Region.allCases, id: \.self) { r in
@@ -1153,7 +1155,8 @@ struct PanelDropDelegate: DropDelegate {
 	func validateDrop(info: DropInfo) -> Bool { info.hasItemsConforming(to: [.whorldPanel]) }
 
 	func dropUpdated(info: DropInfo) -> DropProposal? {
-		spot = spot(at: info.location)
+		// over its own pane: no highlight, and let go there it stays put
+		spot = layout.draggedPanel == id ? nil : spot(at: info.location)
 		return DropProposal(operation: .move)
 	}
 
@@ -1228,7 +1231,7 @@ struct DockFrameProbe: NSViewRepresentable {
 
 /// A docked panel's title bar (or tab), as an AppKit drag source: dragged
 /// onto a pane or the output's edge, the drop delegates move it; let go
-/// outside the Whorld window, it floats there. A click is `onClick` (a tab
+/// anywhere else (in the Whorld window too), it floats there. A click is `onClick` (a tab
 /// shows). Its tip is `help`.
 struct PanelDragSource: NSViewRepresentable {
 	let id: PanelID
@@ -1262,7 +1265,9 @@ struct PanelDragSource: NSViewRepresentable {
 			let at = convert(down.locationInWindow, from: nil)
 			drag.setDraggingFrame(NSRect(x: at.x - 12, y: at.y - image.size.height / 2,
 				width: image.size.width, height: image.size.height), contents: image)
-			beginDraggingSession(with: [drag], event: down, source: self)
+			let session = beginDraggingSession(with: [drag], event: down, source: self)
+			session.animatesToStartingPositionsOnCancelOrFail = false	// it floats where let go
+			layout?.draggedPanel = id
 		}
 
 		override func mouseUp(with event: NSEvent) {
@@ -1278,9 +1283,11 @@ struct PanelDragSource: NSViewRepresentable {
 		func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
 			dragging = false
 			down = nil
-			guard operation.isEmpty, let layout else { return }	// a drop delegate took it
-			let main = AppModel.shared.mainWindow
-			if let main, main.isVisible, main.frame.contains(screenPoint) { return }	// let go in the window, not on a target
+			layout?.draggedPanel = nil
+			// let go anywhere but a dock spot (its own pane, a pane or the
+			// output's edge, whose drop delegates take it): it floats there,
+			// in the Whorld window too (the user's request, 2026-11-18)
+			guard operation.isEmpty, let layout else { return }
 			let id = self.id
 			DispatchQueue.main.async { layout.float(id, at: screenPoint) }
 		}
