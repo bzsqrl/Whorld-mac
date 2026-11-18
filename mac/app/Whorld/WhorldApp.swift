@@ -1588,7 +1588,7 @@ struct WhorldApp: App {
 			ModulationView()
 		}
 		.commandsRemoved()
-		.defaultSize(width: 1210, height: 760)
+		.defaultSize(width: 1280, height: 760)	// (at least ModulationView's least width)
 
 		// Window > Key Map... (keys held over the picture; KeyMap.swift)
 		Window("Key Map", id: "keymap") {

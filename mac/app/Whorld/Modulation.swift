@@ -72,7 +72,7 @@ struct ModulationView: View {
 			ModTablesSection()
 		}
 		.background(NoSliderFocus())
-		.frame(minWidth: 1270, minHeight: 640)
+		.frame(minWidth: 1270)	// as short as the top half and one row (RowsTable's minimum)
 		.onAppear { AudioSettings.register() }
 	}
 }
@@ -1355,7 +1355,11 @@ private struct ModTablesSection: View {
 				.width(92)
 			}
 			.background(ColumnTips())
+			.frame(minHeight: Self.oneRowHeight)	// the window can shrink to one row (the user's request, 2026-11-18)
 	}
+
+	/// the table's header and one row (a row holds a regular-size pop-up)
+	static let oneRowHeight: CGFloat = 28 + 34
 
 }
 
