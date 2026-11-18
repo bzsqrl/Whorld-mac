@@ -968,6 +968,40 @@ final class ModMap {
 		return groups
 	}()
 
+	/// The Target menu: a submenu for each parameter, holding its columns
+	/// (Value, Amplitude, Frequency, Pulse Width, Global, where a row can
+	/// move them), so the list is the parameters, not every column of each;
+	/// then Master, Origin and the actions as they are.
+	static let targetMenu: (params: [(name: String, choices: [(label: String, choice: TargetChoice)])],
+		others: [(title: String, choices: [TargetChoice])]) = {
+		let nParams = WHMappingInfo.paramTargetCount
+		var byParam: [String: [TargetChoice]] = [:]
+		var others: [(title: String, choices: [TargetChoice])] = []
+		for g in targetGroups {
+			var rest: [TargetChoice] = []
+			for c in g.choices {
+				let i = c.action.isEmpty ? WHMappingInfo.target(forTag: c.target) : -1
+				if i >= 0 && i < nParams {
+					byParam[c.target, default: []].append(c)
+				} else {
+					rest.append(c)
+				}
+			}
+			if !rest.isEmpty {
+				others.append((g.title, rest))
+			}
+		}
+		let order: [WHParamProperty] = [.val, .amp, .freq, .PW, .global]	// the Parameters panel's columns
+		let params = WHControls.paramDisplayOrder.filter { $0 < nParams }.compactMap { i -> (name: String, choices: [(label: String, choice: TargetChoice)])? in
+			guard let cs = byParam[WHMappingInfo.targetTag(i)] else { return nil }
+			let sorted = cs.sorted { a, b in
+				(order.firstIndex(of: WHParamProperty(rawValue: a.prop) ?? .val) ?? 0) < (order.firstIndex(of: WHParamProperty(rawValue: b.prop) ?? .val) ?? 0)
+			}
+			return (WHControls.paramName(i), sorted.map { (WHControls.paramPropertyName($0.prop), $0) })
+		}
+		return (params, others)
+	}()
+
 	static func name(_ c: TargetChoice) -> String {
 		if !c.action.isEmpty {
 			return WHModRow.actionName(c.action)
@@ -1117,28 +1151,7 @@ private struct ModTablesSection: View {
 				.width(60)
 				TableColumn("Target" + ColumnTips.mark) { $r in
 					stable(r) {
-						Picker("", selection: Binding(
-							get: { ModMap.TargetChoice(target: r.isAction ? "" : r.target, prop: r.isAction ? 0 : r.prop, action: r.action) },
-							set: { c in
-								r.action = c.action
-								if c.action.isEmpty {
-									r.target = c.target
-									r.prop = c.prop
-								}
-								if r.isOscillator {	// its source is the cycle: a beat span
-									if !r.isBeatBased { r.source = "Bar" }
-									r.lfoBeats = ModRowSetting.spanBeats[r.source] ?? 4
-								}
-							})) {
-							ForEach(ModMap.targetGroups, id: \.title) { g in
-								Section(g.title) {
-									ForEach(g.choices, id: \.self) { c in
-										Text(ModMap.name(c)).tag(c)
-									}
-								}
-							}
-						}
-						.labelsHidden()
+						TargetMenu(row: $r)
 					}
 				}
 				.width(min: 140, ideal: 160)
@@ -1150,7 +1163,7 @@ private struct ModTablesSection: View {
 					} else {
 						HStack(spacing: 4) {
 							StepSlider(value: r.amount, range: -1...1, step: 0.01, defaultValue: ModRowSetting().amount) { r.amount = $0 }
-							Text(String(format: "%+.0f%%", r.amount * 100))
+							Text(String(format: "%+.0f%%", r.amount * 100 + 0))	// + 0: an older -0 shows as 0%
 								.monospacedDigit()
 								.frame(width: 44, alignment: .trailing)
 						}
@@ -1296,6 +1309,57 @@ private struct ColumnTips: NSViewRepresentable {
 			if let t = table(in: sub) { return t }
 		}
 		return nil
+	}
+}
+
+/// A row's target: a pull-down of the parameters, each a submenu of its
+/// columns (ModMap.targetMenu), then Master, Origin and the actions; the
+/// one chosen has a check mark.
+private struct TargetMenu: View {
+	@Binding var row: ModRowSetting
+
+	private var current: ModMap.TargetChoice {
+		ModMap.TargetChoice(target: row.isAction ? "" : row.target, prop: row.isAction ? 0 : row.prop, action: row.action)
+	}
+
+	var body: some View {
+		let menu = ModMap.targetMenu
+		Menu {
+			Section("Parameters") {
+				ForEach(menu.params, id: \.name) { p in
+					Menu(p.name) {
+						ForEach(p.choices, id: \.choice) { c in
+							item(c.label, c.choice)
+						}
+					}
+				}
+			}
+			ForEach(menu.others, id: \.title) { g in
+				Section(g.title) {
+					ForEach(g.choices, id: \.self) { c in
+						item(ModMap.name(c), c)
+					}
+				}
+			}
+		} label: {
+			Text(ModMap.name(current))
+		}
+	}
+
+	private func item(_ label: String, _ c: ModMap.TargetChoice) -> some View {
+		Toggle(label, isOn: Binding(get: { current == c }, set: { _ in choose(c) }))
+	}
+
+	private func choose(_ c: ModMap.TargetChoice) {
+		row.action = c.action
+		if c.action.isEmpty {
+			row.target = c.target
+			row.prop = c.prop
+		}
+		if row.isOscillator {	// its source is the cycle: a beat span
+			if !row.isBeatBased { row.source = "Bar" }
+			row.lfoBeats = ModRowSetting.spanBeats[row.source] ?? 4
+		}
 	}
 }
 
