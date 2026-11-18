@@ -103,6 +103,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		case .params: ParamColumn.panelMin
 		case .master: MasterPanel.minWidth
 		case .globals: GlobalsPanel.minWidth
+		case .properties: 116	// its widest row, Random Phase (2026-11-18: with Origin's menu under its name, not beside)
 		default: 190
 		}
 	}

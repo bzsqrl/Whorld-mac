@@ -1122,34 +1122,11 @@ struct GlobalRow: View {
 // MARK: Properties (main properties)
 
 /// The Properties panel: the Image menu's items, in its order, compactly.
-/// Origin Center, Drag and Random are one Origin Motion menu, with Park.
+/// Origin Center, Drag and Random are one Origin menu (Windows' Origin
+/// Motion), with Park.
 /// Clicking a row gives it focus; the up and down arrows move the focus
 /// through the list (wrapping), and Space toggles the focused row's
-/// checkbox, steps Origin Motion, or presses Random Phase.
-/// The top of the Properties panel (Mac addition): the patch's name, and
-/// its author if it names one.
-private struct PatchCredit: View {
-	@EnvironmentObject private var model: AppModel
-
-	var body: some View {
-		let _ = model.changes.document.n
-		let author = model.engine.patchAuthor
-		VStack(alignment: .leading, spacing: 1) {
-			Text(model.title)
-				.fontWeight(.semibold)
-				.lineLimit(1)
-				.truncationMode(.middle)
-			Text(author.isEmpty ? "No author" : "by " + author)
-				.foregroundStyle(.secondary)
-				.lineLimit(2)
-		}
-		.padding(.horizontal, 4)
-		.padding(.vertical, 2)
-		.frame(maxWidth: .infinity, alignment: .leading)
-		.help(author.isEmpty ? "File > Patch Author… names the patch's author" : "")
-	}
-}
-
+/// checkbox, steps Origin, or presses Random Phase.
 struct PropertiesPanel: View {
 	@EnvironmentObject private var model: AppModel
 
@@ -1174,9 +1151,9 @@ struct PropertiesPanel: View {
 	var body: some View {
 		let _ = model.changes.main.n
 		let e = model.engine
+		// the patch's name and author aren't repeated here: the window's
+		// title bar shows them (the user's request, 2026-11-18)
 		VStack(alignment: .leading, spacing: 1) {
-			PatchCredit()
-			divider
 			check(.fill, "Fill", e.fill)
 			check(.outline, "Outline", e.outline)
 			check(.mirror, WHControls.mainName(MainProp.mirror.rawValue), model.isOn(.mirror))
@@ -1188,9 +1165,11 @@ struct PropertiesPanel: View {
 			check(.antialiasing, WHControls.mainName(MainProp.antialiasing.rawValue), model.isOn(.antialiasing))
 			check(.invertColor, WHControls.mainName(MainProp.invertColor.rawValue), model.isOn(.invertColor))
 			divider
+			// "Origin", its menu under it (Windows' Origin Motion; the
+			// user's request, 2026-11-18): the panel can be narrower
 			row(.origin) {
-				HStack(spacing: 6) {
-					Text(WHControls.mainName(MainProp.orgMotion.rawValue))
+				VStack(alignment: .leading, spacing: 3) {
+					Text("Origin")
 						.controlTip(ControlTips.originMotion)
 					Picker("", selection: Binding(
 						get: { originChoice(e) },
