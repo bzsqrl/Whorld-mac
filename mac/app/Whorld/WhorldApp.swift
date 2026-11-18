@@ -1401,7 +1401,9 @@ final class OutputKeys {
 			}
 			return false
 		}
-		guard modifiers == 0, KeyMap.shared.binding(for: key) != nil else { return false }
+		// not while the Key Map waits for a key (docked beside the picture,
+		// the pointer may be over it): the key is the new one, not a hold
+		guard modifiers == 0, KeyMap.shared.capturing == nil, KeyMap.shared.binding(for: key) != nil else { return false }
 		if key == held {
 			return true	// key repeat
 		}
@@ -1657,9 +1659,10 @@ struct WhorldApp: App {
 		.commandsRemoved()
 		.defaultSize(width: 1280, height: 760)	// the two-column layout
 
-		// Window > Key Map... (keys held over the picture; KeyMap.swift)
-		Window("Key Map", id: "keymap") {
-			KeyMapView()
+		// View > Key Map (keys held over the picture; KeyMap.swift): a panel
+		// since 2026-11-18, floating here (the window's id is its PanelID)
+		Window("Key Map", id: PanelID.keymap.rawValue) {
+			FloatingPanel(id: .keymap).environmentObject(model)
 		}
 		.commandsRemoved()
 		.defaultSize(width: 560, height: 620)

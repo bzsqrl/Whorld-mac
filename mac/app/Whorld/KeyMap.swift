@@ -193,7 +193,7 @@ final class KeyMap: ObservableObject {
 	}
 }
 
-// MARK: The Key Map window
+// MARK: The Key Map panel
 
 struct KeyMapView: View {
 	@ObservedObject private var map = KeyMap.shared
@@ -260,8 +260,7 @@ struct KeyMapView: View {
 			}
 			.padding(10)
 		}
-		.frame(minWidth: 460, minHeight: 360)
-		.onDisappear { map.capturing = nil }
+		.onDisappear { map.capturing = nil }	// (its size: PanelID.keymap.floatingMinSize, floating)
 	}
 }
 

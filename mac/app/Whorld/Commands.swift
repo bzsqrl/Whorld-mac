@@ -337,7 +337,6 @@ struct WhorldCommands: Commands {
 			Button("Reset Layout…") { model.resetLayout() }
 			Button("Save Layout…") { model.saveLayout() }
 			Button("Open Layout…") { model.openLayout() }
-			Button("Key Map…") { openWindow(id: "keymap") }	// keys held over the picture
 			Divider()
 		}
 	}

@@ -29,6 +29,7 @@ import UniformTypeIdentifiers
 enum PanelID: String, CaseIterable, Codable, Identifiable {
 	case params, master, globals, properties, playlist, mapping
 	case modulation	// the Modulation window, a panel since 2026-11-18 (the user's request)
+	case keymap		// the Key Map window, a panel since 2026-11-18 (the user's request); its raw value is the window's id
 
 	var id: String { rawValue }
 
@@ -41,6 +42,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		case .playlist: "Playlist"
 		case .mapping: "MIDI Mapping"
 		case .modulation: "Modulation"
+		case .keymap: "Key Map"
 		}
 	}
 
@@ -54,15 +56,17 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		case .playlist: "a"
 		case .mapping: "i"
 		case .modulation: "m"
+		case .keymap: "k"
 		}
 	}
 
 	/// with the shortcut: ⇧⌘, but Modulation's ⌘M (as its window had)
 	var shortcutModifiers: EventModifiers { self == .modulation ? .command : [.command, .shift] }
 
-	/// Shown for the first time, it floats (Modulation, a window of its own
-	/// until it became a panel), rather than docking in its region.
-	var opensFloating: Bool { self == .modulation }
+	/// Shown for the first time, it floats (Modulation and the Key Map,
+	/// windows of their own until they became panels), rather than docking
+	/// in its region.
+	var opensFloating: Bool { self == .modulation || self == .keymap }
 
 	/// After MainDockBarDef.h (Params and Playlist left, Master and Globals
 	/// right, Mapping bottom), except that Parameters, a wide table here,
@@ -70,7 +74,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 	var defaultRegion: Region {
 		switch self {
 		case .params, .mapping, .modulation: .bottom
-		case .master, .globals: .right
+		case .master, .globals, .keymap: .right
 		case .properties, .playlist: .left
 		}
 	}
@@ -90,7 +94,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 
 	/// Tables scroll themselves (both ways); the others are forms the
 	/// workspace scrolls.
-	var scrollsItself: Bool { self == .playlist || self == .mapping || self == .modulation }
+	var scrollsItself: Bool { self == .playlist || self == .mapping || self == .modulation || self == .keymap }
 
 	/// A form's narrowest width: it stretches to fill a wider pane (its
 	/// sliders widen) and scrolls sideways in a narrower one.
@@ -110,6 +114,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		case .mapping: CGSize(width: 680, height: 240)
 		case .playlist: CGSize(width: 360, height: 200)
 		case .modulation: CGSize(width: 640, height: 0)	// its own content sets its height (one row of the table)
+		case .keymap: CGSize(width: 460, height: 360)	// (its window's smallest)
 		default: CGSize(width: 0, height: 0)
 		}
 	}
@@ -1015,6 +1020,7 @@ struct PanelBody: View {
 		case .playlist: PlaylistPanel()
 		case .mapping: MappingPanel()
 		case .modulation: ModulationView()
+		case .keymap: KeyMapView()
 		}
 	}
 }
