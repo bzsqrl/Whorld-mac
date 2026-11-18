@@ -49,7 +49,8 @@ struct ModSources {
 	static const char*	GetName(int iSource);	// shown in the UI
 	static int			FindTag(const std::string& sTag);	// -1 if unknown
 	// beats in the span a beat-based source marks (Beat 1, Bar 4, 4-Bar 16
-	// ... 32-Bar 128), or 0 for the rest
+	// ... 32-Bar 128), or 0 for the rest (Beats, whose span is the row's:
+	// ModRow::SpanBeats)
 	static int			SpanBeats(int iSource);
 };
 
@@ -99,10 +100,11 @@ struct ModRow {
 	double	fRelease = 0.2;		// seconds to fall; a trigger's pulse decays over it
 	double	fThreshold = 0.5;	// for the gate curve and for actions
 	double	fOffset = 0;		// seconds (-0.3 to 0.3): beat-based sources (and the Beat LFO) fire this much early (negative) or late; hits only late
-	// the Beat LFO source: one cycle every so many beats, from the one, plus the phase
-	double	fLfoBeats = 4;		// beats per cycle (0.25: a sixteenth note ... 128: 32 bars)
+	// the Beat LFO and Beats sources (and a Frequency target's lock): one
+	// cycle every so many beats, from the one, plus the phase
+	double	fLfoBeats = 4;		// beats per cycle, any (the app: 1/16 beat to 128 bars)
 	int		nLfoShape = LFO_Sine;
-	double	fLfoPhase = 0;		// 0 to 1: where in the cycle the one falls
+	double	fLfoPhase = 0;		// 0 to 1: where in the cycle the one falls (a wave), or how far into each cycle Beats pulses
 
 	// the Beat LFO's value at a phase (cycles; only the fraction counts), 0 to 1
 	static double	LfoValue(int nShape, double fCycle);

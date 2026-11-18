@@ -378,6 +378,38 @@ TEST(BarRowsFireOnTheirSpans) {
 		CHECK_NEAR(std::fmod(pos + 0.2 * 124 / 60, 32), 0, 0.05);
 }
 
+TEST(BeatsRowsFireOnAnySpanAndPhase) {
+	// every 3 beats (a polyrhythm over 4/4): beats 3, 6, 9 ...
+	ModRow	row = BeatRow(ModSources::SRC_Beats, 0);
+	row.fLfoBeats = 3;
+	Modulator	m;
+	m.SetRows({row});
+	std::vector<double>	f = FirePositions(m, 120, 0.5, 24.5);
+	CHECK_EQ(f.size(), size_t(8));
+	for (double pos : f)
+		CHECK_NEAR(std::fmod(pos, 3), 0, 0.05);
+	// every 4 bars at 90 degrees: a bar in, so bars 2, 6, 10 (beats 4, 20, 36)
+	row.fLfoBeats = 16;
+	row.fLfoPhase = 0.25;
+	Modulator	m4;
+	m4.SetRows({row});
+	f = FirePositions(m4, 120, 0.5, 40.5);
+	CHECK_EQ(f.size(), size_t(3));
+	for (double pos : f)
+		CHECK_NEAR(std::fmod(pos - 4, 16), 0, 0.05);
+	// triplets: every 1/3 beat, three a beat
+	row.fLfoBeats = 1.0 / 3;
+	row.fLfoPhase = 0;
+	Modulator	m3;
+	m3.SetRows({row});
+	f = FirePositions(m3, 100, 0.5, 4.5, 1.0 / 1000);
+	CHECK_EQ(f.size(), size_t(12));
+	for (double pos : f) {
+		double	fThirds = pos * 3;
+		CHECK_NEAR(fThirds - std::floor(fThirds), 0, 0.01);
+	}
+}
+
 TEST(DownbeatJumpsFireOrWait) {
 	// Mark Downbeat a little late: the position jumps back to just past 0
 	// and Bar fires at once; a little early: it jumps to just below 0 and

@@ -248,15 +248,21 @@ void Modulator::Step(const ModSources& src, double dt, ModOutput& out)
 			continue;
 		}
 		bool	bFired = false;	// a trigger source fired
-		if (int nSpan = ModSources::SpanBeats(row.iSource)) {
+		// Beats: any span, the row's, at its phase (a pulse that far into each
+		// span); the others a fixed span from the one
+		double	fSpan = row.iSource == ModSources::SRC_Beats ? std::max(row.fLfoBeats, 0.0)
+			: ModSources::SpanBeats(row.iSource);
+		if (fSpan > 0) {
 			// beat-based: when the beat position, shifted by the offset, enters
 			// a new span (a beat, a bar, a phrase). Also when a jump lands near a
 			// span's start (Mark Downbeat a little late), not in its middle.
 			if (src.bBeat && src.fTempo > 0) {
 				double	fPos = src.fBeatPos - row.fOffset * src.fTempo / 60;
-				int64_t	iSpan = static_cast<int64_t>(std::floor(fPos / nSpan));
-				double	fInto = fPos - static_cast<double>(iSpan) * nSpan;	// beats into the span
-				bFired = st.bSpanKnown && iSpan != st.iSpan && fInto < 0.5;
+				if (row.iSource == ModSources::SRC_Beats)
+					fPos -= row.fLfoPhase * fSpan;
+				int64_t	iSpan = static_cast<int64_t>(std::floor(fPos / fSpan));
+				double	fInto = fPos - static_cast<double>(iSpan) * fSpan;	// beats into the span
+				bFired = st.bSpanKnown && iSpan != st.iSpan && fInto < std::min(0.5, fSpan / 2);
 				st.iSpan = iSpan;
 				st.bSpanKnown = true;
 			} else {
