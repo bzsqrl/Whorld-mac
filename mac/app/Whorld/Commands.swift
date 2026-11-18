@@ -216,8 +216,9 @@ struct WhorldCommands: Commands {
 				// W is a key-map letter, so Shift then W over the picture
 				// toggled this instead
 				.keyboardShortcut("z", modifiers: [.command, .option])
-			toggle("Antialiasing", e.antialiasing) { model.toggle(.antialiasing) }
-				.keyboardShortcut("a", modifiers: [.command, .option])
+			// Antialiasing, a quality setting, isn't here (the user's menu
+			// audit, 2026-11-18): it's in the Properties panel, and Windows'
+			// Ctrl+Alt+A, Option-Command-A, still works (SecondKeys)
 			// not on Windows' Image menu (its Properties grid only); here the
 			// Properties panel mirrors this menu, so it's in both
 			toggle("Invert Color", e.invertColor) { model.toggle(.invertColor) }
@@ -310,18 +311,15 @@ struct WhorldCommands: Commands {
 			}
 			Divider()
 			Menu("Render Scale") {	// Settings > Display; replaces Full Resolution
-				Picker("Render Scale", selection: $model.renderScale) {
-					ForEach(AppModel.renderScales, id: \.value) { s in
-						Text(s.name).tag(s.value)
-					}
+				// items, not an inline picker, which puts an empty separator
+				// at each end of a menu of its own
+				ForEach(AppModel.renderScales, id: \.value) { s in
+					Toggle(s.name, isOn: Binding(get: { model.renderScale == s.value },
+						set: { _ in model.renderScale = s.value }))
 				}
-				.pickerStyle(.inline)
-				.labelsHidden()
-				Divider()
-				Toggle("Smooth Upscaling", isOn: $model.smoothUpscaling)
-					.disabled(model.renderScale >= 1 && !model.autoQuality)
-				Divider()
-				Toggle("Automatic Quality", isOn: $model.autoQuality)	// Settings > Display
+				// the scale only, a quick lever if frames drop on stage;
+				// Smooth Upscaling and Automatic Quality are set once, in
+				// Settings > Display (the user's menu audit, 2026-11-18)
 			}
 			Toggle("Show Frame Rate", isOn: $model.showFrameRate)
 				.keyboardShortcut("f", modifiers: [.command, .option])	// not Ctrl-Cmd-F, macOS's full screen key
