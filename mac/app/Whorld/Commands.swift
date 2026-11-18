@@ -242,18 +242,22 @@ struct WhorldCommands: Commands {
 			// the count, to keep the rows' phrases with the music's (the
 			// Modulation panel's beat buttons; Reset Bar Count, the nearest
 			// bar is bar 1, is a MIDI target and /w/mod/bars only, since 2026-11-18)
+			// two-key chords, the brackets and backslash side by side (the
+			// user's menu audit, 2026-11-18; were Option-Command, with Shift
+			// for bars): the beat with Command, the bar or the half beat
+			// with Shift-Command
 			Button("Reset to 1.1") { ModMap.markDownbeat() }	// the beat nearest now is the one
-				.keyboardShortcut("8", modifiers: [.command, .option])
+				.keyboardShortcut("\\", modifiers: .command)
 			Button("Beat Back") { ModMap.nudge(beats: -1) }
-				.keyboardShortcut("[", modifiers: [.command, .option])
+				.keyboardShortcut("[", modifiers: .command)
 			Button("Beat Forward") { ModMap.nudge(beats: 1) }
-				.keyboardShortcut("]", modifiers: [.command, .option])
+				.keyboardShortcut("]", modifiers: .command)
 			Button("Bar Back") { ModMap.nudge(beats: -4) }
-				.keyboardShortcut("[", modifiers: [.command, .option, .shift])
+				.keyboardShortcut("[", modifiers: [.command, .shift])
 			Button("Bar Forward") { ModMap.nudge(beats: 4) }
-				.keyboardShortcut("]", modifiers: [.command, .option, .shift])
+				.keyboardShortcut("]", modifiers: [.command, .shift])
 			Button("Shift Half Beat") { ModMap.shiftHalfBeat() }
-				.keyboardShortcut("\\", modifiers: [.command, .option])
+				.keyboardShortcut("\\", modifiers: [.command, .shift])
 			Divider()
 			// the Modulation panel's switches, kept in step with them: the
 			// setting is Link_bEnabled (the panel's AppStorage)
