@@ -718,10 +718,16 @@ struct ModSyncSetting: Codable, Identifiable, Equatable {
 		return y
 	}
 
-	/// a cycle's length: notes, beats and bars (4 beats)
+	/// a cycle's length, in beats and bars (4 beats): a Frequency row's
+	/// Source menu, and the Beat LFO's submenu in the Source menu
+	static func divisionName(_ beats: Double) -> String {
+		divisions.first(where: { $0.beats == beats })?.name ?? String(format: "%g beats", beats)
+	}
+
+	/// a cycle's length: beats and bars (4 beats)
 	static let divisions: [(beats: Double, name: String)] = [
-		(0.25, "1/16 note"), (0.5, "1/8 note"), (1, "1 beat"), (2, "2 beats"),
-		(4, "1 bar"), (8, "2 bars"), (16, "4 bars"), (32, "8 bars"), (64, "16 bars"), (128, "32 bars"),
+		(0.25, "1/4 beat"), (0.5, "1/2 beat"), (1, "Beat"), (2, "2 beats"),
+		(4, "Bar"), (8, "2 bars"), (16, "4 bars"), (32, "8 bars"), (64, "16 bars"), (128, "32 bars"),
 	]
 }
 
@@ -1105,46 +1111,30 @@ private struct ModTablesSection: View {
 				TableColumn("Source" + ColumnTips.mark) { $r in
 					stable(r) {
 						HStack(spacing: 2) {
-							if r.isOscillator {	// the beat's spans: the cycle's length
-								Picker("", selection: Binding(get: { r.source }, set: {
-									r.source = $0
-									r.lfoBeats = ModRowSetting.spanBeats[$0] ?? 4
+							if r.isOscillator {	// the cycle's length, then its phase
+								Picker("", selection: Binding(get: { r.lfoBeats }, set: {
+									r.lfoBeats = $0
+									r.source = ModRowSetting.spanSource(forBeats: $0)	// the longest span that fits
 								})) {
-									ForEach(ModRowSetting.spanSources, id: \.self) { t in
-										Text(WHModRow.sourceName(t)).tag(t)
+									ForEach(ModSyncSetting.divisions, id: \.beats) { d in
+										Text(d.name).tag(d.beats)
 									}
-									if !r.isBeatBased {
-										Text(WHModRow.sourceName(r.source)).tag(r.source)
+									if !ModSyncSetting.divisions.contains(where: { $0.beats == r.lfoBeats }) {
+										Text(ModSyncSetting.divisionName(r.lfoBeats)).tag(r.lfoBeats)
 									}
 								}
 								.labelsHidden()
 								LockMenu(row: $r)
 							} else {
-							Picker("", selection: $r.source) {
-								let tags = WHModRow.sourceTags
-								Section("Sound") {
-									ForEach(tags.filter { !WHModRow.isTriggerSource($0) && $0 != "BeatLFO" }, id: \.self) { t in
-										Text(WHModRow.sourceName(t)).tag(t)
-									}
+								SourceMenu(row: $r)
+								if r.isLFO {
+									LfoMenu(row: $r)
 								}
-								Section("Hits and the beat") {
-									ForEach(tags.filter { WHModRow.isTriggerSource($0) || $0 == "BeatLFO" }, id: \.self) { t in
-										Text(WHModRow.sourceName(t)).tag(t)
-									}
-								}
-								if !tags.contains(r.source) {
-									Text(r.source + " (unknown)").tag(r.source)
-								}
-							}
-							.labelsHidden()
-							if r.isLFO {
-								LfoMenu(row: $r)
-							}
 							}
 						}
 					}
 				}
-				.width(min: 100, ideal: 160)
+				.width(min: 100, ideal: 180)
 				TableColumn("Live" + ColumnTips.mark) { $r in
 					RowLevel(index: map.rows.firstIndex(where: { $0.id == r.id }) ?? -1)
 				}
@@ -1154,7 +1144,7 @@ private struct ModTablesSection: View {
 						TargetMenu(row: $r)
 					}
 				}
-				.width(min: 140, ideal: 160)
+				.width(min: 140, ideal: 150)
 				TableColumn("Amount" + ColumnTips.mark) { $r in
 					if r.isAction {
 						Text("fires").foregroundStyle(.secondary)
@@ -1363,20 +1353,13 @@ private struct TargetMenu: View {
 	}
 }
 
-/// The Beat LFO's length, shape and phase, beside its source
+/// The Beat LFO's shape and phase, beside its source (its length is in the
+/// Source menu)
 private struct LfoMenu: View {
 	@Binding var row: ModRowSetting
 
 	var body: some View {
 		Menu {
-			Picker("Length", selection: $row.lfoBeats) {
-				ForEach(ModSyncSetting.divisions, id: \.beats) { d in
-					Text(d.name).tag(d.beats)
-				}
-				if !ModSyncSetting.divisions.contains(where: { $0.beats == row.lfoBeats }) {
-					Text(String(format: "%g beats", row.lfoBeats)).tag(row.lfoBeats)
-				}
-			}
 			Picker("Shape", selection: $row.lfoShape) {
 				ForEach(ModRowSetting.lfoShapes.indices, id: \.self) { i in
 					Text(ModRowSetting.lfoShapes[i]).tag(i)
@@ -1391,39 +1374,27 @@ private struct LfoMenu: View {
 				}
 			}
 		} label: {
-			Text("\(lengthName) · \(shapeName)")
+			Text("\(shapeName) · \(phaseName)")
 		}
 		.menuStyle(.borderlessButton)
 		.fixedSize()
 		.help("The Beat LFO: \(lengthName), \(shapeName), phase \(String(format: "%.0f°", row.lfoPhaseDeg)). One cycle every so many beats, from the one (Mark Downbeat); Ableton Link's beat, or the beat Whorld hears.")
 	}
 
-	private var lengthName: String {
-		ModSyncSetting.divisions.first(where: { $0.beats == row.lfoBeats })?.name ?? String(format: "%g beats", row.lfoBeats)
-	}
+	private var lengthName: String { ModSyncSetting.divisionName(row.lfoBeats) }
+	private var phaseName: String { String(format: "%.0f°", row.lfoPhaseDeg) }
 	private var shapeName: String {
 		row.lfoShape >= 0 && row.lfoShape < ModRowSetting.lfoShapes.count ? ModRowSetting.lfoShapes[row.lfoShape] : "Sine"
 	}
 }
 
-/// A Frequency row's cycle and phase, beside its source: a finer length
-/// than the source names (the source follows, to the longest span that fits)
+/// A Frequency row's phase, beside its length (the Source menu): where
+/// in the cycle the one falls
 private struct LockMenu: View {
 	@Binding var row: ModRowSetting
 
 	var body: some View {
 		Menu {
-			Picker("Length", selection: Binding(get: { row.lfoBeats }, set: {
-				row.lfoBeats = $0
-				row.source = ModRowSetting.spanSource(forBeats: $0)
-			})) {
-				ForEach(ModSyncSetting.divisions, id: \.beats) { d in
-					Text(d.name).tag(d.beats)
-				}
-				if !ModSyncSetting.divisions.contains(where: { $0.beats == row.lfoBeats }) {
-					Text(String(format: "%g beats", row.lfoBeats)).tag(row.lfoBeats)
-				}
-			}
 			Picker("Phase", selection: $row.lfoPhaseDeg) {
 				ForEach([0.0, 90, 180, 270], id: \.self) { d in
 					Text(String(format: "%.0f°", d)).tag(d)
@@ -1432,16 +1403,65 @@ private struct LockMenu: View {
 					Text(String(format: "%.0f°", row.lfoPhaseDeg)).tag(row.lfoPhaseDeg)
 				}
 			}
+			.pickerStyle(.inline)
 		} label: {
-			Text(row.lfoPhaseDeg == 0 ? lengthName : "\(lengthName) · \(String(format: "%.0f°", row.lfoPhaseDeg))")
+			Text(String(format: "%.0f°", row.lfoPhaseDeg))
 		}
 		.menuStyle(.borderlessButton)
 		.fixedSize()
-		.help("The oscillator's cycle: \(lengthName), phase \(String(format: "%.0f°", row.lfoPhaseDeg)) (where in the cycle the one falls; with a triangle, 0 puts the one halfway up, 90 at the top, 270 at the bottom). From the one (Mark Downbeat); Ableton Link's beat, or the beat Whorld hears.")
+		.help("The phase: where in the oscillator's cycle the one (Mark Downbeat) falls. With a triangle or sine, 0° puts the one halfway up, 90° at the top, 180° halfway down, 270° at the bottom.")
+	}
+}
+
+/// A row's source (but a Frequency row's): a pull-down of the sounds, the
+/// hits and the beat, and the Beat LFO, a submenu of its lengths; the one
+/// chosen has a check mark.
+private struct SourceMenu: View {
+	@Binding var row: ModRowSetting
+
+	var body: some View {
+		let tags = WHModRow.sourceTags
+		Menu {
+			Section("Sound") {
+				ForEach(tags.filter { !WHModRow.isTriggerSource($0) && $0 != "BeatLFO" }, id: \.self) { t in
+					item(WHModRow.sourceName(t), t)
+				}
+			}
+			Section("Hits and the beat") {
+				ForEach(tags.filter { WHModRow.isTriggerSource($0) }, id: \.self) { t in
+					item(WHModRow.sourceName(t), t)
+				}
+				Menu(WHModRow.sourceName("BeatLFO")) {
+					ForEach(ModSyncSetting.divisions, id: \.beats) { d in
+						Toggle(d.name, isOn: Binding(get: { row.isLFO && row.lfoBeats == d.beats }, set: { _ in
+							row.source = "BeatLFO"
+							row.lfoBeats = d.beats
+						}))
+					}
+				}
+			}
+			if !tags.contains(row.source) {
+				item(row.source + " (unknown)", row.source)
+			}
+		} label: {
+			Text(row.isLFO ? Self.lfoName(row.lfoBeats)
+				: tags.contains(row.source) ? WHModRow.sourceName(row.source) : row.source + " (unknown)")
+		}
 	}
 
-	private var lengthName: String {
-		ModSyncSetting.divisions.first(where: { $0.beats == row.lfoBeats })?.name ?? String(format: "%g beats", row.lfoBeats)
+	private func item(_ label: String, _ tag: String) -> some View {
+		Toggle(label, isOn: Binding(get: { row.source == tag }, set: { _ in row.source = tag }))
+	}
+
+	/// short, to fit the column beside the shape and phase: "2-bar LFO",
+	/// "Beat LFO", "1/4-beat LFO"
+	static func lfoName(_ beats: Double) -> String {
+		var n = ModSyncSetting.divisionName(beats)
+		if let space = n.firstIndex(of: " ") {	// "2 bars" -> "2-bar"
+			n = n[..<space] + "-" + n[n.index(after: space)...]
+			if n.hasSuffix("s") { n.removeLast() }
+		}
+		return n + " LFO"
 	}
 }
 
