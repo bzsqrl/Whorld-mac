@@ -42,6 +42,10 @@ struct ModSources {
 	bool		bBeat = false;
 	double		fBeatPos = 0;
 	double		fTempo = 0;	// BPM
+	// moves of the count or the beat by hand (nudges, the half-beat shift;
+	// Mac addition, 2026-11-18): a jump in the position when this changes
+	// is a correction, so beat-based rows don't fire on it
+	uint32_t	nBeatMoves = 0;
 
 	static bool			IsValid(int iSource) { return iSource >= 0 && iSource < SOURCES; }
 	static bool			IsTrigger(int iSource);
@@ -177,6 +181,18 @@ public:
 
 private:
 	enum { MAX_PENDING = 16 };	// delayed hits waiting, per row
+	// A wave locked to the beat (the Beat LFO, a Frequency row) eases to a
+	// new place when the beat's position jumps (a reset, a nudge, the half-
+	// beat shift; Mac addition, the user's request, 2026-11-18): over a
+	// beat, the shorter way round its cycle, instead of jumping.
+	struct Glide {
+		double	fOffset = 0;	// beats added to the position, going to 0
+		double	fRate = 0;		// beats of offset taken off a beat
+	};
+	static constexpr double	kGlideJump = 0.25;	// beats: a bigger jump in one step glides
+	// the position the wave shows: fPos (the new one) plus the glide, after
+	// noting a jump from fPrev (the last, moved on by fAdvance beats)
+	static double	GlidePosition(Glide& g, double fPrev, double fAdvance, double fPos, double fCycle, bool bWasKnown);
 	struct State {
 		double		fEnv = 0;		// smoothed source
 		double		fLevel = 0;		// after the curve
@@ -187,14 +203,17 @@ private:
 		bool		bSpanKnown = false;
 		double		aPending[MAX_PENDING] = {};	// delayed hits: when they fire (m_fTime)
 		int			nPending = 0;
+		uint32_t	nMoves = 0;		// ModSources::nBeatMoves last seen
 		bool		bLfoKnown = false;	// the Beat LFO: the beat as last known, to carry on without it
 		double		fLfoBeatPos = 0;	// shifted by the offset
 		double		fLfoTempo = 0;
+		Glide		lfoGlide;
 	};
 	struct SyncState {	// the beat as last known, to carry on without it
 		bool	bKnown = false;
 		double	fBeatPos = 0;	// shifted by the offset
 		double	fTempo = 0;
+		Glide	glide;
 	};
 	double	m_fTime = 0;	// seconds stepped, for delayed hits
 	std::vector<ModSync>	m_aSync;

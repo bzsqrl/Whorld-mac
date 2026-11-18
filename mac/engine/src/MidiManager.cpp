@@ -200,10 +200,18 @@ void MidiManager::PushMiscTarget(int iMiscTarget, double fNormVal)
 		break;
 	case MT_MarkDownbeat:
 	case MT_ResetBars:
+	case MT_BeatBack:
+	case MT_BeatForward:
+	case MT_BarBack:
+	case MT_BarForward:
+	case MT_HalfBeat:
 		if (fNormVal > 0) {	// a press, not its release (a note-on of velocity 0, a button's 0)
 			Post	post;
 			post.type = Post::MODULATION;
-			post.iVal = iMiscTarget == MT_MarkDownbeat ? 2 : 3;
+			// the app's kinds (ModMap.osc): 2 Reset to 1.1, 3 Reset Bar Count,
+			// 4 to 7 Beat Back, Beat Forward, Bar Back, Bar Forward, 8 Half Beat
+			post.iVal = iMiscTarget == MT_MarkDownbeat ? 2 : iMiscTarget == MT_ResetBars ? 3
+				: 4 + (iMiscTarget - MT_BeatBack);
 			post.fVal = 1;
 			m_sink.PostToMain(post);
 		}

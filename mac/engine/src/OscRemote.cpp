@@ -93,6 +93,11 @@ const char* const	kMiscName[] = {
 	"mod/depth",	// ModDepth
 	"geometry",	// GeometryMode
 	"mod/bars",	// ResetBars (the app takes /w/mod/... before the table)
+	"mod/beatback",	// BeatBack, and the rest likewise
+	"mod/beatfwd",	// BeatForward
+	"mod/barback",	// BarBack
+	"mod/barfwd",	// BarForward
+	"mod/halfbeat",	// HalfBeat
 };
 static_assert(sizeof(kMiscName) / sizeof(kMiscName[0]) == MappingBase::MISC_TARGETS, "a name per miscellaneous target");
 

@@ -75,6 +75,8 @@ public:
 	const BeatTracker&	GetBeatTracker() const { return m_beat; }
 	void	MarkDownbeat() { m_beat.MarkDownbeat(); }
 	void	ResetBars() { m_beat.ResetBars(); }	// Mac addition
+	void	NudgeBeats(int nBeats) { m_beat.NudgeBeats(nBeats); }	// Mac additions
+	void	ShiftHalfBeat() { m_beat.ShiftHalfBeat(); }
 	size_t	GetWindowSize() const { return m_nWindow; }
 	size_t	GetHopSize() const { return m_nHop; }
 	double	GetSampleRate() const { return m_fSampleRate; }

@@ -568,6 +568,53 @@ TEST(MarkDownbeatMovesTheOne) {
 	CHECK_EQ(an.GetSources().aCount[Src::SRC_Bar], nBars + 1);
 }
 
+TEST(NudgesMoveTheCountAndHalfBeatTheBeat) {
+	// a nudge moves the count by whole beats, the beat kept; the half-beat
+	// shift moves the beat itself half a beat later, and back; each is a move
+	std::vector<float>	a = Sine(440, 0.02, 40);
+	for (double t : Grid(124, 0.5, 39.5))
+		AddKick(a, static_cast<size_t>(t * 48000), 0.7);
+	AudioAnalyzer	an;
+	an.Reset(48000);
+	const BeatTracker&	bt = an.GetBeatTracker();
+	size_t	i = 0;
+	auto	until = [&](auto done) {
+		for (; i + 512 <= a.size() && !done(); i += 512)
+			an.Process(&a[i], 512);
+	};
+	auto	step = [&] {
+		an.Process(&a[i], 512);
+		i += 512;
+	};
+	until([&] { return bt.GetBarInPhrase() >= 2 && bt.GetPhase() > 0.2 && bt.GetPhase() < 0.4; });
+	CHECK(bt.GetBarInPhrase() >= 2);
+	double	fPos = bt.GetBeatPosition();
+	uint32_t	nMoves = an.GetSources().nBeatMoves;
+	an.NudgeBeats(1);
+	step();
+	CHECK_NEAR(bt.GetBeatPosition() - fPos, 1, 0.05);	// a beat on, the phase kept
+	CHECK_EQ(an.GetSources().nBeatMoves, nMoves + 1);
+	an.NudgeBeats(-4);	// a bar back
+	step();
+	CHECK_NEAR(bt.GetBeatPosition() - fPos, -3, 0.05);
+	// half a beat later: the position goes back half a beat, and stays so as
+	// the tracker follows the music
+	fPos = bt.GetBeatPosition();
+	an.ShiftHalfBeat();
+	step();
+	CHECK_NEAR(bt.GetBeatPosition() - fPos, -0.5, 0.05);
+	double	fAt = bt.GetBeatPosition();
+	size_t	iAt = i;
+	until([&] { return i >= iAt + 48000 * 4; });	// 4 s on
+	double	fBeats = (i - iAt) / 48000.0 * 124 / 60;
+	CHECK_NEAR(bt.GetBeatPosition() - fAt, fBeats, 0.1);	// still half a beat out
+	fPos = bt.GetBeatPosition();
+	an.ShiftHalfBeat();	// and back
+	step();
+	CHECK_NEAR(bt.GetBeatPosition() - fPos, 0.5, 0.05);
+	CHECK(an.GetSources().nBeatMoves > nMoves + 2);
+}
+
 TEST(ResetBarsKeepsTheBeat) {
 	// the nearest bar becomes bar 1 of the phrase; the beat within the bar
 	// stays (Mark Downbeat would move it)

@@ -73,6 +73,8 @@ void BeatTracker::Reset(double fHopRate)
 	m_nBeats = 0;
 	m_iBeat = -1;
 	m_bMarkNext = false;
+	m_fUserShift = 0;
+	m_nMoves = 0;
 	std::fill(std::begin(m_aSpanCount), std::end(m_aSpanCount), 0u);
 	m_fJumpHops = 0;
 	m_bBeatSilent = true;
@@ -89,8 +91,42 @@ double BeatTracker::GetPhase() const
 {
 	if (m_fPeriod <= 0)
 		return 0;
-	double	f = m_fClock + kOnsetDelayHops / m_fPeriod;
+	double	f = m_fClock + kOnsetDelayHops / m_fPeriod - m_fUserShift;
 	return f - std::floor(f);
+}
+
+void BeatTracker::NudgeBeats(int nBeats)
+{
+	if (!m_bLocked || m_iBeat < 0)
+		return;
+	// kept 0 or more (-1 is none yet): back past the one, a whole number of
+	// 32-bar phrases on, which every span of up to 32 bars divides
+	const int64_t	kPhrases = 128 * 15;	// and 3, 5, 6 ... beats too
+	m_iBeat += nBeats;
+	if (m_iBeat < 0)
+		m_iBeat += kPhrases * ((-m_iBeat + kPhrases - 1) / kPhrases);
+	m_nMoves++;
+}
+
+void BeatTracker::ShiftHalfBeat()
+{
+	if (!m_bLocked || m_iBeat < 0)
+		return;
+	// a toggle: half a beat later, or back. Later, the position goes back
+	// half a beat: the beat just counted, if less than half a beat ago,
+	// isn't yet; back, it goes on half a beat, past the next beat if that
+	// was less than half a beat away
+	double	fPhase = GetPhase();
+	if (m_fUserShift == 0) {
+		m_fUserShift = 0.5;
+		if (fPhase < 0.5)
+			NudgeBeats(-1);
+	} else {
+		m_fUserShift = 0;
+		if (fPhase >= 0.5)
+			NudgeBeats(1);
+	}
+	m_nMoves++;
 }
 
 void BeatTracker::MarkDownbeat()
@@ -165,7 +201,7 @@ void BeatTracker::Process(double fOnset, double fPhaseOnset, bool bSilent)
 		EstimateTempo();
 	if (m_fPeriod <= 0)
 		return;
-	double	fShift = kOnsetDelayHops / m_fPeriod;
+	double	fShift = kOnsetDelayHops / m_fPeriod - m_fUserShift;
 	double	fBefore = m_fClock + fShift;
 	m_fClock += 1 / m_fPeriod;
 	TrackPhase();

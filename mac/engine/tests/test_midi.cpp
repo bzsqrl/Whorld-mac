@@ -221,7 +221,7 @@ TEST(MappingDefaultsAndNames) {
 	CHECK_EQ(m.m_fEnd, 100.0);
 	// 17 miscellaneous targets on Windows, plus the Mac's Hue, Rotate Hue, Invert Color,
 	// Mark Downbeat, Modulation On, Modulation Depth, Geometry Mode and Reset Bar Count
-	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 25);
+	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 30);
 	CHECK_EQ(MB::GetTargetName(MB::TARGET_ResetBars), std::string("Reset Bar Count"));
 	CHECK_EQ(MB::GetTargetType(MB::TARGET_ResetBars), int(MB::TT_ACTION));
 	CHECK(MB::IsMacOnlyTarget(MB::TARGET_ResetBars));
@@ -230,7 +230,7 @@ TEST(MappingDefaultsAndNames) {
 	CHECK_EQ(MB::GetTargetName(MB::TARGET_ModDepth), std::string("Modulation Depth"));
 	CHECK_EQ(MB::GetTargetType(MB::TARGET_ModOn), int(MB::TT_BOOL));
 	CHECK(MB::IsMacOnlyTarget(MB::TARGET_ModDepth));
-	CHECK_EQ(MB::GetTargetName(MB::TARGET_MarkDownbeat), std::string("Mark Downbeat"));
+	CHECK_EQ(MB::GetTargetName(MB::TARGET_MarkDownbeat), std::string("Reset to 1.1"));
 	CHECK_EQ(MB::GetTargetType(MB::TARGET_MarkDownbeat), int(MB::TT_ACTION));
 	CHECK(!MB::IsMacOnlyTarget(MB::TARGET_Patch));
 	CHECK(MB::IsMacOnlyTarget(MB::TARGET_Hue));
@@ -397,6 +397,24 @@ TEST(ModulationTargets) {
 	sink.Clear();
 	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 43, 0));	// not on its release
 	CHECK(sink.posts.empty());
+	// Beat Back ... Half Beat: kinds 4 to 8, on a press
+	MappingArray	nudges;
+	int	aTarget[] = {MB::TARGET_BeatBack, MB::TARGET_BeatForward, MB::TARGET_BarBack, MB::TARGET_BarForward, MB::TARGET_HalfBeat};
+	for (int i = 0; i < 5; i++)
+		nudges.push_back(MakeMapping(MIDI_CVM_NOTE_ON, 0, 50 + i, aTarget[i]));
+	mgr.m_midiMaps.SetArray(nudges);
+	for (int i = 0; i < 5; i++) {
+		sink.Clear();
+		mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 50 + i, 100));
+		CHECK_EQ(sink.posts.size(), size_t(1));
+		CHECK_EQ(sink.posts[0].type, Post::MODULATION);
+		CHECK_EQ(sink.posts[0].iVal, 4 + i);
+		sink.Clear();
+		mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 50 + i, 0));
+		CHECK(sink.posts.empty());
+	}
+	CHECK_EQ(MB::GetTargetName(MB::TARGET_HalfBeat), std::string("Half Beat"));
+	CHECK(MB::IsMacOnlyTarget(MB::TARGET_HalfBeat));
 }
 
 TEST(GeometryModeTarget) {

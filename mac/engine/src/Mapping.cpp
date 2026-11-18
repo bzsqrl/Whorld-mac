@@ -46,8 +46,8 @@ const char* const kMiscTargetName[MappingBase::MISC_TARGETS] = {
 	"Origin X", "Origin Y", "Fill", "Outline", "Mirror", "Origin Drag", "Origin Random", "Reverse",
 	"Convex", "Loop Hue", "Zoom Center", "Antialiasing", "Random Phase", "Random Origin", "Clear",
 	"Pause", "Patch",
-	"Hue", "Rotate Hue", "Invert Color", "Mark Downbeat", "Modulation On", "Modulation Depth",	// Mac additions
-	"Geometry Mode", "Reset Bar Count",
+	"Hue", "Rotate Hue", "Invert Color", "Reset to 1.1", "Modulation On", "Modulation Depth",	// Mac additions
+	"Geometry Mode", "Reset Bar Count", "Beat Back", "Beat Forward", "Bar Back", "Bar Forward", "Half Beat",
 };
 
 const int kMiscTargetType[MappingBase::MISC_TARGETS] = {

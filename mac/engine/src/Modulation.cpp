@@ -159,16 +159,21 @@ void Modulator::StepSyncs(const ModSources& src, double dt, ModOutput& out)
 			st = SyncState();
 			continue;
 		}
+		double	fShown;
 		if (bBeat) {
+			double	fPos = src.fBeatPos - sync.fOffset * src.fTempo / 60;
+			fShown = GlidePosition(st.glide, st.fBeatPos, dt * st.fTempo / 60, fPos, sync.fBeats, st.bKnown);
 			st.fTempo = src.fTempo;
-			st.fBeatPos = src.fBeatPos - sync.fOffset * src.fTempo / 60;
+			st.fBeatPos = fPos;
 			st.bKnown = true;
-		} else if (st.bKnown && dt > 0) {
-			st.fBeatPos += dt * st.fTempo / 60;
+		} else {
+			if (st.bKnown && dt > 0)
+				st.fBeatPos += dt * st.fTempo / 60;
+			fShown = GlidePosition(st.glide, st.fBeatPos, dt * st.fTempo / 60, st.fBeatPos, sync.fBeats, false);	// (still easing)
 		}
 		if (!st.bKnown || m_bBypass)
 			continue;
-		double	fCycle = st.fBeatPos / sync.fBeats + sync.fPhase;
+		double	fCycle = fShown / sync.fBeats + sync.fPhase;
 		out.aOscFreq[sync.iParam] = st.fTempo / 60 / sync.fBeats;
 		out.aOscCycle[sync.iParam] = fCycle - std::floor(fCycle) + 1;
 	}
@@ -218,6 +223,24 @@ double Modulator::Smooth(double fEnv, double fTarget, double dt, double fTime)
 	return fEnv + (fTarget - fEnv) * (1 - std::exp(-dt / fTime));
 }
 
+double Modulator::GlidePosition(Glide& g, double fPrev, double fAdvance, double fPos, double fCycle, bool bWasKnown)
+{
+	if (bWasKnown && fCycle > 0) {
+		double	d = fPrev + fAdvance - fPos;	// where it would have been, less where it is
+		d -= std::round(d / fCycle) * fCycle;	// the shorter way round the cycle
+		if (std::fabs(d) > kGlideJump) {
+			g.fOffset += d;
+			g.fOffset -= std::round(g.fOffset / fCycle) * fCycle;
+			g.fRate = std::fabs(g.fOffset);	// all of it in a beat
+		}
+	}
+	if (g.fOffset != 0) {
+		double	fStep = g.fRate * fAdvance;
+		g.fOffset = std::fabs(g.fOffset) <= fStep ? 0 : g.fOffset - std::copysign(fStep, g.fOffset);
+	}
+	return fPos + g.fOffset;
+}
+
 double Modulator::Shape(int nCurve, double x, double fThreshold)
 {
 	switch (nCurve) {
@@ -252,6 +275,10 @@ void Modulator::Step(const ModSources& src, double dt, ModOutput& out)
 		// span); the others a fixed span from the one
 		double	fSpan = row.iSource == ModSources::SRC_Beats ? std::max(row.fLfoBeats, 0.0)
 			: ModSources::SpanBeats(row.iSource);
+		// a move by hand (a nudge, the half-beat shift): the count's new place
+		// is taken without firing
+		bool	bMoved = src.nBeatMoves != st.nMoves;
+		st.nMoves = src.nBeatMoves;
 		if (fSpan > 0) {
 			// beat-based: when the beat position, shifted by the offset, enters
 			// a new span (a beat, a bar, a phrase). Also when a jump lands near a
@@ -262,7 +289,7 @@ void Modulator::Step(const ModSources& src, double dt, ModOutput& out)
 					fPos -= row.fLfoPhase * fSpan;
 				int64_t	iSpan = static_cast<int64_t>(std::floor(fPos / fSpan));
 				double	fInto = fPos - static_cast<double>(iSpan) * fSpan;	// beats into the span
-				bFired = st.bSpanKnown && iSpan != st.iSpan && fInto < std::min(0.5, fSpan / 2);
+				bFired = st.bSpanKnown && !bMoved && iSpan != st.iSpan && fInto < std::min(0.5, fSpan / 2);
 				st.iSpan = iSpan;
 				st.bSpanKnown = true;
 			} else {
@@ -295,15 +322,20 @@ void Modulator::Step(const ModSources& src, double dt, ModOutput& out)
 			// it carries on at the last tempo from where it was, as the beat-locked
 			// oscillators do, so nothing jumps; never locked yet, 0. No attack or
 			// release: smoothing would put it behind the beat.
+			double	fShown;
 			if (src.bBeat && src.fTempo > 0) {
+				double	fPos = src.fBeatPos - row.fOffset * src.fTempo / 60;
+				fShown = GlidePosition(st.lfoGlide, st.fLfoBeatPos, dt * st.fLfoTempo / 60, fPos, row.fLfoBeats, st.bLfoKnown);
 				st.fLfoTempo = src.fTempo;
-				st.fLfoBeatPos = src.fBeatPos - row.fOffset * src.fTempo / 60;
+				st.fLfoBeatPos = fPos;
 				st.bLfoKnown = true;
-			} else if (st.bLfoKnown && dt > 0) {
-				st.fLfoBeatPos += dt * st.fLfoTempo / 60;
+			} else {
+				if (st.bLfoKnown && dt > 0)
+					st.fLfoBeatPos += dt * st.fLfoTempo / 60;
+				fShown = GlidePosition(st.lfoGlide, st.fLfoBeatPos, dt * st.fLfoTempo / 60, st.fLfoBeatPos, row.fLfoBeats, false);	// (still easing)
 			}
 			st.fEnv = st.bLfoKnown && row.fLfoBeats > 0
-				? ModRow::LfoValue(row.nLfoShape, st.fLfoBeatPos / row.fLfoBeats + row.fLfoPhase) : 0;
+				? ModRow::LfoValue(row.nLfoShape, fShown / row.fLfoBeats + row.fLfoPhase) : 0;
 		} else if (ModSources::IsTrigger(row.iSource)) {
 			// a pulse: jumps to 1 on a hit, then decays over the release
 			st.fEnv = bFired ? 1 : Smooth(st.fEnv, 0, dt, row.fRelease);

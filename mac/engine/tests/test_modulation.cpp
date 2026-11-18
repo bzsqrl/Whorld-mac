@@ -410,6 +410,53 @@ TEST(BeatsRowsFireOnAnySpanAndPhase) {
 	}
 }
 
+TEST(MovesDontFireAndWavesGlide) {
+	// a nudge (a jump with a new ModSources::nBeatMoves) moves a bar row's
+	// count without firing it; a Beat LFO eases to its new place over a beat
+	ModRow	bar = BeatRow(ModSources::SRC_Bar, 0);
+	ModRow	lfo = MakeRow(ModSources::SRC_BeatLFO, MB::TARGET_Zoom, 0.1);
+	lfo.fLfoBeats = 4;
+	lfo.nLfoShape = ModRow::LFO_RampUp;	// its value is the place in the cycle
+	Modulator	m;
+	m.SetRows({bar, lfo});
+	ModSources	src;
+	src.bBeat = true;
+	src.fTempo = 120;	// a beat is 0.5 s
+	ModOutput	out;
+	const double	dt = 1.0 / 120;
+	double	pos = 2.5;
+	for (int i = 0; i < 10; i++, pos += dt * 2) {
+		src.fBeatPos = pos;
+		m.Step(src, dt, out);
+	}
+	double	fBefore = m.GetRowLevel(1);
+	// nudged on to the next bar's start: no pulse
+	pos += 4 - std::fmod(pos, 4) + 0.01;
+	src.fBeatPos = pos;
+	src.nBeatMoves++;
+	m.Step(src, dt, out);
+	CHECK(m.GetRowLevel(0) < 0.5);
+	// the LFO hasn't jumped: about where it was, a step on
+	CHECK_NEAR(m.GetRowLevel(1), fBefore + dt * 2 / 4, 0.02);
+	// a beat later it's where the new position puts it
+	for (int i = 0; i < 70; i++) {
+		pos += dt * 2;
+		src.fBeatPos = pos;
+		m.Step(src, dt, out);
+	}
+	CHECK_NEAR(m.GetRowLevel(1), std::fmod(pos, 4) / 4, 0.01);
+	// the next bar fires as usual
+	bool	bFired = false;
+	for (int i = 0; i < 300 && !bFired; i++) {
+		pos += dt * 2;
+		src.fBeatPos = pos;
+		m.Step(src, dt, out);
+		bFired = m.GetRowLevel(0) > 0.999;
+	}
+	CHECK(bFired);
+	CHECK_NEAR(std::fmod(pos, 4), 0, 0.05);
+}
+
 TEST(DownbeatJumpsFireOrWait) {
 	// Mark Downbeat a little late: the position jumps back to just past 0
 	// and Bar fires at once; a little early: it jumps to just below 0 and

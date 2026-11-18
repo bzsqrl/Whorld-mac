@@ -59,6 +59,17 @@ public:
 	// Downbeat's); in its second half, the next bar. Unlocked: as
 	// MarkDownbeat, the next beat counted is the one.
 	void	ResetBars();
+	// Mac additions (user's request, 2026-11-18), to keep the count in line
+	// with the music's phrasing. NudgeBeats moves the count by whole beats
+	// (+1: the beat now counts as the next one; 4 a bar), the beat itself
+	// kept. ShiftHalfBeat moves the beat itself half a beat later, for a
+	// beat found on the off-beats; the tracker keeps following the music,
+	// the beats shifted from what it finds (until Reset). Neither fires a
+	// span: GetMoves counts them, so rows can tell a move from the music.
+	// Unlocked, they do nothing.
+	void	NudgeBeats(int nBeats);
+	void	ShiftHalfBeat();
+	uint32_t	GetMoves() const { return m_nMoves; }
 	int		GetBeatInBar() const;	// 0 to 3, the beat just counted (-1 before any)
 	// beats since the one, continuous (as the beats are shifted), while locked
 	double	GetBeatPosition() const { return static_cast<double>(m_iBeat) + GetPhase(); }
@@ -90,6 +101,8 @@ private:
 	uint32_t	m_nBeats = 0;
 	int64_t	m_iBeat = -1;		// the last beat counted, numbered from the one (-1: none yet)
 	bool	m_bMarkNext = false;	// MarkDownbeat while unlocked: the next beat is the one
+	double	m_fUserShift = 0;	// ShiftHalfBeat: beats (0 or 0.5) the beats come after the tracker's
+	uint32_t	m_nMoves = 0;	// NudgeBeats and ShiftHalfBeat so far
 	uint32_t	m_aSpanCount[SPANS] = {};
 
 	double	Onset(const std::vector<double>& a, double fAgo) const;	// fAgo hops ago, interpolated

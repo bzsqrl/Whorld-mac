@@ -85,7 +85,7 @@ MAPPINGDEF_MISC_TARGET(Patch,			RANGE)
 MAPPINGDEF_MISC_TARGET(Hue,				RANGE)
 MAPPINGDEF_MISC_TARGET(RotateHue,		ACTION)
 MAPPINGDEF_MISC_TARGET(InvertColor,		BOOL)
-// audio modulation: the beat's one (Bar ... 32-Bar), on and off, depth
+// audio modulation: the beat's one, 1.1 (Reset to 1.1), on and off, depth
 MAPPINGDEF_MISC_TARGET(MarkDownbeat,	ACTION)
 MAPPINGDEF_MISC_TARGET(ModOn,			BOOL)
 MAPPINGDEF_MISC_TARGET(ModDepth,		RANGE)
@@ -93,6 +93,13 @@ MAPPINGDEF_MISC_TARGET(ModDepth,		RANGE)
 MAPPINGDEF_MISC_TARGET(GeometryMode,	BOOL)
 // the bar nearest a press becomes bar 1, keeping the beat (BeatTracker::ResetBars)
 MAPPINGDEF_MISC_TARGET(ResetBars,		ACTION)
+// the count moved a beat or a bar back or on, and the beat itself half a
+// beat later or back (BeatTracker::NudgeBeats, ShiftHalfBeat; 2026-11-18)
+MAPPINGDEF_MISC_TARGET(BeatBack,		ACTION)
+MAPPINGDEF_MISC_TARGET(BeatForward,		ACTION)
+MAPPINGDEF_MISC_TARGET(BarBack,			ACTION)
+MAPPINGDEF_MISC_TARGET(BarForward,		ACTION)
+MAPPINGDEF_MISC_TARGET(HalfBeat,		ACTION)
 
 #undef MAPPINGDEF_MISC_TARGET
 #endif // MAPPINGDEF_MISC_TARGET
