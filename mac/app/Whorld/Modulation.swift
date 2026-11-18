@@ -264,7 +264,10 @@ private struct AudioInputSection: View {
 			GridRow(alignment: .top) {
 				Text("Hearing")
 					.help("What Whorld hears, live: the level and bands, the hits (lights and hits a second), and the beat. The beat tracker learns the tempo from the hits and keeps a steady beat through kicks it can't hear (a busy mix, a breakdown).")
-				AudioMeter()
+				HStack(alignment: .bottom, spacing: 6) {
+					OwnHost { AudioMeter() }
+					beatButtons
+				}
 			}
 		}
 		.onChange(of: inputUID) { AudioSettings.selectInput() }
@@ -318,6 +321,47 @@ private struct AudioStatus: View {
 	}
 }
 
+extension AudioInputSection {
+	/// Mark Downbeat and Reset Bars, beside the meter (outside its own
+	/// hosting view, see OwnHost)
+	private var beatButtons: some View {
+		HStack(spacing: 6) {
+			Button("Mark Downbeat") { ModMap.markDownbeat() }
+				.controlSize(.small)
+				.fixedSize()	// the text gives way, not the button
+				.help("Press on the \"one\" (a drop, the start of a phrase): the beat nearest the press becomes beat 1 of bar 1, for Bar, 4-Bar ... 32-Bar. Image > Mark Downbeat (⌥⌘8) and OSC /w/mod/downbeat do the same.")
+			Button("Reset Bars") { ModMap.resetBars() }
+				.controlSize(.small)
+				.fixedSize()
+				.help("Start the bar count again: the nearest bar becomes bar 1, for 4-Bar ... 32-Bar, without moving the beat (Mark Downbeat moves the beat too). Press anywhere in the first half of a bar for that bar, in the second half for the next. Image > Reset Bar Count (⇧⌥⌘8), OSC /w/mod/bars and the Reset Bar Count MIDI target do the same.")
+		}
+	}
+}
+
+/// A view in its own NSHostingView. SwiftUI dismisses every tooltip in a
+/// hosting view whenever anything in it redraws, so the Hearing meter (30
+/// times a second while there's sound) gets a host of its own, like the
+/// routing table's cells, and the rest of the window keeps its tooltips.
+/// The content should keep a steady size: a change of size would relayout
+/// the window's host.
+private struct OwnHost<Content: View>: NSViewRepresentable {
+	@ViewBuilder let content: () -> Content
+
+	func makeNSView(context: Context) -> NSHostingView<Content> {
+		let host = NSHostingView(rootView: content())
+		host.sizingOptions = [.intrinsicContentSize]
+		return host
+	}
+
+	func updateNSView(_ host: NSHostingView<Content>, context: Context) {
+		host.rootView = content()
+	}
+
+	func sizeThatFits(_ proposal: ProposedViewSize, nsView host: NSHostingView<Content>, context: Context) -> CGSize? {
+		host.intrinsicContentSize
+	}
+}
+
 /// What the analysis hears: bars for the level, bands and brightness, and
 /// lights that flash on hits. Thirty times a second while shown.
 private struct AudioMeter: View {
@@ -326,47 +370,44 @@ private struct AudioMeter: View {
 	@State private var history: [(time: Date, counts: [UInt32])] = []	// the last few seconds, for rates
 
 	var body: some View {
-		HStack(alignment: .bottom, spacing: 6) {
-			TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
-				let r = WHAudioInput.shared.reading()
-				let now = context.date
-				let link = linkBeat()
-				HStack(alignment: .top, spacing: 24) {
-					VStack(alignment: .leading, spacing: 4) {
-						bar("Level", r.level, detail: r.levelDb > -150 ? String(format: "%.0f dB", r.levelDb) : "")
-						bar("Bass", r.bass)
-						bar("Low Mid", r.lowMid)
-						bar("High Mid", r.highMid)
-						bar("Treble", r.treble)
-						bar("Brightness", r.brightness)
-					}
-					VStack(alignment: .leading, spacing: 8) {
-						light("Hit", lit: now < flashUntil[0], rate: rate(0))
-						light("Kick", lit: now < flashUntil[1], rate: rate(1))
-						light("Hats", lit: now < flashUntil[2], rate: rate(2))
-						Text("hits a second, over 4 s")
-							.font(.caption2)
-							.foregroundStyle(.secondary)
-						beatRow(r, link: link, lit: now < flashUntil[3])
-					}
+		TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
+			let r = WHAudioInput.shared.reading()
+			let now = context.date
+			let link = linkBeat()
+			HStack(alignment: .top, spacing: 24) {
+				VStack(alignment: .leading, spacing: 4) {
+					bar("Level", r.level, detail: r.levelDb > -150 ? String(format: "%.0f dB", r.levelDb) : "")
+					bar("Bass", r.bass)
+					bar("Low Mid", r.lowMid)
+					bar("High Mid", r.highMid)
+					bar("Treble", r.treble)
+					bar("Brightness", r.brightness)
 				}
-				.onChange(of: link?.beat) { _, beat in	// Ableton Link's beats flash the Beat light
-					if beat != nil {
-						flashUntil[3] = Date().addingTimeInterval(0.12)
-					}
-				}
-				.onChange(of: [r.hits, r.kicks, r.hats, r.beats]) { _, counts in
-					for i in 0..<4 where counts[i] != lastCounts[i] {
-						flashUntil[i] = Date().addingTimeInterval(0.12)
-					}
-					lastCounts = counts
-				}
-				.onChange(of: Int(now.timeIntervalSinceReferenceDate * 4)) {	// four times a second
-					history.append((now, [r.hits, r.kicks, r.hats, r.beats]))
-					history.removeAll { now.timeIntervalSince($0.time) > 4.1 }
+				VStack(alignment: .leading, spacing: 8) {
+					light("Hit", lit: now < flashUntil[0], rate: rate(0))
+					light("Kick", lit: now < flashUntil[1], rate: rate(1))
+					light("Hats", lit: now < flashUntil[2], rate: rate(2))
+					Text("hits a second, over 4 s")
+						.font(.caption2)
+						.foregroundStyle(.secondary)
+					beatRow(r, link: link, lit: now < flashUntil[3])
 				}
 			}
-			beatButtons
+			.onChange(of: link?.beat) { _, beat in	// Ableton Link's beats flash the Beat light
+				if beat != nil {
+					flashUntil[3] = Date().addingTimeInterval(0.12)
+				}
+			}
+			.onChange(of: [r.hits, r.kicks, r.hats, r.beats]) { _, counts in
+				for i in 0..<4 where counts[i] != lastCounts[i] {
+					flashUntil[i] = Date().addingTimeInterval(0.12)
+				}
+				lastCounts = counts
+			}
+			.onChange(of: Int(now.timeIntervalSinceReferenceDate * 4)) {	// four times a second
+				history.append((now, [r.hits, r.kicks, r.hats, r.beats]))
+				history.removeAll { now.timeIntervalSince($0.time) > 4.1 }
+			}
 		}
 	}
 
@@ -427,24 +468,9 @@ private struct AudioMeter: View {
 				.foregroundStyle(.secondary)
 				.lineLimit(1)
 				.truncationMode(.tail)
-				.frame(minWidth: 180, maxWidth: 300, alignment: .leading)
+				.frame(width: 280, alignment: .leading)	// a steady width: the meter's size never changes (see OwnHost)
 		}
 		.padding(.top, 4)
-	}
-
-	/// Mark Downbeat and Reset Bars, outside the TimelineView: a view it
-	/// redraws (30 times a second) can't keep a tooltip showing
-	private var beatButtons: some View {
-		HStack(spacing: 6) {
-			Button("Mark Downbeat") { ModMap.markDownbeat() }
-				.controlSize(.small)
-				.fixedSize()	// the text gives way, not the button
-				.help("Press on the \"one\" (a drop, the start of a phrase): the beat nearest the press becomes beat 1 of bar 1, for Bar, 4-Bar ... 32-Bar. Image > Mark Downbeat (⌥⌘8) and OSC /w/mod/downbeat do the same.")
-			Button("Reset Bars") { ModMap.resetBars() }
-				.controlSize(.small)
-				.fixedSize()
-				.help("Start the bar count again: the nearest bar becomes bar 1, for 4-Bar ... 32-Bar, without moving the beat (Mark Downbeat moves the beat too). Press anywhere in the first half of a bar for that bar, in the second half for the next. Image > Reset Bar Count (⇧⌥⌘8), OSC /w/mod/bars and the Reset Bar Count MIDI target do the same.")
-		}
 	}
 
 	/// hits a second of one kind over the last 4 seconds (nil until there's enough)
