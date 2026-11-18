@@ -332,11 +332,11 @@ extension AudioInputSection {
 			Button("Mark Downbeat") { ModMap.markDownbeat() }
 				.controlSize(.small)
 				.fixedSize()	// the text gives way, not the button
-				.help("Press on the \"one\" (a drop, the start of a phrase): the beat nearest the press becomes beat 1 of bar 1, for Bar, 4-Bar ... 32-Bar. Image > Mark Downbeat (⌥⌘8) and OSC /w/mod/downbeat do the same.")
+				.help("Press on the \"one\" (a drop, the start of a phrase): the beat nearest the press becomes beat 1 of bar 1, for rows on Beats, Bars, the Beat LFO and Frequency. Image > Mark Downbeat (⌥⌘8) and OSC /w/mod/downbeat do the same.")
 			Button("Reset Bars") { ModMap.resetBars() }
 				.controlSize(.small)
 				.fixedSize()
-				.help("Start the bar count again: the nearest bar becomes bar 1, for 4-Bar ... 32-Bar, without moving the beat (Mark Downbeat moves the beat too). Press anywhere in the first half of a bar for that bar, in the second half for the next. Image > Reset Bar Count (⇧⌥⌘8), OSC /w/mod/bars and the Reset Bar Count MIDI target do the same.")
+				.help("Start the bar count again: the nearest bar becomes bar 1, for rows of several bars, without moving the beat (Mark Downbeat moves the beat too). Press anywhere in the first half of a bar for that bar, in the second half for the next. Image > Reset Bar Count (⇧⌥⌘8), OSC /w/mod/bars and the Reset Bar Count MIDI target do the same.")
 		}
 	}
 }
@@ -593,6 +593,7 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 		offsetMs = (try? c.decodeIfPresent(Double.self, forKey: .offsetMs)) ?? d.offsetMs
 		lfoBeats = (try? c.decodeIfPresent(Double.self, forKey: .lfoBeats)) ?? d.lfoBeats
 		lfoInBars = (try? c.decodeIfPresent(Bool.self, forKey: .lfoInBars)) ?? Self.inBars(lfoBeats)	// (older settings: whole bars in bars)
+		normalizeSpan()
 		lfoShape = (try? c.decodeIfPresent(Int.self, forKey: .lfoShape)) ?? d.lfoShape
 		lfoPhaseDeg = (try? c.decodeIfPresent(Double.self, forKey: .lfoPhaseDeg)) ?? d.lfoPhaseDeg
 	}
@@ -603,9 +604,14 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 	/// the Beat LFO's shapes, as ModRow::LFO_* (Whorld's waveforms)
 	static let lfoShapes = ["Sine", "Triangle", "Ramp Up", "Ramp Down", "Square"]
 	var isTrigger: Bool { WHModRow.isTriggerSource(source) }
-	/// Beat, Bar ... 32-Bar: from the beat's position, so they can fire early
-	var isBeatBased: Bool { Self.spanSources.contains(source) }
-	/// the beat sources, and the cycle each gives a Frequency row
+	/// a pulse every so many beats or bars (lfoBeats, lfoInBars), that far
+	/// into each cycle (lfoPhaseDeg): the engine's Beats source
+	static let pulseSource = "Beats"
+	var isPulse: Bool { source == Self.pulseSource }
+	/// from the beat's position, so they can fire early
+	var isBeatBased: Bool { isPulse || Self.spanSources.contains(source) }
+	/// the fixed spans the beat sources had before any length could be typed
+	/// (until 2026-11-18): read as Beats rows of those lengths
 	static let spanSources = ["Beat", "Bar", "Bar4", "Bar8", "Bar16", "Bar32"]
 	static let spanBeats: [String: Double] = ["Beat": 1, "Bar": 4, "Bar4": 16, "Bar8": 32, "Bar16": 64, "Bar32": 128]
 	/// A cycle's length: any number of beats or bars, fractions too (1/3
@@ -636,9 +642,17 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 		return n == 1 ? unit.capitalized : Self.lengthText(n) + " " + unit + (n > 1 ? "s" : "")
 	}
 
-	/// the beat source for a cycle: the longest span that fits in it (at least Beat)
-	static func spanSource(forBeats beats: Double) -> String {
-		spanSources.last { (spanBeats[$0] ?? 1) <= beats } ?? "Beat"
+	/// An older fixed span (Beat, Bar, 4-Bar ... 32-Bar) as a Beats row: a
+	/// pulse of that length, at no phase; a Frequency row's length was
+	/// already its own (lfoBeats; the source only approximated it).
+	mutating func normalizeSpan() {
+		guard Self.spanSources.contains(source) else { return }
+		if !isOscillator {
+			lfoBeats = Self.spanBeats[source] ?? 4
+			lfoInBars = Self.inBars(lfoBeats)
+			lfoPhaseDeg = 0
+		}
+		source = Self.pulseSource
 	}
 
 	/// Locks the target parameter's oscillator to the beat, instead of moving
@@ -669,7 +683,7 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 		r.prop = WHParamProperty.freq.rawValue
 		r.lfoBeats = y.beats > 0 ? y.beats : 4
 		r.lfoInBars = inBars(r.lfoBeats)
-		r.source = spanSource(forBeats: r.lfoBeats)
+		r.source = pulseSource
 		r.lfoPhaseDeg = y.phaseDeg
 		r.offsetMs = y.offsetMs
 		return r
@@ -705,6 +719,7 @@ struct ModRowSetting: Codable, Identifiable, Equatable {
 		r.attackMs = attack
 		r.releaseMs = release
 		r.on = on
+		r.normalizeSpan()
 		return r
 	}
 }
@@ -1133,7 +1148,7 @@ private struct ModTablesSection: View {
 							if r.isOscillator {	// the cycle's length, then its phase
 								LengthField(row: $r)
 								UnitPicker(row: $r)
-								LockMenu(row: $r)
+								PhaseMenu(row: $r)
 							} else {
 								if r.isLFO {	// its length, then its shape and phase
 									SourceMenu(row: $r)
@@ -1141,6 +1156,11 @@ private struct ModTablesSection: View {
 									LengthField(row: $r)
 									UnitPicker(row: $r)
 									LfoMenu(row: $r)
+								} else if r.isPulse {	// the number, then Beats or Bars, then the phase
+									LengthField(row: $r)
+									SourceMenu(row: $r)
+										.fixedSize()
+									PhaseMenu(row: $r)
 								} else {
 									SourceMenu(row: $r)
 								}
@@ -1361,9 +1381,13 @@ private struct TargetMenu: View {
 			row.prop = c.prop
 		}
 		if row.isOscillator {	// its source is the cycle: a beat span
-			if !row.isBeatBased { row.source = "Bar" }
-			row.lfoBeats = ModRowSetting.spanBeats[row.source] ?? 4
-			row.lfoInBars = ModRowSetting.inBars(row.lfoBeats)
+			if !row.isBeatBased {	// a pulse or LFO keeps its length; otherwise a bar
+				if !row.isLFO {
+					row.lfoBeats = 4
+					row.lfoInBars = true
+				}
+				row.source = ModRowSetting.pulseSource
+			}
 		}
 	}
 }
@@ -1433,9 +1457,6 @@ private struct LengthField: View {
 	private func setLength(_ beats: Double) {
 		guard beats.isFinite else { return }
 		row.lfoBeats = min(max(beats, ModRowSetting.minBeats), ModRowSetting.maxBeats)
-		if row.isOscillator {	// its stored source: the longest span that fits
-			row.source = ModRowSetting.spanSource(forBeats: row.lfoBeats)
-		}
 	}
 }
 
@@ -1450,9 +1471,6 @@ private struct UnitPicker: View {
 			guard bars != row.lfoInBars else { return }
 			row.lfoInBars = bars
 			row.lfoBeats = min(max(n * (bars ? 4 : 1), ModRowSetting.minBeats), ModRowSetting.maxBeats)
-			if row.isOscillator {
-				row.source = ModRowSetting.spanSource(forBeats: row.lfoBeats)
-			}
 		})) {
 			Text(n == 1 ? "Beat" : "Beats").tag(false)
 			Text(n == 1 ? "Bar" : "Bars").tag(true)
@@ -1462,9 +1480,10 @@ private struct UnitPicker: View {
 	}
 }
 
-/// A Frequency row's phase, beside its length: where in the cycle the one
-/// falls
-private struct LockMenu: View {
+/// A Frequency or Beats row's phase, beside its length: for a Frequency
+/// row, where in the oscillator's cycle the one falls; for a pulse, how far
+/// into each cycle it comes (with 4 bars, 90° is bar 2)
+private struct PhaseMenu: View {
 	@Binding var row: ModRowSetting
 
 	var body: some View {
@@ -1483,42 +1502,72 @@ private struct LockMenu: View {
 		}
 		.menuStyle(.borderlessButton)
 		.fixedSize()
-		.help("The phase: where in the oscillator's cycle the one (Mark Downbeat) falls. With a triangle or sine, 0° puts the one halfway up, 90° at the top, 180° halfway down, 270° at the bottom.")
+		.help(row.isPulse
+			? "The phase: how far into each cycle the pulse comes, from the one (Mark Downbeat). 0° on the one; with 4 bars, 90° is bar 2, 180° bar 3, 270° bar 4."
+			: "The phase: where in the oscillator's cycle the one (Mark Downbeat) falls. With a triangle or sine, 0° puts the one halfway up, 90° at the top, 180° halfway down, 270° at the bottom.")
 	}
 }
 
 /// A row's source (but a Frequency row's): a pull-down of the sounds, the
-/// hits and the beat, and the Beat LFO; the one chosen has a check mark.
+/// hits, and the beat: a pulse every so many Beats or Bars (the number in
+/// front, LengthField), or the Beat LFO; the one chosen has a check mark.
 private struct SourceMenu: View {
 	@Binding var row: ModRowSetting
 
 	var body: some View {
 		let tags = WHModRow.sourceTags
+		let hits = tags.filter {
+			WHModRow.isTriggerSource($0) && $0 != ModRowSetting.pulseSource && !ModRowSetting.spanSources.contains($0)
+		}
 		Menu {
 			Section("Sound") {
 				ForEach(tags.filter { !WHModRow.isTriggerSource($0) && $0 != "BeatLFO" }, id: \.self) { t in
 					item(WHModRow.sourceName(t), t)
 				}
 			}
-			Section("Hits and the beat") {
-				ForEach(tags.filter { WHModRow.isTriggerSource($0) }, id: \.self) { t in
+			Section("Hits") {
+				ForEach(hits, id: \.self) { t in
 					item(WHModRow.sourceName(t), t)
 				}
+			}
+			Section("The beat") {
+				pulse("Beats", bars: false)
+				pulse("Bars", bars: true)
 				item(WHModRow.sourceName("BeatLFO"), "BeatLFO")
 			}
 			if !tags.contains(row.source) {
 				item(row.source + " (unknown)", row.source)
 			}
 		} label: {
-			Text(row.isLFO ? "LFO"	// short: its length, shape and phase follow
-				: tags.contains(row.source) ? WHModRow.sourceName(row.source) : row.source + " (unknown)")
+			Text(label(tags))
 		}
+	}
+
+	private func label(_ tags: [String]) -> String {
+		if row.isLFO { return "LFO" }	// short: its length, shape and phase follow
+		if row.isPulse {	// after its number: "3 Beats", "1 Bar"
+			let n = row.lfoInBars ? row.lfoBeats / 4 : row.lfoBeats
+			return (row.lfoInBars ? "Bar" : "Beat") + (n == 1 ? "" : "s")
+		}
+		return tags.contains(row.source) ? WHModRow.sourceName(row.source) : row.source + " (unknown)"
 	}
 
 	private func item(_ label: String, _ tag: String) -> some View {
 		Toggle(label, isOn: Binding(get: { row.source == tag }, set: { _ in row.source = tag }))
 	}
 
+	/// a pulse every so many beats or bars: the number shown stays (a Beat
+	/// LFO's or Frequency row's length becomes the pulse's), else 1
+	private func pulse(_ label: String, bars: Bool) -> some View {
+		Toggle(label, isOn: Binding(get: { row.isPulse && row.lfoInBars == bars }, set: { _ in
+			let keep = row.isPulse || row.isLFO
+			let n = keep ? (row.lfoInBars ? row.lfoBeats / 4 : row.lfoBeats) : 1
+			if !row.isPulse { row.lfoPhaseDeg = 0 }
+			row.source = ModRowSetting.pulseSource
+			row.lfoInBars = bars
+			row.lfoBeats = min(max(n * (bars ? 4 : 1), ModRowSetting.minBeats), ModRowSetting.maxBeats)
+		}))
+	}
 }
 
 /// A parameter's oscillator in the patch: what a lock keeps (the waveform
