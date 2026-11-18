@@ -149,6 +149,40 @@ final class KeyMap: ObservableObject {
 		]
 	}()
 
+	/// The Control menu (the user's request, 2026-11-18, as the Modulation
+	/// panel's Target menu): a submenu for each parameter with its columns
+	/// (Value, Amplitude, Frequency, Pulse Width, Global, in the Parameters
+	/// panel's order), then Master and Origin as they are
+	static let menu: (params: [(name: String, choices: [(label: String, choice: Choice)])],
+		others: [(title: String, choices: [Choice])]) = {
+		let nParams = WHMappingInfo.paramTargetCount
+		var byParam: [String: [Choice]] = [:]
+		var others: [(title: String, choices: [Choice])] = []
+		for g in groups {
+			var rest: [Choice] = []
+			for c in g.choices {
+				let i = WHMappingInfo.target(forTag: c.target)
+				if i >= 0 && i < nParams {
+					byParam[c.target, default: []].append(c)
+				} else {
+					rest.append(c)
+				}
+			}
+			if !rest.isEmpty {
+				others.append((g.title, rest))
+			}
+		}
+		let order: [WHParamProperty] = [.val, .amp, .freq, .PW, .global]
+		let params = WHControls.paramDisplayOrder.filter { $0 < nParams }.compactMap { i -> (name: String, choices: [(label: String, choice: Choice)])? in
+			guard let cs = byParam[WHMappingInfo.targetTag(i)] else { return nil }
+			let sorted = cs.sorted { a, b in
+				(order.firstIndex(of: WHParamProperty(rawValue: a.prop) ?? .val) ?? 0) < (order.firstIndex(of: WHParamProperty(rawValue: b.prop) ?? .val) ?? 0)
+			}
+			return (WHControls.paramName(i), sorted.map { (WHControls.paramPropertyName($0.prop), $0) })
+		}
+		return (params, others)
+	}()
+
 	nonisolated static func name(target: String, prop: Int) -> String {
 		let i = WHMappingInfo.target(forTag: target)
 		guard i >= 0 else { return target + " (unknown)" }
@@ -207,18 +241,7 @@ struct KeyMapView: View {
 				}
 				.width(min: 60, ideal: 70, max: 90)
 				TableColumn("Control") { $b in
-					Picker("", selection: Binding(
-						get: { KeyMap.Choice(target: b.target, prop: b.prop) },
-						set: { b.target = $0.target; b.prop = $0.prop })) {
-						ForEach(KeyMap.groups, id: \.title) { group in
-							Section(group.title) {
-								ForEach(group.choices, id: \.self) { c in
-									Text(KeyMap.name(target: c.target, prop: c.prop)).tag(c)
-								}
-							}
-						}
-					}
-					.labelsHidden()
+					ControlMenu(binding: $b)
 				}
 				TableColumn("Speed") { $b in
 					Picker("", selection: $b.speed) {
@@ -261,6 +284,45 @@ struct KeyMapView: View {
 			.padding(10)
 		}
 		.onDisappear { map.capturing = nil }	// (its size: PanelID.keymap.floatingMinSize, floating)
+	}
+}
+
+/// The Control cell: Parameters, a submenu each (KeyMap.menu), then Master
+/// and Origin, with a check on the key's control
+private struct ControlMenu: View {
+	@Binding var binding: KeyBinding
+
+	private var current: KeyMap.Choice { KeyMap.Choice(target: binding.target, prop: binding.prop) }
+
+	var body: some View {
+		let menu = KeyMap.menu
+		Menu {
+			Section("Parameters") {
+				ForEach(menu.params, id: \.name) { p in
+					Menu(p.name) {
+						ForEach(p.choices, id: \.choice) { c in
+							item(c.label, c.choice)
+						}
+					}
+				}
+			}
+			ForEach(menu.others, id: \.title) { g in
+				Section(g.title) {
+					ForEach(g.choices, id: \.self) { c in
+						item(KeyMap.name(target: c.target, prop: c.prop), c)
+					}
+				}
+			}
+		} label: {
+			Text(binding.displayName)
+		}
+	}
+
+	private func item(_ label: String, _ c: KeyMap.Choice) -> some View {
+		Toggle(label, isOn: Binding(get: { current == c }, set: { _ in
+			binding.target = c.target
+			binding.prop = c.prop
+		}))
 	}
 }
 
