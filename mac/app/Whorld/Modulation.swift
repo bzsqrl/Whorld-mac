@@ -58,31 +58,104 @@ enum AudioSettings {
 	}
 }
 
-/// Window > Modulation...
+/// The Modulation panel (View > Modulation, ⌘M), floating or docked. As
+/// wide as two columns allow, the input's settings and Hearing side by
+/// side; narrower (docked, say), one above the other, and narrower than
+/// that, the top half scrolls sideways (the rows table scrolls itself). As
+/// short as the top half and one row of the table.
 struct ModulationView: View {
+	@State private var size = CGSize(width: 1300, height: 800)
+	@State private var topHeight: CGFloat = 0
+
+	/// widths the layouts need (measured at their fixed sizes, with padding)
+	static let twoColumns: CGFloat = 1240
+	static let oneRowTopBar: CGFloat = 780
+	static let oneColumn: CGFloat = 640
+	/// shorter than the top half and this much table (a short docked pane):
+	/// all of it scrolls, the table this tall
+	static let tableInScroll: CGFloat = 260
+
 	var body: some View {
+		Group {
+			if topHeight > 0 && size.height < topHeight + 1 + Self.tableInScroll / 2 {
+				ScrollView(.vertical) {
+					VStack(alignment: .leading, spacing: 0) {
+						topRow
+						Divider()
+						ModTablesSection()
+							.frame(height: Self.tableInScroll)
+					}
+				}
+			} else {
+				VStack(alignment: .leading, spacing: 0) {
+					topRow
+					Divider()
+					ModTablesSection()
+				}
+			}
+		}
+		.background(NoSliderFocus())
+		.background(GeometryReader { g in
+			Color.clear
+				.onAppear { size = g.size }
+				.onChange(of: g.size) { _, s in size = s }
+		})
+		.onAppear { AudioSettings.register() }
+	}
+
+	/// the top half, scrolling sideways if the panel is narrower than one column
+	@ViewBuilder private var topRow: some View {
+		Group {
+			if size.width < Self.oneColumn {
+				ScrollView(.horizontal) {
+					top
+						.frame(width: Self.oneColumn)
+				}
+				.fixedSize(horizontal: false, vertical: true)
+			} else {
+				top
+			}
+		}
+		.background(GeometryReader { g in	// its height, to know when the table wouldn't fit
+			Color.clear
+				.onAppear { topHeight = g.size.height }
+				.onChange(of: g.size.height) { _, h in topHeight = h }
+		})
+	}
+
+	private var top: some View {
 		VStack(alignment: .leading, spacing: 0) {
-			ModTopBar()
+			ModTopBar(twoRows: max(size.width, Self.oneColumn) < Self.oneRowTopBar)
 				.padding(.horizontal, 16)
 				.padding(.vertical, 10)
 			Divider()
-			AudioInputSection()
+			AudioInputSection(stacked: size.width < Self.twoColumns)
 				.padding(16)
-			Divider()
-			ModTablesSection()
 		}
-		.background(NoSliderFocus())
-		.frame(minWidth: 1270)	// as short as the top half and one row (RowsTable's minimum)
-		.onAppear { AudioSettings.register() }
 	}
 }
 
 /// The top row: modulation on or off and its depth, then the rows' files.
 private struct ModTopBar: View {
+	let twoRows: Bool	// narrow: the files' buttons under the switch and depth
 	@Bindable private var map = ModMap.shared
 
 	var body: some View {
-		HStack(spacing: 12) {
+		if twoRows {
+			VStack(alignment: .leading, spacing: 8) {
+				HStack(spacing: 12) { switchAndDepth }
+				HStack(spacing: 12) { files }
+			}
+		} else {
+			HStack(spacing: 12) {
+				switchAndDepth
+				Spacer()
+				files
+			}
+		}
+	}
+
+	@ViewBuilder private var switchAndDepth: some View {
 			Toggle("Modulation", isOn: Binding(get: { !map.bypass }, set: { map.bypass = !$0 }))
 				.toggleStyle(.switch)
 				.help("All rows on or off; off, the patches play as they are. Image > Audio Modulation (⌘8), OSC /w/mod/on.")
@@ -94,14 +167,15 @@ private struct ModTopBar: View {
 			Text(String(format: "%.0f%%", map.depth * 100))
 				.monospacedDigit()
 				.frame(width: 40, alignment: .trailing)
-			Spacer()
+	}
+
+	@ViewBuilder private var files: some View {
 			Button("Restore Defaults") { map.restoreDefaults() }
 				.help("The starting rows: bass widens the lines, a kick pulses the zoom.")
 			Button("Import…") { map.importFile() }
 				.help("Replace the rows with a saved file's.")
 			Button("Export…") { map.export() }
 				.help("Save the rows, depth and on/off in a file.")
-		}
 	}
 }
 
@@ -118,6 +192,8 @@ final class AudioInputWatch: ObservableObject {
 /// The input: device, channels, gain, auto-level, hit sensitivity, status
 /// and meter.
 private struct AudioInputSection: View {
+	/// the settings above Hearing, not beside it (a narrow panel)
+	let stacked: Bool
 	@ObservedObject private var watch = AudioInputWatch.shared
 	@AppStorage(AudioSettings.inputKey) private var inputUID = ""
 	@AppStorage(AudioSettings.firstKey) private var channelFirst = 0
@@ -157,7 +233,10 @@ private struct AudioInputSection: View {
 		// two columns: the input's settings, and what Whorld hears with the
 		// beat's buttons (the user's request, 2026-11-18: the window's top half
 		// was mostly empty)
-		HStack(alignment: .top, spacing: 20) {
+		// (one layout or the other, keeping the views, so the meter's host stays)
+		let columns = stacked ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
+			: AnyLayout(HStackLayout(alignment: .top, spacing: 20))
+		columns {
 		Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 10) {
 			GridRow {
 				Text("Input").gridColumnAlignment(.trailing)
@@ -272,7 +351,9 @@ private struct AudioInputSection: View {
 			}
 		}
 		.fixedSize()
-		Divider()
+		Rectangle()	// a divider between the two, across or down
+			.fill(Color(nsColor: .separatorColor))
+			.frame(width: stacked ? nil : 1, height: stacked ? 1 : nil)
 		VStack(alignment: .leading, spacing: 10) {
 			Text("Hearing")
 				.help("What Whorld hears, live: the level and bands, the hits (lights and hits a second), and the beat. The beat tracker learns the tempo from the hits and keeps a steady beat through kicks it can't hear (a busy mix, a breakdown).")

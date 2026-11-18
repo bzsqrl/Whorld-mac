@@ -26,18 +26,6 @@ struct WhorldCommands: Commands {
 
 	/// Command-M: closes the Modulation window if it's in front, brings it
 	/// forward if it's open behind, and opens it otherwise
-	private func toggleModulation() {
-		if let w = NSApp.windows.first(where: { $0.identifier?.rawValue.hasPrefix("modulation") == true && $0.isVisible }) {
-			if w.isKeyWindow {
-				w.close()
-			} else {
-				w.makeKeyAndOrderFront(nil)
-			}
-		} else {
-			openWindow(id: "modulation")
-		}
-	}
-
 	/// A menu item with a standard check mark, reading its state from the
 	/// engine's document and toggling it through the given action.
 	private func toggle(_ title: String, _ isOn: Bool, _ action: @escaping () -> Void) -> some View {
@@ -235,7 +223,7 @@ struct WhorldCommands: Commands {
 				Toggle(id.title, isOn: Binding(
 					get: { model.layout.isShown(id) },
 					set: { model.layout.setShown(id, $0) }))
-					.keyboardShortcut(id.shortcut, modifiers: [.command, .shift])
+					.keyboardShortcut(id.shortcut, modifiers: id.shortcutModifiers)
 			}
 			Divider()
 			Menu("Render Scale") {	// Settings > Display; replaces Full Resolution
@@ -283,8 +271,6 @@ struct WhorldCommands: Commands {
 			Button("Reset Layout…") { model.resetLayout() }
 			Button("Save Layout…") { model.saveLayout() }
 			Button("Open Layout…") { model.openLayout() }
-			Button("Modulation…") { toggleModulation() }	// audio modulation
-				.keyboardShortcut("m")	// (macOS's Minimize key; Minimize stays in this menu)
 			Button("Key Map…") { openWindow(id: "keymap") }	// keys held over the picture
 			Divider()
 		}

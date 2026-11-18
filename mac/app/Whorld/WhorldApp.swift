@@ -1275,7 +1275,7 @@ final class AppModel: ObservableObject {
 
 	func openLayout(_ url: URL) {
 		do {
-			applyLayout(try JSONDecoder().decode(LayoutFile.self, from: Data(contentsOf: url)))
+			applyLayout(try JSONDecoder().decode(LayoutFile.self, from: LayoutFile.sanitized(Data(contentsOf: url))))
 		} catch {
 			let a = NSAlert()
 			a.messageText = "Can't open the layout \"\(url.lastPathComponent)\"."
@@ -1583,12 +1583,13 @@ struct WhorldApp: App {
 		.commandsRemoved()
 		.defaultSize(width: 760, height: 420)
 
-		// Window > Modulation... (audio modulation; Modulation.swift)
+		// Modulation (audio modulation; Modulation.swift), floating: a panel
+		// since 2026-11-18, its window's id as before, so its place is kept
 		Window("Modulation", id: "modulation") {
-			ModulationView()
+			FloatingPanel(id: .modulation).environmentObject(model)
 		}
 		.commandsRemoved()
-		.defaultSize(width: 1280, height: 760)	// (at least ModulationView's least width)
+		.defaultSize(width: 1280, height: 760)	// the two-column layout
 
 		// Window > Key Map... (keys held over the picture; KeyMap.swift)
 		Window("Key Map", id: "keymap") {

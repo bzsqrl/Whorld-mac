@@ -80,7 +80,7 @@ Make Whorld respond to music, for synaesthetic visuals: live from an audio input
   - a live meter of level and the four bands, with hit lights;
   - onset sensitivity;
   - latency offset in ms (see "Latency").
-- **Window > Modulation…** (its own window, like Key Map). A table of rows:
+- **Window > Modulation…** (its own window, like Key Map; since 2026-11-18 a panel, View > Modulation ⌘M, floating at first and dockable as any, one column in a narrow pane). A table of rows:
 
   | Column | Meaning |
   |---|---|

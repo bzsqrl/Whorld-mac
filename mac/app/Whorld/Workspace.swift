@@ -28,6 +28,7 @@ import UniformTypeIdentifiers
 /// The panels (MainDockBarDef.h's bars, as the Mac port has them).
 enum PanelID: String, CaseIterable, Codable, Identifiable {
 	case params, master, globals, properties, playlist, mapping
+	case modulation	// the Modulation window, a panel since 2026-11-18 (the user's request)
 
 	var id: String { rawValue }
 
@@ -39,6 +40,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		case .properties: "Properties"
 		case .playlist: "Playlist"
 		case .mapping: "MIDI Mapping"
+		case .modulation: "Modulation"
 		}
 	}
 
@@ -51,15 +53,23 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		case .properties: "r"
 		case .playlist: "a"
 		case .mapping: "i"
+		case .modulation: "m"
 		}
 	}
+
+	/// with the shortcut: ⇧⌘, but Modulation's ⌘M (as its window had)
+	var shortcutModifiers: EventModifiers { self == .modulation ? .command : [.command, .shift] }
+
+	/// Shown for the first time, it floats (Modulation, a window of its own
+	/// until it became a panel), rather than docking in its region.
+	var opensFloating: Bool { self == .modulation }
 
 	/// After MainDockBarDef.h (Params and Playlist left, Master and Globals
 	/// right, Mapping bottom), except that Parameters, a wide table here,
 	/// goes along the bottom, and Properties (Windows' Numbers) on the left.
 	var defaultRegion: Region {
 		switch self {
-		case .params, .mapping: .bottom
+		case .params, .mapping, .modulation: .bottom
 		case .master, .globals: .right
 		case .properties, .playlist: .left
 		}
@@ -80,7 +90,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 
 	/// Tables scroll themselves (both ways); the others are forms the
 	/// workspace scrolls.
-	var scrollsItself: Bool { self == .playlist || self == .mapping }
+	var scrollsItself: Bool { self == .playlist || self == .mapping || self == .modulation }
 
 	/// A form's narrowest width: it stretches to fill a wider pane (its
 	/// sliders widen) and scrolls sideways in a narrower one.
@@ -99,6 +109,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		case .params: CGSize(width: 800, height: 300)
 		case .mapping: CGSize(width: 680, height: 240)
 		case .playlist: CGSize(width: 360, height: 200)
+		case .modulation: CGSize(width: 640, height: 0)	// its own content sets its height (one row of the table)
 		default: CGSize(width: 0, height: 0)
 		}
 	}
@@ -273,6 +284,23 @@ struct Layout: Codable, Equatable {
 	var detached = false
 	/// where a hidden or floating panel goes back to
 	var lastRegion: [PanelID: Region] = [:]
+	/// hidden while floating: it floats again when shown (2026-11-18)
+	var lastFloating: [PanelID] = []
+
+	enum CodingKeys: String, CodingKey { case left, right, bottom, floating, detached, lastRegion, lastFloating }
+
+	/// Fields missing (a layout from before one was added) read as their
+	/// defaults; see also LayoutFile.sanitized, for panels this Whorld lacks.
+	init(from decoder: Decoder) throws {
+		let c = try decoder.container(keyedBy: CodingKeys.self)
+		left = try c.decodeIfPresent(DockNode.self, forKey: .left)
+		right = try c.decodeIfPresent(DockNode.self, forKey: .right)
+		bottom = try c.decodeIfPresent(DockNode.self, forKey: .bottom)
+		floating = try c.decodeIfPresent([PanelID].self, forKey: .floating) ?? []
+		detached = try c.decodeIfPresent(Bool.self, forKey: .detached) ?? false
+		lastRegion = try c.decodeIfPresent([PanelID: Region].self, forKey: .lastRegion) ?? [:]
+		lastFloating = try c.decodeIfPresent([PanelID].self, forKey: .lastFloating) ?? []
+	}
 
 	/// What a new install shows, and Window > Reset Layout: Parameters on the
 	/// left beside the picture, Playlist, Properties, Master and Globals along
@@ -334,6 +362,11 @@ struct Layout: Codable, Equatable {
 		var lastRegion: [PanelID: Region] = [:]
 	}
 
+	/// shown again: floating, if it was hidden floating (or floats the first time)
+	func showsFloating(_ id: PanelID) -> Bool {
+		lastFloating.contains(id) || (id.opensFloating && lastRegion[id] == nil)
+	}
+
 	init(left: DockNode? = nil, right: DockNode? = nil, bottom: DockNode? = nil) {
 		self.left = left
 		self.right = right
@@ -391,8 +424,68 @@ struct LayoutFile: Codable {
 	}
 
 	init?(line: String) {
-		guard let f = try? JSONDecoder().decode(LayoutFile.self, from: Data(line.utf8)) else { return nil }
+		guard let f = try? JSONDecoder().decode(LayoutFile.self, from: Self.sanitized(Data(line.utf8))) else { return nil }
 		self = f
+	}
+
+	/// A layout's JSON (a LayoutFile, or a Layout) without the panels this
+	/// Whorld doesn't have (from a newer one), so the rest of it still
+	/// opens: they're taken out of the regions, tabs and lists, as if hidden.
+	static func sanitized(_ data: Data) -> Data {
+		guard let root = try? JSONSerialization.jsonObject(with: data) else { return data }
+		func known(_ v: Any) -> Bool { (v as? String).flatMap(PanelID.init(rawValue:)) != nil }
+		// a DockNode as Codable writes it: {"panel":{"_0":id}},
+		// {"tabs":{"_0":[ids],"selected":id}}, {"split":{"_0":axis,"_1":[nodes]}}
+		func node(_ v: Any) -> Any? {
+			guard let d = v as? [String: Any] else { return v }
+			if let p = d["panel"] as? [String: Any] {
+				return known(p["_0"] ?? "") ? d : nil
+			}
+			if let t = d["tabs"] as? [String: Any], let ids = t["_0"] as? [Any] {
+				let kept = ids.filter(known)
+				if kept.isEmpty { return nil }
+				if kept.count == 1 { return ["panel": ["_0": kept[0]]] }
+				var t2 = t
+				t2["_0"] = kept
+				if !known(t["selected"] ?? "") { t2["selected"] = kept[0] }
+				return ["tabs": t2]
+			}
+			if let sp = d["split"] as? [String: Any], let kids = sp["_1"] as? [Any] {
+				let kept = kids.compactMap(node)
+				if kept.isEmpty { return nil }
+				if kept.count == 1 { return kept[0] }
+				var sp2 = sp
+				sp2["_1"] = kept
+				return ["split": sp2]
+			}
+			return d
+		}
+		func layout(_ l: [String: Any]) -> [String: Any] {
+			var l = l
+			for k in ["left", "right", "bottom"] {
+				if let v = l[k] { l[k] = node(v) }	// (nil removes it)
+			}
+			for k in ["floating", "lastFloating"] {
+				if let a = l[k] as? [Any] { l[k] = a.filter(known) }
+			}
+			if let a = l["lastRegion"] as? [Any] {	// [PanelID: Region]: key, value, key, value
+				var kept: [Any] = []
+				var i = 0
+				while i + 1 < a.count {
+					if known(a[i]) { kept += [a[i], a[i + 1]] }
+					i += 2
+				}
+				l["lastRegion"] = kept
+			}
+			return l
+		}
+		guard var d = root as? [String: Any] else { return data }
+		if let l = d["layout"] as? [String: Any] {	// a LayoutFile
+			d["layout"] = layout(l)
+		} else {
+			d = layout(d)
+		}
+		return (try? JSONSerialization.data(withJSONObject: d)) ?? data
 	}
 }
 
@@ -443,10 +536,61 @@ final class LayoutModel: ObservableObject {
 	var openFloating: ((PanelID) -> Void)?
 	var closeFloating: ((PanelID) -> Void)?
 
+	// Docking by dragging a floating panel's window over the Whorld window,
+	// and floating by dragging a docked panel's title bar out of it (2026-11-18)
+	/// where a floating panel's window, dragged now, would dock (its highlight)
+	@Published var windowDragHover: DragTarget?
+	/// the docked panes (by the panel showing) and the output: views whose
+	/// frames, asked when needed, are theirs (DockFrameProbe)
+	final class WeakView { weak var view: NSView?; init(_ v: NSView) { view = v } }
+	var paneViews: [PanelID: WeakView] = [:]
+	var outputView: WeakView?
+
+	/// a probe's frame in the Whorld window's coordinates (y up)
+	private func frame(_ w: WeakView?, in main: NSWindow) -> CGRect? {
+		guard let v = w?.view, v.window === main else { return nil }
+		return v.convert(v.bounds, to: nil)
+	}
+	/// where a panel dragged out goes: its window's top left, on screen
+	var pendingFloatOrigin: [PanelID: NSPoint] = [:]
+
+	/// What a panel dropped at a point in the Whorld window would do: as the
+	/// drop delegates decide, on a pane (PanelDropDelegate.spot) or near the
+	/// output's left, right or bottom (EdgeDropDelegate.region)
+	func dragTarget(at p: CGPoint, dragging id: PanelID, in main: NSWindow) -> DragTarget? {
+		for (pane, w) in paneViews {
+			guard let r = frame(w, in: main), r.contains(p) else { continue }
+			if pane == id { return nil }	// onto itself
+			// window coordinates have y up; a pane's own, as SwiftUI's, down
+			let local = CGPoint(x: p.x - r.minX, y: r.maxY - p.y)
+			return .pane(pane, PanelDropDelegate.spot(at: local, size: r.size))
+		}
+		if let r = frame(outputView, in: main), r.contains(p),
+			let region = EdgeDropDelegate.region(CGPoint(x: p.x - r.minX, y: r.maxY - p.y), size: r.size) {
+			return .region(region)
+		}
+		return nil
+	}
+
+	func dock(_ id: PanelID, at t: DragTarget) {
+		switch t {
+		case .pane(let other, .tab): tab(id, with: other)
+		case .pane(let other, .edge(let e)): move(id, to: e, of: other)
+		case .region(let r): move(id, to: r)
+		}
+	}
+
+	/// A docked panel's title bar dragged out of the Whorld window: it floats
+	/// in a window there (its top left at the point).
+	func float(_ id: PanelID, at screenPoint: NSPoint) {
+		pendingFloatOrigin[id] = screenPoint
+		float(id)
+	}
+
 	init() {
 		let defaults = UserDefaults.standard
 		if let data = defaults.data(forKey: Self.key),
-			let saved = try? JSONDecoder().decode(Layout.self, from: data) {
+			let saved = try? JSONDecoder().decode(Layout.self, from: LayoutFile.sanitized(data)) {
 			layout = saved
 			isFirstRun = false
 		} else if let data = defaults.data(forKey: Self.keyV1),
@@ -472,7 +616,11 @@ final class LayoutModel: ObservableObject {
 		}
 		if show == isShown(id) { return }
 		if show {
-			move(id, to: layout.lastRegion[id] ?? id.defaultRegion)
+			if layout.showsFloating(id) {
+				float(id)
+			} else {
+				move(id, to: layout.lastRegion[id] ?? id.defaultRegion)
+			}
 		} else {
 			hide(id)
 		}
@@ -480,7 +628,13 @@ final class LayoutModel: ObservableObject {
 
 	func hide(_ id: PanelID) {
 		let wasFloating = isFloating(id)
-		layout.remove(id)
+		var l = layout
+		l.remove(id)
+		l.lastFloating.removeAll { $0 == id }
+		if wasFloating {
+			l.lastFloating.append(id)	// it floats again when shown
+		}
+		layout = l
 		if wasFloating {
 			closeFloating?(id)
 		}
@@ -539,15 +693,21 @@ final class LayoutModel: ObservableObject {
 
 	func float(_ id: PanelID) {
 		guard !isFloating(id) else { return }
-		layout.remove(id)
-		layout.floating.append(id)
+		var l = layout
+		l.remove(id)
+		l.floating.append(id)
+		l.lastFloating.removeAll { $0 == id }
+		layout = l
 		openFloating?(id)
 	}
 
 	/// A floating panel's window closed: the panel is hidden.
 	func floatingClosed(_ id: PanelID) {
 		if isFloating(id) {
-			layout.floating.removeAll { $0 == id }
+			var l = layout
+			l.floating.removeAll { $0 == id }
+			if !l.lastFloating.contains(id) { l.lastFloating.append(id) }	// it floats again when shown
+			layout = l
 		}
 	}
 
@@ -563,7 +723,7 @@ final class LayoutModel: ObservableObject {
 	/// Window > Show All Panels: every hidden panel goes to its region.
 	func showAll() {
 		for id in PanelID.allCases where !isShown(id) {
-			move(id, to: layout.lastRegion[id] ?? id.defaultRegion)
+			setShown(id, true)	// docked, or floating as it was (Modulation floats)
 		}
 	}
 
@@ -778,6 +938,7 @@ struct PanelBody: View {
 		case .properties: PropertiesPanel()
 		case .playlist: PlaylistPanel()
 		case .mapping: MappingPanel()
+		case .modulation: ModulationView()
 		}
 	}
 }
@@ -807,16 +968,6 @@ struct FormScroller: View {
 	}
 }
 
-/// The panel's identity for dragging, within Whorld only.
-private func panelProvider(_ id: PanelID) -> NSItemProvider {
-	let p = NSItemProvider()
-	p.registerDataRepresentation(forTypeIdentifier: UTType.whorldPanel.identifier, visibility: .ownProcess) { done in
-		done(Data(id.rawValue.utf8), nil)
-		return nil
-	}
-	return p
-}
-
 private func loadPanel(_ providers: [NSItemProvider], _ done: @escaping @MainActor (PanelID) -> Void) -> Bool {
 	let type = UTType.whorldPanel.identifier
 	guard let p = providers.first(where: { $0.hasItemConformingToTypeIdentifier(type) }) else { return false }
@@ -832,6 +983,13 @@ private func loadPanel(_ providers: [NSItemProvider], _ done: @escaping @MainAct
 enum DropSpot: Equatable {
 	case edge(DockEdge)
 	case tab
+}
+
+/// Where a panel dragged over the Whorld window would go: a pane's spot,
+/// or a region beside the output.
+enum DragTarget: Equatable {
+	case pane(PanelID, DropSpot)
+	case region(Region)
 }
 
 /// A docked pane: one panel, or a stack of tabs showing one of them, under
@@ -852,6 +1010,15 @@ struct DockedPanel: View {
 				.onDrop(of: [.whorldPanel], delegate: PanelDropDelegate(id: id, size: g.size,
 					layout: layout, spot: $spot))
 		}
+		.background(DockFrameProbe { [layout, id] v in layout.paneViews[id] = .init(v) }
+			.id(id))	// (a different tab showing: its own probe; a weak reference, gone with its view)
+	}
+
+	/// a floating panel's window dragged over this pane, or a panel's title bar
+	private var shownSpot: DropSpot? {
+		if let spot { return spot }
+		if case .pane(let p, let s)? = layout.windowDragHover, p == id { return s }
+		return nil
 	}
 
 	private var chrome: some View {
@@ -859,13 +1026,18 @@ struct DockedPanel: View {
 			HStack(spacing: 6) {
 				Image(systemName: "line.3.horizontal")
 					.foregroundStyle(.tertiary)
+					.overlay(PanelDragSource(id: id, layout: layout, help: "Drag to move \(id.title); out of the window to float it"))
 				if tabs.count > 1 {
 					tabStrip
+					Spacer(minLength: 0)
 				} else {
-					Text(id.title)
-						.font(.caption.weight(.semibold))
+					HStack(spacing: 0) {	// the title and the space after it: drag to move
+						Text(id.title)
+							.font(.caption.weight(.semibold))
+						Spacer(minLength: 0)
+					}
+					.overlay(PanelDragSource(id: id, layout: layout, help: "Drag to move \(id.title); out of the window to float it"))
 				}
-				Spacer(minLength: 0)
 				Menu {
 					ForEach(Region.allCases, id: \.self) { r in
 						Button("Move to \(r.title)") { layout.move(id, to: r) }
@@ -890,8 +1062,6 @@ struct DockedPanel: View {
 			.padding(.horizontal, 8)
 			.frame(height: Self.headerHeight)
 			.background(.bar)
-			.contentShape(Rectangle())
-			.onDrag { panelProvider(id) }
 			Divider()
 			content
 				.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -913,10 +1083,8 @@ struct DockedPanel: View {
 					.frame(height: 19)
 					.background(t == id ? Color.accentColor.opacity(0.25) : Color.primary.opacity(0.06),
 						in: RoundedRectangle(cornerRadius: 4))
-					.contentShape(Rectangle())
-					.onTapGesture { layout.select(t) }
-					.onDrag { panelProvider(t) }
-					.help(t == id ? t.title : "Show \(t.title)")
+					.overlay(PanelDragSource(id: t, layout: layout, help: t == id ? t.title : "Show \(t.title)",
+						onClick: { layout.select(t) }))
 			}
 		}
 	}
@@ -924,7 +1092,7 @@ struct DockedPanel: View {
 	/// What a drop now would do: the half of the pane a panel beside it
 	/// would take, or the whole pane outlined for a new tab.
 	@ViewBuilder private var dropHighlight: some View {
-		switch spot {
+		switch shownSpot {
 		case .edge(let e)?:
 			GeometryReader { g in
 				let rowAxis = e.axis == .row
@@ -962,13 +1130,16 @@ struct DockedPanel: View {
 /// Dropping a panel's title bar (or tab) on a pane: on its title bar or in
 /// its middle, the panel joins the pane's tabs; nearer an edge, it goes on
 /// that side (above, below, left or right).
-private struct PanelDropDelegate: DropDelegate {
+struct PanelDropDelegate: DropDelegate {
 	let id: PanelID
 	let size: CGSize
 	let layout: LayoutModel
 	@Binding var spot: DropSpot?
 
-	private func spot(at p: CGPoint) -> DropSpot {
+	private func spot(at p: CGPoint) -> DropSpot { Self.spot(at: p, size: size) }
+
+	/// (also for a floating panel's window dragged over the pane: LayoutModel.dragTarget)
+	static func spot(at p: CGPoint, size: CGSize) -> DropSpot {
 		if p.y <= DockedPanel.headerHeight { return .tab }
 		let w = max(size.width, 1), h = max(size.height, 1)
 		// distances to each edge as a fraction of the pane, so a wide pane
@@ -1022,12 +1193,214 @@ struct FloatingPanel: View {
 						.help("Dock \(id.title) in the Whorld window")
 				}
 			}
+			.background(FloatingWindowHelper(id: id, layout: model.layout))
 			.onAppear {
 				if !model.layout.floatingAppeared(id) {
 					dismissWindow(id: id.rawValue)	// it's docked: macOS restored a stale window
 				}
 			}
 			.onDisappear { model.layout.floatingClosed(id) }
+	}
+}
+
+// MARK: Dragging panels in and out (2026-11-18)
+
+/// Registers a view filling its SwiftUI view's place (a pane, the output),
+/// whose frame the docking drag asks for (LayoutModel.dragTarget).
+struct DockFrameProbe: NSViewRepresentable {
+	let report: (NSView) -> Void
+
+	final class Probe: NSView {
+		override func hitTest(_ point: NSPoint) -> NSView? { nil }	// never in the way
+	}
+
+	func makeNSView(context: Context) -> Probe {
+		let p = Probe()
+		report(p)
+		return p
+	}
+
+	func updateNSView(_ p: Probe, context: Context) {
+		report(p)
+	}
+
+}
+
+/// A docked panel's title bar (or tab), as an AppKit drag source: dragged
+/// onto a pane or the output's edge, the drop delegates move it; let go
+/// outside the Whorld window, it floats there. A click is `onClick` (a tab
+/// shows). Its tip is `help`.
+struct PanelDragSource: NSViewRepresentable {
+	let id: PanelID
+	let layout: LayoutModel
+	let help: String
+	var onClick: (() -> Void)? = nil
+
+	final class Source: NSView, NSDraggingSource {
+		var id: PanelID = .params
+		weak var layout: LayoutModel?
+		var onClick: (() -> Void)?
+		private var down: NSEvent?
+		private var dragging = false
+
+		override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }	// drag from a floating panel's window, too
+
+		override func mouseDown(with event: NSEvent) {
+			down = event
+			dragging = false
+		}
+
+		override func mouseDragged(with event: NSEvent) {
+			guard let down, !dragging else { return }
+			let a = down.locationInWindow, b = event.locationInWindow
+			guard hypot(b.x - a.x, b.y - a.y) > 3 else { return }
+			dragging = true
+			let item = NSPasteboardItem()
+			item.setString(id.rawValue, forType: NSPasteboard.PasteboardType(UTType.whorldPanel.identifier))
+			let drag = NSDraggingItem(pasteboardWriter: item)
+			let image = Self.image(id.title)
+			let at = convert(down.locationInWindow, from: nil)
+			drag.setDraggingFrame(NSRect(x: at.x - 12, y: at.y - image.size.height / 2,
+				width: image.size.width, height: image.size.height), contents: image)
+			beginDraggingSession(with: [drag], event: down, source: self)
+		}
+
+		override func mouseUp(with event: NSEvent) {
+			if !dragging { onClick?() }
+			down = nil
+			dragging = false
+		}
+
+		func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+			.move
+		}
+
+		func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+			dragging = false
+			down = nil
+			guard operation.isEmpty, let layout else { return }	// a drop delegate took it
+			let main = AppModel.shared.mainWindow
+			if let main, main.isVisible, main.frame.contains(screenPoint) { return }	// let go in the window, not on a target
+			let id = self.id
+			DispatchQueue.main.async { layout.float(id, at: screenPoint) }
+		}
+
+		/// the title in a rounded tag, under the pointer while dragging
+		static func image(_ title: String) -> NSImage {
+			let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+				.foregroundColor: NSColor.labelColor]
+			let text = NSAttributedString(string: title, attributes: attrs)
+			let size = NSSize(width: ceil(text.size().width) + 20, height: 22)
+			return NSImage(size: size, flipped: false) { r in
+				NSColor.controlAccentColor.withAlphaComponent(0.35).setFill()
+				NSBezierPath(roundedRect: r.insetBy(dx: 0.5, dy: 0.5), xRadius: 5, yRadius: 5).fill()
+				text.draw(at: NSPoint(x: 10, y: (r.height - text.size().height) / 2))
+				return true
+			}
+		}
+	}
+
+	func makeNSView(context: Context) -> Source { Source() }
+
+	func updateNSView(_ v: Source, context: Context) {
+		v.id = id
+		v.layout = layout
+		v.onClick = onClick
+		v.toolTip = help
+	}
+}
+
+/// A floating panel's window: above the Whorld windows while Whorld is the
+/// active app (a palette; with another app active, an ordinary window, so it
+/// doesn't cover that app), placed where a panel dragged out was let go, and
+/// dragged by its title bar over the Whorld window, docked where let go (the
+/// pane or the output's edge highlights, as when dragging a title bar).
+struct FloatingWindowHelper: NSViewRepresentable {
+	let id: PanelID
+	let layout: LayoutModel
+
+	final class Helper: NSView {
+		var id: PanelID = .params
+		weak var layout: LayoutModel?
+		private var observers: [NSObjectProtocol] = []
+		private var timer: Timer?
+
+		override func viewDidMoveToWindow() {
+			super.viewDidMoveToWindow()
+			observers.forEach(NotificationCenter.default.removeObserver)
+			observers = []
+			guard let w = window else { stopTracking(); return }
+			let nc = NotificationCenter.default
+			setLevel()
+			for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification] {
+				observers.append(nc.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+					MainActor.assumeIsolated { self?.setLevel() }
+				})
+			}
+			observers.append(nc.addObserver(forName: NSWindow.willMoveNotification, object: w, queue: .main) { [weak self] _ in
+				MainActor.assumeIsolated { self?.startTracking() }
+			})
+			if let p = layout?.pendingFloatOrigin.removeValue(forKey: id) {
+				DispatchQueue.main.async { [weak w] in	// after SwiftUI has sized it
+					guard let w else { return }
+					var f = w.frame
+					f.origin = NSPoint(x: p.x - 40, y: p.y - f.height + 10)	// its title bar under the pointer
+					if let area = (NSScreen.screens.first { $0.frame.contains(p) } ?? w.screen)?.visibleFrame {
+						f.origin.x = min(max(f.origin.x, area.minX), area.maxX - f.width)
+						f.origin.y = min(max(f.origin.y, area.minY), area.maxY - f.height)
+					}
+					w.setFrame(f, display: true)
+				}
+			}
+		}
+
+		private func setLevel() {
+			window?.level = NSApp.isActive ? .floating : .normal
+		}
+
+		/// while its title bar is held: where letting go would dock it
+		private func startTracking() {
+			guard timer == nil else { return }
+			timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
+				MainActor.assumeIsolated { self?.track() }
+			}
+		}
+
+		private func stopTracking() {
+			timer?.invalidate()
+			timer = nil
+			window?.alphaValue = 1
+			if layout?.windowDragHover != nil { layout?.windowDragHover = nil }
+		}
+
+		private func track() {
+			guard let layout, let w = window else { stopTracking(); return }
+			let target = hoverTarget()
+			if NSEvent.pressedMouseButtons & 1 == 0 {	// let go
+				stopTracking()
+				if let target {
+					let id = self.id
+					DispatchQueue.main.async { layout.dock(id, at: target) }
+				}
+				return
+			}
+			if layout.windowDragHover != target { layout.windowDragHover = target }
+			w.alphaValue = target == nil ? 1 : 0.6	// see the highlight through it
+		}
+
+		private func hoverTarget() -> DragTarget? {
+			guard let layout, let main = AppModel.shared.mainWindow, main.isVisible, !main.isMiniaturized else { return nil }
+			let p = NSEvent.mouseLocation
+			guard main.frame.contains(p) else { return nil }
+			return layout.dragTarget(at: main.convertPoint(fromScreen: p), dragging: id, in: main)
+		}
+	}
+
+	func makeNSView(context: Context) -> Helper { Helper() }
+
+	func updateNSView(_ v: Helper, context: Context) {
+		v.id = id
+		v.layout = layout
 	}
 }
 
@@ -1125,7 +1498,7 @@ struct OutputArea: View {
 		GeometryReader { g in
 			OutputView()
 				.overlay {
-					if let target {
+					if let target = target ?? hoverRegion {
 						let w = g.size.width / 4, h = g.size.height / 4
 						Rectangle().fill(Color.accentColor.opacity(0.35))
 							.frame(width: target == .bottom ? nil : w, height: target == .bottom ? h : nil)
@@ -1136,15 +1509,23 @@ struct OutputArea: View {
 				}
 				.onDrop(of: [.whorldPanel], delegate: EdgeDropDelegate(size: g.size, layout: layout, target: $target))
 		}
+		.background(DockFrameProbe { [layout] v in layout.outputView = .init(v) })
+	}
+
+	private var hoverRegion: Region? {
+		if case .region(let r)? = layout.windowDragHover { return r }
+		return nil
 	}
 }
 
-private struct EdgeDropDelegate: DropDelegate {
+struct EdgeDropDelegate: DropDelegate {
 	let size: CGSize
 	let layout: LayoutModel
 	@Binding var target: Region?
 
-	private func region(_ p: CGPoint) -> Region? {
+	private func region(_ p: CGPoint) -> Region? { Self.region(p, size: size) }
+
+	static func region(_ p: CGPoint, size: CGSize) -> Region? {
 		if p.x < size.width / 4 { return .left }
 		if p.x > size.width * 3 / 4 { return .right }
 		if p.y > size.height * 3 / 4 { return .bottom }
