@@ -325,18 +325,31 @@ private struct AudioStatus: View {
 }
 
 extension AudioInputSection {
-	/// Mark Downbeat and Reset Bars, beside the meter (outside its own
-	/// hosting view, see OwnHost)
+	/// Reset to 1.1, the count a beat back or on (with Shift, a bar), and
+	/// the beat half a beat later: beside the meter (outside its own hosting
+	/// view, see OwnHost), to keep the rows' phrases with the music's
 	private var beatButtons: some View {
-		HStack(spacing: 6) {
-			Button("Mark Downbeat") { ModMap.markDownbeat() }
+		let link = WHLink.shared.drivesBeat	// whose beat within the bar is the session's
+		let shift = { NSEvent.modifierFlags.contains(.shift) }
+		return HStack(spacing: 6) {
+			Button("Reset to 1.1") { ModMap.markDownbeat() }
 				.controlSize(.small)
 				.fixedSize()	// the text gives way, not the button
-				.help("Press on the \"one\" (a drop, the start of a phrase): the beat nearest the press becomes beat 1 of bar 1, for rows on Beats, Bars, the Beat LFO and Frequency. Image > Mark Downbeat (⌥⌘8) and OSC /w/mod/downbeat do the same.")
-			Button("Reset Bars") { ModMap.resetBars() }
+				.help("Press on the \"one\" (a drop, the start of a phrase): the beat nearest the press becomes beat 1 of bar 1, a little early or late alike. Image > Reset to 1.1 (⌥⌘8), OSC /w/mod/downbeat.")
+			Button { ModMap.nudge(beats: link || shift() ? -4 : -1) } label: { Image(systemName: "minus") }
+				.controlSize(.small)
+				.help(link ? "The count a bar back (Ableton Link sets the beat within the bar). Image > Bar Back (⇧⌥⌘[), OSC /w/mod/barback."
+					: "The count a beat back, so the music's \"one\" comes a beat later in it; with ⇧, a bar back. Nothing fires, and waves ease to their new place. Image > Beat Back (⌥⌘[), Bar Back (⇧⌥⌘[), OSC /w/mod/beatback, /w/mod/barback.")
+			Button { ModMap.nudge(beats: link || shift() ? 4 : 1) } label: { Image(systemName: "plus") }
+				.controlSize(.small)
+				.help(link ? "The count a bar on (Ableton Link sets the beat within the bar). Image > Bar Forward (⇧⌥⌘]), OSC /w/mod/barfwd."
+					: "The count a beat on; with ⇧, a bar on. Nothing fires, and waves ease to their new place. Image > Beat Forward (⌥⌘]), Bar Forward (⇧⌥⌘]), OSC /w/mod/beatfwd, /w/mod/barfwd.")
+			Button("½ Beat") { ModMap.shiftHalfBeat() }
 				.controlSize(.small)
 				.fixedSize()
-				.help("Start the bar count again: the nearest bar becomes bar 1, for rows of several bars, without moving the beat (Mark Downbeat moves the beat too). Press anywhere in the first half of a bar for that bar, in the second half for the next. Image > Reset Bar Count (⇧⌥⌘8), OSC /w/mod/bars and the Reset Bar Count MIDI target do the same.")
+				.disabled(link)
+				.help(link ? "Ableton Link's beat is the session's: no half-beat shift."
+					: "The beat itself half a beat later, or back: for a beat Whorld found on the off-beats (the Beat light flashes between the kicks). Image > Shift Half Beat (⌥⌘\\), OSC /w/mod/halfbeat.")
 		}
 	}
 }
@@ -443,6 +456,7 @@ private struct AudioMeter: View {
 						.font(.caption2)
 						.foregroundStyle(.secondary)
 					beatRow(r, link: link, lit: now < flashUntil[3])
+					phraseRow(r, link: link)
 				}
 			}
 			.onChange(of: link?.beat) { _, beat in	// Ableton Link's beats flash the Beat light
@@ -499,6 +513,41 @@ private struct AudioMeter: View {
 		let beat = Int(pos.rounded(.down))
 		let inBar = ((beat % 4) + 4) % 4, bar = (((beat / 4) % 32) + 32) % 32	// (pos may be just below 0)
 		return (beat, String(format: "Ableton Link · %.1f BPM · bar %d · beat %d", link.tempo, bar + 1, inBar + 1))
+	}
+
+	/// Where the count is in an 8-bar phrase: a box a bar, the current one
+	/// lit, orange on the phrase's one (1.1), so you can see whether the
+	/// rows' phrases start where the music's do
+	private func phraseRow(_ r: WHAudioReading, link: (beat: Int?, text: String)?) -> some View {
+		var bar = -1, beat = -1	// 0 to 31, 0 to 3; -1: no count
+		if let link {
+			if let b = link.beat {
+				bar = ((b / 4) % 32 + 32) % 32
+				beat = (b % 4 + 4) % 4
+			}
+		} else if r.beatInBar >= 0 {
+			bar = Int(r.barInPhrase)
+			beat = Int(r.beatInBar)
+		}
+		let inPhrase = bar >= 0 ? bar % 8 : -1
+		return HStack(spacing: 6) {
+			Color.clear.frame(width: 12, height: 12)	// under the lights
+			Text("Phrase").font(.caption)
+				.frame(width: 34, alignment: .leading)
+			HStack(spacing: 3) {
+				ForEach(0..<8, id: \.self) { i in
+					RoundedRectangle(cornerRadius: 2)
+						.fill(i == inPhrase ? (i == 0 && beat == 0 ? Color.orange : Color.accentColor)
+							: Color.secondary.opacity(i == 0 ? 0.45 : 0.2))	// its first bar a little brighter
+						.frame(width: 14, height: 8)
+				}
+			}
+			Text(inPhrase >= 0 ? "bar \(inPhrase + 1) of 8" : "")
+				.font(.caption)
+				.monospacedDigit()
+				.foregroundStyle(.secondary)
+				.frame(width: 70, alignment: .leading)	// a steady width (see OwnHost)
+		}
 	}
 
 	/// the beat's light (the tracker's, or Ableton Link's while it drives
@@ -948,12 +997,18 @@ final class ModMap {
 	}
 
 	/// OSC: /w/mod/on (kind 0: 1, 0, or -1 to toggle), /w/mod/depth (kind 1),
-	/// /w/mod/downbeat (kind 2) and /w/mod/bars (kind 3); and the MIDI targets
+	/// /w/mod/downbeat (kind 2), /w/mod/bars (kind 3), /w/mod/beatback,
+	/// beatfwd, barback, barfwd (kinds 4 to 7) and /w/mod/halfbeat (kind 8);
+	/// and the MIDI targets
 	func osc(kind: Int, value: Double) {
 		if kind == 2 {
 			Self.markDownbeat()
 		} else if kind == 3 {
 			Self.resetBars()
+		} else if kind >= 4 && kind <= 7 {
+			Self.nudge(beats: [-1, 1, -4, 4][kind - 4])
+		} else if kind == 8 {
+			Self.shiftHalfBeat()
 		} else if kind == 0 {
 			bypass = value < 0 ? !bypass : value == 0
 		} else {
@@ -961,7 +1016,28 @@ final class ModMap {
 		}
 	}
 
-	/// Mark Downbeat: Ableton Link's beat while it drives, else the tracker's
+	/// The count a beat (or 4, a bar) back or on, the beat kept, without
+	/// firing anything; waves locked to the beat ease to their new place.
+	/// While Ableton Link drives the beat, whose beat within the bar is the
+	/// session's, by bars: a beat's nudge moves a bar that way.
+	static func nudge(beats: Int) {
+		if WHLink.shared.drivesBeat {
+			WHLink.shared.nudgeBars(beats > 0 ? max(beats / 4, 1) : min(beats / 4, -1))
+		} else {
+			WHAudioInput.shared.nudgeBeats(beats)
+		}
+	}
+
+	/// The beat itself half a beat later, or back: for a beat found on the
+	/// off-beats. Not while Ableton Link drives the beat (the session's beat
+	/// is right by definition).
+	static func shiftHalfBeat() {
+		if !WHLink.shared.drivesBeat {
+			WHAudioInput.shared.shiftHalfBeat()
+		}
+	}
+
+	/// Reset to 1.1 (Mark Downbeat): Ableton Link's beat while it drives, else the tracker's
 	static func markDownbeat() {
 		if WHLink.shared.drivesBeat {
 			WHLink.shared.markDownbeat()
@@ -1415,7 +1491,7 @@ private struct LfoMenu: View {
 		}
 		.menuStyle(.borderlessButton)
 		.fixedSize()
-		.help("The Beat LFO: \(lengthName), \(shapeName), phase \(String(format: "%.0f°", row.lfoPhaseDeg)). One cycle every so many beats, from the one (Mark Downbeat); Ableton Link's beat, or the beat Whorld hears.")
+		.help("The Beat LFO: \(lengthName), \(shapeName), phase \(String(format: "%.0f°", row.lfoPhaseDeg)). One cycle every so many beats, from the one (Reset to 1.1); Ableton Link's beat, or the beat Whorld hears.")
 	}
 
 	private var lengthName: String { row.lengthName.lowercased() }
@@ -1502,8 +1578,8 @@ private struct PhaseMenu: View {
 		.menuStyle(.borderlessButton)
 		.fixedSize()
 		.help(row.isPulse
-			? "The phase: how far into each cycle the pulse comes, from the one (Mark Downbeat). 0° on the one; with 4 bars, 90° is bar 2, 180° bar 3, 270° bar 4."
-			: "The phase: where in the oscillator's cycle the one (Mark Downbeat) falls. With a triangle or sine, 0° puts the one halfway up, 90° at the top, 180° halfway down, 270° at the bottom.")
+			? "The phase: how far into each cycle the pulse comes, from the one (Reset to 1.1). 0° on the one; with 4 bars, 90° is bar 2, 180° bar 3, 270° bar 4."
+			: "The phase: where in the oscillator's cycle the one (Reset to 1.1) falls. With a triangle or sine, 0° puts the one halfway up, 90° at the top, 180° halfway down, 270° at the bottom.")
 	}
 }
 

@@ -203,10 +203,21 @@ struct WhorldCommands: Commands {
 			// Mac addition (AUDIO_PLAN.md): the Modulation window's rows on or off
 			toggle("Audio Modulation", !ModMap.shared.bypass) { ModMap.shared.bypass.toggle() }
 				.keyboardShortcut("8")
-			Button("Mark Downbeat") { ModMap.markDownbeat() }	// the "one" for Bar ... 32-Bar
+			// the count, to keep the rows' phrases with the music's (the
+			// Modulation window's beat buttons; Reset Bar Count, the nearest
+			// bar is bar 1, is a MIDI target and /w/mod/bars only, since 2026-11-18)
+			Button("Reset to 1.1") { ModMap.markDownbeat() }	// the beat nearest now is the one
 				.keyboardShortcut("8", modifiers: [.command, .option])
-			Button("Reset Bar Count") { ModMap.resetBars() }	// the nearest bar is bar 1, the beat kept
-				.keyboardShortcut("8", modifiers: [.command, .option, .shift])
+			Button("Beat Back") { ModMap.nudge(beats: -1) }
+				.keyboardShortcut("[", modifiers: [.command, .option])
+			Button("Beat Forward") { ModMap.nudge(beats: 1) }
+				.keyboardShortcut("]", modifiers: [.command, .option])
+			Button("Bar Back") { ModMap.nudge(beats: -4) }
+				.keyboardShortcut("[", modifiers: [.command, .option, .shift])
+			Button("Bar Forward") { ModMap.nudge(beats: 4) }
+				.keyboardShortcut("]", modifiers: [.command, .option, .shift])
+			Button("Shift Half Beat") { ModMap.shiftHalfBeat() }
+				.keyboardShortcut("\\", modifiers: [.command, .option])
 		}
 
 		CommandGroup(after: .toolbar) {

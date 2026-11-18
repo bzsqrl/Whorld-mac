@@ -32,10 +32,15 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) BOOL reconnecting;
 /// beats since the one, and whether there's a beat now (main thread, for the meter)
 - (BOOL)beatPosition:(double *)position;
-/// The beat nearest now is "the one" for Bar ... 32-Bar.
+/// The beat nearest now is "the one", 1.1.
 - (void)markDownbeat;
 // The nearest bar becomes bar 1, keeping the beat within the bar
 - (void)resetBars;
+/// The count moved by whole bars (Link's beat within the bar is the
+/// session's, so not by beats): a move, which rows don't fire on
+- (void)nudgeBars:(NSInteger)bars;
+/// nudges so far (any thread)
+- (uint32_t)moves;
 /// Called on the main thread when peers, tempo or the transport change.
 @property (nonatomic, copy, nullable) void (^changeHandler)(void);
 @end

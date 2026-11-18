@@ -93,10 +93,14 @@ typedef struct {
 
 /// The latest analysis, for the meter. Main thread.
 - (WHAudioReading)reading;
-/// The beat nearest now is "the one" for Bar ... 32-Bar (BeatTracker::MarkDownbeat).
+/// The beat nearest now is "the one", 1.1 (BeatTracker::MarkDownbeat).
 - (void)markDownbeat;
 /// The bar nearest now is bar 1, keeping the beat (BeatTracker::ResetBars).
 - (void)resetBars;
+/// The count moved by whole beats, the beat kept (BeatTracker::NudgeBeats).
+- (void)nudgeBeats:(NSInteger)beats;
+/// The beat itself half a beat later, or back (BeatTracker::ShiftHalfBeat).
+- (void)shiftHalfBeat;
 @end
 
 NS_ASSUME_NONNULL_END

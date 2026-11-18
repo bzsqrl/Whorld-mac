@@ -1675,14 +1675,22 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 			// modulation (Mac addition): the app's, not a mapping target
 			std::string	modOn = std::string(whorld::OscRemote::PREFIX) + "/mod/on";
 			std::string	modDepth = std::string(whorld::OscRemote::PREFIX) + "/mod/depth";
-			bool	bDownbeat = msg.path == std::string(whorld::OscRemote::PREFIX) + "/mod/downbeat";
-			if (bDownbeat || msg.path == std::string(whorld::OscRemote::PREFIX) + "/mod/bars") {	// Mark Downbeat, Reset Bar Count
+			// the beat's actions, as the app's kinds (ModMap.osc): Reset to
+			// 1.1, Reset Bar Count, Beat Back, Beat Forward, Bar Back, Bar
+			// Forward, Half Beat
+			static const char* const	kBeatPaths[] = {"downbeat", "bars", "beatback", "beatfwd", "barback", "barfwd", "halfbeat"};
+			int	nKind = -1;
+			for (int i = 0; i < 7; i++) {
+				if (msg.path == std::string(whorld::OscRemote::PREFIX) + "/mod/" + kBeatPaths[i])
+					nKind = 2 + i;
+			}
+			if (nKind >= 0) {
 				bool	bPress = msg.args.empty() || !msg.args[0].IsNumber() || msg.args[0].Number() != 0;	// not on release
 				if (bPress) {
 					dispatch_async(dispatch_get_main_queue(), ^{
 						WHEngine	*strong = weakSelf;
 						if (strong.modulationOscHandler)
-							strong.modulationOscHandler(bDownbeat ? 2 : 3, 1);
+							strong.modulationOscHandler(nKind, 1);
 					});
 				}
 				continue;

@@ -43,6 +43,7 @@ double Now()
 	std::unique_ptr<ableton::Link>	_link;
 	std::mutex	_offsetMutex;
 	double	_oneOffset;		// session beat that is "the one" (Mark Downbeat, or where the session started playing), mod 128
+	std::atomic<uint32_t>	_moves;	// nudges so far (ModSources::nBeatMoves)
 	int64_t	_startMicros;	// when the session last started playing, as last seen (Start/Stop sync)
 	std::atomic<bool>	_enabled;
 	std::atomic<bool>	_startStopSync;
@@ -62,6 +63,7 @@ double Now()
 {
 	if ((self = [super init])) {
 		_oneOffset = 0;
+		_moves = 0;
 		_startMicros = 0;
 		_enabled = false;
 		_startStopSync = false;
@@ -226,6 +228,21 @@ double Now()
 	_oneOffset = std::fmod(std::fmod(_oneOffset + fBar, 128.0) + 128.0, 128.0);
 }
 
+- (void)nudgeBars:(NSInteger)bars
+{
+	if (!self.drivesBeat)
+		return;
+	std::lock_guard<std::mutex>	lock(_offsetMutex);
+	// a bar on: the one a bar earlier (positions count from it)
+	_oneOffset = std::fmod(std::fmod(_oneOffset - static_cast<double>(bars) * kQuantum, 128.0) + 128.0, 128.0);
+	_moves++;
+}
+
+- (uint32_t)moves
+{
+	return _moves;
+}
+
 @end
 
 bool WHLinkRead(whorld::ModSources& sources)
@@ -237,5 +254,6 @@ bool WHLinkRead(whorld::ModSources& sources)
 	sources.bBeat = [link readBeat:pos tempo:tempo];
 	sources.fBeatPos = pos;
 	sources.fTempo = tempo;
+	sources.nBeatMoves = [link moves] + 0x80000000u;	// apart from the tracker's: a change of driver is a move too
 	return true;
 }
