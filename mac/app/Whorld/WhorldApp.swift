@@ -1145,7 +1145,7 @@ final class AppModel: ObservableObject {
 
 	var isDetached: Bool { layout.layout.detached }
 
-	/// Window > Detach (CMainFrame::OnWindowDetach): the output to a window of
+	/// View > Detach (CMainFrame::OnWindowDetach): the output to a window of
 	/// its own, or back to the workspace. Not while full screen, as on Windows.
 	func toggleDetach() {
 		guard !isFullScreen else { return }

@@ -115,8 +115,6 @@ struct WhorldCommands: Commands {
 					.keyboardShortcut(.end, modifiers: [])
 					.disabled(!model.hasSnapshots)
 				Divider()
-				Button("Export All…") { model.exportAllSnapshots() }
-					.disabled(!model.hasSnapshots)
 				Button("Info…") { model.snapshotInfo() }
 					.disabled(!model.isCurrentSnapshotValid)
 			}
@@ -131,17 +129,24 @@ struct WhorldCommands: Commands {
 				Button("Rewind") { model.rewindMovie() }
 					.keyboardShortcut(.home, modifiers: .command)
 					.disabled(ms.io != .reading)
-				Divider()
-				Button("Export Image Sequence…") { model.exportMovie() }
-					.disabled(ms.io != .reading || model.movieExportProgress != nil)
-				Button("Export Video…") { model.exportMovieVideo() }
-					.disabled(ms.io != .reading || model.movieExportProgress != nil)
 			}
-			Divider()
-			Button("Export…") { model.exportImage() }
-				.keyboardShortcut("e")
-			Button("Export Audio-Reactive Video…") { model.exportAudioVideo() }
-				.disabled(model.movieExportProgress != nil)
+			// every export in one place (the user's menu audit, 2026-11-18:
+			// they were in File, Snapshot and Movie)
+			Menu("Export") {
+				Button("Image…") { model.exportImage() }	// Windows' File > Export
+					.keyboardShortcut("e")
+				Button("All Snapshots…") { model.exportAllSnapshots() }	// Windows' Snapshot > Export All
+					.disabled(!model.hasSnapshots)
+				Divider()
+				let ms = model.engine.movieState
+				Button("Movie as Video…") { model.exportMovieVideo() }	// (Mac addition)
+					.disabled(ms.io != .reading || model.movieExportProgress != nil)
+				Button("Movie as Image Sequence…") { model.exportMovie() }	// Windows' Movie > Export
+					.disabled(ms.io != .reading || model.movieExportProgress != nil)
+				Divider()
+				Button("Audio-Reactive Video…") { model.exportAudioVideo() }
+					.disabled(model.movieExportProgress != nil)
+			}
 		}
 
 		CommandGroup(replacing: .undoRedo) {
@@ -283,6 +288,12 @@ struct WhorldCommands: Commands {
 			// reach apps (a media key, or fn-F11 for Show Desktop).
 			Button(model.isFullScreen ? "Exit Full Screen" : "Enter Full Screen") { model.toggleFullScreen() }
 				.keyboardShortcut("f", modifiers: [.command, .shift])
+			// CMainFrame::OnWindowDetach (Windows' Window menu): beside Full
+			// Screen, the other way to show the picture (the user's menu
+			// audit, 2026-11-18)
+			Toggle("Detach", isOn: Binding(get: { model.isDetached }, set: { _ in model.toggleDetach() }))
+				.keyboardShortcut("d", modifiers: [.command, .shift])	// Windows: Ctrl+F12
+				.disabled(model.isFullScreen)
 			Divider()
 			// CMainFrame's ID_VIEW_BAR_ commands: show or hide a panel
 			ForEach(PanelID.allCases) { id in
@@ -319,11 +330,6 @@ struct WhorldCommands: Commands {
 		}
 
 		CommandGroup(before: .windowSize) {
-			// CMainFrame::OnWindowDetach
-			Toggle("Detach", isOn: Binding(get: { model.isDetached }, set: { _ in model.toggleDetach() }))
-				.keyboardShortcut("d", modifiers: [.command, .shift])	// Windows: Ctrl+F12
-				.disabled(model.isFullScreen)
-			Divider()
 			Button("Show All Panels") { model.showAllPanels() }
 				.keyboardShortcut("p", modifiers: [.command, .option])
 			Button("Reset Layout…") { model.resetLayout() }

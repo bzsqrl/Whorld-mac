@@ -15,7 +15,7 @@
 // goes above, below, left or right of it, splitting that panel's pane; on
 // the title bar or in the middle it joins that panel's tabs, as Windows'
 // docking bars stack) or near an edge of the output (it joins that region),
-// or with its menu; it can also float as a window of its own. Window > Detach (CWhorldApp::SetDetached)
+// or with its menu; it can also float as a window of its own. View > Detach (CWhorldApp::SetDetached)
 // moves the output to a window of its own, for a projector; the panels then
 // fill the workspace. The arrangement and the divider positions persist.
 
@@ -1519,7 +1519,7 @@ struct WorkspaceView: View {
 			if rows.isEmpty {
 				VStack(spacing: 8) {
 					Text("The output is in its own window.")
-					Text("Show panels from the View menu, or choose Window > Detach to bring the output back.")
+					Text("Show panels from the View menu, or choose View > Detach to bring the output back.")
 						.foregroundStyle(.secondary)
 				}
 				.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1688,7 +1688,7 @@ struct EdgeDropDelegate: DropDelegate {
 
 // MARK: Detached output
 
-/// Window > Detach (CWhorldApp::SetDetached): the output in a window of its
+/// View > Detach (CWhorldApp::SetDetached): the output in a window of its
 /// own, whose place is remembered (as RK_RENDER_WND is). Closing it docks
 /// the output again.
 @MainActor
