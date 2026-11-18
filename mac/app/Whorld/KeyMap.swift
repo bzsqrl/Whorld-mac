@@ -258,10 +258,9 @@ struct KeyMapView: View {
 				if let notice = map.notice {
 					Text(notice).font(.caption).foregroundStyle(.orange)
 				}
-				Text("Hold a key with the pointer over the picture and scroll (two fingers up or down, or the mouse wheel) to move its control; up increases. Click a key to change it, then press the new key (Esc cancels). Plain keys only: with Shift, Command, Control or Option they're shortcuts.")
-					.font(.caption)
-					.foregroundStyle(.secondary)
-					.fixedSize(horizontal: false, vertical: true)
+				// how the keys work is the panel title's tip (PanelID.summary),
+				// clicking a key the Key cell's; Restore Defaults, Import and
+				// Export are in File > Key Map (the user's request, 2026-11-18)
 				HStack {
 					Button {
 						let b = KeyBinding("", "RingGrowth")
@@ -276,12 +275,9 @@ struct KeyMapView: View {
 						.help("Remove the selected keys")
 						.disabled(selection.isEmpty)
 					Spacer()
-					Button("Restore Defaults") { map.restoreDefaults() }
-					Button("Import…") { map.importMap() }
-					Button("Export…") { map.export() }
 				}
 			}
-			.padding(10)
+			.padding(8)	// as the Playlist panel's foot
 		}
 		.onDisappear { map.capturing = nil }	// (its size: PanelID.keymap.floatingMinSize, floating)
 	}
@@ -358,7 +354,7 @@ private struct KeyCaptureButton: View {
 		.buttonStyle(.bordered)	// looks clickable, and takes the click from the table row
 		.background(ViewAnchor.Probe(anchor: anchor))
 		.tint(capturing ? .accentColor : nil)
-		.help(capturing ? "Press the new key, or Esc to cancel" : "Click, then press a key to assign it")
+		.help(capturing ? "Press the new key (a plain key, no Shift, Command, Control or Option), or Esc to cancel" : "Click, then press a key to assign it")
 		.onChange(of: capturing) { _, on in on ? start() : stop() }
 		.onDisappear { stop() }
 	}

@@ -46,6 +46,29 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		}
 	}
 
+	/// What the panel controls, in brief: the tip on its title (the user's
+	/// request, 2026-11-18; it was how to move it, now the grip's tip)
+	var summary: String {
+		switch self {
+		case .params:
+			"The rings' shape, motion and color: each parameter's value, and the oscillator (waveform, amplitude, frequency, pulse width) that moves it."
+		case .master:
+			"Controls for the whole picture: speed, zoom, damping, trail, the number of rings, tempo, hue, canvas size, copies, spread and fade."
+		case .globals:
+			"Offsets to the shape and motion parameters that change every ring at once, not just new ones."
+		case .properties:
+			"Drawing switches (Fill, Outline, Mirror and the rest), how the origin moves, and Random Phase."
+		case .playlist:
+			"The patches to play: double-click one or press Return, or step through them with ⌘↓ and ⌘↑ (Image > Next Patch, Previous Patch)."
+		case .mapping:
+			"Which MIDI controls move which of Whorld's controls, and over what range. Turn on View > MIDI Learn to map one by moving it."
+		case .modulation:
+			"Audio modulation: what Whorld hears, and the rows that let the music and its beat move the picture."
+		case .keymap:
+			"Hold a key with the pointer over the picture and scroll (two fingers up or down, or the mouse wheel) to move its control; up increases."
+		}
+	}
+
 	/// ⇧⌘ plus this shows or hides the panel
 	var shortcut: KeyEquivalent {
 		switch self {
@@ -1119,7 +1142,7 @@ struct DockedPanel: View {
 			HStack(spacing: 6) {
 				Image(systemName: "line.3.horizontal")
 					.foregroundStyle(.tertiary)
-					.overlay(PanelDragSource(id: id, layout: layout, help: "Drag to move \(id.title); let go away from a dock spot to float it"))
+					.overlay(PanelDragSource(id: id, layout: layout, help: "Drag to move \(id.title); let go away from a dock spot to float it"))	// the grip keeps how to move it
 				if tabs.count > 1 {
 					tabStrip
 					Spacer(minLength: 0)
@@ -1129,7 +1152,7 @@ struct DockedPanel: View {
 							.font(.caption.weight(.semibold))
 						Spacer(minLength: 0)
 					}
-					.overlay(PanelDragSource(id: id, layout: layout, help: "Drag to move \(id.title); let go away from a dock spot to float it"))
+					.overlay(PanelDragSource(id: id, layout: layout, help: id.summary))	// what it controls
 				}
 				Menu {
 					ForEach(Region.allCases, id: \.self) { r in
@@ -1176,7 +1199,7 @@ struct DockedPanel: View {
 					.frame(height: 19)
 					.background(t == id ? Color.accentColor.opacity(0.25) : Color.primary.opacity(0.06),
 						in: RoundedRectangle(cornerRadius: 4))
-					.overlay(PanelDragSource(id: t, layout: layout, help: t == id ? t.title : "Show \(t.title)",
+					.overlay(PanelDragSource(id: t, layout: layout, help: t == id ? t.summary : "Show \(t.title)",
 						onClick: { layout.select(t) }))
 			}
 		}

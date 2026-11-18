@@ -147,6 +147,15 @@ struct WhorldCommands: Commands {
 				Button("Audio-Reactive Video…") { model.exportAudioVideo() }
 					.disabled(model.movieExportProgress != nil)
 			}
+			Divider()
+			// the key map's files (they were buttons in the Key Map panel;
+			// the user's request, 2026-11-18)
+			Menu("Key Map") {
+				Button("Restore Defaults") { KeyMap.shared.restoreDefaults() }
+				Divider()
+				Button("Import…") { KeyMap.shared.importMap() }
+				Button("Export…") { KeyMap.shared.export() }
+			}
 		}
 
 		CommandGroup(replacing: .undoRedo) {

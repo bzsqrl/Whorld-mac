@@ -826,7 +826,7 @@ enum ControlTips {
 		"Smooths origin movement, zoom and globals: higher is more fluid but slower to respond.",
 		"How far rings lag behind a moving origin: 0 keeps them together, higher makes a slinky trail.",
 		"The most rings at once; beyond it the oldest disappear. At the maximum, rings live until they leave the canvas.",
-		"Beats per minute: how often the origin jumps when Origin Motion is Random.",
+		"Beats per minute: how often the origin jumps when Origin is Random.",
 		"With Loop Hue on, the size of the range of hues rings cycle through, in degrees.",
 		"The area rings live in, as a percentage of the window; a ring vanishes once it's wholly outside it.",
 		"Draws several groups of rings, evenly spaced in a circle around the origin (see Spread).",
