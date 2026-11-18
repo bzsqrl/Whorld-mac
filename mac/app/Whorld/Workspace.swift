@@ -27,8 +27,11 @@ import UniformTypeIdentifiers
 
 /// The panels (MainDockBarDef.h's bars, as the Mac port has them).
 enum PanelID: String, CaseIterable, Codable, Identifiable {
-	case params, master, globals, properties, playlist, mapping
+	// in the View menu's order, which numbers their keys (the user's
+	// order, 2026-11-18); layouts store the raw values, not the order
+	case params, master, globals, properties, playlist
 	case modulation	// the Modulation window, a panel since 2026-11-18 (the user's request)
+	case mapping
 	case keymap		// the Key Map window, a panel since 2026-11-18 (the user's request); its raw value is the window's id
 
 	var id: String { rawValue }
@@ -61,7 +64,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		case .playlist:
 			"The patches to play: double-click one or press Return, or step through them with ⌘↓ and ⌘↑ (Image > Next Patch, Previous Patch)."
 		case .mapping:
-			"Which MIDI controls move which of Whorld's controls, and over what range. Turn on View > MIDI Learn to map one by moving it."
+			"Which MIDI controls move which of Whorld's controls, and over what range. Turn on Learn to map one by moving it."
 		case .modulation:
 			"Audio modulation: what Whorld hears, and the rows that let the music and its beat move the picture."
 		case .keymap:
@@ -69,22 +72,17 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		}
 	}
 
-	/// ⇧⌘ plus this shows or hides the panel
+	/// Option-Command plus the panel's place in the View menu (1 to 8)
+	/// shows or hides it (the user's request, 2026-11-18: one run of keys
+	/// to remember, instead of a letter each with Shift-Command, where a
+	/// wrong letter did something else; Shift-Command-3, 4 and 5 are
+	/// macOS's screenshots, so Option-Command)
 	var shortcut: KeyEquivalent {
-		switch self {
-		case .params: "p"
-		case .master: "m"
-		case .globals: "g"
-		case .properties: "r"
-		case .playlist: "a"
-		case .mapping: "i"
-		case .modulation: "m"
-		case .keymap: "k"
-		}
+		let n = Self.allCases.firstIndex(of: self)! + 1
+		return KeyEquivalent(Character(String(n)))
 	}
 
-	/// with the shortcut: ⇧⌘, but Modulation's ⌘M (as its window had)
-	var shortcutModifiers: EventModifiers { self == .modulation ? .command : [.command, .shift] }
+	var shortcutModifiers: EventModifiers { [.command, .option] }
 
 	/// Shown for the first time, it floats (Modulation and the Key Map,
 	/// windows of their own until they became panels), rather than docking

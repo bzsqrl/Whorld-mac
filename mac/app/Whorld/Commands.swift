@@ -121,7 +121,7 @@ struct WhorldCommands: Commands {
 			Menu("Movie") {
 				let ms = model.engine.movieState
 				// no shortcuts (the user's choice, 2026-11-17: Windows' Ctrl+M,
-				// Command-M here, opens the Modulation panel instead)
+				// Command-M here, was the Modulation panel's, and is Minimize since 2026-11-18)
 				Button(ms.io == .writing ? "Stop Recording" : "Record…") { model.toggleRecordMovie() }
 					.disabled(ms.io == .reading)
 				Button(ms.io == .reading ? "Stop Playing" : "Play…") { model.togglePlayMovie() }
@@ -285,8 +285,7 @@ struct WhorldCommands: Commands {
 			Divider()
 			Toggle("Modulation Panel", isOn: Binding(
 				get: { model.layout.isShown(.modulation) },
-				set: { model.layout.setShown(.modulation, $0) }))
-				.keyboardShortcut(PanelID.modulation.shortcut, modifiers: PanelID.modulation.shortcutModifiers)
+				set: { model.layout.setShown(.modulation, $0) }))	// its key is on View > Modulation, with the other panels' (a key belongs to one item)
 		}
 
 		// The View menu, after Audio and before Window (the user's choice,
@@ -315,13 +314,9 @@ struct WhorldCommands: Commands {
 				Toggle(id.title, isOn: Binding(
 					get: { model.layout.isShown(id) },
 					set: { model.layout.setShown(id, $0) }))
-					// Modulation's key is on Audio > Modulation Panel (a key
-					// belongs to one item)
-					.keyboardShortcut(id == .modulation ? nil : KeyboardShortcut(id.shortcut, modifiers: id.shortcutModifiers))
-				if id == .mapping {	// beside MIDI Mapping (was in the Playlist menu, as on Windows' View menu)
-					Toggle("MIDI Learn", isOn: Binding(get: { model.midiLearn }, set: { model.midiLearn = $0 }))
-						.keyboardShortcut("l", modifiers: [.command, .shift])
-				}
+					// Option-Command 1 to 8, in this order (PanelID.shortcut);
+					// MIDI Learn isn't here: it's the MIDI Mapping panel's Learn
+					.keyboardShortcut(id.shortcut, modifiers: id.shortcutModifiers)
 			}
 			Divider()
 			Menu("Render Scale") {	// Settings > Display; replaces Full Resolution
