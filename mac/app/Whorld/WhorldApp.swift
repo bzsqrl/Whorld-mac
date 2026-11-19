@@ -1446,6 +1446,46 @@ final class OutputKeys {
 	}
 }
 
+/// A click into a number box selects its number, ready to type over (the
+/// user's request, 2026-11-18): the panels' boxes and the dialogs' and
+/// Settings' number fields alike. Only the click that starts editing: a
+/// click in a box already being edited places the caret, to change part
+/// of it. A field holding text that isn't a number (a name) is left alone.
+@MainActor
+enum NumberBoxSelect {
+	private static var monitor: Any?
+
+	static func install() {
+		guard monitor == nil else { return }
+		monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { e in
+			let before = MainActor.assumeIsolated { editedField(in: e.window) }
+			let window = e.window
+			// after the click's own handling: the text field tracks the mouse
+			// until it's up, then places the caret, so not while tracking
+			// (the main queue would run there), only back in the default mode
+			RunLoop.main.perform(inModes: [.default]) {
+				MainActor.assumeIsolated {
+					guard let field = editedField(in: window), field !== before,
+						let editor = field.currentEditor(), isNumber(field.stringValue) else { return }
+					editor.selectAll(nil)
+				}
+			}
+			return e
+		}
+	}
+
+	/// the text field the window is editing now, if any
+	private static func editedField(in window: NSWindow?) -> NSTextField? {
+		guard let text = window?.firstResponder as? NSTextView, text.isFieldEditor else { return nil }
+		return text.delegate as? NSTextField
+	}
+
+	private static func isNumber(_ s: String) -> Bool {
+		let t = s.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: "")
+		return !t.isEmpty && (Double(t) != nil || NumberField.fraction(t) != nil)
+	}
+}
+
 /// The View menu is Whorld's own, after Audio (WhorldCommands, the user's
 /// choice, 2026-11-18); SwiftUI keeps the standard one after Edit even with
 /// its groups emptied (it holds a separator), so that one is taken out of
@@ -1518,6 +1558,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 	func applicationDidFinishLaunching(_ notification: Notification) {
 		StandardViewMenu.removeWhenAdded()
+		NumberBoxSelect.install()
 		// second shortcuts for menu commands (a menu item has only one)
 		secondKeysMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
 			let code = event.keyCode

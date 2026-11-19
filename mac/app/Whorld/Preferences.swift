@@ -170,7 +170,6 @@ struct PreferencesView: View {
 	@AppStorage("Playlist_bApplyLayout") private var applyPlaylistLayouts = true
 	@AppStorage("General_bControlTips") private var controlTips = true
 	@AppStorage("Output_bKeyReadout") private var keyReadout = false
-	@Environment(\.openWindow) private var openWindow
 	@AppStorage("Render_nMaxFrameRate") private var maxFrameRate = 0
 	@AppStorage("Rings_bFadeEased") private var ringFadeEased = true
 	@AppStorage("Rings_bHueFromPatch") private var hueFromPatch = false
@@ -329,7 +328,7 @@ struct PreferencesView: View {
 					HStack {
 						Toggle("Show values", isOn: $keyReadout)
 							.toggleStyle(.checkbox)
-						Button("Edit…") { openWindow(id: "keymap") }
+						Button("Show…") { model.layout.setShown(.keymap, true) }	// the Key Map panel (View > Key Map), floating or docked
 					}
 				} label: {
 					InfoLabel("Key map", info: "Hold a key with the pointer over the picture and scroll (two fingers up or down, or the mouse wheel) to change a control instead of zooming; the Key Map says which key moves which control. Show values: the control's name and value appear briefly over the picture as it changes (never in Syphon output or exports).")
