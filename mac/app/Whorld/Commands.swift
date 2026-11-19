@@ -83,16 +83,18 @@ struct WhorldCommands: Commands {
 			Button("Patch Author…") { model.editPatchAuthor() }
 			Divider()
 			// the playlist's files, from the Playlist menu (Windows' File >
-			// Playlist; the user's menu audit, 2026-11-18)
-			Button("New Playlist") { model.newPlaylist() }
-				.keyboardShortcut("n", modifiers: [.command, .shift])
-			Button("Open Playlist…") { model.openPlaylist() }
-				.keyboardShortcut("o", modifiers: [.command, .shift])
-			Button("Save Playlist") { model.savePlaylist() }
-				.keyboardShortcut("s", modifiers: [.command, .option])
-			Button("Save Playlist As…") { model.savePlaylistAs() }
-				.keyboardShortcut("s", modifiers: [.command, .option, .shift])
-			Divider()
+			// Playlist; the user's menu audit, 2026-11-18), in a submenu of
+			// their own (the user's request, 2026-11-19); same keys
+			Menu("Playlist") {
+				Button("New Playlist") { model.newPlaylist() }
+					.keyboardShortcut("n", modifiers: [.command, .shift])
+				Button("Open Playlist…") { model.openPlaylist() }
+					.keyboardShortcut("o", modifiers: [.command, .shift])
+				Button("Save Playlist") { model.savePlaylist() }
+					.keyboardShortcut("s", modifiers: [.command, .option])
+				Button("Save Playlist As…") { model.savePlaylistAs() }
+					.keyboardShortcut("s", modifiers: [.command, .option, .shift])
+			}
 			// snapshots and movies, folded into File (they were menus of
 			// their own; the user's menu audit, 2026-11-18): important, not
 			// for a live set; their keys work from the submenus as before
