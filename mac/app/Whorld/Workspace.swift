@@ -49,7 +49,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		}
 	}
 
-	/// What the panel controls, in brief: the tip on its title (the user's
+	/// What the panel controls, in brief: behind the ⓘ by its title (the user's
 	/// request, 2026-11-18; it was how to move it, now the grip's tip)
 	var summary: String {
 		switch self {
@@ -1143,14 +1143,21 @@ struct DockedPanel: View {
 					.overlay(PanelDragSource(id: id, layout: layout, help: "Drag to move \(id.title); let go away from a dock spot to float it"))	// the grip keeps how to move it
 				if tabs.count > 1 {
 					tabStrip
+					PanelInfoButton(id: id)	// the showing tab's
 					Spacer(minLength: 0)
 				} else {
 					HStack(spacing: 0) {	// the title and the space after it: drag to move
 						Text(id.title)
 							.font(.caption.weight(.semibold))
-						Spacer(minLength: 0)
+							.overlay(PanelDragSource(id: id, layout: layout, help: ""))
+						// what the panel controls: click for it (the user's
+						// request, 2026-11-19; it was the title's hover tip)
+						PanelInfoButton(id: id)
+							.padding(.leading, 4)
+						Color.clear
+							.frame(maxWidth: .infinity, maxHeight: .infinity)
+							.overlay(PanelDragSource(id: id, layout: layout, help: ""))
 					}
-					.overlay(PanelDragSource(id: id, layout: layout, help: id.summary))	// what it controls
 				}
 				Menu {
 					ForEach(Region.allCases, id: \.self) { r in
@@ -1197,7 +1204,7 @@ struct DockedPanel: View {
 					.frame(height: 19)
 					.background(t == id ? Color.accentColor.opacity(0.25) : Color.primary.opacity(0.06),
 						in: RoundedRectangle(cornerRadius: 4))
-					.overlay(PanelDragSource(id: t, layout: layout, help: t == id ? t.summary : "Show \(t.title)",
+					.overlay(PanelDragSource(id: t, layout: layout, help: t == id ? "" : "Show \(t.title)",
 						onClick: { layout.select(t) }))
 			}
 		}
@@ -1433,7 +1440,66 @@ struct PanelDragSource: NSViewRepresentable {
 		v.id = id
 		v.layout = layout
 		v.onClick = onClick
-		v.toolTip = help
+		v.toolTip = help.isEmpty ? nil : help
+	}
+}
+
+/// The ⓘ after a panel's title: a click shows what the panel controls
+/// (PanelID.summary) in a popover, which stays until the pointer is away
+/// from it and the icon (the user's request, 2026-11-19). No hover tip.
+/// Where the pointer is is checked a few times a second while it shows:
+/// hover changes alone can be missed (a quick move away).
+struct PanelInfoButton: View {
+	let id: PanelID
+	@State private var shown = false
+	@State private var icon = ViewAnchor()
+	@State private var popover = ViewAnchor()
+	@State private var timer: Timer?
+
+	var body: some View {
+		Button {
+			shown.toggle()
+		} label: {
+			Image(systemName: "info.circle")
+				.font(.caption)
+				.foregroundStyle(.secondary)
+		}
+		.buttonStyle(.borderless)
+		.background(ViewAnchor.Probe(anchor: icon))
+		.accessibilityLabel("About \(id.title)")
+		.popover(isPresented: $shown, arrowEdge: .bottom) {
+			Text(id.summary)
+				.font(.callout)
+				.fixedSize(horizontal: false, vertical: true)
+				.frame(width: 300, alignment: .leading)
+				.padding(12)
+				.background(ViewAnchor.Probe(anchor: popover))
+		}
+		.onChange(of: shown) { _, on in on ? watch() : stop() }
+		.onDisappear { stop() }
+	}
+
+	private func watch() {
+		stop()
+		var away = 0
+		timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+			MainActor.assumeIsolated {
+				let p = NSEvent.mouseLocation
+				let near = [icon, popover].contains { a in
+					guard let v = a.view, let w = v.window else { return false }
+					// the popover's whole window (with its arrow), the icon a little grown
+					let r = a === popover ? w.frame : w.convertToScreen(v.convert(v.bounds, to: nil)).insetBy(dx: -4, dy: -4)
+					return r.contains(p)
+				}
+				away = near ? 0 : away + 1
+				if away >= 3 { shown = false }	// away for a moment: to cross from the icon to the popover
+			}
+		}
+	}
+
+	private func stop() {
+		timer?.invalidate()
+		timer = nil
 	}
 }
 

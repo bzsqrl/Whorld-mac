@@ -258,7 +258,7 @@ struct KeyMapView: View {
 				if let notice = map.notice {
 					Text(notice).font(.caption).foregroundStyle(.orange)
 				}
-				// how the keys work is the panel title's tip (PanelID.summary),
+				// how the keys work is behind the ⓘ by the panel's title (PanelID.summary),
 				// clicking a key the Key cell's; Restore Defaults, Import and
 				// Export are in File > Key Map (the user's request, 2026-11-18)
 				HStack {
