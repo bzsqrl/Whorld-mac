@@ -280,6 +280,22 @@ indirect enum DockNode: Codable, Equatable {
 		}
 	}
 
+	/// The pane (a panel or a tab stack) holding the panel, if it's here.
+	func leaf(containing id: PanelID) -> DockNode? {
+		switch self {
+		case .panel, .tabs: return contains(id) ? self : nil
+		case .split(_, let kids): return kids.lazy.compactMap { $0.leaf(containing: id) }.first
+		}
+	}
+
+	/// With two panes changing places (each whole: a tab stack moves as one).
+	func swapping(_ a: DockNode, _ b: DockNode) -> DockNode {
+		switch self {
+		case .panel, .tabs: return self == a ? b : self == b ? a : self
+		case .split(let axis, let kids): return .split(axis, kids.map { $0.swapping(a, b) })
+		}
+	}
+
 	/// With `id` along one side of the whole arrangement: below it all, say,
 	/// as wide as everything here (a span; 2026-11-18).
 	func adding(_ id: PanelID, at edge: DockEdge) -> DockNode {
@@ -662,6 +678,107 @@ final class LayoutModel: ObservableObject {
 		if wasFloating {
 			closeFloating?(id)
 		}
+	}
+
+	// MARK: Moving panels with the keys (2026-11-18/19, the user's request)
+
+	/// a panel's title bar, flashed after a key moved it (or couldn't)
+	@Published var flashing: PanelID?
+	private var flashWork: DispatchWorkItem?
+	/// the floating panels' windows (FloatingWindowHelper), to find the one under the pointer
+	final class WeakWindow { weak var window: NSWindow?; init(_ w: NSWindow) { window = w } }
+	var floatingWindows: [PanelID: WeakWindow] = [:]
+
+	func flash(_ id: PanelID) {
+		flashWork?.cancel()
+		flashing = id
+		let work = DispatchWorkItem { [weak self] in self?.flashing = nil }
+		flashWork = work
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+	}
+
+	/// The panel under the pointer: a docked pane (its showing tab) or a
+	/// floating panel's window.
+	func panelUnderPointer() -> PanelID? {
+		let p = NSEvent.mouseLocation
+		let n = NSWindow.windowNumber(at: p, belowWindowWithWindowNumber: 0)
+		guard let w = NSApp.window(withWindowNumber: n) else { return nil }
+		if let (id, _) = floatingWindows.first(where: { $0.value.window === w }), isFloating(id) {
+			return id
+		}
+		guard w === AppModel.shared.mainWindow else { return nil }
+		let local = w.convertPoint(fromScreen: p)
+		return paneViews.first { frame($0.value, in: w)?.contains(local) == true }?.key
+	}
+
+	/// ⌥⌘ and an arrow over a panel: a step that way (beside the next pane,
+	/// or into the next area); with ⇧, all the way, along the whole area's
+	/// side. A floating panel docks: ← left, → right, ↓ along the bottom.
+	/// The title bar flashes, moved or not (no beep).
+	func step(_ id: PanelID, toward d: DockEdge, far: Bool) {
+		defer { flash(id) }
+		if isFloating(id) {
+			switch d {
+			case .leading: move(id, to: .left)
+			case .trailing: move(id, to: .right)
+			case .bottom: move(id, to: .bottom)
+			case .top: break	// no area above
+			}
+			return
+		}
+		guard let r = layout.region(of: id), let root = layout.root(r), let leaf = root.leaf(containing: id) else { return }
+		if far {
+			span(id, along: d, of: r)
+			return
+		}
+		if case .tabs(let ids, _) = leaf, let other = ids.first(where: { $0 != id }) {
+			move(id, to: d, of: other)	// out of the stack, to that side of it
+			return
+		}
+		if let main = AppModel.shared.mainWindow, let next = neighbor(of: id, in: r, toward: d, main: main),
+			let nextLeaf = root.leaf(containing: next) {
+			layout.setRoot(root.swapping(leaf, nextLeaf), r)
+			return
+		}
+		// at the area's side: into the next area, or nowhere
+		switch (r, d) {
+		case (.bottom, .top):	// up into the side column on its half of the window
+			let main = AppModel.shared.mainWindow
+			let mid = main?.contentView?.bounds.midX ?? 0
+			let x = main.flatMap { frame(paneViews[id], in: $0)?.midX } ?? 0
+			move(id, to: x < mid ? .left : .right)
+		case (.left, .trailing): move(id, to: .right)
+		case (.right, .leading): move(id, to: .left)
+		case (.left, .bottom):	// down into the bottom row, at its left end
+			if layout.bottom != nil { span(id, along: .leading, of: .bottom) } else { move(id, to: .bottom) }
+		case (.right, .bottom): move(id, to: .bottom)	// at its right end
+		default: break
+		}
+	}
+
+	/// the nearest pane of the area that way, overlapping across
+	private func neighbor(of id: PanelID, in r: Region, toward d: DockEdge, main: NSWindow) -> PanelID? {
+		guard let f = frame(paneViews[id], in: main), let mine = layout.root(r)?.leaf(containing: id) else { return nil }
+		var best: (id: PanelID, gap: CGFloat, overlap: CGFloat)?
+		for (other, w) in paneViews where other != id {
+			guard layout.region(of: other) == r, layout.root(r)?.leaf(containing: other) != mine,
+				let g = frame(w, in: main) else { continue }
+			let across = d.axis == .row
+				? min(f.maxY, g.maxY) - max(f.minY, g.minY)	// side by side: overlap in height
+				: min(f.maxX, g.maxX) - max(f.minX, g.minX)
+			guard across > 4 else { continue }
+			let gap: CGFloat	// window coordinates: y up
+			switch d {
+			case .leading: guard g.maxX <= f.minX + 3 else { continue }; gap = f.minX - g.maxX
+			case .trailing: guard g.minX >= f.maxX - 3 else { continue }; gap = g.minX - f.maxX
+			case .top: guard g.minY >= f.maxY - 3 else { continue }; gap = g.minY - f.maxY
+			case .bottom: guard g.maxY <= f.minY + 3 else { continue }; gap = f.minY - g.maxY
+			}
+			if best == nil || gap < best!.gap - 1 || (abs(gap - best!.gap) <= 1 && across > best!.overlap) {
+				best = (other, gap, across)
+			}
+		}
+		return best?.id
 	}
 
 	/// A docked panel's title bar let go away from a dock spot: it floats
@@ -1160,8 +1277,21 @@ struct DockedPanel: View {
 					}
 				}
 				Menu {
+					// ⌥⌘ and the arrows over the panel do these (PanelKeys);
+					// shown here to be found (the user's request, 2026-11-19)
+					ForEach(PanelMoves.all, id: \.title) { m in
+						Button("Move " + m.title) { layout.step(id, toward: m.edge, far: false) }
+							.keyboardShortcut(m.key, modifiers: [.command, .option])
+					}
+					Menu("Move All the Way") {
+						ForEach(PanelMoves.all, id: \.title) { m in
+							Button(m.title) { layout.step(id, toward: m.edge, far: true) }
+								.keyboardShortcut(m.key, modifiers: [.command, .option, .shift])
+						}
+					}
+					Divider()
 					ForEach(Region.allCases, id: \.self) { r in
-						Button("Move to \(r.title)") { layout.move(id, to: r) }
+						Button("Move to \(r.title) Area") { layout.move(id, to: r) }
 							.disabled(r == region && tabs.count == 1)
 					}
 					Button("Float in a Window") { layout.float(id) }
@@ -1183,6 +1313,11 @@ struct DockedPanel: View {
 			.padding(.horizontal, 8)
 			.frame(height: Self.headerHeight)
 			.background(.bar)
+			.overlay {	// a flash: moved with the keys, or as far as it goes
+				Color.accentColor.opacity(layout.flashing == id ? 0.45 : 0)
+					.allowsHitTesting(false)
+					.animation(.easeOut(duration: 0.25), value: layout.flashing == id)
+			}
 			Divider()
 			content
 				.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -1475,6 +1610,7 @@ struct FloatingWindowHelper: NSViewRepresentable {
 			observers.forEach(NotificationCenter.default.removeObserver)
 			observers = []
 			guard let w = window else { stopTracking(); return }
+			layout?.floatingWindows[id] = LayoutModel.WeakWindow(w)	// for the move keys (PanelKeys)
 			let nc = NotificationCenter.default
 			setLevel()
 			for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification] {
@@ -1774,5 +1910,49 @@ final class OutputWindowController: NSObject, NSWindowDelegate {
 
 	func windowWillClose(_ notification: Notification) {
 		MainActor.assumeIsolated { onClose?() }
+	}
+}
+
+// MARK: Panel move keys
+
+/// The four moves, as the ⋯ menu lists them
+enum PanelMoves {
+	static let all: [(title: String, edge: DockEdge, key: KeyEquivalent)] = [
+		("Left", .leading, .leftArrow), ("Right", .trailing, .rightArrow),
+		("Up", .top, .upArrow), ("Down", .bottom, .downArrow),
+	]
+}
+
+/// Option-Command and an arrow (with Shift, all the way) moves the panel
+/// under the pointer (LayoutModel.step; the user's request, 2026-11-19).
+/// Taken before anything else, wherever the pointer is: the ⋯ menus show
+/// these keys, and none of them should act on its own panel from afar.
+@MainActor
+enum PanelKeys {
+	private static var monitor: Any?
+
+	static func install() {
+		guard monitor == nil else { return }
+		monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
+			let mods = e.modifierFlags.intersection([.shift, .command, .option, .control])
+			guard mods == [.command, .option] || mods == [.command, .option, .shift] else { return e }
+			let edge: DockEdge
+			switch e.keyCode {
+			case 123: edge = .leading
+			case 124: edge = .trailing
+			case 126: edge = .top
+			case 125: edge = .bottom
+			default: return e
+			}
+			let far = mods.contains(.shift)
+			MainActor.assumeIsolated {
+				guard NSApp.modalWindow == nil else { return }
+				let layout = AppModel.shared.layout
+				if let id = layout.panelUnderPointer() {
+					layout.step(id, toward: edge, far: far)
+				}
+			}
+			return nil
+		}
 	}
 }

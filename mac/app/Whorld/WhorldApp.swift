@@ -1559,6 +1559,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 	func applicationDidFinishLaunching(_ notification: Notification) {
 		StandardViewMenu.removeWhenAdded()
 		NumberBoxSelect.install()
+		PanelKeys.install()
 		// second shortcuts for menu commands (a menu item has only one)
 		secondKeysMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
 			let code = event.keyCode
