@@ -80,8 +80,12 @@ enum Preferences {
 	static var swipeSense: Double {
 		register()
 		let v = defaults.double(forKey: "Input_fSwipeSense")
-		return v > 0 ? v : 1
+		return (v > 0 ? v : 1) * swipeBase
 	}
+	/// what ×1 is, of a swipe's first rate (finger travel 1:1 on a slider,
+	/// a number box's step every 2 points): half, for finer adjustments
+	/// (the user's request, 2026-11-19); the setting scales from here
+	static let swipeBase = 0.5
 
 	/// Live view frame rate limit, or 0 for the display's refresh rate (new in the Mac port)
 	static var maxFrameRate: Int {
