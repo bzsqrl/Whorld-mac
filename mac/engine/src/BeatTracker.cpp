@@ -79,6 +79,7 @@ void BeatTracker::Reset(double fHopRate)
 	m_fJumpHops = 0;
 	m_bBeatSilent = true;
 	m_bMayLock = true;
+	m_nSinceLost = 0;
 	m_aAcf.reserve(static_cast<size_t>(2 * m_fHopRate * 60 / kMinBpm) + 4);
 }
 
@@ -201,6 +202,8 @@ void BeatTracker::Process(double fOnset, double fPhaseOnset, bool bSilent)
 		EstimateTempo();
 	if (m_fPeriod <= 0)
 		return;
+	if (!m_bMayLock)
+		m_nSinceLost++;
 	double	fShift = kOnsetDelayHops / m_fPeriod - m_fUserShift;
 	double	fBefore = m_fClock + fShift;
 	m_fClock += 1 / m_fPeriod;
@@ -218,6 +221,7 @@ void BeatTracker::Process(double fOnset, double fPhaseOnset, bool bSilent)
 		if (m_bLocked && m_nUnsure > kFlywheelBeats) {
 			m_bLocked = false;	// the beat's gone: stop until it's found again
 			m_bMayLock = false;	// (after the comb has forgotten it)
+			m_nSinceLost = 0;
 			m_iBeat = -1;		// and count bars afresh from the next lock
 		}
 		if (m_bLocked) {
@@ -345,7 +349,12 @@ void BeatTracker::TrackPhase()
 	double	fError = fBestAgo / P - fFrac;			// the comb says the last beat was this much longer ago
 	fError -= std::round(fError);					// -0.5 to 0.5
 	if (!m_bLocked) {
-		if (m_fConfidence < kUnsureConfidence)
+		// may lock again once the comb has forgotten the lost beat: its
+		// confidence fell, or every beat it looks back over came after the
+		// loss. (Waiting for the fall alone could wait for good: music back
+		// before the comb's memory of it faded kept the confidence up, the
+		// user's report, 2026-11-18; BeatComesBackAfterAShortGap.)
+		if (m_fConfidence < kUnsureConfidence || static_cast<double>(m_nSinceLost) > (kCombBeats + 1) * P)
 			m_bMayLock = true;
 		if (m_bMayLock && m_fConfidence > kLockConfidence) {	// lock: straight onto the comb's beat
 			m_fClock = std::floor(m_fClock) + fBestAgo / P;

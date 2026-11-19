@@ -512,6 +512,44 @@ TEST(BeatStopsInSilence) {
 	CHECK(!r.bLocked);
 }
 
+TEST(BeatComesBackAfterAShortGap) {
+	// kicks, a silent gap just long enough to lose the beat (a pause, a gap
+	// between tracks, a quiet break), then the same kicks again: the beat
+	// is found again. It wasn't (the user's report, 2026-11-18): the comb
+	// still remembered the beat from before the gap, so its confidence
+	// stayed too high to allow a new lock, for good. At 174 BPM a 4.5 s gap
+	// did it; the other cases are for the gaps either side.
+	for (double fBpm : {124.0, 174.0})
+	for (double fGap : {4.5, 5.0, 8.0}) {
+		double	fBack = 16 + fGap;
+		std::vector<float>	a = Sine(440, 0.02, 16);
+		a.resize(static_cast<size_t>(48000 * fBack), 0.0f);
+		std::vector<float>	b = Sine(440, 0.02, 30);
+		a.insert(a.end(), b.begin(), b.end());
+		std::vector<double>	after;
+		for (double t : Grid(fBpm, 0.5, 15.5))
+			AddKick(a, static_cast<size_t>(t * 48000), 0.7);
+		for (double t : Grid(fBpm, fBack + 0.5, fBack + 29.5)) {
+			AddKick(a, static_cast<size_t>(t * 48000), 0.7);
+			after.push_back(t);
+		}
+		BeatRun	r = RunBeats(a);
+		double	fFirst = 0;
+		for (double t : r.beats)
+			if (t > fBack && fFirst == 0)
+				fFirst = t;
+		BeatScore	sc = Score(r, after, fBack + 15, fBack + 29.5);
+		std::printf("  %.0f BPM, %.1f s gap: first beat %.1f s after the music, hit %d missed %d extra %d\n",
+			fBpm, fGap, fFirst > 0 ? fFirst - fBack : -1, sc.nHit, sc.nMissed, sc.nExtra);
+		CHECK(r.bLocked);
+		CHECK(fFirst > fBack && fFirst < fBack + 12);	// found again within a few seconds
+		CHECK_EQ(sc.nExtra, 0);	// every beat on a kick
+		// on every kick, or every other one at 174 (drum and bass, counted
+		// at half tempo, gap or no gap)
+		CHECK(sc.nMissed == 0 || (fBpm > 160 && sc.nHit >= sc.nMissed));
+	}
+}
+
 TEST(BarsAndPhrasesCountFromTheLock) {
 	// 70 s of kicks at 124 BPM: the first beat after locking is the one,
 	// and Bar ... 32-Bar fire on beats 0, 4, 8 ... / 0, 16 ... / 0, 128 ...

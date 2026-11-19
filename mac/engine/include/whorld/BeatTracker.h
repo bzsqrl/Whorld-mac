@@ -98,6 +98,7 @@ private:
 	double	m_fJumpHops = 0;	// hops a big phase error has persisted
 	bool	m_bBeatSilent = true;	// every hop so far this beat was silent
 	bool	m_bMayLock = true;	// false from losing the beat until the comb forgets it
+	size_t	m_nSinceLost = 0;	// hops since the beat was lost (while m_bMayLock is false)
 	uint32_t	m_nBeats = 0;
 	int64_t	m_iBeat = -1;		// the last beat counted, numbered from the one (-1: none yet)
 	bool	m_bMarkNext = false;	// MarkDownbeat while unlocked: the next beat is the one
