@@ -18,7 +18,8 @@ enum Preferences {
 
 	static func register() {
 		defaults.register(defaults: [
-			"Input_fWheelSense": 6.25,
+			"Input_fWheelSense": defaultWheelSense,
+			"Input_fSwipeSense": 1.0,
 			"Export_sImageFolder": "",
 			"Export_nImageWidth": 1920,
 			"Export_nImageHeight": 1080,
@@ -70,6 +71,16 @@ enum Preferences {
 	static var wheelSense: Double {
 		register()
 		return defaults.double(forKey: "Input_fWheelSense")
+	}
+	static let defaultWheelSense = 6.25
+
+	/// Trackpad sensitivity (Mac addition, the user's request, 2026-11-19):
+	/// how far every two-finger swipe moves a value, over the picture, on a
+	/// slider or in a number box, as a multiple of the usual (1)
+	static var swipeSense: Double {
+		register()
+		let v = defaults.double(forKey: "Input_fSwipeSense")
+		return v > 0 ? v : 1
 	}
 
 	/// Live view frame rate limit, or 0 for the display's refresh rate (new in the Mac port)
@@ -153,6 +164,7 @@ enum Preferences {
 struct PreferencesView: View {
 	@EnvironmentObject private var model: AppModel
 	@AppStorage("Input_fWheelSense") private var wheelSense = 6.25
+	@AppStorage("Input_fSwipeSense") private var swipeSense = 1.0
 	@AppStorage("Export_sImageFolder") private var imageFolder = ""
 	@AppStorage("Export_nImageWidth") private var imageWidth = 1920
 	@AppStorage("Export_nImageHeight") private var imageHeight = 1080
@@ -316,13 +328,27 @@ struct PreferencesView: View {
 				.onChange(of: midiInput) { _, name in
 					model.engine.midiInputName = name.isEmpty ? nil : name
 				}
-				LabeledContent("Wheel sensitivity") {
+				LabeledContent {
 					HStack {
 						Slider(value: $wheelSense, in: 0.1...10)
 						Text(String(format: "%.2f", wheelSense))
 							.monospacedDigit()
 							.frame(width: 36, alignment: .trailing)
 					}
+				} label: {
+					InfoLabel("Wheel sensitivity", info: "How far each click of a mouse wheel moves a control over the picture (zoom, Damping with Shift, or a held key's control). Trackpad swipes have their own setting below.")
+				}
+				LabeledContent {
+					HStack {
+						// halves and doubles evenly: the slider is the power of two
+						Slider(value: Binding(get: { log2(swipeSense) }, set: { swipeSense = pow(2, ($0 * 4).rounded() / 4) }),
+							in: -2...2)
+						Text(String(format: "×%.2f", swipeSense))
+							.monospacedDigit()
+							.frame(width: 44, alignment: .trailing)
+					}
+				} label: {
+					InfoLabel("Trackpad sensitivity", info: "How far a two-finger swipe moves a value: over the picture (zoom, Damping, or a held key's control), on a slider, and in a number box. ×1 is the usual; ×2 goes twice as far for the same swipe, ×0.5 half as far.")
 				}
 				LabeledContent {
 					HStack {

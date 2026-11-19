@@ -2882,7 +2882,7 @@ static std::vector<std::pair<float, double>> AutoQualitySteps(float fUserTol, do
 	double	delta = event.scrollingDeltaY != 0 ? event.scrollingDeltaY : (shift ? event.scrollingDeltaX : 0);
 	double	notches = event.hasPreciseScrollingDeltas ? delta / 10 : delta;
 	if (notches != 0)
-		_wheelHandler(notches, shift, event.momentumPhase != NSEventPhaseNone, event.directionInvertedFromDevice);
+		_wheelHandler(notches, shift, event.momentumPhase != NSEventPhaseNone, event.directionInvertedFromDevice, event.hasPreciseScrollingDeltas);
 }
 
 - (void)mouseMoved:(NSEvent *)event

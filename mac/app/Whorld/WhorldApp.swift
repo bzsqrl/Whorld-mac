@@ -722,8 +722,11 @@ final class AppModel: ObservableObject {
 	// CWhorldDoc::OnMouseWheel: zoom, or damping with Shift, in normalized
 	// slider space (CWhorldDoc::OffsetMasterProp). Mac addition: with a key
 	// held over the picture (OutputKeys), that key's control instead.
-	func wheel(notches: Double, shift: Bool, momentum: Bool = false, inverted: Bool = false) {
-		let delta = notches * Preferences.wheelSense / 100
+	func wheel(notches: Double, shift: Bool, momentum: Bool = false, inverted: Bool = false, trackpad: Bool = false) {
+		// a mouse wheel: Wheel sensitivity; a trackpad swipe: Trackpad
+		// sensitivity times the wheel's default (the user's request,
+		// 2026-11-19; swipes followed Wheel sensitivity before)
+		let delta = notches * (trackpad ? Preferences.defaultWheelSense * Preferences.swipeSense : Preferences.wheelSense) / 100
 		if momentum && (outputKeys.held != nil || outputKeys.lastWheelWasKeyed) {
 			return	// no coasting after a key swipe, nor turning into zoom when the key lifts
 		}

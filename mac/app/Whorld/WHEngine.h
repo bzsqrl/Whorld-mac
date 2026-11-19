@@ -496,7 +496,7 @@ typedef struct {
 // notches, positive away from the user; shift if the Shift key is down.
 // momentum: the scroll is coasting after the fingers lifted; inverted: the
 // deltas follow the fingers (natural scrolling)
-@property (nonatomic, copy, nullable) void (^wheelHandler)(double notches, BOOL shift, BOOL momentum, BOOL inverted);
+@property (nonatomic, copy, nullable) void (^wheelHandler)(double notches, BOOL shift, BOOL momentum, BOOL inverted, BOOL trackpad);	// trackpad: a two-finger swipe (10 points a notch), not a mouse wheel
 // The left mouse button went down (YES) or up (NO) over the view; the
 // cursor position has already been reported. With a handler, the first
 // click on the view's window counts too.

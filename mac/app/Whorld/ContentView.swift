@@ -150,9 +150,9 @@ struct RenderView: NSViewRepresentable {
 		view.engine = engine
 		view.renderScale = renderScale
 		view.smoothUpscaling = smoothUpscaling
-		view.wheelHandler = { notches, shift, momentum, inverted in
+		view.wheelHandler = { notches, shift, momentum, inverted, trackpad in
 			Task { @MainActor in
-				AppModel.shared.wheel(notches: notches, shift: shift, momentum: momentum, inverted: inverted)
+				AppModel.shared.wheel(notches: notches, shift: shift, momentum: momentum, inverted: inverted, trackpad: trackpad)
 			}
 		}
 		return view

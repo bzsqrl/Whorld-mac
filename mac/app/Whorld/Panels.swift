@@ -325,7 +325,7 @@ struct KeyTextField: NSViewRepresentable {
 				return
 			}
 			if t.first { swipeTravel = 0 }
-			swipeTravel += t.points
+			swipeTravel += t.points * Preferences.swipeSense	// Settings > Control > Trackpad sensitivity
 			let n = Int(swipeTravel / Self.pointsPerStep)	// whole steps, toward zero
 			guard n != 0 else { return }
 			swipeTravel -= Double(n) * Self.pointsPerStep
@@ -606,7 +606,7 @@ struct KeySlider: NSViewRepresentable {
 			if t.first { swipePosition = doubleValue }
 			guard t.points != 0 else { return }
 			let width = max(bounds.width, 40)
-			swipePosition = min(max(swipePosition + t.points / width * (maxValue - minValue), minValue), maxValue)
+			swipePosition = min(max(swipePosition + t.points * Preferences.swipeSense / width * (maxValue - minValue), minValue), maxValue)	// (Trackpad sensitivity)
 			let pos = swipePosition.rounded()	// whole positions, as dragging
 			if pos != doubleValue {
 				doubleValue = pos
