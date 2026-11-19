@@ -455,32 +455,6 @@ private struct InfoLabel: View {
 	}
 }
 
-/// An info icon that explains a setting: as a tooltip on hover, and in a
-/// popover on click (to read at leisure, or where tooltips are slow to show).
-private struct InfoButton: View {
-	let text: String
-	@State private var shown = false
-
-	var body: some View {
-		Button {
-			shown.toggle()
-		} label: {
-			Image(systemName: "info.circle")
-				.foregroundStyle(.secondary)
-		}
-		.buttonStyle(.borderless)
-		.help(text)
-		.accessibilityLabel("About this setting")
-		.popover(isPresented: $shown, arrowEdge: .bottom) {
-			Text(text)
-				.font(.callout)
-				.fixedSize(horizontal: false, vertical: true)
-				.frame(width: 300, alignment: .leading)
-				.padding(12)
-		}
-	}
-}
-
 /// Clears the Settings window's first responder when it opens and when the
 /// tab changes: AppKit gives the first text field on the page focus, which
 /// selects its text (the author name, an OSC port) as if it were about to be

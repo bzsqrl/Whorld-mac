@@ -1445,61 +1445,13 @@ struct PanelDragSource: NSViewRepresentable {
 }
 
 /// The ⓘ after a panel's title: a click shows what the panel controls
-/// (PanelID.summary) in a popover, which stays until the pointer is away
-/// from it and the icon (the user's request, 2026-11-19). No hover tip.
-/// Where the pointer is is checked a few times a second while it shows:
-/// hover changes alone can be missed (a quick move away).
+/// (PanelID.summary), as every ⓘ does (InfoButton). No hover tip.
 struct PanelInfoButton: View {
 	let id: PanelID
-	@State private var shown = false
-	@State private var icon = ViewAnchor()
-	@State private var popover = ViewAnchor()
-	@State private var timer: Timer?
 
 	var body: some View {
-		Button {
-			shown.toggle()
-		} label: {
-			Image(systemName: "info.circle")
-				.font(.caption)
-				.foregroundStyle(.secondary)
-		}
-		.buttonStyle(.borderless)
-		.background(ViewAnchor.Probe(anchor: icon))
-		.accessibilityLabel("About \(id.title)")
-		.popover(isPresented: $shown, arrowEdge: .bottom) {
-			Text(id.summary)
-				.font(.callout)
-				.fixedSize(horizontal: false, vertical: true)
-				.frame(width: 300, alignment: .leading)
-				.padding(12)
-				.background(ViewAnchor.Probe(anchor: popover))
-		}
-		.onChange(of: shown) { _, on in on ? watch() : stop() }
-		.onDisappear { stop() }
-	}
-
-	private func watch() {
-		stop()
-		var away = 0
-		timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-			MainActor.assumeIsolated {
-				let p = NSEvent.mouseLocation
-				let near = [icon, popover].contains { a in
-					guard let v = a.view, let w = v.window else { return false }
-					// the popover's whole window (with its arrow), the icon a little grown
-					let r = a === popover ? w.frame : w.convertToScreen(v.convert(v.bounds, to: nil)).insetBy(dx: -4, dy: -4)
-					return r.contains(p)
-				}
-				away = near ? 0 : away + 1
-				if away >= 3 { shown = false }	// away for a moment: to cross from the icon to the popover
-			}
-		}
-	}
-
-	private func stop() {
-		timer?.invalidate()
-		timer = nil
+		InfoButton(text: id.summary, small: true)
+			.accessibilityLabel("About \(id.title)")
 	}
 }
 

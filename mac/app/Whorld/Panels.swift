@@ -1320,3 +1320,93 @@ struct PropertiesPanel: View {
 		}
 	}
 }
+
+// MARK: Info icons
+
+/// An explanation behind an ⓘ, everywhere (panel titles, Settings, the
+/// Modulation table's column headers; the user's request, 2026-11-19): a
+/// click on the icon shows it, and it stays until the pointer is away from
+/// it and the icon; hovering shows nothing. Where the pointer is is checked
+/// a few times a second (a quick move away can miss a hover change).
+@MainActor
+final class InfoPopover: NSObject, NSPopoverDelegate {
+	static let shared = InfoPopover()
+
+	private var popover: NSPopover?
+	private weak var anchor: NSView?
+	private var anchorRect = NSRect.zero	// in the anchor's coordinates
+	private var timer: Timer?
+
+	/// Shows the text by a rect of a view, or closes it if it's showing there.
+	func toggle(_ text: String, from view: NSView, rect: NSRect) {
+		let same = popover != nil && anchor === view && anchorRect == rect
+		close()
+		guard !same else { return }
+		let p = NSPopover()
+		p.behavior = .transient	// a click elsewhere closes it too
+		p.delegate = self
+		p.contentViewController = NSHostingController(rootView: Text(text)
+			.font(.callout)
+			.fixedSize(horizontal: false, vertical: true)
+			.frame(width: 300, alignment: .leading)
+			.padding(12))
+		p.show(relativeTo: rect, of: view, preferredEdge: view.isFlipped ? .maxY : .minY)	// below
+		popover = p
+		anchor = view
+		anchorRect = rect
+		var away = 0
+		timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+			MainActor.assumeIsolated {
+				let near = InfoPopover.shared.pointerIsNear()
+				away = near ? 0 : away + 1
+				if away >= 3 { InfoPopover.shared.close() }	// away a moment: time to cross from the icon to the popover
+			}
+		}
+	}
+
+	private func pointerIsNear() -> Bool {
+		let p = NSEvent.mouseLocation
+		if let w = popover?.contentViewController?.view.window, w.frame.contains(p) { return true }
+		guard let v = anchor, let w = v.window else { return false }
+		return w.convertToScreen(v.convert(anchorRect, to: nil)).insetBy(dx: -4, dy: -4).contains(p)
+	}
+
+	func close() {
+		timer?.invalidate()
+		timer = nil
+		popover?.close()
+		popover = nil
+		anchor = nil
+	}
+
+	nonisolated func popoverDidClose(_ notification: Notification) {
+		MainActor.assumeIsolated {
+			if let p = notification.object as? NSPopover, p === popover {
+				timer?.invalidate()
+				timer = nil
+				popover = nil
+				anchor = nil
+			}
+		}
+	}
+}
+
+/// An ⓘ that shows an explanation when clicked (InfoPopover)
+struct InfoButton: View {
+	let text: String
+	var small = false	// a panel title's (caption size)
+	@State private var anchor = ViewAnchor()
+
+	var body: some View {
+		Button {
+			if let v = anchor.view { InfoPopover.shared.toggle(text, from: v, rect: v.bounds) }
+		} label: {
+			Image(systemName: "info.circle")
+				.font(small ? .caption : nil)
+				.foregroundStyle(.secondary)
+		}
+		.buttonStyle(.borderless)
+		.background(ViewAnchor.Probe(anchor: anchor))
+		.accessibilityLabel("More about this")
+	}
+}

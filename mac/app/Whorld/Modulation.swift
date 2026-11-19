@@ -1605,15 +1605,72 @@ private struct ColumnTips: NSViewRepresentable {
 
 	func makeNSView(context: Context) -> NSView { NSView() }
 
+	func makeCoordinator() -> Coordinator { Coordinator() }
+
+	/// A click on a header's ⓘ shows its column's tip (InfoPopover, as every
+	/// ⓘ; the user's request, 2026-11-19: the headers showed it on hover).
+	/// Caught before the header, which tracks the mouse itself (a gesture
+	/// recognizer there never sees the click end).
+	final class Coordinator: NSObject {
+		weak var header: NSTableHeaderView?
+		private var monitor: Any?
+
+		@MainActor func install(on header: NSTableHeaderView) {
+			self.header = header
+			guard monitor == nil else { return }
+			monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] e in
+				MainActor.assumeIsolated { self?.clicked(e) ?? false } ? nil : e
+			}
+		}
+
+		/// true: it was on an ⓘ, and the tip is showing (or closed again)
+		@MainActor private func clicked(_ e: NSEvent) -> Bool {
+			guard let header, let table = header.tableView, e.window === header.window else { return false }
+			let p = header.convert(e.locationInWindow, from: nil)
+			guard header.bounds.contains(p) else { return false }
+			let i = header.column(at: p)
+			guard i >= 0, i < table.tableColumns.count else { return false }
+			let cell = table.tableColumns[i].headerCell
+			let title = cell.stringValue
+			guard title.hasSuffix(ColumnTips.mark),
+				let tip = ColumnTips.tips[String(title.dropLast(ColumnTips.mark.count))],
+				let mark = ColumnTips.markRect(cell, in: header.headerRect(ofColumn: i)), mark.contains(p) else { return false }
+			InfoPopover.shared.toggle(tip, from: header, rect: mark)
+			return true
+		}
+
+		deinit {
+			if let monitor { NSEvent.removeMonitor(monitor) }
+		}
+	}
+
+	/// where a header cell draws its title's ⓘ (the title's last glyph), a
+	/// little grown to be easy to hit
+	static func markRect(_ cell: NSTableHeaderCell, in r: NSRect) -> NSRect? {
+		let title = cell.attributedStringValue
+		guard title.length > 0 else { return nil }
+		let text = cell.titleRect(forBounds: r)
+		let font: [NSAttributedString.Key: Any] = [.font: cell.font ?? NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)]
+		let full = (title.string as NSString).size(withAttributes: font).width
+		let icon = ("ⓘ" as NSString).size(withAttributes: font).width
+		let x: CGFloat
+		switch cell.alignment {
+		case .right: x = text.maxX - icon
+		case .center: x = text.midX + full / 2 - icon
+		default: x = text.minX + full - icon
+		}
+		return NSRect(x: x - 4, y: r.minY, width: icon + 14, height: r.height)	// more room after: the cell draws a little in from its title rect
+	}
+
 	func updateNSView(_ view: NSView, context: Context) {
+		let c = context.coordinator
 		DispatchQueue.main.async {	// once the table is in the window
 			guard let root = view.window?.contentView, let table = Self.table(in: root) else { return }
-			for column in table.tableColumns {
-				let title = column.headerCell.stringValue
-				let name = title.hasSuffix(Self.mark) ? String(title.dropLast(Self.mark.count)) : title
-				if column.headerToolTip != Self.tips[name] {	// setting it again would dismiss one showing
-					column.headerToolTip = Self.tips[name]
-				}
+			for column in table.tableColumns where column.headerToolTip != nil {
+				column.headerToolTip = nil	// no hover tip: the ⓘ is clicked
+			}
+			if let header = table.headerView, c.header !== header {
+				c.install(on: header)
 			}
 		}
 	}
