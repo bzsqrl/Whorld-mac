@@ -101,6 +101,8 @@ typedef struct {
 - (void)nudgeBeats:(NSInteger)beats;
 /// The beat itself half a beat later, or back (BeatTracker::ShiftHalfBeat).
 - (void)shiftHalfBeat;
+/// Half Beat Back (-1) or Forward (+1), as steps (BeatTracker::ShiftHalfBeats).
+- (void)shiftHalfBeats:(NSInteger)halves;
 @end
 
 NS_ASSUME_NONNULL_END

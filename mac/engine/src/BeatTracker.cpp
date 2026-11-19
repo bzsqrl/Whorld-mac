@@ -111,21 +111,30 @@ void BeatTracker::NudgeBeats(int nBeats)
 
 void BeatTracker::ShiftHalfBeat()
 {
-	if (!m_bLocked || m_iBeat < 0)
+	// a toggle: half a beat later (back), or back again (forward)
+	ShiftHalfBeats(m_fUserShift == 0 ? -1 : 1);
+}
+
+void BeatTracker::ShiftHalfBeats(int nHalves)
+{
+	if (!m_bLocked || m_iBeat < 0 || nHalves == 0)
 		return;
-	// a toggle: half a beat later, or back. Later, the position goes back
-	// half a beat: the beat just counted, if less than half a beat ago,
-	// isn't yet; back, it goes on half a beat, past the next beat if that
-	// was less than half a beat away
-	double	fPhase = GetPhase();
-	if (m_fUserShift == 0) {
-		m_fUserShift = 0.5;
-		if (fPhase < 0.5)
-			NudgeBeats(-1);
-	} else {
-		m_fUserShift = 0;
-		if (fPhase >= 0.5)
-			NudgeBeats(1);
+	for (int i = 0; i < std::abs(nHalves); i++) {
+		double	fPhase = GetPhase();
+		if (nHalves < 0) {
+			// back (the beat half a beat later): the beat just counted, if
+			// less than half a beat ago, isn't yet
+			m_fUserShift += 0.5;
+			if (fPhase < 0.5)
+				NudgeBeats(-1);
+		} else {
+			// forward: past the next beat, if that was less than half a beat away
+			m_fUserShift -= 0.5;
+			if (fPhase >= 0.5)
+				NudgeBeats(1);
+		}
+		// a whole beat of shift is none: the beats come at the same times
+		m_fUserShift -= std::floor(m_fUserShift);
 	}
 	m_nMoves++;
 }

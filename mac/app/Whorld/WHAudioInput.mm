@@ -333,7 +333,8 @@ NSString *RateText(double fRate)
 	std::atomic<bool>	_markDownbeat;
 	std::atomic<bool>	_resetBars;
 	std::atomic<int>	_nudgeBeats;	// beats to nudge, added up
-	std::atomic<int>	_halfBeats;		// half-beat shifts asked for
+	std::atomic<int>	_halfBeats;		// half-beat shifts asked for (toggles)
+	std::atomic<int>	_halfSteps;		// half beats back (-) or forward (+) asked for
 	// analysis thread → readers
 	TripleBuffer	_forRender;
 	TripleBuffer	_forMeter;
@@ -441,6 +442,7 @@ NSString *RateText(double fRate)
 		_resetBars = false;
 		_nudgeBeats = 0;
 		_halfBeats = 0;
+		_halfSteps = 0;
 		_settingsChanged = true;
 		_resetRate = 0;
 		_resetPending = true;
@@ -553,6 +555,8 @@ NSString *RateText(double fRate)
 			analyzer.NudgeBeats(n);
 		for (int n = _halfBeats.exchange(0); n > 0; n--)
 			analyzer.ShiftHalfBeat();
+		if (int n = _halfSteps.exchange(0))
+			analyzer.ShiftHalfBeats(n);
 		uint64_t	nBefore = analyzer.GetAnalysisCount();
 		size_t	n;
 		while ((n = _ring->Pop(chunk.data(), chunk.size())) > 0)
@@ -612,6 +616,12 @@ NSString *RateText(double fRate)
 - (void)nudgeBeats:(NSInteger)beats
 {
 	_nudgeBeats += static_cast<int>(beats);
+	dispatch_semaphore_signal(_sem);
+}
+
+- (void)shiftHalfBeats:(NSInteger)halves
+{
+	_halfSteps += static_cast<int>(halves);
 	dispatch_semaphore_signal(_sem);
 }
 

@@ -77,6 +77,7 @@ public:
 	void	ResetBars() { m_beat.ResetBars(); }	// Mac addition
 	void	NudgeBeats(int nBeats) { m_beat.NudgeBeats(nBeats); }	// Mac additions
 	void	ShiftHalfBeat() { m_beat.ShiftHalfBeat(); }
+	void	ShiftHalfBeats(int nHalves) { m_beat.ShiftHalfBeats(nHalves); }
 	size_t	GetWindowSize() const { return m_nWindow; }
 	size_t	GetHopSize() const { return m_nHop; }
 	double	GetSampleRate() const { return m_fSampleRate; }

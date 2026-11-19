@@ -68,7 +68,11 @@ public:
 	// span: GetMoves counts them, so rows can tell a move from the music.
 	// Unlocked, they do nothing.
 	void	NudgeBeats(int nBeats);
-	void	ShiftHalfBeat();
+	void	ShiftHalfBeat();	// a toggle: half a beat later, or back (MIDI, OSC)
+	// Half Beat Back (-1) and Forward (+1), as steps (user's request,
+	// 2026-11-19): the count moved half a beat each, as NudgeBeats moves it
+	// by beats; back is ShiftHalfBeat's half a beat later, two steps a beat
+	void	ShiftHalfBeats(int nHalves);
 	uint32_t	GetMoves() const { return m_nMoves; }
 	int		GetBeatInBar() const;	// 0 to 3, the beat just counted (-1 before any)
 	// beats since the one, continuous (as the beats are shifted), while locked
@@ -102,7 +106,7 @@ private:
 	uint32_t	m_nBeats = 0;
 	int64_t	m_iBeat = -1;		// the last beat counted, numbered from the one (-1: none yet)
 	bool	m_bMarkNext = false;	// MarkDownbeat while unlocked: the next beat is the one
-	double	m_fUserShift = 0;	// ShiftHalfBeat: beats (0 or 0.5) the beats come after the tracker's
+	double	m_fUserShift = 0;	// ShiftHalfBeat(s): beats (0 or 0.5) the beats come after the tracker's
 	uint32_t	m_nMoves = 0;	// NudgeBeats and ShiftHalfBeat so far
 	uint32_t	m_aSpanCount[SPANS] = {};
 

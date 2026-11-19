@@ -271,8 +271,13 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut("[", modifiers: [.command, .shift])
 			Button("Bar Forward") { ModMap.nudge(beats: 4) }
 				.keyboardShortcut("]", modifiers: [.command, .shift])
-			Button("Shift Half Beat") { ModMap.shiftHalfBeat() }
-				.keyboardShortcut("\\", modifiers: [.command, .shift])
+			// half a beat, with Option-Command (the user's request, 2026-11-19;
+			// was one Shift Half Beat toggle, which MIDI and OSC keep); they
+			// do nothing while Ableton Link drives the beat
+			Button("Half Beat Back") { ModMap.shiftHalfBeats(-1) }
+				.keyboardShortcut("[", modifiers: [.command, .option])
+			Button("Half Beat Forward") { ModMap.shiftHalfBeats(1) }
+				.keyboardShortcut("]", modifiers: [.command, .option])
 			Divider()
 			// the Modulation panel's switches, kept in step with them: the
 			// setting is Link_bEnabled (the panel's AppStorage)

@@ -651,6 +651,32 @@ TEST(NudgesMoveTheCountAndHalfBeatTheBeat) {
 	step();
 	CHECK_NEAR(bt.GetBeatPosition() - fPos, 0.5, 0.05);
 	CHECK(an.GetSources().nBeatMoves > nMoves + 2);
+	// Half Beat Back and Forward step (2026-11-19): two backs are a beat
+	// back, the phase kept; forward undoes them; each is a move. (Each
+	// step plays a hop on, a fiftieth of a beat: counted in.)
+	const double	kHop = 512 / 48000.0 * 124 / 60;
+	fPos = bt.GetBeatPosition();
+	double	fPhase = bt.GetPhase();
+	nMoves = an.GetSources().nBeatMoves;
+	an.ShiftHalfBeats(-1);
+	step();
+	CHECK_NEAR(bt.GetBeatPosition() - fPos, -0.5 + kHop, 0.02);
+	an.ShiftHalfBeats(-1);
+	step();
+	CHECK_NEAR(bt.GetBeatPosition() - fPos, -1 + 2 * kHop, 0.02);
+	CHECK_NEAR(bt.GetPhase(), fPhase + 2 * kHop, 0.02);	// the beat itself where it was
+	an.ShiftHalfBeats(1);
+	step();
+	CHECK_NEAR(bt.GetBeatPosition() - fPos, -0.5 + 3 * kHop, 0.02);
+	an.ShiftHalfBeats(3);	// on a beat and a half at once
+	step();
+	CHECK_NEAR(bt.GetBeatPosition() - fPos, 1 + 4 * kHop, 0.02);
+	CHECK(an.GetSources().nBeatMoves >= nMoves + 4);
+	fAt = bt.GetBeatPosition();
+	iAt = i;
+	until([&] { return i >= iAt + 48000 * 4; });	// and the tracker follows the music from there
+	fBeats = (i - iAt) / 48000.0 * 124 / 60;
+	CHECK_NEAR(bt.GetBeatPosition() - fAt, fBeats, 0.1);
 }
 
 TEST(ResetBarsKeepsTheBeat) {
