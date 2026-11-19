@@ -37,6 +37,12 @@ final class FullScreenController {
 
 	var isFullScreen: Bool { window != nil }
 
+	/// The display full screen covers, while it does: floating panels there
+	/// go behind it (FloatingWindowHelper; the user's report, 2026-11-19:
+	/// they stayed on top of the picture), those on other displays stay up.
+	static private(set) var coveredScreen: NSScreen?
+	static let coverChanged = Notification.Name("WhorldFullScreenCoverChanged")
+
 	private static func displayID(of screen: NSScreen) -> CGDirectDisplayID {
 		(screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
 	}
@@ -101,6 +107,8 @@ final class FullScreenController {
 			forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
 			MainActor.assumeIsolated { self?.screensChanged() }
 		}
+		Self.coveredScreen = screen	// the panels there drop first, then the picture comes up over them
+		NotificationCenter.default.post(name: Self.coverChanged, object: nil)
 		w.setFrame(frame, display: true)
 		w.makeKeyAndOrderFront(nil)
 		w.makeFirstResponder(view)
@@ -123,6 +131,8 @@ final class FullScreenController {
 	func exit(engine: WHEngine) {
 		guard let w = window else { return }
 		window = nil
+		Self.coveredScreen = nil	// the panels come back up
+		NotificationCenter.default.post(name: Self.coverChanged, object: nil)
 		view = nil
 		onExit = nil
 		if let o = screenObserver {

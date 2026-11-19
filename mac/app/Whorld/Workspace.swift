@@ -1613,11 +1613,15 @@ struct FloatingWindowHelper: NSViewRepresentable {
 			layout?.floatingWindows[id] = LayoutModel.WeakWindow(w)	// for the move keys (PanelKeys)
 			let nc = NotificationCenter.default
 			setLevel()
-			for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification] {
+			for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification,
+				FullScreenController.coverChanged] {
 				observers.append(nc.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
 					MainActor.assumeIsolated { self?.setLevel() }
 				})
 			}
+			observers.append(nc.addObserver(forName: NSWindow.didChangeScreenNotification, object: w, queue: .main) { [weak self] _ in
+				MainActor.assumeIsolated { self?.setLevel() }	// moved onto, or off, the full screen's display
+			})
 			observers.append(nc.addObserver(forName: NSWindow.willMoveNotification, object: w, queue: .main) { [weak self] _ in
 				MainActor.assumeIsolated { self?.startTracking() }
 			})
@@ -1635,8 +1639,12 @@ struct FloatingWindowHelper: NSViewRepresentable {
 			}
 		}
 
+		/// above the Whorld windows while Whorld is active, but behind the
+		/// picture on the display full screen covers
 		private func setLevel() {
-			window?.level = NSApp.isActive ? .floating : .normal
+			guard let w = window else { return }
+			let covered = FullScreenController.coveredScreen.map { $0 == w.screen } ?? false
+			w.level = NSApp.isActive && !covered ? .floating : .normal
 		}
 
 		/// while its title bar is held: where letting go would dock it
