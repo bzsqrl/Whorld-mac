@@ -250,7 +250,7 @@ struct WhorldCommands: Commands {
 		// Audio response in a menu of its own, apart from the picture (the
 		// user's menu audit, 2026-11-18; these were at the end of Image):
 		// the rows on or off, keeping the rows' phrases with the music's,
-		// where the beat comes from, and the Modulation panel
+		// where the beat comes from
 		CommandMenu("Audio") {
 			// Mac addition (AUDIO_PLAN.md): the Modulation panel's rows on or off
 			toggle("Audio Modulation", !ModMap.shared.bypass) { ModMap.shared.bypass.toggle() }
@@ -289,10 +289,8 @@ struct WhorldCommands: Commands {
 			}))
 			Toggle("Tempo Follows the Beat", isOn: Binding(get: { ModMap.shared.followTempo },
 				set: { ModMap.shared.followTempo = $0 }))
-			Divider()
-			Toggle("Modulation Panel", isOn: Binding(
-				get: { model.layout.isShown(.modulation) },
-				set: { model.layout.setShown(.modulation, $0) }))	// its key is on View > Modulation, with the other panels' (a key belongs to one item)
+			// the Modulation panel is View > Modulation (⌥⌘6), with the
+			// others (here too until 2026-11-19, the user's request)
 		}
 
 		// The View menu, after Audio and before Window (the user's choice,
