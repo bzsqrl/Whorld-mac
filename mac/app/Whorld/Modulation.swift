@@ -205,7 +205,7 @@ private struct AudioInputSection: View {
 	@AppStorage(AudioSettings.linkKey) private var linkEnabled = false
 	@AppStorage(AudioSettings.linkSyncKey) private var linkSync = false
 	// not ModMap: a view that observes it redraws on every step of a slider,
-	// and this one lists the audio devices as it draws (FollowTempoToggle)
+	// and this one lists the audio devices as it draws
 
 	private var input: WHAudioInput { .shared }
 
@@ -340,11 +340,8 @@ private struct AudioInputSection: View {
 				}
 				.help("Keeps time with Ableton Live and other Link apps on this Mac or the network: while the session has other apps, its tempo, beats and bars drive Beat and the bars, in place of the beat Whorld hears in the music.")
 			}
-			GridRow {
-				Text("Tempo")
-				FollowTempoToggle()
-					.help("Master > Tempo (which times Origin Random) follows the beat's tempo, from Ableton Link or the music, while there's a beat. The patch's own Tempo isn't changed.")
-			}
+			// Tempo Follows the Beat is in the Audio menu (it was a row here
+			// too until 2026-11-19, the user's request)
 			GridRow {
 				Text("")
 				AudioStatus(state: input.state, text: input.statusText)
@@ -486,16 +483,6 @@ private struct StepSlider: View {
 			set: { set(min(max($0, lo), hi) / perUnit + 0) },	// + 0: never -0 ("-0%")
 			reset: { set(defaultValue) },
 			controlSize: .regular)
-	}
-}
-
-/// Tempo follows the beat: the one part of the input section that's a
-/// ModMap setting, in a view of its own (see AudioInputSection)
-private struct FollowTempoToggle: View {
-	@Bindable private var map = ModMap.shared
-
-	var body: some View {
-		Toggle("Whorld's Tempo follows the beat", isOn: $map.followTempo)
 	}
 }
 
