@@ -355,7 +355,7 @@ typedef struct {
 // patch's controls, pause, the playing patch, names, full screen).
 - (void)oscSendStateWithPatch:(NSInteger)playingPatch patchName:(NSString *)patchName
 	playlistName:(NSString *)playlistName fullScreen:(BOOL)fullScreen;
-// Main thread, once a second: the frame statistics (Show Frame Rate's), as
+// Main thread, once a second: the frame statistics (View > Show Stats'), as
 // numbers and as that line of text.
 - (void)oscSendStats:(NSString *)text;
 

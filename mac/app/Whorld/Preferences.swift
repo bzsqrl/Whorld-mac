@@ -36,7 +36,6 @@ enum Preferences {
 			"Playlist_bSaveLayout": true,
 			"Playlist_bApplyLayout": true,
 			"General_bControlTips": true,
-			"Output_bKeyReadout": false,
 			"Render_nMaxFrameRate": 0,
 			"Render_fScale": 1.0,
 			"Render_bSmoothUpscale": true,
@@ -185,7 +184,6 @@ struct PreferencesView: View {
 	@AppStorage("General_sAuthorName") private var authorName = ""
 	@AppStorage("Playlist_bApplyLayout") private var applyPlaylistLayouts = true
 	@AppStorage("General_bControlTips") private var controlTips = true
-	@AppStorage("Output_bKeyReadout") private var keyReadout = false
 	@AppStorage("Render_nMaxFrameRate") private var maxFrameRate = 0
 	@AppStorage("Rings_bFadeEased") private var ringFadeEased = true
 	@AppStorage("Rings_bHueFromPatch") private var hueFromPatch = false
@@ -312,7 +310,7 @@ struct PreferencesView: View {
 					InfoLabel("Curve quality", info: "How smoothly curved rings are drawn. Curves are drawn as many short straight segments; lower quality uses fewer, which speeds up patches with large curved rings (bloom, typhoon, boomer) and helps where Render scale doesn't, since the work is in the rings, not the pixels. At the lowest setting curves may look slightly faceted, by up to a pixel. Straight-sided patches aren't affected. Exports always use High.")
 				}
 				Toggle(isOn: $model.autoQuality) {
-					InfoLabel("Automatic quality", info: "When the picture can't keep up with the display (refreshes missed), Whorld lowers Curve quality first, then Render scale down to 50%, a step at a time, and raises them again once there's room to spare. It never goes above the settings above. Show Frame Rate says when it has stepped in. Exports aren't affected.")
+					InfoLabel("Automatic quality", info: "When the picture can't keep up with the display (refreshes missed), Whorld lowers Curve quality first, then Render scale down to 50%, a step at a time, and raises them again once there's room to spare. It never goes above the settings above. View > Show Stats says when it has stepped in. Exports aren't affected.")
 				}
 			}
 	}
@@ -353,15 +351,6 @@ struct PreferencesView: View {
 					}
 				} label: {
 					InfoLabel("Trackpad sensitivity", info: "How far a two-finger swipe moves a value: over the picture (zoom, Damping, or a held key's control), on a slider, and in a number box. ×1 is the usual; ×2 goes twice as far for the same swipe, ×0.5 half as far.")
-				}
-				LabeledContent {
-					HStack {
-						Toggle("Show values", isOn: $keyReadout)
-							.toggleStyle(.checkbox)
-						Button("Show…") { model.layout.setShown(.keymap, true) }	// the Key Map panel (View > Key Map), floating or docked
-					}
-				} label: {
-					InfoLabel("Key map", info: "Hold a key with the pointer over the picture and scroll (two fingers up or down, or the mouse wheel) to change a control instead of zooming; the Key Map says which key moves which control. Show values: the control's name and value appear briefly over the picture as it changes (never in Syphon output or exports).")
 				}
 				Toggle(isOn: $oscEnabled) {
 					InfoLabel("OSC remote control", info: "Every control MIDI can map has an OSC address, such as /w/m/sp for Speed; see Help > Whorld Help. Whorld answers each device that has sent it something in the last 30 seconds, on the send port, with the values as they change and the frame statistics (/w/stat/...). \"Also send to\" adds a fixed address, for a monitor that never sends.\n\nTouchOSC: open Whorld.tosc, and set a connection to this Mac's address, send port \(oscReceivePort), receive port \(oscSendPort).")

@@ -63,12 +63,6 @@ final class Changes {
 	}
 }
 
-/// The frame-rate overlay's text (see AppModel.stats).
-@MainActor
-final class StatsModel: ObservableObject {
-	@Published var text = ""
-}
-
 /// App state shared by the windows, menus and app delegate. All document
 /// edits go through here so they're undoable, as in CWhorldDoc.
 @MainActor
@@ -79,7 +73,10 @@ final class AppModel: ObservableObject {
 	let engine = WHEngine()
 	let undoManager = UndoManager()
 	@Published private(set) var title = "Untitled"
-	@Published var showFrameRate = false
+	/// View > Show Stats: the stats strip (ContentView.swift), kept between runs
+	@Published var showStats: Bool = UserDefaults.standard.bool(forKey: "View_bShowStats") {
+		didSet { UserDefaults.standard.set(showStats, forKey: "View_bShowStats") }
+	}
 	/// Settings > Display > Render scale and Upscaling (Mac addition): the
 	/// picture is drawn at this fraction of the display's pixels and scaled up
 	@Published var renderScale: Double = {
@@ -132,11 +129,6 @@ final class AppModel: ObservableObject {
 	static let renderScales: [(value: Double, name: String)] = [
 		(1, "100% (full resolution)"), (0.75, "75%"), (0.5, "50%"), (1.0 / 3, "33%"),
 	]
-	/// Frame statistics, published on their own: a change to AppModel
-	/// rebuilds every open panel, which with Parameters, Master, Globals and
-	/// Properties open blocked the main thread for about 100 ms. Done once a
-	/// second, that cost several display refreshes each time (a stutter).
-	let stats = StatsModel()
 	/// Set while a Properties row has focus: Space (the Pause shortcut,
 	/// which menus see before any view) goes to the row instead. Returns
 	/// false if it didn't take it (its window isn't the key window).
@@ -160,14 +152,20 @@ final class AppModel: ObservableObject {
 			guard let self else { return }
 			let e = self.engine
 			let osc = e.oscClientCount > 0	// OSC monitoring: /w/stat/...
-			guard self.showFrameRate || Self.logStats || osc else { return }
+			guard self.showStats || Self.logStats || osc else { return }
 			let gpu = e.gpuMilliseconds > 0 ? String(format: " · gpu %.1f ms", e.gpuMilliseconds) : ""
 			let auto = e.autoQualityStatus.isEmpty ? "" : " · " + e.autoQualityStatus
 			let text = String(format: "%.0f fps · draw %.1f ms%@ · %d Hz · %ld missed · %ld rings · %@%@",
 				e.framesPerSecond, e.renderMilliseconds, gpu, e.refreshRate, e.missedFrames, e.ringCount,
 				e.rendererName, auto)
-			if self.showFrameRate {
-				self.stats.text = text
+			// the strip: fps, missed, draw and GPU times, rings, automatic
+			// quality (StripFeed, not published: a change to AppModel rebuilds
+			// every open panel, about 100 ms with four open, a stutter)
+			if self.showStats {
+				StripFeed.shared.setStats(String(format: "%.0f fps · ", e.framesPerSecond),
+					missed: "\(e.missedFrames) missed",
+					String(format: " · draw %.1f ms%@ · %ld rings%@", e.renderMilliseconds, gpu, e.ringCount, auto),
+					tip: "\(e.refreshRate) Hz display · \(e.rendererName)")
 			}
 			if Self.logStats {	// WHORLD_STATS=1: also print, for measuring
 				FileHandle.standardError.write(Data((text + "\n").utf8))
@@ -749,6 +747,7 @@ final class AppModel: ObservableObject {
 		} else {
 			setZoom(value)
 		}
+		StripFeed.shared.setReadout((shift ? "Damping" : "Zoom") + "  " + WHControls.formatMaster(iProp, value: value))
 	}
 
 	let outputKeys = OutputKeys()
@@ -792,7 +791,7 @@ final class AppModel: ObservableObject {
 				return
 			}
 		}
-		KeyReadout.show(b.displayName + "  " + shown)
+		StripFeed.shared.setReadout(b.displayName + "  " + shown)
 	}
 
 	/// A two-finger tap (a secondary click) over the picture while a key in

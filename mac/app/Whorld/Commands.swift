@@ -324,18 +324,9 @@ struct WhorldCommands: Commands {
 					.keyboardShortcut(id.shortcut, modifiers: id.shortcutModifiers)
 			}
 			Divider()
-			Menu("Render Scale") {	// Settings > Display; replaces Full Resolution
-				// items, not an inline picker, which puts an empty separator
-				// at each end of a menu of its own
-				ForEach(AppModel.renderScales, id: \.value) { s in
-					Toggle(s.name, isOn: Binding(get: { model.renderScale == s.value },
-						set: { _ in model.renderScale = s.value }))
-				}
-				// the scale only, a quick lever if frames drop on stage;
-				// Smooth Upscaling and Automatic Quality are set once, in
-				// Settings > Display (the user's menu audit, 2026-11-18)
-			}
-			Toggle("Show Frame Rate", isOn: $model.showFrameRate)
+			// Render Scale's submenu is gone: the stats strip has it, with
+			// Automatic Quality (the user's request, 2026-11-19)
+			Toggle("Show Stats", isOn: $model.showStats)
 				.keyboardShortcut("f", modifiers: [.command, .option])	// not Ctrl-Cmd-F, macOS's full screen key
 			Toggle("Syphon Output", isOn: Binding(get: { model.syphonEnabled }, set: { model.setSyphonEnabled($0) }))
 		}

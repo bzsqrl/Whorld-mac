@@ -82,7 +82,6 @@ final class FullScreenController {
 		view.autoresizingMask = [.width, .height]
 		view.renderScale = renderScale
 		view.smoothUpscaling = smoothUpscaling
-		KeyReadout.attach(to: view)
 		view.secondaryClickHandler = {	// a two-finger tap with a key held: that control's default
 			MainActor.assumeIsolated { AppModel.shared.resetHeldKeyControl() }
 		}

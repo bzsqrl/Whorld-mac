@@ -15,7 +15,13 @@ struct ContentView: View {
 	@EnvironmentObject private var model: AppModel
 
 	var body: some View {
-		WorkspaceView(layout: model.layout)
+		VStack(spacing: 0) {
+			if model.showStats {
+				StatsStrip()
+				Divider()
+			}
+			WorkspaceView(layout: model.layout)
+		}
 			.background(MainWindowObserver { model.workspaceWindowAppeared($0) })
 			.modifier(DocumentTitle())
 	}
@@ -32,7 +38,7 @@ private struct DocumentTitle: ViewModifier {
 	}
 }
 
-/// The output: the render view with the movie bar and frame-rate overlays,
+/// The output: the render view with the movie bar overlay,
 /// taking dropped files. In the workspace's middle, or in the detached
 /// output window.
 struct OutputView: View {
@@ -47,11 +53,6 @@ struct OutputView: View {
 			.frame(minWidth: 320, minHeight: 240)
 			.overlay(alignment: .bottom) {
 				MovieBar()
-			}
-			.overlay(alignment: .topLeading) {
-				if model.showFrameRate {
-					StatsOverlay(stats: model.stats)
-				}
 			}
 			.onDrop(of: panelDrop == nil ? [.fileURL] : [.fileURL, .whorldPanel],
 				delegate: OutputDropDelegate(model: model, panels: panelDrop))
@@ -99,18 +100,180 @@ struct OutputDropDelegate: DropDelegate {
 	}
 }
 
-/// The frame-rate overlay. It observes only the statistics, so their update
-/// each second redraws this text and nothing else.
-struct StatsOverlay: View {
-	@ObservedObject var stats: StatsModel
+/// View > Show Stats (Mac addition; the user's request, 2026-11-19): a thin
+/// strip across the top of the workspace window, never over the picture,
+/// with the frame statistics, the last control swiped over the picture
+/// (a held key's, or Zoom and Damping), and the quick performance levers.
+/// It replaced the frame-rate overlay and the key readout over the picture.
+struct StatsStrip: View {
+	@EnvironmentObject private var model: AppModel
+	static let height: CGFloat = 24
 
 	var body: some View {
-		Text(stats.text)
-			.font(.system(.caption, design: .monospaced))
-			.foregroundStyle(.white)
-			.padding(6)
-			.background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 4))
-			.padding(8)
+		HStack(spacing: 10) {
+			// the live text is AppKit, redrawn by StripFeed: a SwiftUI layout
+			// pass every second (or every swipe) would drop the panes' tooltips
+			StripText(part: .stats)
+				.frame(minWidth: 60, maxWidth: 440)
+				.layoutPriority(1)	// a narrow window drops the readout first
+			Divider().frame(height: 14)
+			StripText(part: .readout)
+				.frame(minWidth: 0, maxWidth: 260)
+			Spacer(minLength: 0)
+			Picker(selection: $model.renderScale) {
+				ForEach(AppModel.renderScales, id: \.value) { s in
+					Text(s.name.split(separator: " ").first.map(String.init) ?? s.name).tag(s.value)
+				}
+			} label: {
+				Text("Scale").foregroundStyle(.secondary)
+			}
+			.pickerStyle(.menu)
+			.fixedSize()
+			Toggle("Auto", isOn: $model.autoQuality)
+				.toggleStyle(.checkbox)
+				.fixedSize()
+			InfoButton(text: Self.info, small: true)
+		}
+		.controlSize(.small)
+		.font(.caption)
+		.padding(.horizontal, 10)
+		.frame(height: Self.height)
+		.frame(maxWidth: .infinity)
+		.background(Color(nsColor: .windowBackgroundColor))
+	}
+
+	static let info = "Frames drawn a second, display refreshes missed in the last second (orange), the time to draw a frame (on the CPU, and on the GPU with Metal) and the rings drawn; with Automatic quality on, what it has lowered. The display's rate and the renderer are in the statistics' tooltip.\n\nIn the middle, the last control changed by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map), with its value.\n\nScale is Render scale and Auto is Automatic quality, as in Settings > Display, which explains them. View > Show Stats (Option-Command-F) hides the strip."
+}
+
+/// What the stats strip shows, set by AppModel; its text views redraw only
+/// when their part changes.
+@MainActor
+final class StripFeed {
+	static let shared = StripFeed()
+
+	private(set) var stats = ""		// before and after "n missed", which
+	private(set) var missed = ""	// is drawn orange when n > 0
+	private(set) var statsTail = ""
+	private(set) var statsTip = ""
+	private(set) var readout = ""
+	private(set) var readoutFresh = false	// just changed; dimmed after a few seconds
+	private var views: [WeakView] = []
+	private var dimWork: DispatchWorkItem?
+
+	private final class WeakView {
+		weak var view: StripText.View?
+		init(_ v: StripText.View) { view = v }
+	}
+
+	func add(_ v: StripText.View) {
+		views.removeAll { $0.view == nil || $0.view === v }
+		views.append(WeakView(v))
+	}
+
+	func remove(_ v: StripText.View) {
+		views.removeAll { $0.view == nil || $0.view === v }
+	}
+
+	private func redraw(_ part: StripText.Part) {
+		for w in views where w.view?.part == part { w.view?.needsDisplay = true }
+	}
+
+	func setStats(_ s: String, missed m: String, _ tail: String, tip: String) {
+		guard s != stats || m != missed || tail != statsTail || tip != statsTip else { return }
+		stats = s
+		missed = m
+		statsTail = tail
+		if tip != statsTip {
+			statsTip = tip
+			for w in views where w.view?.part == .stats { w.view?.toolTip = tip }
+		}
+		redraw(.stats)
+	}
+
+	func setReadout(_ s: String) {
+		if s != readout || !readoutFresh {
+			readout = s
+			readoutFresh = true
+			redraw(.readout)
+		}
+		dimWork?.cancel()
+		let work = DispatchWorkItem { [weak self] in
+			MainActor.assumeIsolated {
+				self?.readoutFresh = false
+				self?.redraw(.readout)
+			}
+		}
+		dimWork = work
+		DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: work)
+	}
+}
+
+/// One of the stats strip's live texts (StripFeed), drawn in AppKit
+struct StripText: NSViewRepresentable {
+	enum Part { case stats, readout }
+	let part: Part
+
+	final class View: NSView {
+		var part: Part = .stats
+
+		override var isFlipped: Bool { true }
+
+		override func viewDidMoveToWindow() {
+			super.viewDidMoveToWindow()
+			if window != nil {
+				StripFeed.shared.add(self)
+				if part == .stats { toolTip = StripFeed.shared.statsTip }
+			} else {
+				StripFeed.shared.remove(self)
+			}
+		}
+
+		override func viewDidChangeEffectiveAppearance() {
+			super.viewDidChangeEffectiveAppearance()
+			needsDisplay = true
+		}
+
+		override func draw(_ dirtyRect: NSRect) {
+			let feed = StripFeed.shared
+			let font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+			let style = NSMutableParagraphStyle()
+			style.lineBreakMode = .byTruncatingTail
+			func attrs(_ color: NSColor) -> [NSAttributedString.Key: Any] {
+				[.font: font, .foregroundColor: color, .paragraphStyle: style]
+			}
+			let text = NSMutableAttributedString()
+			switch part {
+			case .stats:
+				guard !feed.stats.isEmpty else { break }
+				let warn = !feed.missed.hasPrefix("0 ")
+				text.append(NSAttributedString(string: feed.stats, attributes: attrs(.secondaryLabelColor)))
+				text.append(NSAttributedString(string: feed.missed, attributes: attrs(warn ? .systemOrange : .secondaryLabelColor)))
+				text.append(NSAttributedString(string: feed.statsTail, attributes: attrs(.secondaryLabelColor)))
+			case .readout:
+				if feed.readout.isEmpty {
+					text.append(NSAttributedString(string: "Swipe over the picture", attributes: attrs(.tertiaryLabelColor)))
+				} else {
+					text.append(NSAttributedString(string: feed.readout,
+						attributes: attrs(feed.readoutFresh ? .labelColor : .secondaryLabelColor)))
+				}
+			}
+			let h = ceil(font.ascender - font.descender + font.leading)
+			let r = NSRect(x: 0, y: floor((bounds.height - h) / 2), width: bounds.width, height: h)
+			text.draw(with: r, options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
+		}
+	}
+
+	func makeNSView(context: Context) -> View {
+		let v = View()
+		v.part = part
+		return v
+	}
+
+	func updateNSView(_ v: View, context: Context) {
+		if v.part != part {
+			v.part = part
+			v.needsDisplay = true
+		}
 	}
 }
 
@@ -143,7 +306,6 @@ struct RenderView: NSViewRepresentable {
 
 	func makeNSView(context: Context) -> WHRenderView {
 		let view = WHRenderView(frame: .zero)
-		KeyReadout.attach(to: view)	// a held key's control and value, if Settings says
 		view.secondaryClickHandler = {	// a two-finger tap with a key held: that control's default
 			MainActor.assumeIsolated { AppModel.shared.resetHeldKeyControl() }
 		}
