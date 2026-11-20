@@ -1882,11 +1882,22 @@ struct EdgeDropDelegate: DropDelegate {
 
 /// View > Detach (CWhorldApp::SetDetached): the output in a window of its
 /// own, whose place is remembered (as RK_RENDER_WND is). Closing it docks
-/// the output again.
+/// the output again. Like a floating panel (FloatingWindowHelper), it stays
+/// above the Whorld window while Whorld is the active app, so clicking the
+/// panels doesn't hide the picture (the user's request, 2026-11-20); with
+/// another app active it's an ordinary window, and on the display full
+/// screen covers it goes behind.
 @MainActor
 final class OutputWindowController: NSObject, NSWindowDelegate {
 	private(set) var window: NSWindow?
 	var onClose: (() -> Void)?
+	private var observers: [NSObjectProtocol] = []
+
+	private func setLevel() {
+		guard let w = window else { return }
+		let covered = FullScreenController.coveredScreen.map { $0 == w.screen } ?? false
+		w.level = NSApp.isActive && !covered ? .floating : .normal
+	}
 
 	func show(model: AppModel, near frame: NSRect?) {
 		guard window == nil else { return }
@@ -1906,12 +1917,25 @@ final class OutputWindowController: NSObject, NSWindowDelegate {
 		}
 		w.setFrameAutosaveName("WhorldOutputWindow")
 		window = w
+		setLevel()
+		let nc = NotificationCenter.default
+		for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification,
+			FullScreenController.coverChanged] {
+			observers.append(nc.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+				MainActor.assumeIsolated { self?.setLevel() }
+			})
+		}
+		observers.append(nc.addObserver(forName: NSWindow.didChangeScreenNotification, object: w, queue: .main) { [weak self] _ in
+			MainActor.assumeIsolated { self?.setLevel() }	// moved onto, or off, the full screen's display
+		})
 		w.makeKeyAndOrderFront(nil)
 	}
 
 	func hide() {
 		guard let w = window else { return }
 		window = nil
+		observers.forEach(NotificationCenter.default.removeObserver)
+		observers = []
 		w.delegate = nil
 		w.saveFrame(usingName: "WhorldOutputWindow")
 		w.orderOut(nil)
