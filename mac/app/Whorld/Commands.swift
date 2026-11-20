@@ -327,7 +327,7 @@ struct WhorldCommands: Commands {
 			// Render Scale's submenu is gone: the stats strip has it, with
 			// Automatic Quality (the user's request, 2026-11-19)
 			Toggle("Show Stats", isOn: $model.showStats)
-				.keyboardShortcut("f", modifiers: [.command, .option])	// not Ctrl-Cmd-F, macOS's full screen key
+				.keyboardShortcut("9", modifiers: [.command, .option])	// after the panels' Option-Command 1 to 8 (the user's request, 2026-11-19)
 			Toggle("Syphon Output", isOn: Binding(get: { model.syphonEnabled }, set: { model.setSyphonEnabled($0) }))
 		}
 

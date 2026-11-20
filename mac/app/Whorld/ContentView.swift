@@ -152,7 +152,7 @@ struct StatsStrip: View {
 		.background(Color(nsColor: .windowBackgroundColor))
 	}
 
-	static let info = "Frames drawn a second, display refreshes missed in the last second (orange when any are), the time to draw a frame (on the CPU, then on the GPU with Metal) and the rings drawn. The display's rate and the renderer are in the statistics' tooltip.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nQuality is Render quality and Auto is Automatic quality, as in Settings > Display, which explains them; beside Auto, what it has lowered for now, if anything. View > Show Stats (Option-Command-F) hides the strip."
+	static let info = "Frames drawn a second, display refreshes missed in the last second (orange when any are), the time to draw a frame (on the CPU, then on the GPU with Metal) and the rings drawn. The display's rate and the renderer are in the statistics' tooltip.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nQuality is Render quality and Auto is Automatic quality, as in Settings > Display, which explains them; beside Auto, what it has lowered for now, if anything. View > Show Stats (Option-Command-9) hides the strip."
 }
 
 /// What the stats strip shows, set by AppModel; its text views redraw only
