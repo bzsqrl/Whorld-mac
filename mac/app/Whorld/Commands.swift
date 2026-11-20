@@ -80,7 +80,8 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut("s")
 			Button("Save As…") { model.saveAs() }
 				.keyboardShortcut("s", modifiers: [.command, .shift])
-			Button("Patch Author…") { model.editPatchAuthor() }
+			// Patch Author… is gone: the Save As dialog has the Author field
+			// (the user's request, 2026-11-19)
 			Divider()
 			// the playlist's files, from the Playlist menu (Windows' File >
 			// Playlist; the user's menu audit, 2026-11-18), in a submenu of

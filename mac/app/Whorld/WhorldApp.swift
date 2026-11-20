@@ -1066,23 +1066,6 @@ final class AppModel: ObservableObject {
 		noteEdit()
 	}
 
-	/// File > Patch Author...: names the patch's author; Save (or Save As)
-	/// then writes it
-	func editPatchAuthor() {
-		let field = NSTextField(string: authorToSuggest)
-		field.placeholderString = "who made this patch"
-		field.frame = NSRect(x: 0, y: 0, width: 300, height: 24)
-		let a = NSAlert()
-		a.messageText = "Author of \"\(title)\""
-		a.informativeText = "Saved with the patch, and shown in the title bar and the Playlist's Author column. Leave empty for none."
-		a.accessoryView = field
-		a.addButton(withTitle: "OK")
-		a.addButton(withTitle: "Cancel")
-		a.window.initialFirstResponder = field
-		guard a.runModal() == .alertFirstButtonReturn else { return }
-		setPatchAuthor(field.stringValue)
-	}
-
 	private func write(to url: URL) -> Bool {
 		do {
 			try engine.savePatch(toPath: url.path)

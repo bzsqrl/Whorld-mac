@@ -248,7 +248,7 @@ struct PreferencesView: View {
 						.multilineTextAlignment(.trailing)
 						.frame(width: 180)
 				} label: {
-					InfoLabel("Your name", info: "Suggested as the Author when you save a patch that doesn't name one yet, or use File > Patch Author…. A patch's existing author is never replaced unless you change it.")
+					InfoLabel("Your name", info: "Suggested as the Author in the Save As dialog for a patch that doesn't name one yet. A patch's existing author is never replaced unless you change it.")
 				}
 			}
 	}
