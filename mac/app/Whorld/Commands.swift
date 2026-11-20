@@ -329,6 +329,10 @@ struct WhorldCommands: Commands {
 			// Automatic Quality (the user's request, 2026-11-19)
 			Toggle("Show Stats", isOn: $model.showStats)
 				.keyboardShortcut("9", modifiers: [.command, .option])	// after the panels' Option-Command 1 to 8 (the user's request, 2026-11-19)
+			// the strip's Auto; beside Audio Modulation's Command-' (the
+			// user's request, 2026-11-19; out of Settings > Display)
+			Toggle("Automatic Quality", isOn: $model.autoQuality)
+				.keyboardShortcut(";")
 			// on and off, and the size (out of Settings > Output, and in the
 			// stats strip too; the user's request, 2026-11-19)
 			Menu("Syphon") {

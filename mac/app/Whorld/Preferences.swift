@@ -311,9 +311,8 @@ struct PreferencesView: View {
 				} label: {
 					InfoLabel("Curve quality", info: "How smoothly curved rings are drawn. Curves are drawn as many short straight segments; lower quality uses fewer, which speeds up patches with large curved rings (bloom, typhoon, boomer) and helps where Render quality doesn't, since the work is in the rings, not the pixels. At the lowest setting curves may look slightly faceted, by up to a pixel. Straight-sided patches aren't affected. Exports always use High.")
 				}
-				Toggle(isOn: $model.autoQuality) {
-					InfoLabel("Automatic quality", info: "When the picture can't keep up with the display (refreshes missed), Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare. It never goes above the settings above. View > Show Stats says when it has stepped in. Exports aren't affected.")
-				}
+				// Automatic quality: View > Automatic Quality (Command-;) and the
+				// stats strip's Auto (the user's request, 2026-11-19)
 			}
 	}
 
