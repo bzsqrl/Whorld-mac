@@ -166,9 +166,10 @@ final class AppModel: ObservableObject {
 				let gpuTime = e.gpuMilliseconds > 0 ? String(format: "/%.1f", e.gpuMilliseconds) : ""
 				StripFeed.shared.setStats(String(format: "%.0f fps · ", e.framesPerSecond),
 					missed: "\(e.missedFrames) missed",
-					String(format: " · %.1f%@ ms · %ld rings", e.renderMilliseconds, gpuTime, e.ringCount),
-					tip: "\(e.refreshRate) Hz display · \(e.rendererName) · draw time on the CPU" + (gpuTime.isEmpty ? "" : "/GPU"))
-				StripFeed.shared.setAuto(Self.autoTag(e.autoQualityStatus))
+					String(format: " · %.1f%@ ms", e.renderMilliseconds, gpuTime),
+					tip: "\(e.ringCount) rings · \(e.refreshRate) Hz display · \(e.rendererName) · draw time on the CPU" + (gpuTime.isEmpty ? "" : "/GPU"))
+				StripFeed.shared.setAuto(Self.autoTag(e.autoQualityStatus),
+					percent: Int((self.renderScale * (self.autoQuality ? e.autoScaleFactor : 1) * 100).rounded()))
 			}
 			if Self.logStats {	// WHORLD_STATS=1: also print, for measuring
 				FileHandle.standardError.write(Data((text + "\n").utf8))
@@ -606,6 +607,20 @@ final class AppModel: ObservableObject {
 
 	// MARK: The stats strip's readout
 
+	/// a parameter column's name, short, for the stats strip's readout:
+	/// Ring Growth Amp, Freq, PW, Glob, Wave (the user's request, 2026-11-19)
+	static func shortParamTitle(_ iParam: Int, _ prop: WHParamProperty) -> String {
+		let base = WHControls.paramName(iParam)
+		switch prop {
+		case .amp: return base + " Amp"
+		case .freq: return base + " Freq"
+		case .PW: return base + " PW"
+		case .global: return base + " Glob"
+		case .wave: return base + " Wave"
+		default: return base
+		}
+	}
+
 	/// The last control changed by hand, MIDI or OSC (not by modulation or
 	/// a patch loading), with its new value, in the stats strip (View > Show
 	/// Stats; the user's request, 2026-11-19).
@@ -619,7 +634,7 @@ final class AppModel: ObservableObject {
 			let column = prop == .amp ? 1 : prop == .freq ? 2 : prop == .PW ? 3 : 0
 			shown = WHControls.format(v, control: WHControls.paramControl(iParam, column: column))
 		}
-		StripFeed.shared.setReadout(Self.paramTitle(iParam, prop) + "  " + shown)
+		StripFeed.shared.setReadout(Self.shortParamTitle(iParam, prop) + "  " + shown, full: Self.paramTitle(iParam, prop) + "  " + shown)
 	}
 
 	func showMaster(_ iProp: Int) {
@@ -862,7 +877,8 @@ final class AppModel: ObservableObject {
 				return
 			}
 		}
-		StripFeed.shared.setReadout(b.displayName + "  " + shown)
+		let short = t < nParams ? Self.shortParamTitle(t, WHParamProperty(rawValue: b.prop) ?? .val) : b.displayName
+		StripFeed.shared.setReadout(short + "  " + shown, full: b.displayName + "  " + shown)
 	}
 
 	/// A two-finger tap (a secondary click) over the picture while a key in

@@ -227,41 +227,37 @@ struct StatsStrip: View {
 				.frame(minWidth: 0, idealWidth: StripText.width(.readout), maxWidth: StripText.width(.readout))
 			Divider().frame(height: 14)
 			// Audio > Audio Modulation, with the beat: the most live of the
-			// levers, so first (the user's request, 2026-11-19)
-			Toggle("Audio Mod", isOn: Binding(get: { !ModMap.shared.bypass }, set: { ModMap.shared.bypass = !$0 }))
-				.toggleStyle(.checkbox)
-				.fixedSize()
-				.layoutPriority(2)
-			StripText(part: .beat)	// off, finding the beat, or locked (flashing on the beat)
-				.frame(width: 8, height: 8)
-				.layoutPriority(2)
-			StripText(part: .tempo)	// the locked tempo, BPM
-				.frame(width: StripText.width(.tempo))
-				.layoutPriority(2)
-			Divider().frame(height: 14)
-			Picker(selection: $model.renderScale) {
-				ForEach(AppModel.renderScales, id: \.value) { s in
-					Text(s.name.split(separator: " ").first.map(String.init) ?? s.name).tag(s.value)
+			// levers, so first (the user's request, 2026-11-19). Mod and Syphon
+			// are labels a click toggles, their dots saying on or off (no
+			// checkboxes, for the readout's room)
+			Button { ModMap.shared.bypass.toggle() } label: {
+				HStack(spacing: 5) {
+					Text("Mod").foregroundStyle(ModMap.shared.bypass ? .secondary : .primary)
+					StripText(part: .beat)	// off, finding the beat, or locked (flashing on the beat)
+						.frame(width: 8, height: 8)
+					StripText(part: .tempo)	// the locked tempo, BPM
+						.frame(width: StripText.width(.tempo), height: 14)
 				}
-			} label: {
-				Text("Quality").foregroundStyle(.secondary)
 			}
-			.pickerStyle(.menu)
+			.buttonStyle(StripToggleStyle())
 			.fixedSize()
 			.layoutPriority(2)
-			Toggle("Auto", isOn: $model.autoQuality)
-				.toggleStyle(.checkbox)
-				.fixedSize()
-				.layoutPriority(2)
-			AutoTag(feed: StripFeed.shared.autoTag)	// what Automatic quality has lowered
+			.help("Audio modulation on or off (Audio > Audio Modulation, ⌘'). The dot: faint off, hollow finding the beat, filled once it's locked, flashing on each beat; then the tempo.")
 			Divider().frame(height: 14)
-			Toggle("Syphon", isOn: Binding(get: { model.syphonEnabled }, set: { model.setSyphonEnabled($0) }))
-				.toggleStyle(.checkbox)
-				.fixedSize()
+			QualityMenu(feed: StripFeed.shared.autoTag)
 				.layoutPriority(2)
-			StripText(part: .syphon)	// off, publishing, or an app receiving
-				.frame(width: 8, height: 8)
-				.layoutPriority(2)
+			Divider().frame(height: 14)
+			Button { model.setSyphonEnabled(!model.syphonEnabled) } label: {
+				HStack(spacing: 5) {
+					Text("Syphon").foregroundStyle(model.syphonEnabled ? .primary : .secondary)
+					StripText(part: .syphon)	// off, publishing, or an app receiving
+						.frame(width: 8, height: 8)
+				}
+			}
+			.buttonStyle(StripToggleStyle())
+			.fixedSize()
+			.layoutPriority(2)
+			.help("Syphon output on or off (View > Syphon, which also sets its size). The dot: faint off, hollow while no app is receiving, filled once one is.")
 			Spacer(minLength: 0)
 			InfoButton(text: Self.info, small: true)
 				.layoutPriority(2)
@@ -274,7 +270,7 @@ struct StatsStrip: View {
 		.background(Color(nsColor: .windowBackgroundColor))
 	}
 
-	static let info = "Frames drawn a second, display refreshes missed in the last second (orange when any are), the time to draw a frame (on the CPU, then on the GPU with Metal) and the rings drawn. The display's rate and the renderer are in the statistics' tooltip.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nAudio Mod turns audio modulation on and off (Audio > Audio Modulation, Command-'). Its dot: hollow while it's finding the beat, filled and flashing on each beat once it's locked, with the tempo beside it.\n\nQuality is Render quality (Settings > Display explains it). Auto is Automatic quality (View > Automatic Quality, Command-;): when the picture can't keep up with the display, Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare, never above your settings; exports aren't affected. Beside Auto, what it has lowered for now, if anything.\n\nSyphon sends the picture to other apps on this Mac (View > Syphon also sets its size). Its dot: hollow while no app is receiving, filled once one is.\n\nView > Show Stats (Option-Command-9) hides the strip."
+	static let info = "Frames drawn a second, display refreshes missed in the last second (orange when any are), and the time to draw a frame (on the CPU, then on the GPU with Metal). The rings drawn, the display's rate and the renderer are in the statistics' tooltip.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nClick Mod to turn audio modulation on and off (Audio > Audio Modulation, Command-'). Its dot: faint while it's off, hollow while it's finding the beat, filled and flashing on each beat once it's locked, with the tempo beside it.\n\nThe Quality menu sets Render quality (Settings > Display explains it) and Automatic quality (View > Automatic Quality, Command-;); its title says which is in charge, Quality or Auto, and the quality drawn. Automatic quality: when the picture can't keep up with the display, Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare, never above your settings; exports aren't affected. While it has lowered something, the title is orange with a ↓ (Auto ↓75%), and its tooltip says what.\n\nClick Syphon to send the picture to other apps on this Mac, or stop (View > Syphon also sets its size). Its dot: faint while it's off, hollow while no app is receiving, filled once one is.\n\nView > Show Stats (Option-Command-9) hides the strip."
 }
 
 /// What the stats strip shows, set by AppModel; its text views redraw only
@@ -393,12 +389,16 @@ final class StripFeed {
 		redraw(.syphon)
 	}
 
-	func setAuto(_ s: String) {
-		guard s != autoTag.text else { return }
-		autoTag.text = s
+	func setAuto(_ detail: String, percent: Int) {
+		if detail != autoTag.detail { autoTag.detail = detail }
+		if percent != autoTag.percent { autoTag.percent = percent }
 	}
 
-	func setReadout(_ s: String) {
+	/// `full`: the control's whole name, for the tooltip, where the readout
+	/// shortens it (Ring Growth Amp for Ring Growth Amplitude)
+	func setReadout(_ s: String, full: String? = nil) {
+		let tip = full ?? s
+		for w in views where w.view?.part == .readout && w.view?.toolTip != tip { w.view?.toolTip = tip }
 		if s != readout || !readoutFresh {
 			readout = s
 			readoutFresh = true
@@ -416,20 +416,59 @@ final class StripFeed {
 	}
 }
 
+/// What Automatic quality has lowered ("curves 1.0 px, 75%"; empty: nothing)
+/// and the quality drawn, in percent. Published on their own, changing only
+/// when Automatic quality steps (seldom), so the strip lays out only then.
 final class AutoTagFeed: ObservableObject {
-	@Published var text = ""
+	@Published var detail = ""
+	@Published var percent = 100
 }
 
-/// The stats strip's tag beside Auto: what Automatic quality has lowered
-private struct AutoTag: View {
+/// The stats strip's Quality menu (the user's request, 2026-11-19): Render
+/// quality and Automatic quality in one, its title what's in effect:
+/// "Quality 100%", "Auto 100%", or "Auto ↓75%" in orange while Automatic
+/// quality has lowered something
+private struct QualityMenu: View {
+	@EnvironmentObject private var model: AppModel
 	@ObservedObject var feed: AutoTagFeed
 
 	var body: some View {
-		if !feed.text.isEmpty {
-			Text(feed.text)
-				.foregroundStyle(.orange)
-				.lineLimit(1)
-				.fixedSize()
+		let lowered = model.autoQuality && !feed.detail.isEmpty
+		let percent = lowered ? feed.percent : Int((model.renderScale * 100).rounded())
+		let title = (model.autoQuality ? "Auto " : "Quality ") + (lowered ? "↓" : "") + "\(percent)%"
+		Menu {
+			Toggle("Automatic", isOn: $model.autoQuality)
+			Divider()
+			ForEach(AppModel.renderScales, id: \.value) { s in
+				Toggle(s.name, isOn: Binding(get: { model.renderScale == s.value }, set: { _ in model.renderScale = s.value }))
+			}
+		} label: {
+			Text(title)
+		}
+		.menuStyle(.borderlessButton)
+		.foregroundStyle(lowered ? Color.orange : Color.primary)
+		.fixedSize()
+		.help(lowered ? "Automatic quality has lowered: \(feed.detail)"
+			: model.autoQuality ? "Automatic quality is on, and hasn't needed to lower anything (⌘;)" : "Render quality; Automatic quality is off (⌘;)")
+	}
+}
+
+/// Mod and Syphon in the stats strip: a label a click toggles, lit on hover
+private struct StripToggleStyle: ButtonStyle {
+	func makeBody(configuration: Configuration) -> some View { Lit(configuration: configuration) }
+
+	private struct Lit: View {
+		let configuration: Configuration
+		@State private var hover = false
+
+		var body: some View {
+			configuration.label
+				.padding(.horizontal, 4)
+				.padding(.vertical, 2)
+				.background(RoundedRectangle(cornerRadius: 4)
+					.fill(Color.primary.opacity(configuration.isPressed ? 0.18 : hover ? 0.09 : 0)))
+				.contentShape(Rectangle())
+				.onHover { hover = $0 }
 		}
 	}
 }
@@ -453,7 +492,7 @@ struct StripText: NSViewRepresentable {
 	/// a part's width: its longest usual text
 	static func width(_ part: Part) -> CGFloat {
 		let sample = switch part {
-		case .stats: "000 fps · 00 missed · 00.0/00.0 ms · 0000 rings"
+		case .stats: "000 fps · 00 missed · 00.0/00.0 ms"
 		case .readout: "Rotate Speed Freq  -00.000"
 		case .syphon, .beat: ""
 		case .tempo: "000"
@@ -465,6 +504,10 @@ struct StripText: NSViewRepresentable {
 		var part: Part = .stats
 
 		override var isFlipped: Bool { true }
+		// the dots and the tempo: clicks and tips are their button's
+		override func hitTest(_ point: NSPoint) -> NSView? {
+			part == .beat || part == .tempo || part == .syphon ? nil : super.hitTest(point)
+		}
 
 		override func viewDidMoveToWindow() {
 			super.viewDidMoveToWindow()
