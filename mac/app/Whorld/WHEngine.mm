@@ -1561,8 +1561,8 @@ static NSString *SourceName(MIDIEndpointRef src)
 			_doc.SetParamRC(post.iParam, post.iProp, v);
 			_modified = YES;
 		}
-		if (_midiHandler)
-			_midiHandler(5, (uint32_t)post.iParam);	// just that row
+		if (_midiHandler)	// just that row, and the column (the stats strip's readout)
+			_midiHandler(5, (uint32_t)post.iParam | (uint32_t)post.iProp << 8);
 		return;
 	case Post::MASTER_PROP_CHANGE:
 		_doc.SetMasterProp(post.iProp, post.fVal);
@@ -1612,8 +1612,11 @@ static NSString *SourceName(MIDIEndpointRef src)
 			_midiHandler(7, (uint32_t)post.iVal);
 		return;
 	}
-	if (_midiHandler)
-		_midiHandler(0, 0);
+	if (_midiHandler) {	// the main property changed, plus 1 (the stats strip's readout)
+		int	iMain = post.type == Post::SET_DRAW_MODE ? WhorldBase::MAIN_DrawMode
+			: post.type == Post::ROTATE_HUE ? WhorldBase::MAIN_Hue : post.iProp;
+		_midiHandler(0, (uint32_t)(iMain + 1));
+	}
 }
 
 #pragma mark - OSC

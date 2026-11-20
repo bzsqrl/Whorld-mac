@@ -293,14 +293,18 @@ final class AppModel: ObservableObject {
 			changes.playlist.bump()
 			changes.menus.bump()
 		case 5:	// a parameter, from a mapping
-			midiPending.params.insert(Int(value))
+			let iParam = Int(value & 0xff)
+			midiPending.params.insert(iParam)
 			scheduleMidiRefresh()
+			if let prop = WHParamProperty(rawValue: Int(value >> 8)) { showParam(iParam, prop) }
 		case 6:	// a master property
 			midiPending.master.insert(Int(value))
 			scheduleMidiRefresh()
+			showMaster(Int(value))
 		default:	// 0: main properties or draw mode; 1: pause
 			midiPending.main = true
 			scheduleMidiRefresh()
+			if kind == 0, value > 0, let prop = MainProp(rawValue: Int(value) - 1) { showMain(prop) }
 		}
 	}
 
@@ -596,6 +600,54 @@ final class AppModel: ObservableObject {
 		}
 		engine.setParamValue(value, param: iParam, property: prop)
 		paramChanged(iParam)
+		showParam(iParam, prop)
+	}
+
+	// MARK: The stats strip's readout
+
+	/// The last control changed by hand, MIDI or OSC (not by modulation or
+	/// a patch loading), with its new value, in the stats strip (View > Show
+	/// Stats; the user's request, 2026-11-19).
+	func showParam(_ iParam: Int, _ prop: WHParamProperty) {
+		let v = engine.paramValue(iParam, property: prop)
+		let shown: String
+		switch prop {
+		case .wave: shown = WHControls.waveformName(Int(v))
+		case .global: shown = WHControls.format(v, control: WHControls.globalControl(iParam))
+		default:
+			let column = prop == .amp ? 1 : prop == .freq ? 2 : prop == .PW ? 3 : 0
+			shown = WHControls.format(v, control: WHControls.paramControl(iParam, column: column))
+		}
+		StripFeed.shared.setReadout(Self.paramTitle(iParam, prop) + "  " + shown)
+	}
+
+	func showMaster(_ iProp: Int) {
+		StripFeed.shared.setReadout(WHControls.masterName(iProp) + "  "
+			+ WHControls.formatMaster(iProp, value: engine.masterValue(iProp)))
+	}
+
+	func showMain(_ prop: MainProp) {
+		let shown: String
+		switch prop {
+		case .origin:
+			let o = engine.liveOrigin
+			shown = String(format: "%.3f, %.3f", o.x, o.y)
+		case .drawMode:
+			let m = engine.drawMode
+			let parts = (m & Self.drawModeFill != 0 ? ["Fill"] : []) + (m & Self.drawModeOutline != 0 ? ["Outline"] : [])
+			shown = parts.isEmpty ? "Lines" : parts.joined(separator: " + ")
+		case .orgMotion:
+			switch engine.originMotion {
+			case .drag: shown = "Drag"
+			case .random: shown = "Random"
+			default: shown = "Park"
+			}
+		case .hue:
+			shown = String(format: "%.1f°", engine.hue)
+		default:
+			shown = isOn(prop) ? "On" : "Off"
+		}
+		StripFeed.shared.setReadout(WHControls.mainName(prop.rawValue) + "  " + shown)
 	}
 
 	func setMaster(_ iProp: Int, _ value: Double) {
@@ -606,6 +658,7 @@ final class AppModel: ObservableObject {
 		}
 		engine.setMasterValue(value, prop: iProp)
 		masterChanged(iProp)
+		showMaster(iProp)
 	}
 
 	// CWhorldDoc::SetZoom
@@ -617,6 +670,7 @@ final class AppModel: ObservableObject {
 		}
 		engine.setZoom(zoom, damping: damping)
 		masterChanged(MasterProp.zoom.rawValue)
+		showMaster(MasterProp.zoom.rawValue)
 	}
 
 	// CWhorldDoc::SetOrigin: always sent, as on Windows. The document's
@@ -629,6 +683,7 @@ final class AppModel: ObservableObject {
 		}
 		engine.origin = pt
 		mainChanged()
+		showMain(.origin)
 	}
 
 	func setHue(_ hue: Double) {
@@ -639,6 +694,7 @@ final class AppModel: ObservableObject {
 		}
 		engine.hue = hue
 		mainChanged()
+		showMain(.hue)
 	}
 
 	/// Image > Rotate Hue (V1's, F3): existing rings turn 90 degrees and
@@ -651,6 +707,7 @@ final class AppModel: ObservableObject {
 		}
 		engine.rotateHue()
 		mainChanged()
+		showMain(.hue)
 	}
 
 	func setDrawMode(_ mode: UInt32) {
@@ -661,6 +718,7 @@ final class AppModel: ObservableObject {
 		}
 		engine.setDrawMode(mode)
 		mainChanged()
+		showMain(.drawMode)
 	}
 
 	func setOriginMotion(_ motion: WHOriginMotion) {
@@ -671,6 +729,7 @@ final class AppModel: ObservableObject {
 		}
 		engine.setOriginMotion(motion)
 		mainChanged()
+		showMain(.orgMotion)
 	}
 
 	/// Toggles a boolean main property; undo toggles it back.
@@ -689,6 +748,7 @@ final class AppModel: ObservableObject {
 		default: assertionFailure("not a boolean main property")
 		}
 		mainChanged()
+		showMain(prop)
 	}
 
 	func isOn(_ prop: MainProp) -> Bool {
@@ -749,7 +809,6 @@ final class AppModel: ObservableObject {
 		} else {
 			setZoom(value)
 		}
-		StripFeed.shared.setReadout((shift ? "Damping" : "Zoom") + "  " + WHControls.formatMaster(iProp, value: value))
 	}
 
 	let outputKeys = OutputKeys()

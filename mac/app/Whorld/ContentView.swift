@@ -103,8 +103,8 @@ struct OutputDropDelegate: DropDelegate {
 
 /// View > Show Stats (Mac addition; the user's request, 2026-11-19): a thin
 /// strip along the top of the output, never over the picture, packed in
-/// one cluster: the frame statistics, the last control swiped over the
-/// picture (a held key's, or Zoom and Damping), and the quick performance
+/// one cluster: the frame statistics, the last control changed by hand,
+/// MIDI or OSC (AppModel.showParam and the like), and the quick performance
 /// levers, Render quality and Automatic quality, with what Automatic
 /// quality has lowered. It replaced the frame-rate overlay and the key
 /// readout over the picture.
@@ -152,7 +152,7 @@ struct StatsStrip: View {
 		.background(Color(nsColor: .windowBackgroundColor))
 	}
 
-	static let info = "Frames drawn a second, display refreshes missed in the last second (orange when any are), the time to draw a frame (on the CPU, then on the GPU with Metal) and the rings drawn. The display's rate and the renderer are in the statistics' tooltip.\n\nNext, the last control changed by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map), with its value.\n\nQuality is Render quality and Auto is Automatic quality, as in Settings > Display, which explains them; beside Auto, what it has lowered for now, if anything. View > Show Stats (Option-Command-F) hides the strip."
+	static let info = "Frames drawn a second, display refreshes missed in the last second (orange when any are), the time to draw a frame (on the CPU, then on the GPU with Metal) and the rings drawn. The display's rate and the renderer are in the statistics' tooltip.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nQuality is Render quality and Auto is Automatic quality, as in Settings > Display, which explains them; beside Auto, what it has lowered for now, if anything. View > Show Stats (Option-Command-F) hides the strip."
 }
 
 /// What the stats strip shows, set by AppModel; its text views redraw only

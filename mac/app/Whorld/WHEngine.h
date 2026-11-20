@@ -333,8 +333,9 @@ typedef struct {
 - (void)setMappings:(const WHMappingData * _Nullable)mappings count:(NSInteger)count;
 // Called on the main thread after the engine applied a MIDI change to the
 // document (kind: 0 main properties or draw mode changed, 1 pause toggled,
-// 2 play patch `value`, 3 learn message `value`, 5 parameter row `value`
-// changed, 6 master property `value` changed), and when the MIDI sources
+// 2 play patch `value`, 3 learn message `value`, 5 parameter row
+// `value & 0xff` changed, in column `value >> 8` (WHParamProperty), 6 master
+// property `value` changed; kind 0's `value` is the main property plus 1), and when the MIDI sources
 // change (kind 4); kind 7: the Geometry Mode target set geometryMode. The
 // modulation targets go to modulationOscHandler.
 @property (nonatomic, copy, nullable) void (^midiHandler)(NSInteger kind, uint32_t value);
