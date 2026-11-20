@@ -135,7 +135,7 @@ final class AppModel: ObservableObject {
 	var keyboardSpaceAction: (() -> Bool)?
 	/// the workspace's panels and the output's place (Workspace.swift)
 	let layout = LayoutModel()
-	private let outputWindow = OutputWindowController()
+	let outputWindow = OutputWindowController()	// (TitleBarClicks asks for its window)
 	private var layoutWatch: AnyCancellable?
 	private var didFitWorkspace = false
 	/// What changed (see Changes). changed() means anything may have.
@@ -1138,6 +1138,20 @@ final class AppModel: ObservableObject {
 	/// origin to restore on undo. Nil when no press is moving the origin.
 	private var pressDrag: (motion: WHOriginMotion, origin: CGPoint)?
 	private var pressCount = 0
+	private var lastPress: (motion: WHOriginMotion, origin: CGPoint, time: TimeInterval)?
+
+	/// A double-click on the swipe pad (the detached output's place): the
+	/// output docks again. Its first click pressed the origin to the pointer;
+	/// that's undone, so docking doesn't move the picture.
+	func outputDoubleClick() {
+		if let p = lastPress, ProcessInfo.processInfo.systemUptime - p.time < NSEvent.doubleClickInterval + 0.2 {
+			engine.setOriginMotion(p.motion)
+			engine.origin = p.origin
+			mainChanged()
+		}
+		lastPress = nil
+		toggleDetach()
+	}
 
 	/// The mouse button went down or up on the full-screen picture. While it's
 	/// down, the origin follows the mouse (the engine's Origin Drag, damped as
@@ -1152,6 +1166,7 @@ final class AppModel: ObservableObject {
 			engine.setOriginMotion(.drag)
 		} else if let p = pressDrag {
 			pressDrag = nil
+			lastPress = (p.motion, p.origin, ProcessInfo.processInfo.systemUptime)
 			engine.setOriginMotion(.park)
 			pressCount += 1
 			recordUndo(key: "origin press \(pressCount)", title: WHControls.mainName(MainProp.origin.rawValue)) { [weak self] in
@@ -1690,6 +1705,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		StandardViewMenu.removeWhenAdded()
 		NumberBoxSelect.install()
 		PanelKeys.install()
+		TitleBarClicks.install()
 		// second shortcuts for menu commands (a menu item has only one)
 		secondKeysMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
 			let code = event.keyCode

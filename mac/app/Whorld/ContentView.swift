@@ -116,7 +116,7 @@ final class SwipePadView: NSView {
 		let body: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
 			.foregroundColor: NSColor.tertiaryLabelColor, .paragraphStyle: style]
 		let text = NSMutableAttributedString(string: "The picture is detached\n", attributes: title)
-		text.append(NSAttributedString(string: "Swipe here to zoom, or hold a Key Map key to change its control. Press and drag to move the origin.", attributes: body))
+		text.append(NSAttributedString(string: "Swipe here to zoom, or hold a Key Map key to change its control. Press and drag to move the origin. Double-click to put the picture back.", attributes: body))
 		let w = min(bounds.width - 24, 320)
 		guard w > 40 else { return }
 		let size = text.boundingRect(with: NSSize(width: w, height: 1000), options: [.usesLineFragmentOrigin]).size
@@ -147,11 +147,16 @@ final class SwipePadView: NSView {
 	override func mouseDragged(with event: NSEvent) { report(event) }
 
 	override func mouseDown(with event: NSEvent) {
+		if event.clickCount == 2 {	// the output back in its place (AppModel.outputDoubleClick)
+			AppModel.shared.outputDoubleClick()
+			return
+		}
 		report(event)
 		AppModel.shared.outputMouse(down: true)
 	}
 
 	override func mouseUp(with event: NSEvent) {
+		if event.clickCount == 2 { return }
 		report(event)
 		AppModel.shared.outputMouse(down: false)
 	}
@@ -656,6 +661,9 @@ struct RenderView: NSViewRepresentable {
 		let view = WHRenderView(frame: .zero)
 		view.secondaryClickHandler = {	// a two-finger tap with a key held: that control's default
 			MainActor.assumeIsolated { AppModel.shared.resetHeldKeyControl() }
+		}
+		view.doubleClickHandler = {	// docks or detaches the output (the user's request, 2026-11-20)
+			MainActor.assumeIsolated { AppModel.shared.toggleDetach() }
 		}
 		view.engine = engine
 		view.renderScale = renderScale

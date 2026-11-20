@@ -505,6 +505,9 @@ typedef struct {
 // A secondary click (right click, or a two-finger tap or click on a
 // trackpad) over the view: return YES if handled, NO to pass it on
 @property (nonatomic, copy, nullable) BOOL (^secondaryClickHandler)(void);
+// A double-click over the view (Mac addition: docking or detaching the
+// output); the full-screen view has none
+@property (nonatomic, copy, nullable) void (^doubleClickHandler)(void);
 @end
 
 NS_ASSUME_NONNULL_END

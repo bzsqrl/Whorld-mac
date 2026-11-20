@@ -2900,6 +2900,10 @@ static std::vector<std::pair<float, double>> AutoQualitySteps(float fUserTol, do
 
 - (void)mouseDown:(NSEvent *)event
 {
+	if (_doubleClickHandler && event.clickCount == 2) {
+		_doubleClickHandler();
+		return;
+	}
 	[self reportMouse:event];
 	if (_mouseButtonHandler)
 		_mouseButtonHandler(YES);

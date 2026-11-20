@@ -1261,7 +1261,9 @@ struct DockedPanel: View {
 				if tabs.count > 1 {
 					tabStrip
 					PanelInfoButton(id: id)	// the showing tab's
-					Spacer(minLength: 0)
+					Color.clear	// the space after the tabs: drag (or double-click) the showing tab
+						.frame(maxWidth: .infinity, maxHeight: .infinity)
+						.overlay(PanelDragSource(id: id, layout: layout, help: ""))
 				} else {
 					HStack(spacing: 0) {	// the title and the space after it: drag to move
 						Text(id.title)
@@ -1533,6 +1535,15 @@ struct PanelDragSource: NSViewRepresentable {
 		}
 
 		override func mouseUp(with event: NSEvent) {
+			// a double-click on the title bar (not a tab, which is a click
+			// target): the panel floats in its window (the user's request,
+			// 2026-11-20; its window's title bar docks it, TitleBarClicks)
+			if !dragging, event.clickCount == 2, onClick == nil, let layout {
+				let id = self.id
+				down = nil
+				DispatchQueue.main.async { layout.float(id) }
+				return
+			}
 			if !dragging { onClick?() }
 			down = nil
 			dragging = false
@@ -1944,6 +1955,50 @@ final class OutputWindowController: NSObject, NSWindowDelegate {
 
 	func windowWillClose(_ notification: Notification) {
 		MainActor.assumeIsolated { onClose?() }
+	}
+}
+
+// MARK: Title bar double-clicks
+
+/// A double-click on a floating panel's window's title bar docks the panel,
+/// and on the detached output's, docks the output (the user's request,
+/// 2026-11-20: as a double-click on a docked panel's title bar floats it).
+/// Not on the window's buttons; taken before macOS's own title bar
+/// double-click (zoom or minimize, as System Settings says).
+@MainActor
+enum TitleBarClicks {
+	private static var monitor: Any?
+
+	static func install() {
+		guard monitor == nil else { return }
+		monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { e in
+			guard e.clickCount == 2, let w = e.window else { return e }
+			return MainActor.assumeIsolated { handle(e, in: w) } ? nil : e
+		}
+	}
+
+	private static func handle(_ e: NSEvent, in w: NSWindow) -> Bool {
+		let model = AppModel.shared
+		let layout = model.layout
+		let panel = layout.floatingWindows.first { $0.value.window === w && layout.isFloating($0.key) }?.key
+		let output = w === model.outputWindow.window
+		guard panel != nil || output else { return false }
+		let p = e.locationInWindow
+		guard p.y >= w.contentLayoutRect.maxY else { return false }	// below the title bar
+		// a button there (the window's own, or the toolbar's Dock): its click
+		if let frame = w.contentView?.superview {
+			var v = frame.hitTest(frame.convert(p, from: nil))
+			while let view = v {
+				if view is NSControl || String(describing: type(of: view)).contains("ToolbarItem") { return false }
+				v = view.superview
+			}
+		}
+		if let panel {
+			layout.move(panel, to: layout.layout.lastRegion[panel] ?? panel.defaultRegion)
+		} else {
+			model.toggleDetach()
+		}
+		return true
 	}
 }
 
