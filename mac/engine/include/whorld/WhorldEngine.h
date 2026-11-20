@@ -89,6 +89,14 @@ public:
 	// line (an app setting, not part of the patch). Snapshots and movie
 	// frames, which don't record the limit, fade toward their own ring count.
 	void	SetRingFadeEased(bool bEased) { m_bRingFadeEased = bEased; }
+	// Ring fade as last drawn, for tests (off unless enabled): each ring's
+	// fade factor, in drawing order
+	struct RingFadeTrace {
+		const RING*	pRing;
+		float	fFade;
+	};
+	void	SetRingFadeTrace(bool bEnable) { m_bFadeTrace = bEnable; }
+	const std::vector<RingFadeTrace>&	GetRingFadeTrace() const { return m_aFadeTrace; }
 	// Mac addition: a loaded patch starts the hue from its own Hue (the
 	// running hue resets), instead of carrying on from the previous patch
 	void	SetHueFromPatch(bool bEnable) { m_bHueFromPatch = bEnable; }
@@ -196,6 +204,8 @@ protected:
 	double	m_fNewGrowth;	// new ring growth, computed at start of TimerHook
 	int		m_nMaxRings;	// maximum number of rings
 	bool	m_bRingFadeEased;	// ring fade along an S-curve instead of a line
+	bool	m_bFadeTrace = false;	// see SetRingFadeTrace
+	std::vector<RingFadeTrace>	m_aFadeTrace;
 	bool	m_bHueFromPatch;	// see SetHueFromPatch
 	bool	m_bIsPaused;	// if true, we're paused
 	bool	m_bRedrawing;	// Mac port: in DrawAtSize, which mustn't read a movie frame
@@ -268,10 +278,11 @@ protected:
 	// Ring fade at the view's edge (Mac port): how far, in DIPs, the ring is
 	// past its end: its outline beyond the farthest corner of rView from its
 	// center, or its vertices off the canvas (Draw then deletes it),
-	// whichever is further; positive once it's past
+	// whichever is further; positive once it's past. A ring certainly more
+	// than fInside short of it returns early, with an upper bound.
 	double	RingEdgeMargin(const RING& ring, double fZoom, double fSnapshotScale,
-		DPoint ptWndCenter, const RectF& rView) const;
-	double	RingFadeEdge(double fZoom, double fSnapshotScale, DPoint ptWndCenter) const;
+		DPoint ptWndCenter, const RectF& rView, double fInside = HUGE_VAL) const;
+	double	RingFadeSpacing(double fZoom) const;
 	std::unique_ptr<Snapshot>	GetSnapshot() const;
 	void	SetSnapshot(const Snapshot& snapshot);
 	void	EnterSnapshotMode();

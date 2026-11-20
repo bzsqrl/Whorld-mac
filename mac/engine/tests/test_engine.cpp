@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <map>
 #include <memory>
 
 using namespace whorld;
@@ -337,9 +338,19 @@ TEST(RingFadeFadesTheOldestRings) {
 		double	f = l[i];
 		CHECK_NEAR(e[i], f * f * (3 - 2 * f), 1e-6);
 	}
-	// unlimited rings (the Rings maximum) still inside the view: nothing fades
+	// unlimited rings (the Rings maximum) still inside the view: the faded
+	// rings come back, slowly (a quarter of the way a second; 2026-11-20)
 	eng->OnSetMasterProp(Patch::MASTER_Rings, Patch::MAX_RINGS);
-	auto	unl = RingAlphas(*eng);
+	auto	back = RingAlphas(*eng);
+	CHECK(back.size() >= 10);
+	if (back.size() >= 10 && next.size() == 10)
+		CHECK_NEAR(back.back() - next.back(), 0.25 / 60, 1e-4);	// one step back, not all the way
+	// and a fresh engine without a limit: nothing fades
+	auto	engU = MakeEngine();
+	engU->OnSetMasterProp(Patch::MASTER_Rings, Patch::MAX_RINGS);
+	engU->OnSetMasterProp(Patch::MASTER_Fade, 4);
+	RunFrames(*engU, 201);
+	auto	unl = RingAlphas(*engU);
 	bool	none = true;
 	for (float x : unl)
 		none = none && x == 1.0f;
@@ -430,6 +441,62 @@ TEST(RingFadeBeforeTheCanvasRemovesThem) {
 		}
 		else
 			CHECK_EQ(fWorst, 1.0f);	// Fade off: rings vanish at full strength, as on Windows
+	}
+}
+
+TEST(RingFadeNeverFlickers) {
+	// A user's report (2026-11-20): with Fade on, the outer rings of many
+	// patches fluttered, and more so while a new patch's rings joined the
+	// last one's. The view's edge was one place for all the rings, at the
+	// first ring past it, which jumped back and forth where rings of
+	// different shapes poke out in no order; now each ring fades by its own
+	// distance, and comes back only slowly. Each ring, followed from frame
+	// to frame (std::list: its address stays; its radius, to tell a new
+	// ring at a freed address): never brighter by more than the slow
+	// return, and never a sudden drop.
+	fs::path	dir = fs::path(WHORLD_TESTDATA_DIR) / "patches";
+	if (!fs::exists(dir)) {
+		std::printf("  (no sample patches; skipped)\n");
+		return;
+	}
+	struct Run { const char* a; const char* b; };	// b: switched to halfway
+	for (Run run : {Run{"horn worm_cvx.whp", nullptr}, Run{"louvers_cvx.whp", nullptr},
+		Run{"backspin coarse_cvx.whp", nullptr}, Run{"louvers_cvx.whp", "cross_cvx.whp"}}) {
+		auto	eng = MakeEngine(1280, 800);
+		eng->SetRingFadeTrace(true);
+		auto	Load = [&](const char* name) {
+			Patch	p;
+			CHECK(p.Read((dir / name).string()));
+			p.SetMasterProp(Patch::MASTER_Fade, 20);
+			eng->OnSetPatch(p);
+		};
+		Load(run.a);
+		RecordingRenderer	r;
+		std::map<const void*, std::pair<float, double>>	prev, cur;
+		float	fRise = 0, fDrop = 0;
+		const int	nFrames = 900;
+		for (int f = 0; f < nFrames; f++) {
+			if (run.b && f == nFrames / 2)
+				Load(run.b);
+			r.Reset();
+			eng->Draw(r);
+			cur.clear();
+			for (const auto& t : eng->GetRingFadeTrace()) {
+				double	fRad = t.pRing->fRadius;
+				cur[t.pRing] = {t.fFade, fRad};
+				auto	it = prev.find(t.pRing);
+				if (f < 300 || it == prev.end()
+				|| std::fabs(fRad - it->second.second) > 0.25 * std::fabs(it->second.second) + 5)
+					continue;
+				fRise = std::max(fRise, t.fFade - it->second.first);
+				fDrop = std::max(fDrop, it->second.first - t.fFade);
+			}
+			prev.swap(cur);
+		}
+		std::printf("  %s%s%s: largest rise %.4f, largest drop %.3f per frame\n",
+			run.a, run.b ? " -> " : "", run.b ? run.b : "", fRise, fDrop);
+		CHECK(fRise <= 0.25f / 60 + 1e-4f);	// the slow return, at 60 Hz
+		CHECK(fDrop < 0.2f);	// before: up to 1, a ring snapping out
 	}
 }
 

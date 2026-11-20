@@ -229,6 +229,10 @@ protected:
 	struct RING {	// per-ring data
 		#define RINGDEF(type, name) type name;
 		#include "whorld/WhorldDef.h"	//  generate struct members
+		// Mac port: the ring fade as this ring was last drawn live, or -1
+		// before then (WhorldEngine::Draw). Not saved: snapshots encode
+		// the RINGDEF fields one by one, at their Windows sizes.
+		float	fFadeShown = -1;
 	};
 	struct GLOB_RING {	// global ring offsets
 		#define GLOBRINGDEF(type, name) type name;
