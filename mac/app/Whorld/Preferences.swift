@@ -230,7 +230,7 @@ struct PreferencesView: View {
 			Section("General") {
 				Toggle("Reopen the last playlist and patch at launch", isOn: $reopenLast)
 				Toggle(isOn: $controlTips) {
-					InfoLabel("Show tips on control names", info: "Hovering over a control's name in Parameters, Master, Globals or Properties shows a short explanation of what it does.")
+					InfoLabel("Show tips on control names", info: "Hovering over a control's name in Parameters, Master, Globals or Properties shows a short explanation of what it does, after its Key Map key, if it has one: (S) for Speed.")
 				}
 				Toggle(isOn: $applyPlaylistLayouts) {
 					InfoLabel("Open playlists with their layout", info: "A playlist saved with its panel layout (Save Playlist As > Include the panel layout) arranges the panels and windows that way when it's opened. Window > Save Layout and Open Layout keep layouts in files of their own.")

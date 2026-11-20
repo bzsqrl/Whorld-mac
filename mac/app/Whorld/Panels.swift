@@ -908,8 +908,28 @@ private struct ControlTip: ViewModifier {
 	}
 }
 
+/// A control's tip that begins with its Key Map key, the key to hold over
+/// the picture while swiping (the user's request, 2026-11-20): "(S): " for
+/// Speed. It follows the Key Map; a control with no key has no prefix.
+private struct KeyedControlTip: ViewModifier {
+	let text: String
+	let target: String	// mapping target tag, as KeyBinding stores it
+	let prop: Int
+	@ObservedObject private var map = KeyMap.shared
+
+	func body(content: Content) -> some View {
+		let key = map.bindings.first { $0.target == target && $0.prop == prop && !$0.key.isEmpty }
+		content.modifier(ControlTip(text: key.map { "(\($0.keyLabel)): " + text } ?? text))
+	}
+}
+
 extension View {
 	func controlTip(_ text: String) -> some View { modifier(ControlTip(text: text)) }
+	/// the tip, after the Key Map key that moves `target` (`prop`: a
+	/// parameter's column; 0 for any other control)
+	func controlTip(_ text: String, target: String, prop: Int = 0) -> some View {
+		modifier(KeyedControlTip(text: text, target: target, prop: prop))
+	}
 }
 
 // MARK: Parameters
@@ -1008,7 +1028,7 @@ struct ParamRow: View {
 		HStack(spacing: ParamColumn.spacing) {
 			Text(WHControls.paramName(iParam))
 				.lineLimit(1)
-				.controlTip(ControlTips.params[iParam])
+				.controlTip(ControlTips.params[iParam], target: WHMappingInfo.targetTag(iParam), prop: WHParamProperty.val.rawValue)
 				.frame(width: ParamColumn.name, alignment: .leading)
 			PositionSlider(
 				value: e.paramValue(iParam, property: .val),
@@ -1070,7 +1090,7 @@ struct MasterRow: View {
 		HStack(spacing: 8) {
 			Text(WHControls.masterName(i))
 				.lineLimit(1)
-				.controlTip(ControlTips.master[i])
+				.controlTip(ControlTips.master[i], target: WHMappingInfo.targetTag(WHMappingInfo.paramTargetCount + i))
 				.frame(width: 72, alignment: .leading)
 			PositionSlider(
 				value: value,
@@ -1109,7 +1129,7 @@ struct HueRow: View {
 		HStack(spacing: 8) {
 			Text("Hue")
 				.lineLimit(1)
-				.controlTip(ControlTips.hue)
+				.controlTip(ControlTips.hue, target: "Hue")
 				.frame(width: 72, alignment: .leading)
 			KeySlider(position: min(max(value, 0), 360), range: 0...360,
 				set: { model.setHue($0) },
@@ -1157,7 +1177,7 @@ struct GlobalRow: View {
 		HStack(spacing: 8) {
 			Text(WHControls.paramName(i))
 				.lineLimit(1)
-				.controlTip(ControlTips.global(i))
+				.controlTip(ControlTips.global(i), target: WHMappingInfo.targetTag(i), prop: WHParamProperty.global.rawValue)
 				.frame(width: 96, alignment: .leading)
 			PositionSlider(
 				value: value,
