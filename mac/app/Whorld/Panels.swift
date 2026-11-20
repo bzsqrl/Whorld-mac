@@ -45,12 +45,11 @@ enum KeyStep {
 }
 
 /// How far a swipe or wheel over a slider or edit box goes, by the modifiers
-/// held (the user's request, 2026-11-20), finest to coarsest: Option, none,
-/// Command, Shift, Command-Shift. An edit box takes its own fine or coarse
-/// step (KeyStep, as the arrow keys), at a rate: Option a tenth as many
-/// steps for the same travel, Command ten times as many. A slider moves at
-/// a rate of its plain swipe (its width covers its range) or wheel click
-/// (1% of it): a gentler ladder, as a hundredfold would cross it at once.
+/// held (the user's request and calibration, 2026-11-20), finest to
+/// coarsest: Command, Option, none, Shift. An edit box takes its own fine
+/// or coarse step (KeyStep, as the arrow keys), Option and Shift ten times
+/// as many for the same travel. A slider moves at a rate of its width
+/// covering its range (a wheel click: 1% of it): 1, 3, 10 or 30 times.
 struct SwipeLevel {
 	let step: KeyStep	// an edit box's step
 	let rate: Double	// an edit box's steps per travel, as many as plain
@@ -58,11 +57,10 @@ struct SwipeLevel {
 
 	init(_ flags: NSEvent.ModifierFlags) {
 		switch flags.intersection([.shift, .command, .option, .control]) {
-		case [.option]: (step, rate, sliderRate) = (.fine, 0.1, 0.1)
-		case [.command]: (step, rate, sliderRate) = (.fine, 10, 3)
-		case [.shift]: (step, rate, sliderRate) = (.coarse, 1, 10)
-		case [.command, .shift]: (step, rate, sliderRate) = (.coarse, 10, 30)
-		default: (step, rate, sliderRate) = (.fine, 1, 1)
+		case [.command]: (step, rate, sliderRate) = (.fine, 1, 1)
+		case [.option]: (step, rate, sliderRate) = (.fine, 10, 3)
+		case [.shift]: (step, rate, sliderRate) = (.coarse, 10, 30)
+		default: (step, rate, sliderRate) = (.coarse, 1, 10)
 		}
 	}
 }
