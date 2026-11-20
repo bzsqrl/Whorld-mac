@@ -215,6 +215,17 @@ TEST(ValuesActAsMidiAndComeBack) {
 	sink.Clear();
 	OscRemote::Handle(Msg("/w/p/lw/w", {OscArg::Float(0.9)}), midi);
 	CHECK(!sink.posts.empty() && sink.posts[0].iVal == 7);
+	// Fade stops at its 0 to 200 rings, past 1 or below 0 (Mac port; it
+	// showed 4000 for 20)
+	for (double f : {20.0, -3.0}) {
+		sink.Clear();
+		OscRemote::Handle(Msg("/w/m/fd", {OscArg::Float(f)}), midi);
+		CHECK(!sink.cmds.empty() && !sink.posts.empty());
+		CHECK_EQ(sink.cmds[0].m_prop.dblVal, f > 0 ? 200.0 : 0.0);
+		for (const auto& post : sink.posts)
+			Apply(doc, post);
+		CHECK_EQ(doc.m_master.fFade, f > 0 ? 200.0 : 0.0);
+	}
 }
 
 TEST(SwitchesActionsPauseAndPatch) {

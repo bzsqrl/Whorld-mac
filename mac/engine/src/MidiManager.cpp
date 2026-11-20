@@ -39,6 +39,8 @@ void MidiManager::PushMasterProperty(int iProp, double fNormVal)
 	// This method runs in the MIDI callback's worker thread context;
 	// only push render commands or post messages to the main thread.
 	double	fVal = Controls::MasterDenorm01(iProp, fNormVal);
+	if (iProp == MASTER_Fade)	// Mac port: Fade draws 0 to 200 rings (WhorldEngine::Draw), so it
+		fVal = std::min(std::max(fVal, 0.0), 200.0);	// stops there too, for an OSC value or a wide mapping
 	if (iProp == MASTER_Zoom) {	// if zoom
 		PushCmd(RC_SET_ZOOM, true, fVal);	// with damping
 	} else {	// generic case
