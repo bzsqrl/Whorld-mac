@@ -214,9 +214,11 @@ struct NumberField: View {
 /// A parameter's value (any column, or its global) as its edit box shows it:
 /// always three decimals, so the digits keep their places as it changes
 /// (the user's request, 2026-11-20; Windows shows %g, Controls::FormatValue).
-/// Typing more digits still sets them; the box just shows three.
-func paramText(_ v: Double) -> String {
-	let s = String(format: "%.3f", v)
+/// Typing more digits still sets them; the box just shows three. In the
+/// control's edit units, as FormatValue: value / editScale (Rotate Speed and
+/// Skew Angle are radians, shown in degrees).
+func paramText(_ v: Double, _ ci: WHControlInfo) -> String {
+	let s = String(format: "%.3f", v / ci.editScale)
 	return s == "-0.000" ? "0.000" : s
 }
 
@@ -360,12 +362,18 @@ struct KeyTextField: NSViewRepresentable {
 	final class Coordinator: NSObject, NSTextFieldDelegate {
 		var parent: KeyTextField
 		var shown = ""	// the text as last formatted: unedited if the field still says it
+		/// the value `shown` was formatted from, unrounded: swipes step from
+		/// it (the text can show fewer digits, paramText; stepping from the
+		/// text stuck or jumped, 2026-11-20), and it's current before SwiftUI
+		/// hands back the committed value
+		var shownValue = 0.0
 
 		init(_ parent: KeyTextField) { self.parent = parent }
 
 		func format(_ v: Double) -> String { parent.format(v) }
 
 		func show(_ field: NSTextField, _ v: Double) {
+			shownValue = v
 			shown = parent.format(v)
 			field.stringValue = shown
 			// the whole value, if the box is too narrow for it
@@ -404,7 +412,7 @@ struct KeyTextField: NSViewRepresentable {
 		/// a trackpad swipe: n arrow-key steps from the value shown
 		func swipe(_ field: NSTextField, _ n: Int, _ k: KeyStep) {
 			guard let step = parent.step else { return }
-			var v = field.stringValue != shown ? typed(field) ?? parent.value : parent.parse(shown)
+			var v = field.stringValue != shown ? typed(field) ?? parent.value : shownValue
 			for _ in 0..<abs(n) {
 				v = step(v, n > 0 ? 1 : -1, k)
 			}
@@ -494,6 +502,8 @@ struct KeyTextField: NSViewRepresentable {
 				c.show(f, value)
 				editor.string = c.shown
 				editor.selectAll(nil)
+			} else if editor.string == c.shown {
+				c.shownValue = value	// a change too small to show
 			}
 		} else if f.stringValue == c.shown || c.shown.isEmpty {	// not being edited
 			c.show(f, value)
@@ -959,7 +969,7 @@ struct ParamRow: View {
 		let bounded = ci.editClamp.boolValue
 		return NumberField(
 			value: model.engine.paramValue(iParam, property: prop),
-			format: paramText,
+			format: { paramText($0, ci) },
 			parse: { WHControls.parse($0, control: ci) },
 			commit: { model.setParam(iParam, prop, $0) },
 			step: spinStep(ci),
@@ -1136,7 +1146,7 @@ struct GlobalRow: View {
 				marker: .global(i))
 			NumberField(
 				value: value,
-				format: paramText,
+				format: { paramText($0, ci) },
 				parse: { WHControls.parse($0, control: ci) },
 				commit: { model.setParam(i, .global, $0) },
 				step: spinStep(ci),
