@@ -312,7 +312,7 @@ final class StripFeed {
 		}
 	}
 
-	// The beat (Audio Mod's dot and the tempo): 0 off, 1 finding the beat,
+	// The beat (Mod's dot and the tempo): 0 off, 1 finding the beat,
 	// 2 locked; checked 30 times a second while the strip is shown, as the
 	// Modulation panel's meter is, to flash on each beat (from the tracker,
 	// or Ableton Link's while it drives the beat)
