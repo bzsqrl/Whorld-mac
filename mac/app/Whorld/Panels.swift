@@ -214,10 +214,14 @@ struct NumberField: View {
 /// A parameter's value (any column, or its global) as its edit box shows it:
 /// always three decimals, so the digits keep their places as it changes
 /// (the user's request, 2026-11-20; Windows shows %g, Controls::FormatValue).
-/// Typing more digits still sets them; the box just shows three. In the
-/// control's edit units, as FormatValue: value / editScale (Rotate Speed and
-/// Skew Angle are radians, shown in degrees).
+/// A value with more digits than that (from a patch, or typed) shows as it
+/// did before, as Windows does (%g; the user's clarification, 2026-11-20).
+/// In the control's edit units, as FormatValue: value / editScale (Rotate
+/// Speed and Skew Angle are radians, shown in degrees).
 func paramText(_ v: Double, _ ci: WHControlInfo) -> String {
+	let g = WHControls.format(v, control: ci)	// Windows' %g
+	if g.contains("e") { return g }	// very large or small
+	if let dot = g.firstIndex(of: "."), g.distance(from: dot, to: g.endIndex) - 1 > 3 { return g }
 	let s = String(format: "%.3f", v / ci.editScale)
 	return s == "-0.000" ? "0.000" : s
 }
