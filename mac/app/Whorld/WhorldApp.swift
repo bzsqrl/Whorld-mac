@@ -162,6 +162,7 @@ final class AppModel: ObservableObject {
 			// quality (StripFeed, not published: a change to AppModel rebuilds
 			// every open panel, about 100 ms with four open, a stutter)
 			if self.showStats {
+				StripFeed.shared.setSyphon(self.syphonState)
 				let gpuTime = e.gpuMilliseconds > 0 ? String(format: "/%.1f", e.gpuMilliseconds) : ""
 				StripFeed.shared.setStats(String(format: "%.0f fps · ", e.framesPerSecond),
 					missed: "\(e.missedFrames) missed",
@@ -1198,14 +1199,71 @@ final class AppModel: ObservableObject {
 
 	// MARK: Syphon
 
-	/// Syphon output is on (View > Syphon Output and Settings > Output > Syphon)
+	/// Syphon output is on (View > Syphon and the stats strip)
 	@Published private(set) var syphonEnabled = false
+	/// the fixed size Syphon sends, or nil for the output's own
+	@Published private(set) var syphonSize: (width: Int, height: Int)?
 
-	/// Starts, stops or resizes Syphon output as Settings > Output > Syphon says.
+	/// Starts, stops or resizes Syphon output as the settings say (View >
+	/// Syphon and the stats strip; in Settings > Output until 2026-11-19).
 	func applySyphon() {
 		let s = Preferences.syphon
 		syphonEnabled = s.enabled
+		syphonSize = s.fixedSize
 		engine.setSyphonEnabled(s.enabled, width: s.fixedSize?.width ?? 0, height: s.fixedSize?.height ?? 0)
+		StripFeed.shared.setSyphon(syphonState)
+	}
+
+	/// for the stats strip's dot: 0 off, 1 publishing with no app receiving,
+	/// 2 an app receiving
+	var syphonState: Int {
+		!engine.syphonRunning ? 0 : engine.syphonHasClients ? 2 : 1
+	}
+
+	/// View > Syphon's sizes: nil is the output's own size
+	func setSyphonSize(_ size: (width: Int, height: Int)?) {
+		let d = UserDefaults.standard
+		d.set(size != nil, forKey: "Syphon_bFixedSize")
+		if let size {
+			d.set(size.width, forKey: "Syphon_nWidth")
+			d.set(size.height, forKey: "Syphon_nHeight")
+		}
+		applySyphon()
+	}
+
+	static let syphonPresets: [(width: Int, height: Int)] = [(1280, 720), (1920, 1080), (3840, 2160)]
+
+	/// View > Syphon > Custom Size…: a width and height in pixels
+	func askSyphonSize() {
+		let cur = syphonSize ?? (Preferences.syphonStoredSize)
+		let a = NSAlert()
+		a.messageText = "Syphon Size"
+		a.informativeText = "Each frame is drawn again at this size in pixels for Syphon, the picture scaled to fit, with more of the pattern on the longer side."
+		let fmt = NumberFormatter()
+		fmt.allowsFloats = false
+		fmt.minimum = 16
+		fmt.maximum = 16384
+		func field(_ v: Int) -> NSTextField {
+			let f = NSTextField(string: String(v))
+			f.formatter = fmt
+			f.alignment = .right
+			f.frame.size.width = 70
+			return f
+		}
+		let w = field(cur.width), h = field(cur.height)
+		let times = NSTextField(labelWithString: "×")
+		let row = NSStackView(views: [w, times, h])
+		row.spacing = 6
+		w.widthAnchor.constraint(equalToConstant: 70).isActive = true
+		h.widthAnchor.constraint(equalToConstant: 70).isActive = true
+		row.frame = NSRect(x: 0, y: 0, width: 170, height: 24)
+		a.accessoryView = row
+		a.addButton(withTitle: "OK")
+		a.addButton(withTitle: "Cancel")
+		a.window.initialFirstResponder = w
+		guard a.runModal() == .alertFirstButtonReturn else { return }
+		let width = min(max(w.integerValue, 16), 16384), height = min(max(h.integerValue, 16), 16384)
+		setSyphonSize((width, height))
 	}
 
 	func setSyphonEnabled(_ on: Bool) {

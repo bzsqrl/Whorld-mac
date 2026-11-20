@@ -328,7 +328,24 @@ struct WhorldCommands: Commands {
 			// Automatic Quality (the user's request, 2026-11-19)
 			Toggle("Show Stats", isOn: $model.showStats)
 				.keyboardShortcut("9", modifiers: [.command, .option])	// after the panels' Option-Command 1 to 8 (the user's request, 2026-11-19)
-			Toggle("Syphon Output", isOn: Binding(get: { model.syphonEnabled }, set: { model.setSyphonEnabled($0) }))
+			// on and off, and the size (out of Settings > Output, and in the
+			// stats strip too; the user's request, 2026-11-19)
+			Menu("Syphon") {
+				Toggle("Syphon Output", isOn: Binding(get: { model.syphonEnabled }, set: { model.setSyphonEnabled($0) }))
+				Divider()
+				Toggle("Match the Output", isOn: Binding(get: { model.syphonSize == nil }, set: { _ in model.setSyphonSize(nil) }))
+				ForEach(AppModel.syphonPresets.indices, id: \.self) { i in
+					let p = AppModel.syphonPresets[i]
+					let title = "\(p.width) × \(p.height)"	// a String, not localized: no thousands separators
+					Toggle(title, isOn: Binding(
+						get: { model.syphonSize.map { $0 == p } ?? false },
+						set: { _ in model.setSyphonSize(p) }))
+				}
+				let custom: (width: Int, height: Int)? = model.syphonSize.flatMap { s in AppModel.syphonPresets.contains { $0 == s } ? nil : s }
+				let customTitle: String = custom.map { "Custom Size (\($0.width) × \($0.height))…" } ?? "Custom Size…"
+				Toggle(customTitle, isOn: Binding(
+					get: { custom != nil }, set: { _ in model.askSyphonSize() }))
+			}
 		}
 
 		CommandGroup(before: .windowSize) {

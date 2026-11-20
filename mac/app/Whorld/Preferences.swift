@@ -110,6 +110,12 @@ enum Preferences {
 
 	/// Syphon output (new in the Mac port): on, and a fixed size in pixels
 	/// (nil: the output's own size)
+	/// the fixed size last chosen, used or not
+	static var syphonStoredSize: (width: Int, height: Int) {
+		register()
+		return (defaults.integer(forKey: "Syphon_nWidth"), defaults.integer(forKey: "Syphon_nHeight"))
+	}
+
 	static var syphon: (enabled: Bool, fixedSize: (width: Int, height: Int)?) {
 		register()
 		let fixed = defaults.bool(forKey: "Syphon_bFixedSize")
@@ -191,10 +197,6 @@ struct PreferencesView: View {
 	@AppStorage("OSC_nReceivePort") private var oscReceivePort = 8000
 	@AppStorage("OSC_nSendPort") private var oscSendPort = 8001
 	@AppStorage("OSC_sHost") private var oscHost = ""
-	@AppStorage("Syphon_bEnabled") private var syphonEnabled = false
-	@AppStorage("Syphon_bFixedSize") private var syphonFixedSize = false
-	@AppStorage("Syphon_nWidth") private var syphonWidth = 1920
-	@AppStorage("Syphon_nHeight") private var syphonHeight = 1080
 
 	@AppStorage("Settings_nTab") private var tab = 0	// the tab last shown
 
@@ -417,32 +419,6 @@ struct PreferencesView: View {
 					Text("1024 × 768 (XGA)").tag(2)
 				}
 			}
-			Section("Syphon") {
-				Toggle(isOn: $syphonEnabled) {
-					InfoLabel("Syphon output", info: "Sends Whorld's output to other apps on this Mac (Resolume, MadMapper, OBS, TouchDesigner…), where it's listed as Whorld, with transparency where the patch has any.")
-					SyphonStatus()
-				}
-				LabeledContent {
-					HStack {
-						Picker("Size", selection: $syphonFixedSize) {
-							Text("Same as the output").tag(false)
-							Text("Fixed").tag(true)
-						}
-						.labelsHidden()
-						.fixedSize()
-						if syphonFixedSize {
-							SizeFields(width: $syphonWidth, height: $syphonHeight)
-						}
-					}
-				} label: {
-					InfoLabel("Size", info: "Same as the output: the frames Whorld shows, at their size. Fixed: each frame drawn again at that size in pixels, the picture scaled to fit, with more of the pattern on the longer side; it's drawn only while an app is receiving.")
-				}
-				.disabled(!syphonEnabled)
-			}
-			.onChange(of: syphonEnabled) { model.applySyphon() }
-			.onChange(of: syphonFixedSize) { model.applySyphon() }
-			.onChange(of: syphonWidth) { model.applySyphon() }
-			.onChange(of: syphonHeight) { model.applySyphon() }
 	}
 
 	private func chooseFolder() {
@@ -543,23 +519,6 @@ private struct SizeFields: View {
 			IntField(value: $width, width: 52)
 			Text("×")
 			IntField(value: $height, width: 52)
-		}
-	}
-}
-
-/// Settings > Output > Syphon's status line, checked once a second while Settings is
-/// open.
-private struct SyphonStatus: View {
-	@EnvironmentObject private var model: AppModel
-
-	var body: some View {
-		TimelineView(.periodic(from: .now, by: 1)) { _ in
-			let e = model.engine
-			Text(!e.syphonRunning ? "Off"
-				: e.syphonHasClients ? "Publishing as Whorld · an app is receiving"
-				: "Publishing as Whorld · no app receiving yet")
-				.font(.caption)
-				.foregroundStyle(.secondary)
 		}
 	}
 }

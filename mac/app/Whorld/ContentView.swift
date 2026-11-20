@@ -240,8 +240,15 @@ struct StatsStrip: View {
 				.toggleStyle(.checkbox)
 				.fixedSize()
 				.layoutPriority(2)
-			StripText(part: .auto)	// what Automatic quality has lowered
-				.frame(minWidth: 0, idealWidth: StripText.width(.auto), maxWidth: StripText.width(.auto))
+			AutoTag(feed: StripFeed.shared.autoTag)	// what Automatic quality has lowered
+			Divider().frame(height: 14)
+			Toggle("Syphon", isOn: Binding(get: { model.syphonEnabled }, set: { model.setSyphonEnabled($0) }))
+				.toggleStyle(.checkbox)
+				.fixedSize()
+				.layoutPriority(2)
+			StripText(part: .syphon)	// off, publishing, or an app receiving
+				.frame(width: 8, height: 8)
+				.layoutPriority(2)
 			Spacer(minLength: 0)
 			InfoButton(text: Self.info, small: true)
 				.layoutPriority(2)
@@ -254,7 +261,7 @@ struct StatsStrip: View {
 		.background(Color(nsColor: .windowBackgroundColor))
 	}
 
-	static let info = "Frames drawn a second, display refreshes missed in the last second (orange when any are), the time to draw a frame (on the CPU, then on the GPU with Metal) and the rings drawn. The display's rate and the renderer are in the statistics' tooltip.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nQuality is Render quality and Auto is Automatic quality, as in Settings > Display, which explains them; beside Auto, what it has lowered for now, if anything. View > Show Stats (Option-Command-9) hides the strip."
+	static let info = "Frames drawn a second, display refreshes missed in the last second (orange when any are), the time to draw a frame (on the CPU, then on the GPU with Metal) and the rings drawn. The display's rate and the renderer are in the statistics' tooltip.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nQuality is Render quality and Auto is Automatic quality, as in Settings > Display, which explains them; beside Auto, what it has lowered for now, if anything.\n\nSyphon sends the picture to other apps on this Mac (View > Syphon also sets its size). Its dot: hollow while no app is receiving, filled once one is.\n\nView > Show Stats (Option-Command-9) hides the strip."
 }
 
 /// What the stats strip shows, set by AppModel; its text views redraw only
@@ -269,7 +276,11 @@ final class StripFeed {
 	private(set) var statsTip = ""
 	private(set) var readout = ""
 	private(set) var readoutFresh = false	// just changed; dimmed after a few seconds
-	private(set) var auto = ""	// what Automatic quality has lowered, if anything
+	/// what Automatic quality has lowered, if anything: SwiftUI text at its
+	/// own width, so nothing is held for it; it changes only when Automatic
+	/// quality steps (seldom), not every second
+	let autoTag = AutoTagFeed()
+	private(set) var syphon = 0	// 0 off, 1 publishing with no app receiving, 2 an app receiving
 	private var views: [WeakView] = []
 	private var dimWork: DispatchWorkItem?
 
@@ -303,10 +314,16 @@ final class StripFeed {
 		redraw(.stats)
 	}
 
+	func setSyphon(_ state: Int) {
+		guard state != syphon else { return }
+		syphon = state
+		for w in views where w.view?.part == .syphon { w.view?.toolTip = StripText.syphonTip(state) }
+		redraw(.syphon)
+	}
+
 	func setAuto(_ s: String) {
-		guard s != auto else { return }
-		auto = s
-		redraw(.auto)
+		guard s != autoTag.text else { return }
+		autoTag.text = s
 	}
 
 	func setReadout(_ s: String) {
@@ -327,9 +344,32 @@ final class StripFeed {
 	}
 }
 
+final class AutoTagFeed: ObservableObject {
+	@Published var text = ""
+}
+
+/// The stats strip's tag beside Auto: what Automatic quality has lowered
+private struct AutoTag: View {
+	@ObservedObject var feed: AutoTagFeed
+
+	var body: some View {
+		if !feed.text.isEmpty {
+			Text(feed.text)
+				.foregroundStyle(.orange)
+				.lineLimit(1)
+				.fixedSize()
+		}
+	}
+}
+
 /// One of the stats strip's live texts (StripFeed), drawn in AppKit
 struct StripText: NSViewRepresentable {
-	enum Part { case stats, readout, auto }
+	enum Part { case stats, readout, syphon }
+
+	static func syphonTip(_ state: Int) -> String {
+		state == 0 ? "Syphon is off" : state == 2 ? "Publishing as Whorld · an app is receiving"
+			: "Publishing as Whorld · no app receiving yet"
+	}
 	let part: Part
 
 	static let font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
@@ -339,7 +379,7 @@ struct StripText: NSViewRepresentable {
 		let sample = switch part {
 		case .stats: "000 fps · 00 missed · 00.0/00.0 ms · 0000 rings"
 		case .readout: "Rotate Speed Freq  -00.000"
-		case .auto: "curves 1.0 px, 33%"
+		case .syphon: ""
 		}
 		return ceil((sample as NSString).size(withAttributes: [.font: font]).width) + 2
 	}
@@ -354,6 +394,7 @@ struct StripText: NSViewRepresentable {
 			if window != nil {
 				StripFeed.shared.add(self)
 				if part == .stats { toolTip = StripFeed.shared.statsTip }
+				if part == .syphon { toolTip = StripText.syphonTip(StripFeed.shared.syphon) }
 			} else {
 				StripFeed.shared.remove(self)
 			}
@@ -383,8 +424,22 @@ struct StripText: NSViewRepresentable {
 			case .readout:
 				text.append(NSAttributedString(string: feed.readout,
 					attributes: attrs(feed.readoutFresh ? .labelColor : .secondaryLabelColor)))
-			case .auto:
-				text.append(NSAttributedString(string: feed.auto, attributes: attrs(.systemOrange)))
+			case .syphon:	// a dot: faint off, an outline publishing, filled receiving
+				let r = bounds.insetBy(dx: 1, dy: 1)
+				switch feed.syphon {
+				case 0:
+					NSColor.tertiaryLabelColor.setFill()
+					NSBezierPath(ovalIn: r).fill()
+				case 1:
+					let p = NSBezierPath(ovalIn: r.insetBy(dx: 0.5, dy: 0.5))
+					p.lineWidth = 1
+					NSColor.systemGreen.setStroke()
+					p.stroke()
+				default:
+					NSColor.systemGreen.setFill()
+					NSBezierPath(ovalIn: r).fill()
+				}
+				return
 			}
 			let h = ceil(font.ascender - font.descender + font.leading)
 			let r = NSRect(x: 0, y: floor((bounds.height - h) / 2), width: bounds.width, height: h)
