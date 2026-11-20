@@ -44,6 +44,29 @@ enum KeyStep {
 	}
 }
 
+/// How far a swipe or wheel over a slider or edit box goes, by the modifiers
+/// held (the user's request, 2026-11-20), finest to coarsest: Option, none,
+/// Command, Shift, Command-Shift. An edit box takes its own fine or coarse
+/// step (KeyStep, as the arrow keys), at a rate: Option a tenth as many
+/// steps for the same travel, Command ten times as many. A slider moves at
+/// a rate of its plain swipe (its width covers its range) or wheel click
+/// (1% of it): a gentler ladder, as a hundredfold would cross it at once.
+struct SwipeLevel {
+	let step: KeyStep	// an edit box's step
+	let rate: Double	// an edit box's steps per travel, as many as plain
+	let sliderRate: Double	// a slider's travel per swipe, as much as plain
+
+	init(_ flags: NSEvent.ModifierFlags) {
+		switch flags.intersection([.shift, .command, .option, .control]) {
+		case [.option]: (step, rate, sliderRate) = (.fine, 0.1, 0.1)
+		case [.command]: (step, rate, sliderRate) = (.fine, 10, 3)
+		case [.shift]: (step, rate, sliderRate) = (.coarse, 1, 10)
+		case [.command, .shift]: (step, rate, sliderRate) = (.coarse, 10, 30)
+		default: (step, rate, sliderRate) = (.fine, 1, 1)
+		}
+	}
+}
+
 /// Two-finger trackpad swipes and mouse wheels on sliders and edit boxes
 /// (new in the Mac port): with the pointer over a slider, a sideways swipe
 /// (or rolling the wheel) moves it; over an edit box, a swipe up or down (or
@@ -325,13 +348,14 @@ struct KeyTextField: NSViewRepresentable {
 		private var wheelClicks = 0.0
 
 		override func scrollWheel(with event: NSEvent) {
-			if onSwipeStep != nil, let w = TrackpadSwipe.wheel(event, for: self) {	// a click a step
+			let level = SwipeLevel(event.modifierFlags)
+			if onSwipeStep != nil, let w = TrackpadSwipe.wheel(event, for: self) {	// a click a step (at the level's rate)
 				if w.first { wheelClicks = 0 }
-				wheelClicks += w.clicks
-				let n = Int(wheelClicks)	// whole clicks, toward zero
+				wheelClicks += w.clicks * level.rate
+				let n = Int(wheelClicks + (wheelClicks < 0 ? -1e-9 : 1e-9))	// whole steps, toward zero (ten tenths make one)
 				guard n != 0 else { return }
 				wheelClicks -= Double(n)
-				onSwipeStep?(n, event.modifierFlags.contains(.shift) ? .coarse : .fine)
+				onSwipeStep?(n, level.step)
 				return
 			}
 			guard onSwipeStep != nil,
@@ -340,11 +364,12 @@ struct KeyTextField: NSViewRepresentable {
 				return
 			}
 			if t.first { swipeTravel = 0 }
-			swipeTravel += t.points * Preferences.swipeSense	// Settings > Control > Trackpad sensitivity
-			let n = Int(swipeTravel / Self.pointsPerStep)	// whole steps, toward zero
+			swipeTravel += t.points * Preferences.swipeSense * level.rate	// Settings > Control > Trackpad sensitivity
+			let q = swipeTravel / Self.pointsPerStep
+			let n = Int(q + (q < 0 ? -1e-9 : 1e-9))	// whole steps, toward zero
 			guard n != 0 else { return }
 			swipeTravel -= Double(n) * Self.pointsPerStep
-			onSwipeStep?(n, event.modifierFlags.contains(.shift) ? .coarse : .fine)
+			onSwipeStep?(n, level.step)
 		}
 
 		override func rightMouseDown(with event: NSEvent) {
@@ -605,19 +630,17 @@ struct KeySlider: NSViewRepresentable {
 
 		// a sideways trackpad swipe moves the knob as if dragged: the
 		// slider's width of travel covers its range
-		private var wheelClicks = 0.0
+		private var wheelPositions = 0.0	// unrounded positions, during a wheel turn
 
 		override func scrollWheel(with event: NSEvent) {
-			if let w = TrackpadSwipe.wheel(event, for: self) {	// a click is 1% of the range
-				if w.first { wheelClicks = 0 }
-				wheelClicks += w.clicks
-				let n = Int(wheelClicks)
+			let rate = SwipeLevel(event.modifierFlags).sliderRate
+			if let w = TrackpadSwipe.wheel(event, for: self) {	// a click is 1% of the range (at the level's rate)
+				if w.first { wheelPositions = 0 }
+				wheelPositions += w.clicks * rate * max((maxValue - minValue) / 100, 1)
+				let n = (wheelPositions + (wheelPositions < 0 ? -1e-9 : 1e-9)).rounded(.towardZero)	// whole positions, as dragging
 				guard n != 0 else { return }
-				wheelClicks -= Double(n)
-				// with Shift, 10%: a coarser swipe, as Shift is in an edit box (the user's request, 2026-11-20)
-				let share = event.modifierFlags.contains(.shift) ? 10.0 : 100.0
-				let step = max(((maxValue - minValue) / share).rounded(), 1)	// whole positions, as dragging
-				let pos = min(max(doubleValue + Double(n) * step, minValue), maxValue)
+				wheelPositions -= n
+				let pos = min(max(doubleValue + n, minValue), maxValue)
 				if pos != doubleValue {
 					doubleValue = pos
 					onSet?(pos)
@@ -630,9 +653,7 @@ struct KeySlider: NSViewRepresentable {
 			}
 			if t.first { swipePosition = doubleValue }
 			guard t.points != 0 else { return }
-			// with Shift, 10 times as far: a coarser swipe, as Shift is in an
-			// edit box (the user's request, 2026-11-20)
-			let width = max(bounds.width, 40) / (event.modifierFlags.contains(.shift) ? 10 : 1)
+			let width = max(bounds.width, 40) / rate	// (SwipeLevel)
 			swipePosition = min(max(swipePosition + t.points * Preferences.swipeSense / width * (maxValue - minValue), minValue), maxValue)	// (Trackpad sensitivity)
 			let pos = swipePosition.rounded()	// whole positions, as dragging
 			if pos != doubleValue {
