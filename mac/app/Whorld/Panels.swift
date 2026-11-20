@@ -1180,21 +1180,24 @@ struct PropertiesPanel: View {
 			check(.antialiasing, WHControls.mainName(MainProp.antialiasing.rawValue), model.isOn(.antialiasing))
 			check(.invertColor, WHControls.mainName(MainProp.invertColor.rawValue), model.isOn(.invertColor))
 			divider
-			// "Origin", its menu under it (Windows' Origin Motion; the
-			// user's request, 2026-11-18): the panel can be narrower
+			// "Origin", its choices under it (Windows' Origin Motion): four
+			// buttons, two by two, the current one lit; clicking it again
+			// does nothing (the user's request, 2026-11-20; a menu before)
 			row(.origin) {
 				VStack(alignment: .leading, spacing: 3) {
 					Text("Origin")
 						.controlTip(ControlTips.originMotion)
-					Picker("", selection: Binding(
-						get: { originChoice(e) },
-						set: { setOrigin($0) })) {
-						Text("Center").tag(OriginChoice.center)
-						Text("Drag").tag(OriginChoice.drag)
-						Text("Random").tag(OriginChoice.random)
-						Text("Park").tag(OriginChoice.park)
+					let now = originChoice(e)
+					Grid(horizontalSpacing: 3, verticalSpacing: 3) {
+						GridRow {
+							originButton(.center, "Center", "Image > Origin Center, ⌘0", now)
+							originButton(.drag, "Drag", "Image > Origin Drag, ⌘−: the origin follows the mouse", now)
+						}
+						GridRow {
+							originButton(.random, "Random", "Image > Origin Random, ⌘=: the origin jumps in time with Tempo", now)
+							originButton(.park, "Park", "Image > Origin Park, ⌥⌘0: the origin stays where it is", now)
+						}
 					}
-					.labelsHidden()
 					.fixedSize()
 				}
 			}
@@ -1307,8 +1310,17 @@ struct PropertiesPanel: View {
 		switch e.originMotion {
 		case .drag: return .drag
 		case .random: return .random
-		default: return e.origin == CGPoint(x: 0.5, y: 0.5) ? .center : .park
+		default: return model.originAtCenter ? .center : .park
 		}
+	}
+
+	private func originButton(_ c: OriginChoice, _ title: String, _ help: String, _ now: OriginChoice) -> some View {
+		Button(title) {
+			if c != now { setOrigin(c) }
+		}
+		.buttonStyle(OriginButtonStyle(selected: c == now))
+		.focusable(false)	// the row has the focus
+		.help(help)
 	}
 
 	private func setOrigin(_ c: OriginChoice) {
@@ -1318,6 +1330,23 @@ struct PropertiesPanel: View {
 		case .random: model.setOriginMotion(.random)
 		case .park: model.setOriginMotion(.park)
 		}
+	}
+}
+
+/// One of the Properties panel's Origin buttons: lit when it's the
+/// origin's motion now (not a toggle)
+private struct OriginButtonStyle: ButtonStyle {
+	let selected: Bool
+
+	func makeBody(configuration: Configuration) -> some View {
+		configuration.label
+			.font(.caption)
+			.foregroundStyle(selected ? Color.white : Color.primary)
+			.frame(minWidth: 52)
+			.padding(.vertical, 3)
+			.background(RoundedRectangle(cornerRadius: 4).fill(selected ? Color.accentColor
+				: Color.primary.opacity(configuration.isPressed ? 0.2 : 0.09)))
+			.contentShape(Rectangle())
 	}
 }
 

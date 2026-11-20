@@ -325,7 +325,10 @@ final class AppModel: ObservableObject {
 			self.midiPending = (params: [], master: [], main: false, scheduled: false)
 			for i in p.params { self.changes.params[i].bump() }
 			for i in p.master { self.changes.master[i].bump() }
-			if p.main { self.changes.main.bump() }
+			if p.main {
+				self.noteOriginMotion()
+				self.changes.main.bump()
+			}
 			self.noteEdit()
 		}
 	}
@@ -483,6 +486,7 @@ final class AppModel: ObservableObject {
 		if engine.playPatch(atPath: url.path) {
 			playedName = url.deletingPathExtension().lastPathComponent
 			playingPatch = index
+			originFromPatch()
 			resetUndo()
 			updateTitle()
 			changed()
@@ -515,6 +519,7 @@ final class AppModel: ObservableObject {
 
 	/// Anything may have changed (a patch opened, undo, ...): refresh everything.
 	func changed() {
+		noteOriginMotion()
 		changes.all()
 		noteEdit()
 	}
@@ -532,8 +537,32 @@ final class AppModel: ObservableObject {
 
 	/// main properties or pause
 	func mainChanged() {
+		noteOriginMotion()
 		changes.main.bump()
 		noteEdit()
+	}
+
+	/// The origin has moved away from the patch's origin (Drag, Random or a
+	/// press on the picture) and hasn't been centered since: parked, the
+	/// Properties panel says Park, not Center, though the patch's origin,
+	/// which Drag and Random don't change, is still the middle (2026-11-20).
+	private var originMoved = false
+
+	private func noteOriginMotion() {
+		if engine.originMotion == .drag || engine.originMotion == .random {
+			originMoved = true
+		}
+	}
+
+	/// Parked in the middle: what Image > Origin Center leaves
+	var originAtCenter: Bool {
+		engine.originMotion == .park && !originMoved && engine.origin == CGPoint(x: 0.5, y: 0.5)
+	}
+
+	/// A patch loaded (New, Open, played): its own origin, unless Geometry
+	/// mode kept the one before
+	private func originFromPatch() {
+		if !engine.geometryMode { originMoved = false }
 	}
 
 	/// After an edit: refresh the title if it went from saved to edited, and
@@ -788,6 +817,7 @@ final class AppModel: ObservableObject {
 
 	// CWhorldDoc::OnImageOriginCenter
 	func originCenter() {
+		originMoved = false
 		setOriginMotion(.park)
 		setOrigin(CGPoint(x: 0.5, y: 0.5))
 	}
@@ -995,6 +1025,7 @@ final class AppModel: ObservableObject {
 		guard confirmDiscard() else { return }
 		playedName = nil
 		engine.newPatch()
+		originFromPatch()
 		resetUndo()
 		updateTitle()
 		changed()
@@ -1005,6 +1036,7 @@ final class AppModel: ObservableObject {
 		do {
 			try engine.openPatch(atPath: url.path)
 			playedName = nil
+			originFromPatch()
 			resetUndo()
 			NSDocumentController.shared.noteNewRecentDocumentURL(url)
 		} catch {
@@ -1163,6 +1195,7 @@ final class AppModel: ObservableObject {
 		if down {
 			guard pressDrag == nil, engine.originMotion != .drag else { return }
 			pressDrag = (engine.originMotion, engine.liveOrigin)
+			originMoved = true
 			engine.setOriginMotion(.drag)
 		} else if let p = pressDrag {
 			pressDrag = nil

@@ -243,6 +243,10 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut("-")	// and Cmd-D (Windows' Ctrl+D)
 			toggle("Origin Random", e.originMotion == .random) { model.toggleOriginRandom() }
 				.keyboardShortcut("=")	// and Cmd-R (Windows' Ctrl+R)
+			// Mac addition (the user's request, 2026-11-20): the origin stays
+			// where it is. Drag and Random, toggled off, park it too.
+			Button("Origin Park") { model.setOriginMotion(.park) }
+				.keyboardShortcut("0", modifiers: [.command, .option])
 			Divider()
 			Button("Random Phase") { e.randomPhase() }
 				.keyboardShortcut("9")	// and F9
