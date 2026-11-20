@@ -211,6 +211,15 @@ struct NumberField: View {
 	}
 }
 
+/// A parameter's value (any column, or its global) as its edit box shows it:
+/// always three decimals, so the digits keep their places as it changes
+/// (the user's request, 2026-11-20; Windows shows %g, Controls::FormatValue).
+/// Typing more digits still sets them; the box just shows three.
+func paramText(_ v: Double) -> String {
+	let s = String(format: "%.3f", v)
+	return s == "-0.000" ? "0.000" : s
+}
+
 /// An edit box's arrow keys for a control with a stepper increment
 /// (fSpinDelta), clamped to its edit range if it has one, as CNumEdit::AddSpin.
 func spinStep(_ ci: WHControlInfo) -> (Double, Int, KeyStep) -> Double {
@@ -591,7 +600,9 @@ struct KeySlider: NSViewRepresentable {
 				let n = Int(wheelClicks)
 				guard n != 0 else { return }
 				wheelClicks -= Double(n)
-				let step = max(((maxValue - minValue) / 100).rounded(), 1)	// whole positions, as dragging
+				// with Shift, 10%: a coarser swipe, as Shift is in an edit box (the user's request, 2026-11-20)
+				let share = event.modifierFlags.contains(.shift) ? 10.0 : 100.0
+				let step = max(((maxValue - minValue) / share).rounded(), 1)	// whole positions, as dragging
 				let pos = min(max(doubleValue + Double(n) * step, minValue), maxValue)
 				if pos != doubleValue {
 					doubleValue = pos
@@ -605,7 +616,9 @@ struct KeySlider: NSViewRepresentable {
 			}
 			if t.first { swipePosition = doubleValue }
 			guard t.points != 0 else { return }
-			let width = max(bounds.width, 40)
+			// with Shift, 10 times as far: a coarser swipe, as Shift is in an
+			// edit box (the user's request, 2026-11-20)
+			let width = max(bounds.width, 40) / (event.modifierFlags.contains(.shift) ? 10 : 1)
 			swipePosition = min(max(swipePosition + t.points * Preferences.swipeSense / width * (maxValue - minValue), minValue), maxValue)	// (Trackpad sensitivity)
 			let pos = swipePosition.rounded()	// whole positions, as dragging
 			if pos != doubleValue {
@@ -946,7 +959,7 @@ struct ParamRow: View {
 		let bounded = ci.editClamp.boolValue
 		return NumberField(
 			value: model.engine.paramValue(iParam, property: prop),
-			format: { WHControls.format($0, control: ci) },
+			format: paramText,
 			parse: { WHControls.parse($0, control: ci) },
 			commit: { model.setParam(iParam, prop, $0) },
 			step: spinStep(ci),
@@ -1123,7 +1136,7 @@ struct GlobalRow: View {
 				marker: .global(i))
 			NumberField(
 				value: value,
-				format: { WHControls.format($0, control: ci) },
+				format: paramText,
 				parse: { WHControls.parse($0, control: ci) },
 				commit: { model.setParam(i, .global, $0) },
 				step: spinStep(ci),

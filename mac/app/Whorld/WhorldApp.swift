@@ -658,10 +658,7 @@ final class AppModel: ObservableObject {
 		let shown: String
 		switch prop {
 		case .wave: shown = WHControls.waveformName(Int(v))
-		case .global: shown = WHControls.format(v, control: WHControls.globalControl(iParam))
-		default:
-			let column = prop == .amp ? 1 : prop == .freq ? 2 : prop == .PW ? 3 : 0
-			shown = WHControls.format(v, control: WHControls.paramControl(iParam, column: column))
+		default: shown = paramText(v)	// as the edit boxes show it
 		}
 		StripFeed.shared.setReadout(Self.shortParamTitle(iParam, prop) + "  " + shown, full: Self.paramTitle(iParam, prop) + "  " + shown)
 	}
@@ -975,7 +972,7 @@ final class AppModel: ObservableObject {
 		if value != old {
 			setParam(i, prop, value)
 		}
-		return WHControls.format(engine.paramValue(i, property: prop), control: ci)
+		return paramText(engine.paramValue(i, property: prop))	// as the edit boxes show it
 	}
 
 	// MARK: Files
