@@ -77,7 +77,7 @@ final class AppModel: ObservableObject {
 	@Published var showStats: Bool = UserDefaults.standard.bool(forKey: "View_bShowStats") {
 		didSet { UserDefaults.standard.set(showStats, forKey: "View_bShowStats") }
 	}
-	/// Settings > Display > Render scale and Upscaling (Mac addition): the
+	/// Settings > Display > Render quality (renderScale) and Upscaling (Mac addition): the
 	/// picture is drawn at this fraction of the display's pixels and scaled up
 	@Published var renderScale: Double = {
 		Preferences.register()
@@ -162,10 +162,12 @@ final class AppModel: ObservableObject {
 			// quality (StripFeed, not published: a change to AppModel rebuilds
 			// every open panel, about 100 ms with four open, a stutter)
 			if self.showStats {
+				let gpuTime = e.gpuMilliseconds > 0 ? String(format: "/%.1f", e.gpuMilliseconds) : ""
 				StripFeed.shared.setStats(String(format: "%.0f fps · ", e.framesPerSecond),
 					missed: "\(e.missedFrames) missed",
-					String(format: " · draw %.1f ms%@ · %ld rings%@", e.renderMilliseconds, gpu, e.ringCount, auto),
-					tip: "\(e.refreshRate) Hz display · \(e.rendererName)")
+					String(format: " · %.1f%@ ms · %ld rings", e.renderMilliseconds, gpuTime, e.ringCount),
+					tip: "\(e.refreshRate) Hz display · \(e.rendererName) · draw time on the CPU" + (gpuTime.isEmpty ? "" : "/GPU"))
+				StripFeed.shared.setAuto(Self.autoTag(e.autoQualityStatus))
 			}
 			if Self.logStats {	// WHORLD_STATS=1: also print, for measuring
 				FileHandle.standardError.write(Data((text + "\n").utf8))
@@ -751,6 +753,15 @@ final class AppModel: ObservableObject {
 	}
 
 	let outputKeys = OutputKeys()
+
+	/// The stats strip's tag beside Auto: what Automatic quality has lowered
+	/// ("curves 1.0 px, 75%"), from WHEngine's status ("auto: curves 1.0 px,
+	/// scale 75%"); nothing when it's off or everything is as set.
+	static func autoTag(_ status: String) -> String {
+		guard status.hasPrefix("auto:"), status != "auto: as set" else { return "" }
+		return status.dropFirst("auto:".count).trimmingCharacters(in: .whitespaces)
+			.replacingOccurrences(of: "scale ", with: "")
+	}
 
 	/// A key's control, moved by `delta` (in the units of a slider's travel,
 	/// 0 to 1) times the key's speed; with the readout on, shows the result.

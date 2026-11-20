@@ -15,13 +15,7 @@ struct ContentView: View {
 	@EnvironmentObject private var model: AppModel
 
 	var body: some View {
-		VStack(spacing: 0) {
-			if model.showStats {
-				StatsStrip()
-				Divider()
-			}
-			WorkspaceView(layout: model.layout)
-		}
+		WorkspaceView(layout: model.layout)
 			.background(MainWindowObserver { model.workspaceWindowAppeared($0) })
 			.modifier(DocumentTitle())
 	}
@@ -38,7 +32,8 @@ private struct DocumentTitle: ViewModifier {
 	}
 }
 
-/// The output: the render view with the movie bar overlay,
+/// The output: the stats strip (View > Show Stats) above the render view,
+/// with the movie bar overlay,
 /// taking dropped files. In the workspace's middle, or in the detached
 /// output window.
 struct OutputView: View {
@@ -48,12 +43,18 @@ struct OutputView: View {
 	var panelDrop: EdgeDropDelegate? = nil
 
 	var body: some View {
-		RenderView(engine: model.engine, renderScale: model.renderScale, smoothUpscaling: model.smoothUpscaling)
-			.ignoresSafeArea()
-			.frame(minWidth: 320, minHeight: 240)
-			.overlay(alignment: .bottom) {
-				MovieBar()
+		VStack(spacing: 0) {
+			if model.showStats {
+				StatsStrip()
+				Divider()
 			}
+			RenderView(engine: model.engine, renderScale: model.renderScale, smoothUpscaling: model.smoothUpscaling)
+				.ignoresSafeArea()
+				.frame(minWidth: 320, minHeight: 240)
+				.overlay(alignment: .bottom) {
+					MovieBar()
+				}
+		}
 			.onDrop(of: panelDrop == nil ? [.fileURL] : [.fileURL, .whorldPanel],
 				delegate: OutputDropDelegate(model: model, panels: panelDrop))
 	}
@@ -101,48 +102,57 @@ struct OutputDropDelegate: DropDelegate {
 }
 
 /// View > Show Stats (Mac addition; the user's request, 2026-11-19): a thin
-/// strip across the top of the workspace window, never over the picture,
-/// with the frame statistics, the last control swiped over the picture
-/// (a held key's, or Zoom and Damping), and the quick performance levers.
-/// It replaced the frame-rate overlay and the key readout over the picture.
+/// strip along the top of the output, never over the picture, packed in
+/// one cluster: the frame statistics, the last control swiped over the
+/// picture (a held key's, or Zoom and Damping), and the quick performance
+/// levers, Render quality and Automatic quality, with what Automatic
+/// quality has lowered. It replaced the frame-rate overlay and the key
+/// readout over the picture.
 struct StatsStrip: View {
 	@EnvironmentObject private var model: AppModel
 	static let height: CGFloat = 24
 
 	var body: some View {
-		HStack(spacing: 10) {
+		HStack(spacing: 8) {
 			// the live text is AppKit, redrawn by StripFeed: a SwiftUI layout
-			// pass every second (or every swipe) would drop the panes' tooltips
+			// pass every second (or every swipe) would drop the panes' tooltips;
+			// each at a fixed width, so nothing moves as the numbers change
 			StripText(part: .stats)
-				.frame(minWidth: 60, maxWidth: 440)
-				.layoutPriority(1)	// a narrow window drops the readout first
+				.frame(minWidth: 90, idealWidth: StripText.width(.stats), maxWidth: StripText.width(.stats))
+				.layoutPriority(1)	// a narrow picture shortens the readout first
 			Divider().frame(height: 14)
 			StripText(part: .readout)
-				.frame(minWidth: 0, maxWidth: 260)
-			Spacer(minLength: 0)
+				.frame(minWidth: 0, idealWidth: StripText.width(.readout), maxWidth: StripText.width(.readout))
+			Divider().frame(height: 14)
 			Picker(selection: $model.renderScale) {
 				ForEach(AppModel.renderScales, id: \.value) { s in
 					Text(s.name.split(separator: " ").first.map(String.init) ?? s.name).tag(s.value)
 				}
 			} label: {
-				Text("Scale").foregroundStyle(.secondary)
+				Text("Quality").foregroundStyle(.secondary)
 			}
 			.pickerStyle(.menu)
 			.fixedSize()
+			.layoutPriority(2)
 			Toggle("Auto", isOn: $model.autoQuality)
 				.toggleStyle(.checkbox)
 				.fixedSize()
+				.layoutPriority(2)
+			StripText(part: .auto)	// what Automatic quality has lowered
+				.frame(minWidth: 0, idealWidth: StripText.width(.auto), maxWidth: StripText.width(.auto))
+			Spacer(minLength: 0)
 			InfoButton(text: Self.info, small: true)
+				.layoutPriority(2)
 		}
 		.controlSize(.small)
 		.font(.caption)
-		.padding(.horizontal, 10)
+		.padding(.horizontal, 8)
 		.frame(height: Self.height)
 		.frame(maxWidth: .infinity)
 		.background(Color(nsColor: .windowBackgroundColor))
 	}
 
-	static let info = "Frames drawn a second, display refreshes missed in the last second (orange), the time to draw a frame (on the CPU, and on the GPU with Metal) and the rings drawn; with Automatic quality on, what it has lowered. The display's rate and the renderer are in the statistics' tooltip.\n\nIn the middle, the last control changed by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map), with its value.\n\nScale is Render scale and Auto is Automatic quality, as in Settings > Display, which explains them. View > Show Stats (Option-Command-F) hides the strip."
+	static let info = "Frames drawn a second, display refreshes missed in the last second (orange when any are), the time to draw a frame (on the CPU, then on the GPU with Metal) and the rings drawn. The display's rate and the renderer are in the statistics' tooltip.\n\nNext, the last control changed by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map), with its value.\n\nQuality is Render quality and Auto is Automatic quality, as in Settings > Display, which explains them; beside Auto, what it has lowered for now, if anything. View > Show Stats (Option-Command-F) hides the strip."
 }
 
 /// What the stats strip shows, set by AppModel; its text views redraw only
@@ -157,6 +167,7 @@ final class StripFeed {
 	private(set) var statsTip = ""
 	private(set) var readout = ""
 	private(set) var readoutFresh = false	// just changed; dimmed after a few seconds
+	private(set) var auto = ""	// what Automatic quality has lowered, if anything
 	private var views: [WeakView] = []
 	private var dimWork: DispatchWorkItem?
 
@@ -190,6 +201,12 @@ final class StripFeed {
 		redraw(.stats)
 	}
 
+	func setAuto(_ s: String) {
+		guard s != auto else { return }
+		auto = s
+		redraw(.auto)
+	}
+
 	func setReadout(_ s: String) {
 		if s != readout || !readoutFresh {
 			readout = s
@@ -210,8 +227,20 @@ final class StripFeed {
 
 /// One of the stats strip's live texts (StripFeed), drawn in AppKit
 struct StripText: NSViewRepresentable {
-	enum Part { case stats, readout }
+	enum Part { case stats, readout, auto }
 	let part: Part
+
+	static let font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+
+	/// a part's width: its longest usual text
+	static func width(_ part: Part) -> CGFloat {
+		let sample = switch part {
+		case .stats: "000 fps · 00 missed · 00.0/00.0 ms · 0000 rings"
+		case .readout: "Rotate Speed Freq  -00.000"
+		case .auto: "curves 1.0 px, 33%"
+		}
+		return ceil((sample as NSString).size(withAttributes: [.font: font]).width) + 2
+	}
 
 	final class View: NSView {
 		var part: Part = .stats
@@ -235,7 +264,7 @@ struct StripText: NSViewRepresentable {
 
 		override func draw(_ dirtyRect: NSRect) {
 			let feed = StripFeed.shared
-			let font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+			let font = StripText.font
 			let style = NSMutableParagraphStyle()
 			style.lineBreakMode = .byTruncatingTail
 			func attrs(_ color: NSColor) -> [NSAttributedString.Key: Any] {
@@ -250,12 +279,10 @@ struct StripText: NSViewRepresentable {
 				text.append(NSAttributedString(string: feed.missed, attributes: attrs(warn ? .systemOrange : .secondaryLabelColor)))
 				text.append(NSAttributedString(string: feed.statsTail, attributes: attrs(.secondaryLabelColor)))
 			case .readout:
-				if feed.readout.isEmpty {
-					text.append(NSAttributedString(string: "Swipe over the picture", attributes: attrs(.tertiaryLabelColor)))
-				} else {
-					text.append(NSAttributedString(string: feed.readout,
-						attributes: attrs(feed.readoutFresh ? .labelColor : .secondaryLabelColor)))
-				}
+				text.append(NSAttributedString(string: feed.readout,
+					attributes: attrs(feed.readoutFresh ? .labelColor : .secondaryLabelColor)))
+			case .auto:
+				text.append(NSAttributedString(string: feed.auto, attributes: attrs(.systemOrange)))
 			}
 			let h = ceil(font.ascender - font.descender + font.leading)
 			let r = NSRect(x: 0, y: floor((bounds.height - h) / 2), width: bounds.width, height: h)

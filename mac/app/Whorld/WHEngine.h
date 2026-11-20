@@ -482,7 +482,7 @@ typedef struct {
 // engine for one frame per display refresh.
 @interface WHRenderView : NSView
 @property (nonatomic, strong, nullable) WHEngine *engine;
-// Settings > Display > Render scale (Mac addition): frames are drawn at
+// Settings > Display > Render quality (Mac addition): frames are drawn at
 // this fraction of the display's pixels (1: full resolution; 0.25 to 1) and
 // the layer scales them up to the view, smoothly or as sharp pixels
 @property (nonatomic) double renderScale;

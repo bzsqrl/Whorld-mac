@@ -290,7 +290,7 @@ struct PreferencesView: View {
 						Text(s.name).tag(s.value)
 					}
 				} label: {
-					InfoLabel("Render scale", info: "Draws the picture with fewer pixels and scales it up to fill the window or screen, for higher frame rates on heavy patches or a slower Mac. Ring sizes and line widths stay the same; edges get coarser. At 50%, the GPU's work is about a third to a half of full resolution's. Syphon gets the smaller frames too, unless its size is fixed; exports aren't affected.")
+					InfoLabel("Render quality", info: "Lower quality for higher frame rates on heavy patches or a slower Mac: the picture is drawn with fewer pixels (75%, 50% or 33% of the display's) and scaled up to fill the window or screen. Ring sizes and line widths stay the same; edges get coarser. At 50%, the GPU's work is about a third to a half of full resolution's. Syphon gets the smaller frames too, unless its size is fixed; exports aren't affected.")
 				}
 				Picker(selection: $model.smoothUpscaling) {
 					Text("Smooth").tag(true)
@@ -307,10 +307,10 @@ struct PreferencesView: View {
 						Text("High").font(.caption).foregroundStyle(.secondary)
 					}
 				} label: {
-					InfoLabel("Curve quality", info: "How smoothly curved rings are drawn. Curves are drawn as many short straight segments; lower quality uses fewer, which speeds up patches with large curved rings (bloom, typhoon, boomer) and helps where Render scale doesn't, since the work is in the rings, not the pixels. At the lowest setting curves may look slightly faceted, by up to a pixel. Straight-sided patches aren't affected. Exports always use High.")
+					InfoLabel("Curve quality", info: "How smoothly curved rings are drawn. Curves are drawn as many short straight segments; lower quality uses fewer, which speeds up patches with large curved rings (bloom, typhoon, boomer) and helps where Render quality doesn't, since the work is in the rings, not the pixels. At the lowest setting curves may look slightly faceted, by up to a pixel. Straight-sided patches aren't affected. Exports always use High.")
 				}
 				Toggle(isOn: $model.autoQuality) {
-					InfoLabel("Automatic quality", info: "When the picture can't keep up with the display (refreshes missed), Whorld lowers Curve quality first, then Render scale down to 50%, a step at a time, and raises them again once there's room to spare. It never goes above the settings above. View > Show Stats says when it has stepped in. Exports aren't affected.")
+					InfoLabel("Automatic quality", info: "When the picture can't keep up with the display (refreshes missed), Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare. It never goes above the settings above. View > Show Stats says when it has stepped in. Exports aren't affected.")
 				}
 			}
 	}
