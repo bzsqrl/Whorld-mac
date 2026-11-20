@@ -240,15 +240,87 @@ indirect enum DockNode: Codable, Equatable {
 		}
 	}
 
-	/// With `id` as a tab beside `target`, showing.
-	func tabbing(_ id: PanelID, with target: PanelID) -> DockNode {
+	/// With `id` as a tab beside `target`, showing: last in the stack, or
+	/// just before or after `target` (putting a panel back, DockNode.restoring).
+	func tabbing(_ id: PanelID, with target: PanelID, beside: DockEdge? = nil) -> DockNode {
 		switch self {
 		case .panel(let p):
-			return p == target ? .tabs([p, id], selected: id) : self
-		case .tabs(let ids, _):
-			return ids.contains(target) ? .tabs(ids + [id], selected: id) : self
+			guard p == target else { return self }
+			return .tabs(beside == .leading ? [id, p] : [p, id], selected: id)
+		case .tabs(var ids, _):
+			guard let i = ids.firstIndex(of: target) else { return self }
+			switch beside {
+			case .leading?: ids.insert(id, at: i)
+			case .trailing?: ids.insert(id, at: i + 1)
+			default: ids.append(id)
+			}
+			return .tabs(ids, selected: id)
 		case .split(let axis, let kids):
-			return .split(axis, kids.map { $0.tabbing(id, with: target) })
+			return .split(axis, kids.map { $0.tabbing(id, with: target, beside: beside) })
+		}
+	}
+
+	/// Where the panel sits in this arrangement, for putting it back after
+	/// it has changed: its tab neighbour (and which side of it), or the
+	/// pane or split beside it in its split (and which side of that).
+	enum Neighbour {
+		case tab(PanelID, DockEdge)	// .leading: before that tab
+		case side(DockNode, DockEdge)
+	}
+
+	func neighbour(of id: PanelID) -> Neighbour? {
+		switch self {
+		case .panel: return nil
+		case .tabs(let ids, _):
+			guard let i = ids.firstIndex(of: id), ids.count > 1 else { return nil }
+			return i > 0 ? .tab(ids[i - 1], .trailing) : .tab(ids[i + 1], .leading)
+		case .split(let axis, let kids):
+			if let i = kids.firstIndex(of: .panel(id)) {
+				if i > 0 { return .side(kids[i - 1], axis == .row ? .trailing : .bottom) }
+				if i + 1 < kids.count { return .side(kids[i + 1], axis == .row ? .leading : .top) }
+			}
+			return kids.lazy.compactMap { $0.neighbour(of: id) }.first
+		}
+	}
+
+	/// With `id` on one side of a whole pane or split that's here (nil if it isn't).
+	func inserting(_ id: PanelID, at edge: DockEdge, ofNode target: DockNode) -> DockNode? {
+		let new = DockNode.panel(id)
+		let pair = edge.isAfter ? [target, new] : [new, target]
+		if self == target { return Self.make(edge.axis, pair) }
+		guard case .split(let axis, var kids) = self else { return nil }
+		if let i = kids.firstIndex(of: target) {
+			if axis == edge.axis {
+				kids.insert(new, at: edge.isAfter ? i + 1 : i)
+			} else {
+				kids[i] = Self.make(edge.axis, pair)!
+			}
+			return Self.make(axis, kids)
+		}
+		for i in kids.indices {
+			if let k = kids[i].inserting(id, at: edge, ofNode: target) {
+				kids[i] = k
+				return Self.make(axis, kids)
+			}
+		}
+		return nil
+	}
+
+	/// With the panel put back as it was in `before` (this region's
+	/// arrangement when it was taken out), now that the region has changed:
+	/// beside the same neighbour on the same side, or the same tab stack;
+	/// or beside one of the neighbour's panels still here. Nil if none is.
+	func restoring(_ id: PanelID, from before: DockNode) -> DockNode? {
+		switch before.neighbour(of: id) {
+		case .tab(let t, let side)?:
+			return contains(t) ? tabbing(id, with: t, beside: side) : nil
+		case .side(let n, let edge)?:
+			if let done = inserting(id, at: edge, ofNode: n) { return done }
+			let near = edge.isAfter ? n.panels.reversed() : n.panels
+			guard let p = near.first(where: contains) else { return nil }
+			return inserting(id, at: edge, of: p)
+		case nil:
+			return nil
 		}
 	}
 
@@ -335,8 +407,10 @@ struct Layout: Codable, Equatable {
 	var lastRegion: [PanelID: Region] = [:]
 	/// hidden while floating: it floats again when shown (2026-11-18)
 	var lastFloating: [PanelID] = []
+	/// the exact place it goes back to, in its last region (2026-11-20)
+	var lastPlace: [PanelID: DockPlace] = [:]
 
-	enum CodingKeys: String, CodingKey { case left, right, bottom, floating, detached, lastRegion, lastFloating }
+	enum CodingKeys: String, CodingKey { case left, right, bottom, floating, detached, lastRegion, lastFloating, lastPlace }
 
 	/// Fields missing (a layout from before one was added) read as their
 	/// defaults; see also LayoutFile.sanitized, for panels this Whorld lacks.
@@ -349,6 +423,7 @@ struct Layout: Codable, Equatable {
 		detached = try c.decodeIfPresent(Bool.self, forKey: .detached) ?? false
 		lastRegion = try c.decodeIfPresent([PanelID: Region].self, forKey: .lastRegion) ?? [:]
 		lastFloating = try c.decodeIfPresent([PanelID].self, forKey: .lastFloating) ?? []
+		lastPlace = (try? c.decodeIfPresent([PanelID: DockPlace].self, forKey: .lastPlace)) ?? [:]	// (only a convenience)
 	}
 
 	/// What a new install shows, and Window > Reset Layout: Parameters on the
@@ -394,9 +469,11 @@ struct Layout: Codable, Equatable {
 
 	/// takes the panel out of wherever it is
 	mutating func remove(_ id: PanelID) {
-		if let r = region(of: id) {
+		if let r = region(of: id), let old = root(r) {
 			lastRegion[id] = r
-			setRoot(root(r)?.removing(id), r)
+			let new = old.removing(id)
+			lastPlace[id] = DockPlace(before: old, after: new)
+			setRoot(new, r)
 		}
 		floating.removeAll { $0 == id }
 	}
@@ -431,6 +508,16 @@ struct Layout: Codable, Equatable {
 		detached = v1.detached
 		lastRegion = v1.lastRegion
 	}
+}
+
+/// Where a panel was taken out of a region (Layout.lastPlace; the user's
+/// request, 2026-11-20: docking again puts it back exactly there): the
+/// region's arrangement with it, and without it. Unchanged since, the region
+/// goes back to `before`, divider positions too (they're saved by
+/// arrangement); changed, the panel goes beside its old neighbour.
+struct DockPlace: Codable, Equatable {
+	var before: DockNode
+	var after: DockNode?
 }
 
 /// A rectangle as a share of a screen's visible area, so a layout adapts to
@@ -525,6 +612,19 @@ struct LayoutFile: Codable {
 					i += 2
 				}
 				l["lastRegion"] = kept
+			}
+			if let a = l["lastPlace"] as? [Any] {	// [PanelID: DockPlace]: key, value, ...
+				var kept: [Any] = []
+				var i = 0
+				while i + 1 < a.count {
+					if known(a[i]), var place = a[i + 1] as? [String: Any], let before = place["before"].flatMap(node) {
+						place["before"] = before
+						if let after = place["after"] { place["after"] = node(after) }
+						kept += [a[i], place]
+					}
+					i += 2
+				}
+				l["lastPlace"] = kept
 			}
 			return l
 		}
@@ -820,7 +920,7 @@ final class LayoutModel: ObservableObject {
 			if layout.showsFloating(id) {
 				float(id)
 			} else {
-				move(id, to: layout.lastRegion[id] ?? id.defaultRegion)
+				dock(id)
 			}
 		} else {
 			hide(id)
@@ -835,6 +935,33 @@ final class LayoutModel: ObservableObject {
 		if wasFloating {
 			l.lastFloating.append(id)	// it floats again when shown
 		}
+		layout = l
+		if wasFloating {
+			closeFloating?(id)
+		}
+	}
+
+	/// Docks a floating or hidden panel where it was taken out (Layout
+	/// lastPlace): exactly there if its region hasn't changed since, else
+	/// beside the same neighbour; failing that, at the end of its last region.
+	func dock(_ id: PanelID) {
+		guard !isDocked(id) else { return }
+		let r = layout.lastRegion[id] ?? id.defaultRegion
+		guard layout.lastRegion[id] != nil, let place = layout.lastPlace[id] else { move(id, to: r); return }
+		var l = layout
+		let current = l.root(r)
+		let new: DockNode?
+		if current == place.after, place.before.contains(id) {
+			new = place.before
+		} else if let current {
+			new = current.restoring(id, from: place.before)
+		} else {
+			new = .panel(id)
+		}
+		guard let new else { move(id, to: r); return }
+		let wasFloating = isFloating(id)
+		l.remove(id)	// (from the floating list)
+		l.setRoot(new, r)
 		layout = l
 		if wasFloating {
 			closeFloating?(id)
@@ -1456,7 +1583,7 @@ struct FloatingPanel: View {
 			.frame(minWidth: id.floatingMinSize.width, minHeight: id.floatingMinSize.height)
 			.toolbar {
 				ToolbarItem {
-					Button("Dock") { model.layout.move(id, to: model.layout.layout.lastRegion[id] ?? id.defaultRegion) }
+					Button("Dock") { model.layout.dock(id) }
 						.help("Dock \(id.title) in the Whorld window")
 				}
 			}
@@ -1994,7 +2121,7 @@ enum TitleBarClicks {
 			}
 		}
 		if let panel {
-			layout.move(panel, to: layout.layout.lastRegion[panel] ?? panel.defaultRegion)
+			layout.dock(panel)
 		} else {
 			model.toggleDetach()
 		}
