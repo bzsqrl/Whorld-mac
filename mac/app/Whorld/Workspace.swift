@@ -1703,7 +1703,8 @@ struct WorkspaceView: View {
 
 	var body: some View {
 		let l = layout.layout
-		let top = (l.left == nil ? [] : ["left"]) + (l.detached ? [] : ["center"]) + (l.right == nil ? [] : ["right"])
+		// detached, the output's place stays, as the swipe pad (OutputView)
+		let top = (l.left == nil ? [] : ["left"]) + ["center"] + (l.right == nil ? [] : ["right"])
 		let rows = (top.isEmpty ? [] : ["top"]) + (l.bottom == nil ? [] : ["bottom"])
 		Group {
 			if rows.isEmpty {
@@ -1806,7 +1807,8 @@ struct OutputArea: View {
 
 	var body: some View {
 		GeometryReader { g in
-			OutputView(panelDrop: EdgeDropDelegate(size: g.size, layout: layout, target: $target))
+			OutputView(panelDrop: EdgeDropDelegate(size: g.size, layout: layout, target: $target),
+				pad: layout.layout.detached)
 				.overlay {
 					if let target = target ?? hoverRegion {
 						let w = g.size.width / 4, h = g.size.height / 4

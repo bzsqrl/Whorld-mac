@@ -33,7 +33,8 @@ private struct DocumentTitle: ViewModifier {
 }
 
 /// The output: the stats strip (View > Show Stats) above the render view,
-/// with the movie bar overlay,
+/// with the movie bar overlay; or, in the workspace while the output is
+/// detached, the swipe pad in the picture's place, with the strip,
 /// taking dropped files. In the workspace's middle, or in the detached
 /// output window.
 struct OutputView: View {
@@ -41,22 +42,123 @@ struct OutputView: View {
 	/// in the workspace, panels dropped near its edges (one drop target for
 	/// both: an inner one would take every drag over it, panels' too)
 	var panelDrop: EdgeDropDelegate? = nil
+	/// the workspace's output place while the output is detached
+	var pad = false
 
 	var body: some View {
 		VStack(spacing: 0) {
-			if model.showStats {
+			// detached, the strip is on the pad, where you are (the picture
+			// may be full screen on another display), not with the picture
+			if model.showStats && (pad || !model.layout.layout.detached) {
 				StatsStrip()
 				Divider()
 			}
-			RenderView(engine: model.engine, renderScale: model.renderScale, smoothUpscaling: model.smoothUpscaling)
-				.ignoresSafeArea()
-				.frame(minWidth: 320, minHeight: 240)
-				.overlay(alignment: .bottom) {
-					MovieBar()
+			Group {
+				if pad {
+					SwipePad()
+						.frame(minWidth: 120, minHeight: 120)
+				} else {
+					RenderView(engine: model.engine, renderScale: model.renderScale, smoothUpscaling: model.smoothUpscaling)
+						.ignoresSafeArea()
+						.frame(minWidth: 320, minHeight: 240)
 				}
+			}
+			.overlay(alignment: .bottom) {
+				MovieBar()
+			}
 		}
 			.onDrop(of: panelDrop == nil ? [.fileURL] : [.fileURL, .whorldPanel],
 				delegate: OutputDropDelegate(model: model, panels: panelDrop))
+	}
+}
+
+/// The swipe pad (Mac addition; the user's request, 2026-11-19): while the
+/// output is detached (on a second display, full screen, say), its place in
+/// the workspace stays, blank, and takes what the picture takes, so the
+/// pointer needn't cross to the other display: scrolling zooms (Damping
+/// with Shift), or moves a held key's control (the Key Map); a two-finger
+/// tap with the key held puts it back; Command-Left and Right step the
+/// snapshots; and while the button is down the origin follows the pointer,
+/// the pad standing for the whole picture (WHRenderView's handlers).
+struct SwipePad: NSViewRepresentable {
+	func makeNSView(context: Context) -> SwipePadView { SwipePadView() }
+	func updateNSView(_ view: SwipePadView, context: Context) {}
+	func sizeThatFits(_ proposal: ProposedViewSize, nsView: SwipePadView, context: Context) -> CGSize? {
+		proposal.replacingUnspecifiedDimensions(by: CGSize(width: 320, height: 240))
+	}
+}
+
+final class SwipePadView: NSView {
+	private var tracking: NSTrackingArea?
+
+	override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+	override func updateTrackingAreas() {
+		super.updateTrackingAreas()
+		if let tracking { removeTrackingArea(tracking) }
+		let t = NSTrackingArea(rect: .zero, options: [.mouseMoved, .inVisibleRect, .activeInKeyWindow], owner: self, userInfo: nil)
+		addTrackingArea(t)
+		tracking = t
+	}
+
+	override func viewDidChangeEffectiveAppearance() {
+		super.viewDidChangeEffectiveAppearance()
+		needsDisplay = true
+	}
+
+	override func draw(_ dirtyRect: NSRect) {
+		NSColor.underPageBackgroundColor.setFill()
+		bounds.fill()
+		let style = NSMutableParagraphStyle()
+		style.alignment = .center
+		let title: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: NSFont.systemFontSize, weight: .medium),
+			.foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: style]
+		let body: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+			.foregroundColor: NSColor.tertiaryLabelColor, .paragraphStyle: style]
+		let text = NSMutableAttributedString(string: "The picture is detached\n", attributes: title)
+		text.append(NSAttributedString(string: "Swipe here to zoom, or hold a Key Map key to change its control. Press and drag to move the origin.", attributes: body))
+		let w = min(bounds.width - 24, 320)
+		guard w > 40 else { return }
+		let size = text.boundingRect(with: NSSize(width: w, height: 1000), options: [.usesLineFragmentOrigin]).size
+		text.draw(with: NSRect(x: (bounds.width - w) / 2, y: (bounds.height - size.height) / 2, width: w, height: ceil(size.height)),
+			options: [.usesLineFragmentOrigin])
+	}
+
+	// as WHRenderView's (WHEngine.mm): a wheel reports lines, a trackpad
+	// points, 10 to a notch; Shift turns a wheel's scrolling horizontal
+	override func scrollWheel(with event: NSEvent) {
+		let shift = event.modifierFlags.contains(.shift)
+		let delta = event.scrollingDeltaY != 0 ? event.scrollingDeltaY : (shift ? event.scrollingDeltaX : 0)
+		let notches = event.hasPreciseScrollingDeltas ? delta / 10 : delta
+		guard notches != 0 else { return }
+		AppModel.shared.wheel(notches: Double(notches), shift: shift, momentum: event.momentumPhase != [],
+			inverted: event.isDirectionInvertedFromDevice, trackpad: event.hasPreciseScrollingDeltas)
+	}
+
+	/// the pointer, as a place in the picture (the engine's y points down)
+	private func report(_ event: NSEvent) {
+		let p = convert(event.locationInWindow, from: nil)
+		guard bounds.width > 0, bounds.height > 0 else { return }
+		AppModel.shared.engine.setCursorPosition(CGPoint(x: min(max(p.x / bounds.width, 0), 1),
+			y: 1 - min(max(p.y / bounds.height, 0), 1)))
+	}
+
+	override func mouseMoved(with event: NSEvent) { report(event) }
+	override func mouseDragged(with event: NSEvent) { report(event) }
+
+	override func mouseDown(with event: NSEvent) {
+		report(event)
+		AppModel.shared.outputMouse(down: true)
+	}
+
+	override func mouseUp(with event: NSEvent) {
+		report(event)
+		AppModel.shared.outputMouse(down: false)
+	}
+
+	override func rightMouseDown(with event: NSEvent) {
+		if AppModel.shared.resetHeldKeyControl() { return }
+		super.rightMouseDown(with: event)
 	}
 }
 

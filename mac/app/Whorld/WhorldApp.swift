@@ -1504,14 +1504,15 @@ final class OutputKeys {
 		}
 	}
 
-	/// the pointer is over a picture (WHRenderView) in the topmost window under it
+	/// the pointer is over a picture (WHRenderView), or the swipe pad standing
+	/// for it, in the topmost window under it
 	private static func pointerOverOutput() -> Bool {
 		let p = NSEvent.mouseLocation
 		let n = NSWindow.windowNumber(at: p, belowWindowWithWindowNumber: 0)
 		guard let w = NSApp.window(withWindowNumber: n), let content = w.contentView else { return false }
 		var v = content.hitTest(w.convertPoint(fromScreen: p))	// hitTest takes its superview's (the window's) coordinates
 		while let view = v {
-			if view is WHRenderView { return true }
+			if view is WHRenderView || view is SwipePadView { return true }
 			v = view.superview
 		}
 		return false
