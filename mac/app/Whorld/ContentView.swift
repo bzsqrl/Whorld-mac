@@ -244,6 +244,9 @@ struct StatsStrip: View {
 			.layoutPriority(2)
 			.help("Audio modulation on or off (Audio > Audio Modulation, ⌘'). The dot: faint off, hollow finding the beat, filled once it's locked, flashing on each beat; then the tempo.")
 			Divider().frame(height: 14)
+			GeometryToggle()	// Image > Geometry Only (the user's request, 2026-11-20)
+				.layoutPriority(2)
+			Divider().frame(height: 14)
 			QualityMenu(feed: StripFeed.shared.autoTag)
 				.layoutPriority(2)
 			Divider().frame(height: 14)
@@ -270,7 +273,7 @@ struct StatsStrip: View {
 		.background(Color(nsColor: .windowBackgroundColor))
 	}
 
-	static let info = "Frames drawn a second, display refreshes missed in the last second (orange when any are), and the time to draw a frame (on the CPU, then on the GPU with Metal). The rings drawn, the display's rate and the renderer are in the statistics' tooltip.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nClick Mod to turn audio modulation on and off (Audio > Audio Modulation, Command-'). Its dot: faint while it's off, hollow while it's finding the beat, filled and flashing on each beat once it's locked, with the tempo beside it.\n\nThe Quality menu sets Render quality (Settings > Display explains it) and Automatic quality (View > Automatic Quality, Command-;); its title says which is in charge, Quality or Auto, and the quality drawn. Automatic quality: when the picture can't keep up with the display, Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare, never above your settings; exports aren't affected. While it has lowered something, the title is orange with a ↓ (Auto ↓75%), and its tooltip says what.\n\nClick Syphon to send the picture to other apps on this Mac, or stop (View > Syphon also sets its size). Its dot: faint while it's off, hollow while no app is receiving, filled once one is.\n\nView > Show Stats (Option-Command-9) hides the strip."
+	static let info = "Frames drawn a second, display refreshes missed in the last second (orange when any are), and the time to draw a frame (on the CPU, then on the GPU with Metal). The rings drawn, the display's rate and the renderer are in the statistics' tooltip.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nClick Mod to turn audio modulation on and off (Audio > Audio Modulation, Command-'). Its dot: faint while it's off, hollow while it's finding the beat, filled and flashing on each beat once it's locked, with the tempo beside it.\n\nClick Full or Geom to switch the patch mode (Image > Geometry Only, Option-Command-G): in Geom, playing a patch changes only its shape and motion.\n\nThe Quality menu sets Render quality (Settings > Display explains it) and Automatic quality (View > Automatic Quality, Command-;); its title says which is in charge, Quality or Auto, and the quality drawn. Automatic quality: when the picture can't keep up with the display, Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare, never above your settings; exports aren't affected. While it has lowered something, the title is orange with a ↓ (Auto ↓75%), and its tooltip says what.\n\nClick Syphon to send the picture to other apps on this Mac, or stop (View > Syphon also sets its size). Its dot: faint while it's off, hollow while no app is receiving, filled once one is.\n\nView > Show Stats (Option-Command-9) hides the strip."
 }
 
 /// What the stats strip shows, set by AppModel; its text views redraw only
@@ -453,7 +456,28 @@ private struct QualityMenu: View {
 	}
 }
 
-/// Mod and Syphon in the stats strip: a label a click toggles, lit on hover
+/// Image > Geometry Only in the stats strip, as the playlist panel shows it:
+/// Full or Geom, a click for the other. Its own view, reading the playlist's
+/// change counter, so only it redraws when the mode changes (rarely; see
+/// StripText on the tooltips)
+private struct GeometryToggle: View {
+	@EnvironmentObject private var model: AppModel
+
+	var body: some View {
+		let _ = model.changes.playlist.n
+		let geometry = model.engine.geometryMode
+		Button { model.setGeometryMode(!geometry) } label: {
+			Text(geometry ? "Geom" : "Full")
+		}
+		.buttonStyle(StripToggleStyle())
+		.fixedSize()
+		.help(geometry
+			? "Geometry mode: playing a patch changes only its shape and motion, keeping colors, Hue, Master, Properties and Global values. Click for Full mode (Image > Geometry Only, ⌥⌘G)."
+			: "Full mode: playing a patch changes everything. Click for Geometry mode, where only its shape and motion change (Image > Geometry Only, ⌥⌘G).")
+	}
+}
+
+/// Mod, Full/Geom and Syphon in the stats strip: a label a click toggles, lit on hover
 private struct StripToggleStyle: ButtonStyle {
 	func makeBody(configuration: Configuration) -> some View { Lit(configuration: configuration) }
 
