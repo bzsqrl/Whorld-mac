@@ -255,7 +255,7 @@ struct WhorldCommands: Commands {
 		CommandMenu("Audio") {
 			// Mac addition (AUDIO_PLAN.md): the Modulation panel's rows on or off
 			toggle("Audio Modulation", !ModMap.shared.bypass) { ModMap.shared.bypass.toggle() }
-				.keyboardShortcut("8")
+				.keyboardShortcut("'")	// with the beat keys, Command [ ] \ (the user's request, 2026-11-19; was Command-8)
 			Divider()
 			// the count, to keep the rows' phrases with the music's (the
 			// Modulation panel's beat buttons; Reset Bar Count, the nearest

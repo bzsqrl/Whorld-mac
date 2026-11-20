@@ -226,6 +226,19 @@ struct StatsStrip: View {
 			StripText(part: .readout)
 				.frame(minWidth: 0, idealWidth: StripText.width(.readout), maxWidth: StripText.width(.readout))
 			Divider().frame(height: 14)
+			// Audio > Audio Modulation, with the beat: the most live of the
+			// levers, so first (the user's request, 2026-11-19)
+			Toggle("Audio Mod", isOn: Binding(get: { !ModMap.shared.bypass }, set: { ModMap.shared.bypass = !$0 }))
+				.toggleStyle(.checkbox)
+				.fixedSize()
+				.layoutPriority(2)
+			StripText(part: .beat)	// off, finding the beat, or locked (flashing on the beat)
+				.frame(width: 8, height: 8)
+				.layoutPriority(2)
+			StripText(part: .tempo)	// the locked tempo, BPM
+				.frame(width: StripText.width(.tempo))
+				.layoutPriority(2)
+			Divider().frame(height: 14)
 			Picker(selection: $model.renderScale) {
 				ForEach(AppModel.renderScales, id: \.value) { s in
 					Text(s.name.split(separator: " ").first.map(String.init) ?? s.name).tag(s.value)
@@ -261,7 +274,7 @@ struct StatsStrip: View {
 		.background(Color(nsColor: .windowBackgroundColor))
 	}
 
-	static let info = "Frames drawn a second, display refreshes missed in the last second (orange when any are), the time to draw a frame (on the CPU, then on the GPU with Metal) and the rings drawn. The display's rate and the renderer are in the statistics' tooltip.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nQuality is Render quality and Auto is Automatic quality, as in Settings > Display, which explains them; beside Auto, what it has lowered for now, if anything.\n\nSyphon sends the picture to other apps on this Mac (View > Syphon also sets its size). Its dot: hollow while no app is receiving, filled once one is.\n\nView > Show Stats (Option-Command-9) hides the strip."
+	static let info = "Frames drawn a second, display refreshes missed in the last second (orange when any are), the time to draw a frame (on the CPU, then on the GPU with Metal) and the rings drawn. The display's rate and the renderer are in the statistics' tooltip.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nAudio Mod turns audio modulation on and off (Audio > Audio Modulation, Command-'). Its dot: hollow while it's finding the beat, filled and flashing on each beat once it's locked, with the tempo beside it.\n\nQuality is Render quality and Auto is Automatic quality, as in Settings > Display, which explains them; beside Auto, what it has lowered for now, if anything.\n\nSyphon sends the picture to other apps on this Mac (View > Syphon also sets its size). Its dot: hollow while no app is receiving, filled once one is.\n\nView > Show Stats (Option-Command-9) hides the strip."
 }
 
 /// What the stats strip shows, set by AppModel; its text views redraw only
@@ -292,10 +305,69 @@ final class StripFeed {
 	func add(_ v: StripText.View) {
 		views.removeAll { $0.view == nil || $0.view === v }
 		views.append(WeakView(v))
+		if v.part == .beat { startBeat() }
 	}
 
 	func remove(_ v: StripText.View) {
 		views.removeAll { $0.view == nil || $0.view === v }
+		if !views.contains(where: { $0.view?.part == .beat }) {
+			beatTimer?.invalidate()
+			beatTimer = nil
+		}
+	}
+
+	// The beat (Audio Mod's dot and the tempo): 0 off, 1 finding the beat,
+	// 2 locked; checked 30 times a second while the strip is shown, as the
+	// Modulation panel's meter is, to flash on each beat (from the tracker,
+	// or Ableton Link's while it drives the beat)
+	private(set) var beat = (state: 0, flash: false, tempo: "")
+	private var beatTimer: Timer?
+	private var lastBeat: Int?
+	private var flashUntil = Date.distantPast
+
+	private func startBeat() {
+		guard beatTimer == nil else { return }
+		let t = Timer(timeInterval: 1.0 / 30, repeats: true) { _ in
+			MainActor.assumeIsolated { StripFeed.shared.tickBeat() }
+		}
+		RunLoop.main.add(t, forMode: .common)
+		beatTimer = t
+		tickBeat()
+	}
+
+	private func tickBeat() {
+		let now = Date()
+		var state = 0, tempo = "", count: Int?
+		if !ModMap.shared.bypass {
+			let link = WHLink.shared
+			var pos = 0.0
+			if link.drivesBeat, link.beatPosition(&pos) {
+				state = 2
+				count = Int(pos.rounded(.down))
+				tempo = String(format: "%.0f", link.tempo)
+			} else if !link.drivesBeat {
+				let r = WHAudioInput.shared.reading()
+				state = r.beatLocked.boolValue ? 2 : 1
+				count = Int(r.beats)
+				if state == 2 { tempo = String(format: "%.0f", r.tempo) }
+			} else {
+				state = 1	// Link drives the beat, stopped
+			}
+		}
+		if let count, count != lastBeat {
+			if lastBeat != nil { flashUntil = now.addingTimeInterval(0.12) }
+			lastBeat = count
+		}
+		let new = (state: state, flash: state == 2 && now < flashUntil, tempo: tempo)
+		if new.state != beat.state || new.flash != beat.flash {
+			for w in views where w.view?.part == .beat { w.view?.toolTip = StripText.beatTip(new.state) }
+			beat = new
+			redraw(.beat)
+		}
+		if new.tempo != beat.tempo {
+			beat.tempo = new.tempo
+			redraw(.tempo)
+		}
 	}
 
 	private func redraw(_ part: StripText.Part) {
@@ -364,7 +436,11 @@ private struct AutoTag: View {
 
 /// One of the stats strip's live texts (StripFeed), drawn in AppKit
 struct StripText: NSViewRepresentable {
-	enum Part { case stats, readout, syphon }
+	enum Part { case stats, readout, syphon, beat, tempo }
+
+	static func beatTip(_ state: Int) -> String {
+		state == 0 ? "Audio modulation is off" : state == 2 ? "The beat is locked" : "Finding the beat…"
+	}
 
 	static func syphonTip(_ state: Int) -> String {
 		state == 0 ? "Syphon is off" : state == 2 ? "Publishing as Whorld · an app is receiving"
@@ -379,7 +455,8 @@ struct StripText: NSViewRepresentable {
 		let sample = switch part {
 		case .stats: "000 fps · 00 missed · 00.0/00.0 ms · 0000 rings"
 		case .readout: "Rotate Speed Freq  -00.000"
-		case .syphon: ""
+		case .syphon, .beat: ""
+		case .tempo: "000"
 		}
 		return ceil((sample as NSString).size(withAttributes: [.font: font]).width) + 2
 	}
@@ -395,6 +472,8 @@ struct StripText: NSViewRepresentable {
 				StripFeed.shared.add(self)
 				if part == .stats { toolTip = StripFeed.shared.statsTip }
 				if part == .syphon { toolTip = StripText.syphonTip(StripFeed.shared.syphon) }
+				if part == .beat { toolTip = StripText.beatTip(StripFeed.shared.beat.state) }
+				if part == .tempo { toolTip = "The tempo, BPM" }
 			} else {
 				StripFeed.shared.remove(self)
 			}
@@ -424,6 +503,24 @@ struct StripText: NSViewRepresentable {
 			case .readout:
 				text.append(NSAttributedString(string: feed.readout,
 					attributes: attrs(feed.readoutFresh ? .labelColor : .secondaryLabelColor)))
+			case .tempo:
+				text.append(NSAttributedString(string: feed.beat.tempo, attributes: attrs(.secondaryLabelColor)))
+			case .beat:	// a dot: faint off, an outline finding the beat, filled locked, bright on the beat
+				let r = bounds.insetBy(dx: 1, dy: 1)
+				switch feed.beat.state {
+				case 0:
+					NSColor.tertiaryLabelColor.setFill()
+					NSBezierPath(ovalIn: r).fill()
+				case 1:
+					let p = NSBezierPath(ovalIn: r.insetBy(dx: 0.5, dy: 0.5))
+					p.lineWidth = 1
+					NSColor.controlAccentColor.setStroke()
+					p.stroke()
+				default:
+					(feed.beat.flash ? NSColor.systemOrange : NSColor.controlAccentColor).setFill()
+					NSBezierPath(ovalIn: r).fill()
+				}
+				return
 			case .syphon:	// a dot: faint off, an outline publishing, filled receiving
 				let r = bounds.insetBy(dx: 1, dy: 1)
 				switch feed.syphon {

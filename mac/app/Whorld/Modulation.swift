@@ -158,7 +158,7 @@ private struct ModTopBar: View {
 	@ViewBuilder private var switchAndDepth: some View {
 			Toggle("Modulation", isOn: Binding(get: { !map.bypass }, set: { map.bypass = !$0 }))
 				.toggleStyle(.switch)
-				.help("All rows on or off; off, the patches play as they are. Audio > Audio Modulation (⌘8), OSC /w/mod/on.")
+				.help("All rows on or off; off, the patches play as they are. Audio > Audio Modulation (⌘'), or Audio Mod in the stats strip, OSC /w/mod/on.")
 			Text("Depth")
 				.padding(.leading, 8)
 			StepSlider(value: map.depth, range: 0...1, step: 0.01, defaultValue: 1) { map.depth = $0 }
