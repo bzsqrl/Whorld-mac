@@ -938,6 +938,7 @@ struct PlaylistPanel: View {
 				playSelected()
 				return .handled
 			}
+			.background(PlayingRowScroller(row: model.playingPatch, plays: model.patchPlays))
 			Divider()
 			HStack {
 				Button { model.insertPatches() } label: { Image(systemName: "plus") }
@@ -982,5 +983,65 @@ struct PlaylistPanel: View {
 		if delta < 0 && first == 0 || delta > 0 && last == count - 1 { return }
 		model.movePatches(from: IndexSet(sel), to: delta < 0 ? first - 1 : last + 2)
 		model.playlistSelection = Set(sel.map { $0 + delta })
+	}
+}
+
+/// Keeps the playing patch in view (the user's request, 2026-11-20): each
+/// time a patch is played from the playlist (a click, Next and Previous,
+/// MIDI or OSC), its row scrolls to about a third of the way down, so a
+/// few patches before it and more after it show. Only then: scrolling by
+/// hand is left alone. It finds the SwiftUI Table's NSTableView as the
+/// one whose scroll view covers this background view.
+private struct PlayingRowScroller: NSViewRepresentable {
+	let row: Int
+	let plays: Int
+
+	final class Coordinator {
+		var plays: Int?
+	}
+
+	func makeCoordinator() -> Coordinator { Coordinator() }
+	func makeNSView(context: Context) -> NSView { NSView() }
+
+	func updateNSView(_ view: NSView, context: Context) {
+		let c = context.coordinator
+		guard c.plays != plays else { return }
+		let first = c.plays == nil	// the panel just appeared: no load to follow
+		c.plays = plays
+		guard !first, row >= 0 else { return }
+		DispatchQueue.main.async {	// once the table has the new rows
+			guard let table = Self.table(covering: view), row < table.numberOfRows,
+				let scroll = table.enclosingScrollView else { return }
+			let clip = scroll.contentView
+			let inset = clip.contentInsets.top	// the header
+			let visible = clip.bounds.height - inset
+			let r = table.rect(ofRow: row)
+			var y = r.midY - visible / 3 - inset
+			y = min(max(y, -inset), max(table.frame.height - clip.bounds.height, -inset))
+			NSAnimationContext.runAnimationGroup { ctx in
+				ctx.duration = 0.2
+				clip.animator().setBoundsOrigin(NSPoint(x: clip.bounds.origin.x, y: y))
+			}
+			scroll.reflectScrolledClipView(clip)
+		}
+	}
+
+	/// the table whose scroll view is where this view is
+	private static func table(covering view: NSView) -> NSTableView? {
+		guard let window = view.window, let root = window.contentView else { return nil }
+		let frame = view.convert(view.bounds, to: nil)
+		var best: NSTableView?
+		var bestArea: CGFloat = 0
+		func search(_ v: NSView) {
+			if let t = v as? NSTableView, let s = t.enclosingScrollView {
+				let overlap = s.convert(s.bounds, to: nil).intersection(frame)
+				let area = overlap.isNull ? 0 : overlap.width * overlap.height
+				if area > bestArea { best = t; bestArea = area }
+				return
+			}
+			v.subviews.forEach(search)
+		}
+		search(root)
+		return best
 	}
 }

@@ -227,6 +227,9 @@ final class AppModel: ObservableObject {
 	@Published var currentSnapshot = 0
 	/// Index of the playing playlist patch (CPlaylistBar::m_iPlayingPatch).
 	@Published var playingPatch = -1
+	/// Counts patches played from the playlist (the Playlist panel scrolls
+	/// to the playing one on each, even the same one again)
+	@Published var patchPlays = 0
 	@Published var playlistSelection = Set<Int>()
 	@Published var movieExportProgress: (done: Int64, total: Int64)? = nil
 
@@ -486,6 +489,7 @@ final class AppModel: ObservableObject {
 		if engine.playPatch(atPath: url.path) {
 			playedName = url.deletingPathExtension().lastPathComponent
 			playingPatch = index
+			patchPlays += 1
 			originFromPatch()
 			resetUndo()
 			updateTitle()
