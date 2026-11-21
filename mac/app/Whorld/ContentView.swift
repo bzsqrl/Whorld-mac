@@ -248,6 +248,10 @@ private struct StatsStripContent: View {
 
 	var body: some View {
 		HStack(spacing: 8) {
+			// Image > Blackout, at the far left (the user's request, 2026-11-21)
+			BlackoutButton()
+				.layoutPriority(2)
+			Divider().frame(height: 14)
 			// the live text is AppKit, redrawn by StripFeed: a SwiftUI layout
 			// pass every second (or every swipe) would drop the panes' tooltips;
 			// each at a fixed width, so nothing moves as the numbers change
@@ -263,20 +267,27 @@ private struct StatsStripContent: View {
 			StripText(part: .readout)
 				.frame(minWidth: 0, idealWidth: StripText.width(.readout), maxWidth: StripText.width(.readout))
 			Divider().frame(height: 14)
-			// the patch playing, and its place in the playlist (12/86); a
-			// click plays the next (the user's request, 2026-11-20)
+			// the patch's place in the playlist (12/86), its name in the
+			// tooltip (shown elsewhere: the user's request, 2026-11-21); a
+			// click plays the next (2026-11-20)
 			StripText(part: .patch)
-				.frame(minWidth: 50, idealWidth: StripText.width(.patch) + 8, maxWidth: StripText.width(.patch) + 8)
-				.frame(height: 18)
-				.layoutPriority(1)
+				.frame(width: StripText.width(.patch) + 8, height: 18)
+				.layoutPriority(2)
 			PlaylistTransport()	// Play / Stop (the user's request, 2026-11-20)
 				.layoutPriority(2)
 			Divider().frame(height: 14)
-			BlackoutButton()	// Image > Blackout (the user's request, 2026-11-20)
+			GeometryToggle()	// Image > Geometry Only (the user's request, 2026-11-20)
 				.layoutPriority(2)
 			Divider().frame(height: 14)
-			// Audio > Audio Modulation, with the beat: the most live of the
-			// levers, so first (the user's request, 2026-11-19). Mod and Syphon
+			// Automatic quality and Render quality, apart (the user's
+			// request, 2026-11-20)
+			AutoQualityToggle(feed: StripFeed.shared.autoTag)
+				.layoutPriority(2)
+			ResolutionMenu(feed: StripFeed.shared.autoTag)
+				.layoutPriority(2)
+			Divider().frame(height: 14)
+			// Audio > Audio Modulation, with the beat, beside Syphon (the
+			// user's request, 2026-11-21). Mod and Syphon
 			// are labels a click toggles, their dots saying on or off (no
 			// checkboxes, for the readout's room)
 			Button { ModMap.shared.bypass.toggle() } label: {
@@ -296,22 +307,13 @@ private struct StatsStripContent: View {
 			StripTempo(shown: StripFeed.shared.tempoShown)	// no room held while there's none
 				.layoutPriority(2)
 			Divider().frame(height: 14)
-			GeometryToggle()	// Image > Geometry Only (the user's request, 2026-11-20)
-				.layoutPriority(2)
-			Divider().frame(height: 14)
-			// Automatic quality and Render quality, apart (the user's
-			// request, 2026-11-20)
-			AutoQualityToggle(feed: StripFeed.shared.autoTag)
-				.layoutPriority(2)
-			ResolutionMenu(feed: StripFeed.shared.autoTag)
-				.layoutPriority(2)
-			Divider().frame(height: 14)
-			// the dot alone (the user's request, 2026-11-20)
+			// "Syp" and the dot (the user's request, 2026-11-21), like Mod
 			Button { model.setSyphonEnabled(!model.syphonEnabled) } label: {
-				StripText(part: .syphon)	// off, publishing, or an app receiving
-					.frame(width: 8, height: 8)
-					.padding(.horizontal, 2)	// an easier target
-					.padding(.vertical, 3)
+				HStack(spacing: 5) {
+					Text("Syp").foregroundStyle(model.syphonEnabled ? .primary : .secondary)
+					StripText(part: .syphon)	// off, publishing, or an app receiving
+						.frame(width: 8, height: 8)
+				}
 			}
 			.buttonStyle(StripToggleStyle())
 			.fixedSize()
@@ -352,7 +354,7 @@ private struct StatsStripContent: View {
 		.background(Color(nsColor: .windowBackgroundColor))
 	}
 
-	static let info = "Frames drawn a second, orange when display refreshes were missed in the last second. Click it for the rest: the refreshes missed, the time to draw a frame (on the CPU, then on the GPU with Metal), the rings drawn, the display's rate, the renderer and what Automatic quality has lowered.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nThe patch playing, with its place in the playlist: click it for the next patch (Image > Next Patch, Command-Down). Then Play / Stop (Image > Auto Advance, Option-Command-L): Play plays through the playlist, each patch for the length set in the Playlist panel (or right-click Play to pick one); the line under it fills toward the next patch.\n\nThe eye is Blackout (Image > Blackout, Command-B): the picture fades to black, red while it's out, and a second click fades it back. It's black on screen and in Syphon; Whorld goes on running underneath, so the picture returns where it would have been.\n\nClick Mod to turn audio modulation on and off (Audio > Audio Modulation, Command-'). Its dot: faint while it's off, hollow while it's finding the beat, filled and flashing on each beat once it's locked, with the tempo beside it. Click the tempo to reset the count to 1.1 (Audio > Reset to 1.1, Command-\\): the beat nearest now becomes bar 1, beat 1.\n\nClick Full or Geom to switch the patch mode (Image > Geometry Only, Option-Command-G): in Geom, playing a patch changes only its shape and motion.\n\nAuto turns Automatic quality on or off (View > Automatic Quality, Command-;): when the picture can't keep up with the display, Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare, never above your settings; exports aren't affected. Bright while on; while it has lowered something it reads Auto ↓ in orange, and its tooltip says what.\n\nRes is Render quality, the resolution drawn (Settings > Display explains it); orange while Automatic quality draws it lower than your setting.\n\nClick the green dot to send the picture to other apps on this Mac by Syphon, or stop (View > Syphon also sets its size): faint while it's off, hollow while no app is receiving, filled once one is.\n\nAt the right end: Detach (View > Detach, Shift-Command-D), the picture in a window of its own for a projector, lit while it's detached (a click docks it); and the arrows, full screen on the display the picture is on (View > Enter Full Screen, Command-F). Option-click them for full screen on another display (View > Enter Full Screen on Other Display, Shift-Command-F); while full screen, Shift-Command-F moves the picture on to the next display. Leaving full screen puts the picture back where it was.\n\nView > Show Perform Bar (Option-Command-9) hides the bar."
+	static let info = "At the left, the eye is Blackout (Image > Blackout, Command-B): the picture fades to black, red while it's out, and a second click fades it back. It's black on screen and in Syphon; Whorld goes on running underneath, so the picture returns where it would have been.\n\nThen the frames drawn a second, orange when display refreshes were missed in the last second. Click it for the rest: the refreshes missed, the time to draw a frame (on the CPU, then on the GPU with Metal), the rings drawn, the display's rate, the renderer and what Automatic quality has lowered.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nThe playing patch's place in the playlist (12/86; its name is in the tooltip): click it for the next patch (Image > Next Patch, Command-Down). Then Play / Stop (Image > Auto Advance, Option-Command-L): Play plays through the playlist, each patch for the length set in the Playlist panel (or right-click Play to pick one); the line under it fills toward the next patch.\n\nClick Full or Geom to switch the patch mode (Image > Geometry Only, Option-Command-G): in Geom, playing a patch changes only its shape and motion.\n\nAuto turns Automatic quality on or off (View > Automatic Quality, Command-;): when the picture can't keep up with the display, Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare, never above your settings; exports aren't affected. Bright while on; while it has lowered something it reads Auto ↓ in orange, and its tooltip says what.\n\nRes is Render quality, the resolution drawn (Settings > Display explains it); orange while Automatic quality draws it lower than your setting.\n\nClick Mod to turn audio modulation on and off (Audio > Audio Modulation, Command-'). Its dot: faint while it's off, hollow while it's finding the beat, filled and flashing on each beat once it's locked, with the tempo beside it. Click the tempo to reset the count to 1.1 (Audio > Reset to 1.1, Command-\\): the beat nearest now becomes bar 1, beat 1.\n\nClick Syp to send the picture to other apps on this Mac by Syphon, or stop (View > Syphon also sets its size). Its dot: faint while it's off, hollow while no app is receiving, filled once one is.\n\nAt the right end: Detach (View > Detach, Shift-Command-D), the picture in a window of its own for a projector, lit while it's detached (a click docks it); and the arrows, full screen on the display the picture is on (View > Enter Full Screen, Command-F). Option-click them for full screen on another display (View > Enter Full Screen on Other Display, Shift-Command-F); while full screen, Shift-Command-F moves the picture on to the next display. Leaving full screen puts the picture back where it was.\n\nView > Show Perform Bar (Option-Command-9) hides the bar."
 }
 
 /// What the stats strip shows, set by AppModel; its text views redraw only
@@ -373,7 +375,7 @@ final class StripFeed {
 	/// quality steps (seldom), not every second
 	let autoTag = AutoTagFeed()
 	private(set) var syphon = 0	// 0 off, 1 publishing with no app receiving, 2 an app receiving
-	private(set) var patch = (place: "", name: "")	// "12/86", the patch's name
+	private(set) var patch = (place: "", name: "", count: 0)	// "12/86", the patch's name, the playlist's length
 	/// whether a tempo shows: published, so the bar makes room for it only
 	/// then (a layout when the beat locks or is lost, not every second)
 	let tempoShown = TempoShownFeed()
@@ -510,9 +512,10 @@ final class StripFeed {
 
 	private(set) var patchCanStep = false	// a playlist to step through: the name is a button
 
-	func setPatch(place: String, name: String, canStep: Bool) {
-		guard place != patch.place || name != patch.name || canStep != patchCanStep else { return }
-		patch = (place, name)
+	func setPatch(place: String, name: String, count: Int) {
+		let canStep = count > 0
+		guard place != patch.place || name != patch.name || count != patch.count else { return }
+		patch = (place, name, count)
 		patchCanStep = canStep
 		var tip = place.isEmpty ? name : "\(name): patch \(place.replacingOccurrences(of: "/", with: " of ")) in the playlist"
 		if canStep { tip += ". Click for the next patch (Image > Next Patch, ⌘↓)." }
@@ -725,7 +728,7 @@ private struct PlaylistTransport: View {
 	private func feedPatch() {
 		let n = model.playlistPatches.count
 		let i = model.playingPatch
-		StripFeed.shared.setPatch(place: i >= 0 && i < n ? "\(i + 1)/\(n)" : "", name: model.title, canStep: n > 0)
+		StripFeed.shared.setPatch(place: i >= 0 && i < n ? "\(i + 1)/\(n)" : "", name: model.title, count: n)
 	}
 }
 
@@ -770,7 +773,7 @@ struct StripText: NSViewRepresentable {
 		let sample = switch part {
 		case .fps: "000 fps"
 		case .readout: "Ring Growth  -00.000"
-		case .patch: "00/00  bull lotus5 edit_cvx"
+		case .patch: "000/000"
 		case .syphon, .beat: ""
 		case .tempo: "000"
 		}
@@ -864,10 +867,11 @@ struct StripText: NSViewRepresentable {
 			let text = NSMutableAttributedString()
 			switch part {
 			case .patch:
-				if !feed.patch.place.isEmpty {
-					text.append(NSAttributedString(string: feed.patch.place + "  ", attributes: attrs(.secondaryLabelColor)))
-				}
-				text.append(NSAttributedString(string: feed.patch.name, attributes: attrs(.labelColor)))
+				// the place alone (12/86; –/86 with none from the playlist);
+				// the name is in the tooltip
+				let n = feed.patch.count
+				let place = feed.patch.place.isEmpty ? (n > 0 ? "–/\(n)" : "–") : feed.patch.place
+				text.append(NSAttributedString(string: place, attributes: attrs(n > 0 ? .labelColor : .secondaryLabelColor)))
 				// a button (Next Patch): lit on hover around the text, at a
 				// fixed width so Play after it never moves
 				let tw = ceil(text.size().width)
