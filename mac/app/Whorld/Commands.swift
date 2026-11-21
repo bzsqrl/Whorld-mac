@@ -14,7 +14,7 @@ import SwiftUI
 /// accelerators), with Ctrl mapped to Command except where macOS reserves
 /// the key. See mac/app/README.md for the full table.
 struct WhorldCommands: Commands {
-	@ObservedObject var model: AppModel
+	let model: AppModel	// not observed: MenuRefresh says when to refresh
 	@Environment(\.openWindow) private var openWindow
 	@AppStorage(AudioSettings.linkKey) private var linkEnabled = false	// Audio > Ableton Link
 
@@ -52,8 +52,9 @@ struct WhorldCommands: Commands {
 
 	var body: some Commands {
 		let e = model.engine
-		// refresh check marks, titles and enabled states after changes
-		let _ = (model.changes.menus.n, model.changes.main.n, model.changes.media.n, model.changes.playlist.n)
+		// refresh check marks, titles and enabled states after changes, but
+		// not while a menu is open (MenuRefresh)
+		let _ = MenuRefresh.shared.n
 
 		CommandGroup(replacing: .newItem) {
 			Button("New") { model.newPatch() }
@@ -336,11 +337,11 @@ struct WhorldCommands: Commands {
 			Divider()
 			// Render Scale's submenu is gone: the stats strip has it, with
 			// Automatic Quality (the user's request, 2026-11-19)
-			Toggle("Show Stats", isOn: $model.showStats)
+			Toggle("Show Stats", isOn: Binding(get: { model.showStats }, set: { model.showStats = $0 }))
 				.keyboardShortcut("9", modifiers: [.command, .option])	// after the panels' Option-Command 1 to 8 (the user's request, 2026-11-19)
 			// the strip's Auto; beside Audio Modulation's Command-' (the
 			// user's request, 2026-11-19; out of Settings > Display)
-			Toggle("Automatic Quality", isOn: $model.autoQuality)
+			Toggle("Automatic Quality", isOn: Binding(get: { model.autoQuality }, set: { model.autoQuality = $0 }))
 				.keyboardShortcut(";")
 			// on and off, and the size (out of Settings > Output, and in the
 			// stats strip too; the user's request, 2026-11-19)

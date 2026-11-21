@@ -40,6 +40,56 @@ final class Tick {
 	func bump() { n &+= 1 }
 }
 
+/// The menu bar's refresh (the user's report, 2026-11-20: an open submenu
+/// closed by itself, after a while). SwiftUI rebuilds the menus whenever
+/// what they read changes, and a rebuild closes an open submenu; a patch
+/// playing (auto-advance, MIDI, OSC) or any other change did it. The menus
+/// read only this counter, bumped after the changes they show, but in the
+/// run loop's default mode: while a menu is open (event tracking) the bump
+/// waits, and comes as soon as the menu closes. A closed menu bar is
+/// refreshed at once, so a menu always opens up to date.
+@MainActor
+@Observable
+final class MenuRefresh {
+	static let shared = MenuRefresh()
+	private(set) var n = 0
+	@ObservationIgnored private var scheduled = false
+	@ObservationIgnored private var modelWatch: AnyCancellable?
+
+	/// Follows the model's published values and its menu-related change
+	/// counters (once, at launch)
+	func install(_ model: AppModel) {
+		guard modelWatch == nil else { return }
+		modelWatch = model.objectWillChange.sink { [weak self] _ in self?.request() }
+		watch(model.changes)
+	}
+
+	private func watch(_ c: Changes) {
+		withObservationTracking {
+			_ = (c.menus.n, c.main.n, c.media.n, c.playlist.n)
+		} onChange: { [weak self] in
+			DispatchQueue.main.async {
+				MainActor.assumeIsolated {
+					self?.request()
+					self?.watch(c)	// observation fires once: again
+				}
+			}
+		}
+	}
+
+	func request() {
+		guard !scheduled else { return }
+		scheduled = true
+		RunLoop.main.perform(inModes: [.default]) { [weak self] in	// not while a menu tracks
+			MainActor.assumeIsolated {
+				guard let self else { return }
+				self.scheduled = false
+				self.n &+= 1
+			}
+		}
+	}
+}
+
 /// What changed, by area, so an edit redraws only the views showing it.
 /// Moving one slider used to redraw every panel, the menu bar and the
 /// window title and lay out the whole window: about 30 changes a second
@@ -183,6 +233,7 @@ final class AppModel: ObservableObject {
 		layoutWatch = layout.objectWillChange.sink { [weak self] _ in
 			DispatchQueue.main.async { self?.changes.menus.bump() }
 		}
+		MenuRefresh.shared.install(self)	// the menu bar follows the model, but not while a menu is open
 		outputWindow.onClose = { [weak self] in	// closing the output window docks it
 			guard let self, self.layout.layout.detached else { return }
 			self.outputWindow.hide()
@@ -1863,7 +1914,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct WhorldApp: App {
 	@NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-	@StateObject private var model = AppModel.shared
+	// not observed here: the scenes' views observe it themselves, and the
+	// menu bar refreshes through MenuRefresh (a change here rebuilt it)
+	private let model = AppModel.shared
 
 	init() {
 		// No automatic Enter Full Screen item (it drives macOS's full screen,
