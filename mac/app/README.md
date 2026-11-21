@@ -59,7 +59,7 @@ From the Windows accelerator table (`Whorld.rc`, `IDR_MAINFRAME`), with Ctrl map
 | Pause | Ctrl+Space | Space (⌃Space switches input sources) |
 | Step | Shift+Space | ⇧Space |
 | Clear | Ctrl+Delete | ⌘⌦ (forward delete; fn+Delete on laptops) |
-| Full screen | F11 | ⌘F (View > Enter Full Screen), or F11; Esc also leaves. With a second display, ⇧⌘F (View > Enter Full Screen (Secondary)) fills the other display |
+| Full screen | F11 | ⌘F (View > Enter Full Screen), or F11; Esc also leaves. With more than one display, ⇧⌘F (View > Enter Full Screen on Other Display) fills the next display, and while full screen moves the picture on to the next |
 
 Panel shortcuts add ⌘ because a plain Shift+letter would fire while typing a capital letter in a panel's text field. Space (Pause) is safe: a focused text field takes it first.
 

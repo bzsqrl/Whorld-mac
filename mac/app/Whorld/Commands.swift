@@ -321,21 +321,16 @@ struct WhorldCommands: Commands {
 			// one, and F11, the Windows one, work too (SecondKeys); on most Mac
 			// keyboards F11 doesn't reach apps (a media key, or fn-F11 for Show
 			// Desktop).
-			Button(!model.isFullScreen ? "Enter Full Screen"
-				: model.fullScreenKeyMoves ? "Move Full Screen to Main Display" : "Exit Full Screen") {
-				model.toggleFullScreen()
-			}
-			.keyboardShortcut("f", modifiers: .command)
-			// Full screen on a display other than the Whorld window's (Mac
-			// addition, the user's request, 2026-11-21), so the panels stay in
-			// view: only with a second display connected. From full screen on
-			// the main display it moves the picture there; there, it leaves.
-			Button(!model.isFullScreen ? "Enter Full Screen (Secondary)"
-				: model.secondaryKeyMoves ? "Move Full Screen to Secondary Display" : "Exit Full Screen") {
-				model.toggleFullScreenSecondary()
+			Button(model.isFullScreen ? "Exit Full Screen" : "Enter Full Screen") { model.toggleFullScreen() }
+				.keyboardShortcut("f", modifiers: .command)
+			// Full screen on another display, and while full screen on to the
+			// next, through them all (Mac addition, the user's request,
+			// 2026-11-21): only with more than one display
+			Button(model.isFullScreen ? "Move Full Screen to Next Display" : "Enter Full Screen on Other Display") {
+				model.fullScreenNextDisplay()
 			}
 			.keyboardShortcut("f", modifiers: [.command, .shift])
-			.disabled(!model.isFullScreenSecondary && model.secondaryScreen == nil)
+			.disabled(!model.hasOtherDisplay)
 			// CMainFrame::OnWindowDetach (Windows' Window menu): beside Full
 			// Screen, the other way to show the picture (the user's menu
 			// audit, 2026-11-18)
