@@ -36,8 +36,6 @@ final class FullScreenController {
 	private var onExit: (() -> Void)?
 
 	var isFullScreen: Bool { window != nil }
-	/// entered as Full Screen (Secondary)
-	private(set) var wasSecondary = false
 
 	/// The display full screen covers, while it does: floating panels there
 	/// go behind it (FloatingWindowHelper; the user's report, 2026-11-19:
@@ -62,10 +60,9 @@ final class FullScreenController {
 
 	/// screen: the display to cover (the main window's, or for Full Screen
 	/// (Secondary) another)
-	func enter(from main: NSWindow?, on screen: NSScreen?, secondary: Bool, engine: WHEngine,
+	func enter(from main: NSWindow?, on screen: NSScreen?, engine: WHEngine,
 		renderScale: Double, smoothUpscaling: Bool, onExit: @escaping () -> Void) {
 		guard window == nil, let screen = screen ?? main?.screen ?? NSScreen.main else { return }
-		wasSecondary = secondary
 		let frame = screen.frame
 		let w = FullScreenWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
 		w.isReleasedWhenClosed = false

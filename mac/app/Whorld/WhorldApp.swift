@@ -1273,46 +1273,95 @@ final class AppModel: ObservableObject {
 	var isFullScreen: Bool { fullScreen.isFullScreen }
 	private var screensWatch: NSObjectProtocol?
 
-	/// Full screen (Secondary), a Mac addition (the user's request,
-	/// 2026-11-21): a display other than the Whorld window's, so the panels
-	/// stay in view; nil with a single display. The output detaches onto it
-	/// (enterSecondaryFullScreen).
+	/// Where the output was before full screen, put back when it ends: docked,
+	/// or detached in its window's frame; and the Whorld window's display
+	/// (Display 1), which the two shortcuts are counted from meanwhile.
+	private struct FullScreenOrigin {
+		var detached: Bool
+		var frame: NSRect?		// the detached window's
+		var savedFrame: String?	// docked: the detached window's remembered frame
+		var home: CGDirectDisplayID
+	}
+	private var fullScreenOrigin: FullScreenOrigin?
+	/// the full screen now came from Shift-Cmd-F (entered or moved by it)
+	private var fullScreenBySecondaryKey = false
+	private static let outputFrameKey = "NSWindow Frame WhorldOutputWindow"
+
+	private static func displayID(_ screen: NSScreen?) -> CGDirectDisplayID {
+		(screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
+	}
+
+	/// Display 1: the Whorld window's display (the user's choice,
+	/// 2026-11-21); while full screen, the one it was on when it began
+	var homeScreen: NSScreen? {
+		if let id = fullScreenOrigin?.home, let s = NSScreen.screens.first(where: { Self.displayID($0) == id }) {
+			return s
+		}
+		return mainWindow?.screen ?? NSScreen.main
+	}
+
+	/// Display 2, for Full Screen (Secondary), a Mac addition (the user's
+	/// request, 2026-11-21): a display other than the Whorld window's, so
+	/// the panels stay in view; nil with a single display
 	var secondaryScreen: NSScreen? {
-		let here = mainWindow?.screen ?? NSScreen.main
+		let here = homeScreen
 		return NSScreen.screens.first { $0 != here }
 	}
-	/// Full screen is on secondaryScreen's side: Shift-Cmd-F leaves it too
-	var isFullScreenSecondary: Bool { fullScreen.isFullScreen && fullScreen.wasSecondary }
 
-	/// secondary: on secondaryScreen (Shift-Cmd-F), not the output's display
-	func toggleFullScreen(secondary: Bool = false) {
-		if fullScreen.isFullScreen {
-			fullScreen.exit(engine: engine)
-			pressDrag = nil
-			defer { UpdateChecker.shared.showPending() }	// an update found while full screen
-			// The origin stays where it is, as on Windows: a patch's own
-			// origin is kept (until 2026-11-12, leaving full screen ran
-			// Origin Center; removed at the user's request)
-		} else if secondary {
-			enterSecondaryFullScreen()
-			return
-		} else {
-			let from = layout.layout.detached ? outputWindow.window : mainWindow
-			fullScreen.enter(from: from, on: from?.screen ?? NSScreen.main, secondary: false, engine: engine,
-				renderScale: renderScale, smoothUpscaling: smoothUpscaling) { [weak self] in
-				self?.toggleFullScreen()
-			}
-		}
-		changed()
+	/// Full screen covers Display 2
+	var isFullScreenSecondary: Bool {
+		guard isFullScreen, let covered = FullScreenController.coveredScreen else { return false }
+		return covered != homeScreen
 	}
 
-	/// Full Screen (Secondary), as if by hand (the user's request,
-	/// 2026-11-21): the output detached (if it isn't), its window moved onto
-	/// the other display, then that window full screen. The Whorld window
-	/// stays where it is, with the swipe pad; leaving full screen leaves the
-	/// detached window on the other display, as it would by hand.
-	private func enterSecondaryFullScreen() {
+	/// Cmd-F's menu title and what it does while full screen: on Display 2
+	/// by Shift-Cmd-F it moves the picture to Display 1, otherwise it leaves
+	var fullScreenKeyMoves: Bool { isFullScreenSecondary && fullScreenBySecondaryKey }
+	/// Shift-Cmd-F's: on Display 1 it moves the picture to Display 2;
+	/// on Display 2, it leaves
+	var secondaryKeyMoves: Bool { isFullScreen && !isFullScreenSecondary }
+
+	/// View > Enter Full Screen (Cmd-F, Ctrl-Cmd-F, F11, the Perform Bar):
+	/// the display the output's window is on (CMainFrame::OnWindowFullscreen),
+	/// and again to leave; on Display 2 by Shift-Cmd-F, to Display 1.
+	func toggleFullScreen() {
+		if !isFullScreen {
+			saveFullScreenOrigin()
+			fullScreenBySecondaryKey = false
+			let from = layout.layout.detached ? outputWindow.window : mainWindow
+			enterFullScreen(from: from, on: from?.screen ?? NSScreen.main)
+		} else if fullScreenKeyMoves, let home = homeScreen {
+			// to Display 1, the output put back as it was first, under the picture
+			fullScreen.exit(engine: engine)
+			fullScreenBySecondaryKey = false
+			restoreFullScreenOrigin()
+			let from = layout.layout.detached ? outputWindow.window : mainWindow
+			from?.contentView?.layoutSubtreeIfNeeded()
+			DispatchQueue.main.async { [weak self] in	// once its picture view is built
+				guard let self, !self.fullScreen.isFullScreen else { return }
+				self.enterFullScreen(from: self.layout.layout.detached ? self.outputWindow.window : self.mainWindow, on: home)
+			}
+		} else {
+			exitFullScreen()
+		}
+	}
+
+	/// View > Enter Full Screen (Secondary), Shift-Cmd-F: the output detached
+	/// onto Display 2 and full screen there, as if by hand, so the Whorld
+	/// window stays where it is with the swipe pad; from full screen on
+	/// Display 1, moves there; on Display 2, leaves.
+	func toggleFullScreenSecondary() {
+		if isFullScreenSecondary {
+			exitFullScreen()
+			return
+		}
 		guard let screen = secondaryScreen else { return }	// one display
+		if isFullScreen {
+			fullScreen.exit(engine: engine)
+		} else {
+			saveFullScreenOrigin()
+		}
+		fullScreenBySecondaryKey = true
 		if !layout.layout.detached {
 			layout.layout.detached = true
 			outputWindow.show(model: self, near: mainWindow?.frame)
@@ -1331,11 +1380,59 @@ final class AppModel: ObservableObject {
 		// engine drawing to it) once SwiftUI has built it
 		DispatchQueue.main.async { [weak self] in
 			guard let self, !self.fullScreen.isFullScreen, let w = self.outputWindow.window else { return }
-			self.fullScreen.enter(from: w, on: screen, secondary: true, engine: self.engine,
-				renderScale: self.renderScale, smoothUpscaling: self.smoothUpscaling) { [weak self] in
-				self?.toggleFullScreen()
+			self.enterFullScreen(from: w, on: screen)
+		}
+	}
+
+	private func enterFullScreen(from: NSWindow?, on screen: NSScreen?) {
+		fullScreen.enter(from: from, on: screen, engine: engine, renderScale: renderScale,
+			smoothUpscaling: smoothUpscaling) { [weak self] in
+			self?.exitFullScreen()	// Esc, or the display disconnected
+		}
+		changed()
+	}
+
+	/// Full screen ends; the output goes back where it was before it began
+	/// (the user's request, 2026-11-21)
+	func exitFullScreen() {
+		guard isFullScreen else { return }
+		fullScreen.exit(engine: engine)
+		pressDrag = nil
+		restoreFullScreenOrigin()
+		fullScreenOrigin = nil
+		fullScreenBySecondaryKey = false
+		UpdateChecker.shared.showPending()	// an update found while full screen
+		// The origin stays where it is, as on Windows: a patch's own
+		// origin is kept (until 2026-11-12, leaving full screen ran
+		// Origin Center; removed at the user's request)
+		changed()
+	}
+
+	private func saveFullScreenOrigin() {
+		let detached = layout.layout.detached
+		fullScreenOrigin = FullScreenOrigin(detached: detached,
+			frame: detached ? outputWindow.window?.frame : nil,
+			savedFrame: detached ? nil : UserDefaults.standard.string(forKey: Self.outputFrameKey),
+			home: Self.displayID(mainWindow?.screen ?? NSScreen.main))
+	}
+
+	private func restoreFullScreenOrigin() {
+		guard let o = fullScreenOrigin else { return }
+		if o.detached {
+			if !layout.layout.detached {
+				layout.layout.detached = true
+				outputWindow.show(model: self, near: mainWindow?.frame)
 			}
-			self.changed()
+			// its frame, if that display is still there
+			if let f = o.frame, let w = outputWindow.window, NSScreen.screens.contains(where: { $0.frame.intersects(f) }) {
+				w.setFrame(f, display: true)
+			}
+		} else if layout.layout.detached {
+			outputWindow.hide()
+			layout.layout.detached = false
+			if let saved = o.savedFrame {	// the window's own place for next time, not where Secondary put it
+				UserDefaults.standard.set(saved, forKey: Self.outputFrameKey)
+			}
 		}
 	}
 
