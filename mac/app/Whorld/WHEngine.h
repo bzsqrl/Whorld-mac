@@ -337,7 +337,8 @@ typedef struct {
 // `value & 0xff` changed, in column `value >> 8` (WHParamProperty), 6 master
 // property `value` changed; kind 0's `value` is the main property plus 1), and when the MIDI sources
 // change (kind 4); kind 7: the Geometry Mode target set geometryMode; kind
-// 8: the Auto Advance target (value 0 stop, 1 start, 2 toggle). The
+// 8: the Auto Advance target (value 0 stop, 1 start, 2 toggle); kind 9: the
+// Blackout target (0 back, 1 to black, 2 toggle). The
 // modulation targets go to modulationOscHandler.
 @property (nonatomic, copy, nullable) void (^midiHandler)(NSInteger kind, uint32_t value);
 
@@ -389,6 +390,11 @@ typedef struct {
 // how far toward the next patch (0 to 1), and for beats and bars, whether
 // it's following the beat, and the tempo it counts at (BPM)
 - (double)autoAdvanceProgressFollowingBeat:(BOOL *)following tempo:(double *)tempo;
+// Blackout (Mac addition, the performance bar): the picture fades to black
+// over blackoutFadeSeconds, and back; on screen and in Syphon's frames, not
+// in exports. A black layer drawn over each frame, which goes on running.
+@property (nonatomic) BOOL blackout;
+@property (class, readonly) double blackoutFadeSeconds;
 // Loads a patch as an untitled document (CWhorldDoc::SetPatch, from
 // CPlaylistBar::Play). Returns NO if it can't be read.
 - (BOOL)playPatchAtPath:(NSString *)path;

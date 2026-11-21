@@ -250,8 +250,8 @@ TEST(MappingDefaultsAndNames) {
 	CHECK_EQ(m.m_fEnd, 100.0);
 	// 17 miscellaneous targets on Windows, plus the Mac's Hue, Rotate Hue, Invert Color,
 	// Mark Downbeat, Modulation On, Modulation Depth, Geometry Mode, Reset Bar Count, the
-	// beat and bar steps, Half Beat and Auto Advance
-	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 31);
+	// beat and bar steps, Half Beat, Auto Advance and Blackout
+	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 32);
 	CHECK_EQ(MB::GetTargetName(MB::TARGET_ResetBars), std::string("Reset Bar Count"));
 	CHECK_EQ(MB::GetTargetType(MB::TARGET_ResetBars), int(MB::TT_ACTION));
 	CHECK(MB::IsMacOnlyTarget(MB::TARGET_ResetBars));
@@ -482,6 +482,24 @@ TEST(AutoAdvanceTarget) {
 	CHECK_EQ(sink.posts[0].iVal, 1);
 	sink.Clear();
 	mgr.DispatchTarget(MB::TARGET_AutoAdvance, -1, 0);
+	CHECK_EQ(sink.posts[0].iVal, 0);
+}
+
+TEST(BlackoutTarget) {
+	// Mac addition: fade the picture to black and back, by the app
+	CHECK(MB::IsMacOnlyTarget(MB::TARGET_Blackout));
+	CHECK_EQ(MB::GetTargetName(MB::TARGET_Blackout), std::string("Blackout"));
+	CHECK_EQ(MB::GetTargetType(MB::TARGET_Blackout), int(MB::TT_BOOL));
+	RecordingSink	sink;
+	MidiManager	mgr(sink);
+	using Post = MidiManager::Post;
+	mgr.DispatchTarget(MB::TARGET_Blackout, -1, 1);
+	CHECK(sink.cmds.empty());
+	CHECK_EQ(sink.posts.size(), size_t(1));
+	CHECK_EQ(sink.posts[0].type, Post::BLACKOUT);
+	CHECK_EQ(sink.posts[0].iVal, 1);
+	sink.Clear();
+	mgr.DispatchTarget(MB::TARGET_Blackout, -1, 0);
 	CHECK_EQ(sink.posts[0].iVal, 0);
 }
 

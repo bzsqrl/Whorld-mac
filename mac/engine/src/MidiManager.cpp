@@ -244,6 +244,14 @@ void MidiManager::PushMiscTarget(int iMiscTarget, double fNormVal)
 			m_sink.PostToMain(post);
 		}
 		break;
+	case MT_Blackout:	// the app fades the picture
+		{
+			Post	post;
+			post.type = Post::BLACKOUT;
+			post.iVal = fNormVal != 0;
+			m_sink.PostToMain(post);
+		}
+		break;
 	}
 }
 

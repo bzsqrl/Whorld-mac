@@ -495,6 +495,10 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 	NSInteger	_aaUnit;
 	BOOL	_aaRunning;
 	bool	_aaChanged, _aaRestart;
+	BOOL	_blackout;		// set on the main thread (_mutex)
+	double	_blackLevel;	// render thread: 0 the picture, 1 black
+	bool	_blackHasLast;
+	std::chrono::steady_clock::time_point	_blackLast;
 	whorld::AutoAdvance::Status	_aaStatus;
 	bool	_modulating;	// render thread: offsets were set
 	bool	_modHasLast;
@@ -578,6 +582,9 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 		_aaChanged = true;
 		_aaRestart = false;
 		_aaHasLast = false;
+		_blackout = NO;
+		_blackLevel = 0;
+		_blackHasLast = false;
 		_modFollowTempo = false;
 		_modChanged = false;
 		_modulating = false;
@@ -1050,6 +1057,50 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 	std::lock_guard<std::mutex>	lock(_mutex);
 	_aaRunning = on;
 	_aaChanged = true;
+}
+
++ (double)blackoutFadeSeconds
+{
+	return 1.0;
+}
+
+- (BOOL)blackout
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	return _blackout;
+}
+
+- (void)setBlackout:(BOOL)on
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	_blackout = on;
+}
+
+// Render thread, once per frame: the blackout's level, toward black or back
+- (void)stepBlackout
+{
+	bool	bOn;
+	{
+		std::lock_guard<std::mutex>	lock(_mutex);
+		bOn = _blackout;
+	}
+	auto	now = std::chrono::steady_clock::now();
+	double	dt = _blackHasLast ? std::chrono::duration<double>(now - _blackLast).count() : 0;
+	dt = std::min(dt, 0.25);
+	_blackLast = now;
+	_blackHasLast = true;
+	double	fStep = dt / WHEngine.blackoutFadeSeconds;
+	_blackLevel = bOn ? std::min(_blackLevel + fStep, 1.0) : std::max(_blackLevel - fStep, 0.0);
+}
+
+// Render thread: the blackout's layer over a frame drawn at fWidth x fHeight DIPs
+- (void)drawBlackout:(whorld::IRenderer &)renderer width:(float)fWidth height:(float)fHeight
+{
+	if (_blackLevel <= 0)
+		return;
+	double	t = _blackLevel;
+	float	fAlpha = float(t * t * (3 - 2 * t));	// eased at both ends
+	renderer.FillRect(whorld::RectF{0, 0, fWidth, fHeight}, whorld::ColorF{0, 0, 0, fAlpha});
 }
 
 - (void)restartAutoAdvance
@@ -1726,6 +1777,10 @@ static NSString *SourceName(MIDIEndpointRef src)
 		if (_modulationOscHandler)
 			_modulationOscHandler(post.iVal, post.fVal);
 		return;
+	case Post::BLACKOUT:	// Mac addition: the app's
+		if (_midiHandler)
+			_midiHandler(9, (uint32_t)post.iVal);
+		return;
 	case Post::AUTO_ADVANCE:	// Mac addition: the app starts and stops it
 		if (_midiHandler)
 			_midiHandler(8, (uint32_t)post.iVal);
@@ -1911,6 +1966,11 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	using R = whorld::OscRemote::Request;
 	switch (type) {
 	case R::TOGGLE:	// a switch with no argument: the other way from now
+		if (iTarget == whorld::MappingBase::TARGET_Blackout) {	// the app's
+			if (_midiHandler)
+				_midiHandler(9, 2);
+			break;
+		}
 		if (iTarget == whorld::MappingBase::TARGET_AutoAdvance) {	// the app's
 			if (_midiHandler)
 				_midiHandler(8, 2);
@@ -1979,6 +2039,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	[self oscSend:p + "/fs" arg:OscArg::Float(fullScreen ? 1 : 0)];
 	[self oscSend:p + "/geometry" arg:OscArg::Float(_geometryMode ? 1 : 0)];
 	[self oscSend:p + "/advance" arg:OscArg::Float(self.autoAdvancing ? 1 : 0)];
+	[self oscSend:p + "/blackout" arg:OscArg::Float(self.blackout ? 1 : 0)];
 	double	fDepth;
 	bool	bBypass;
 	{
@@ -2232,6 +2293,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		}
 		[self stepModulation];	// Mac addition: audio modulation, before drawing
 		[self stepAutoAdvance];	// Mac addition: the playlist's next patch, when it's time
+		[self stepBlackout];	// Mac addition: the performance bar's blackout
 		Surface	*pSurf = [self freeSurface];
 		if (!pSurf) {
 			_handoff->nNoSurface++;
@@ -2248,6 +2310,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 			_metal->SetTolerance([self effectiveCurveTolerance]);
 			_metal->BeginFrame();
 			_engine->Draw(*_metal);
+			[self drawBlackout:*_metal width:float(w / scale) height:float(h / scale)];
 			std::shared_ptr<WHHandoff>	handoff = _handoff;
 			_metal->EndFrame([handoff, image, scale](bool bOk, double fGpuMs) {
 				if (bOk) {
@@ -2277,6 +2340,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 			pSurf->renderer->SetTolerance([self effectiveCurveTolerance]);
 			pSurf->renderer->BeginFrame();
 			_engine->Draw(*pSurf->renderer);
+			[self drawBlackout:*pSurf->renderer width:float(w / scale) height:float(h / scale)];
 			pSurf->renderer->EndFrame();
 			IOSurfaceUnlock(image, 0, nullptr);
 			_handoff->metalActive = false;
@@ -2397,6 +2461,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		_syphonMetal->SetTolerance([self effectiveCurveTolerance]);
 		_syphonMetal->BeginFrame();
 		_engine->DrawAtSize(*_syphonMetal, szTarget);
+		[self drawBlackout:*_syphonMetal width:szTarget.width height:szTarget.height];
 		_syphonMetal->EndFrame([syphon, image](bool bOk, double) {
 			if (bOk)
 				[syphon publishSurface:image];	// claims it again for the copy
@@ -2414,6 +2479,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		pSurf->renderer->SetTolerance([self effectiveCurveTolerance]);
 		pSurf->renderer->BeginFrame();
 		_engine->DrawAtSize(*pSurf->renderer, szTarget);
+		[self drawBlackout:*pSurf->renderer width:szTarget.width height:szTarget.height];
 		pSurf->renderer->EndFrame();
 		IOSurfaceUnlock(image, 0, nullptr);
 		[syphon publishSurface:image];
