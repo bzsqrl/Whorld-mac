@@ -239,6 +239,12 @@ final class AppModel: ObservableObject {
 			DispatchQueue.main.async { self?.changes.menus.bump() }
 		}
 		MenuRefresh.shared.install(self)	// the menu bar follows the model, but not while a menu is open
+		// a display connected or removed: View > Enter Full Screen (Secondary)
+		// is there only with a second display
+		screensWatch = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
+			object: nil, queue: .main) { [weak self] _ in
+			MainActor.assumeIsolated { self?.changes.menus.bump() }
+		}
 		outputWindow.onClose = { [weak self] in	// closing the output window docks it
 			guard let self, self.layout.layout.detached else { return }
 			self.outputWindow.hide()
@@ -1265,8 +1271,20 @@ final class AppModel: ObservableObject {
 	// window that shows the output (the workspace, or the detached window)
 	private let fullScreen = FullScreenController()
 	var isFullScreen: Bool { fullScreen.isFullScreen }
+	private var screensWatch: NSObjectProtocol?
 
-	func toggleFullScreen() {
+	/// Full screen (Secondary), a Mac addition (the user's request,
+	/// 2026-11-21): a display other than the Whorld window's, so the panels
+	/// stay in view; nil with a single display
+	var secondaryScreen: NSScreen? {
+		let here = mainWindow?.screen ?? NSScreen.main
+		return NSScreen.screens.first { $0 != here }
+	}
+	/// Full screen is on secondaryScreen's side: Shift-Cmd-F leaves it too
+	var isFullScreenSecondary: Bool { fullScreen.isFullScreen && fullScreen.wasSecondary }
+
+	/// secondary: on secondaryScreen (Shift-Cmd-F), not the output's display
+	func toggleFullScreen(secondary: Bool = false) {
 		if fullScreen.isFullScreen {
 			fullScreen.exit(engine: engine)
 			pressDrag = nil
@@ -1276,7 +1294,12 @@ final class AppModel: ObservableObject {
 			// Origin Center; removed at the user's request)
 		} else {
 			let from = layout.layout.detached ? outputWindow.window : mainWindow
-			fullScreen.enter(from: from, engine: engine, renderScale: renderScale, smoothUpscaling: smoothUpscaling) { [weak self] in
+			var screen = from?.screen ?? NSScreen.main
+			if secondary {
+				guard let other = secondaryScreen else { return }	// one display
+				screen = other
+			}
+			fullScreen.enter(from: from, on: screen, secondary: secondary, engine: engine, renderScale: renderScale, smoothUpscaling: smoothUpscaling) { [weak self] in
 				self?.toggleFullScreen()
 			}
 		}
@@ -1829,7 +1852,7 @@ enum SecondKeys {
 		let e = m.engine
 		switch (code, modifiers) {
 		case (103, none): m.toggleFullScreen()	// F11, Windows' full screen
-		case (3, ctrlCmd): m.toggleFullScreen()	// Ctrl-Cmd-F, macOS's (Shift-Cmd-F in the menu)
+		case (3, ctrlCmd): m.toggleFullScreen()	// Ctrl-Cmd-F, macOS's (Cmd-F in the menu)
 		case (117, cmd): e.clear()	// Cmd-Forward Delete, Windows' Ctrl+Delete (Cmd-K in the menu)
 		case (97, none): m.toggleFill()	// F6 (Cmd-1)
 		case (98, none): m.toggleOutline()	// F7 (Cmd-2)

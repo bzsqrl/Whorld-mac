@@ -12,7 +12,7 @@ import AppKit
 /// Whorld's own full screen, after CWhorldApp::SetFullScreen, which detaches
 /// the render window into a full-screen window and hides the main menu. The
 /// picture moves to a borderless window covering the display the main
-/// window is on. macOS's own full screen can't do this: it shows the menu bar
+/// window is on, or for Full Screen (Secondary) another display. macOS's own full screen can't do this: it shows the menu bar
 /// if System Settings says to, whatever the app asks. On a display with a
 /// camera housing, the picture stays below it and the strip beside it is black.
 ///
@@ -36,6 +36,8 @@ final class FullScreenController {
 	private var onExit: (() -> Void)?
 
 	var isFullScreen: Bool { window != nil }
+	/// entered as Full Screen (Secondary)
+	private(set) var wasSecondary = false
 
 	/// The display full screen covers, while it does: floating panels there
 	/// go behind it (FloatingWindowHelper; the user's report, 2026-11-19:
@@ -58,9 +60,12 @@ final class FullScreenController {
 		view?.smoothUpscaling = smooth
 	}
 
-	func enter(from main: NSWindow?, engine: WHEngine, renderScale: Double, smoothUpscaling: Bool,
-		onExit: @escaping () -> Void) {
-		guard window == nil, let screen = main?.screen ?? NSScreen.main else { return }
+	/// screen: the display to cover (the main window's, or for Full Screen
+	/// (Secondary) another)
+	func enter(from main: NSWindow?, on screen: NSScreen?, secondary: Bool, engine: WHEngine,
+		renderScale: Double, smoothUpscaling: Bool, onExit: @escaping () -> Void) {
+		guard window == nil, let screen = screen ?? main?.screen ?? NSScreen.main else { return }
+		wasSecondary = secondary
 		let frame = screen.frame
 		let w = FullScreenWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
 		w.isReleasedWhenClosed = false

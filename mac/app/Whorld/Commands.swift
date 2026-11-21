@@ -314,14 +314,23 @@ struct WhorldCommands: Commands {
 		CommandGroup(replacing: .toolbar) {}
 		CommandGroup(replacing: .sidebar) {}
 		CommandMenu("View") {
-			// Whorld's own full screen (FullScreen.swift), on Shift-Cmd-F (the
-			// user's choice). It replaces AppKit's automatic Enter Full Screen
-			// item, which drives macOS's full screen (turned off; see
-			// AppDelegate). Ctrl-Cmd-F, macOS's usual one, and F11, the Windows
-			// one, work too (SecondKeys); on most Mac keyboards F11 doesn't
-			// reach apps (a media key, or fn-F11 for Show Desktop).
+			// Whorld's own full screen (FullScreen.swift), on Cmd-F (the user's
+			// choice, 2026-11-21; Shift-Cmd-F before). It replaces AppKit's
+			// automatic Enter Full Screen item, which drives macOS's full
+			// screen (turned off; see AppDelegate). Ctrl-Cmd-F, macOS's usual
+			// one, and F11, the Windows one, work too (SecondKeys); on most Mac
+			// keyboards F11 doesn't reach apps (a media key, or fn-F11 for Show
+			// Desktop).
 			Button(model.isFullScreen ? "Exit Full Screen" : "Enter Full Screen") { model.toggleFullScreen() }
-				.keyboardShortcut("f", modifiers: [.command, .shift])
+				.keyboardShortcut("f", modifiers: .command)
+			// Full screen on a display other than the Whorld window's (Mac
+			// addition, the user's request, 2026-11-21), so the panels stay in
+			// view: only with a second display connected
+			Button(model.isFullScreenSecondary ? "Exit Full Screen (Secondary)" : "Enter Full Screen (Secondary)") {
+				model.toggleFullScreen(secondary: true)
+			}
+			.keyboardShortcut("f", modifiers: [.command, .shift])
+			.disabled(model.isFullScreen ? !model.isFullScreenSecondary : model.secondaryScreen == nil)
 			// CMainFrame::OnWindowDetach (Windows' Window menu): beside Full
 			// Screen, the other way to show the picture (the user's menu
 			// audit, 2026-11-18)
