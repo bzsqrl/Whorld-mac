@@ -47,14 +47,14 @@ From the Windows accelerator table (`Whorld.rc`, `IDR_MAINFRAME`), with Ctrl map
 | Outline | F7 | F7 |
 | Mirror | F5 | F5 |
 | Reverse | Ctrl+Backspace | ⌘Delete |
-| Convex | Ctrl+Tab | ⌃Tab (⌘Tab switches apps) |
+| Convex | Ctrl+Tab | ⌘4 |
 | Loop Hue | F2 | F2 |
 | Zoom Center | Shift+W | ⇧W |
 | Patch Mode: Full / Geometry (Mac, V1's) | — | ⇧F / ⇧G |
-| Antialiasing | Ctrl+Alt+A | ⌥⌘A |
+| Antialiasing | Ctrl+Alt+A | ⌥⌘A (Image > Antialiasing) |
 | Origin Center | Ctrl+0 | ⌘0 |
-| Origin Drag | Ctrl+D | ⌘D |
-| Origin Random | Ctrl+R | ⌘R |
+| Origin Drag | Ctrl+D | ⌘− |
+| Origin Random | Ctrl+R | ⌘= |
 | Random Phase | F9 | F9 |
 | Pause | Ctrl+Space | Space (⌃Space switches input sources) |
 | Step | Shift+Space | ⇧Space |

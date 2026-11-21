@@ -228,7 +228,7 @@ struct WhorldCommands: Commands {
 			toggle("Reverse", e.reverse) { model.toggle(.reverse) }
 				.keyboardShortcut(.delete, modifiers: .command)
 			toggle("Convex", e.convex) { model.toggle(.convex) }
-				.keyboardShortcut("4")	// and Ctrl-Tab (Windows' Ctrl+Tab)
+				.keyboardShortcut("4")	// Windows' Ctrl+Tab dropped (the user's request, 2026-11-21): on the Mac it moves keyboard focus
 			toggle("Loop Hue", e.loopHue) { model.toggle(.loopHue) }
 				.keyboardShortcut("5")	// and F2
 			Button("Rotate Hue") { model.rotateHue() }	// V1's (Mac addition)
@@ -238,21 +238,23 @@ struct WhorldCommands: Commands {
 				// W is a key-map letter, so Shift then W over the picture
 				// toggled this instead
 				.keyboardShortcut("z", modifiers: [.command, .option])
-			// Antialiasing, a quality setting, isn't here (the user's menu
-			// audit, 2026-11-18): it's in the Properties panel, and Windows'
-			// Ctrl+Alt+A, Option-Command-A, still works (SecondKeys)
 			// not on Windows' Image menu (its Properties grid only); here the
 			// Properties panel mirrors this menu, so it's in both
 			toggle("Invert Color", e.invertColor) { model.toggle(.invertColor) }
 				.keyboardShortcut("7")	// and F4, V1's
+			// Windows' Ctrl+Alt+A, Option-Command-A; in the Properties grid on
+			// Windows. Out of the menu in the 2026-11-18 audit, back at the
+			// user's request (2026-11-21) so its shortcut can be found.
+			toggle("Antialiasing", e.antialiasing) { model.toggle(.antialiasing) }
+				.keyboardShortcut("a", modifiers: [.command, .option])
 			Divider()
 			Button("Origin Center") { model.originCenter() }
 				.keyboardShortcut("0")
 			// Cmd-0, Cmd-Minus, Cmd-Equals: the origin keys side by side
 			toggle("Origin Drag", e.originMotion == .drag) { model.toggleOriginDrag() }
-				.keyboardShortcut("-")	// and Cmd-D (Windows' Ctrl+D)
+				.keyboardShortcut("-")	// Windows' Ctrl+D, Cmd-D, dropped (the user's request, 2026-11-21)
 			toggle("Origin Random", e.originMotion == .random) { model.toggleOriginRandom() }
-				.keyboardShortcut("=")	// and Cmd-R (Windows' Ctrl+R)
+				.keyboardShortcut("=")	// Windows' Ctrl+R, Cmd-R, dropped (2026-11-21)
 			// Mac addition (the user's request, 2026-11-20): the origin stays
 			// where it is. Drag and Random, toggled off, park it too.
 			Button("Origin Park") { model.setOriginMotion(.park) }
