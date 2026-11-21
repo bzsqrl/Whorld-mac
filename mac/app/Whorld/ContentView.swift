@@ -47,12 +47,6 @@ struct OutputView: View {
 
 	var body: some View {
 		VStack(spacing: 0) {
-			// detached, the strip is on the pad, where you are (the picture
-			// may be full screen on another display), not with the picture
-			if model.showStats && (pad || !model.layout.layout.detached) {
-				StatsStrip()
-				Divider()
-			}
 			Group {
 				if pad {
 					SwipePad()
@@ -65,6 +59,14 @@ struct OutputView: View {
 			}
 			.overlay(alignment: .bottom) {
 				MovieBar()
+			}
+			// the Perform Bar, along the bottom edge (the user's request,
+			// 2026-11-21; at the top before). Detached, it's on the pad,
+			// where you are (the picture may be full screen on another
+			// display), not with the picture.
+			if model.showStats && (pad || !model.layout.layout.detached) {
+				Divider()
+				StatsStrip()
 			}
 		}
 			.onDrop(of: panelDrop == nil ? [.fileURL] : [.fileURL, .whorldPanel],
@@ -209,7 +211,7 @@ struct OutputDropDelegate: DropDelegate {
 }
 
 /// View > Show Stats (Mac addition; the user's request, 2026-11-19): a thin
-/// strip along the top of the output, never over the picture, packed in
+/// strip along the bottom of the output (the top until 2026-11-21), never over the picture, packed in
 /// one cluster: the frame statistics, the last control changed by hand,
 /// MIDI or OSC (AppModel.showParam and the like), and the quick performance
 /// levers, Render quality and Automatic quality, with what Automatic
@@ -507,7 +509,8 @@ final class StripFeed {
 		p.animates = false
 		statsLabel = label
 		statsPopover = p
-		p.show(relativeTo: view.bounds, of: view, preferredEdge: .maxY)
+		// above the bar, which is along the picture's bottom edge (the view is flipped)
+		p.show(relativeTo: view.bounds, of: view, preferredEdge: view.isFlipped ? .minY : .maxY)
 	}
 
 	private(set) var patchCanStep = false	// a playlist to step through: the name is a button

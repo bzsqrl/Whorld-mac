@@ -123,7 +123,7 @@ final class AppModel: ObservableObject {
 	let engine = WHEngine()
 	let undoManager = UndoManager()
 	@Published private(set) var title = "Untitled"
-	/// View > Show Perform Bar (was Show Stats): the strip above the
+	/// View > Show Perform Bar (was Show Stats): the strip below the
 	/// picture (ContentView.swift), kept between runs
 	@Published var showStats: Bool = UserDefaults.standard.bool(forKey: "View_bShowStats") {
 		didSet { UserDefaults.standard.set(showStats, forKey: "View_bShowStats") }
