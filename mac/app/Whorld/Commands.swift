@@ -213,6 +213,10 @@ struct WhorldCommands: Commands {
 			// user's menu audit, 2026-11-18)
 			toggle("Geometry Only", e.geometryMode) { model.setGeometryMode(!e.geometryMode) }
 				.keyboardShortcut("g", modifiers: [.command, .option])
+			// the picture faded to black and back (the performance bar; the
+			// user's request, 2026-11-20)
+			toggle("Blackout", e.blackout) { model.setBlackout(!e.blackout) }
+				.keyboardShortcut("b")
 			Divider()
 			toggle("Fill", e.fill) { model.toggleFill() }
 				.keyboardShortcut("1")	// and F6
@@ -337,7 +341,8 @@ struct WhorldCommands: Commands {
 			Divider()
 			// Render Scale's submenu is gone: the stats strip has it, with
 			// Automatic Quality (the user's request, 2026-11-19)
-			Toggle("Show Stats", isOn: Binding(get: { model.showStats }, set: { model.showStats = $0 }))
+			// the stats strip became the performance bar (the user's request, 2026-11-20)
+			Toggle("Show Performance Bar", isOn: Binding(get: { model.showStats }, set: { model.showStats = $0 }))
 				.keyboardShortcut("9", modifiers: [.command, .option])	// after the panels' Option-Command 1 to 8 (the user's request, 2026-11-19)
 			// the strip's Auto; beside Audio Modulation's Command-' (the
 			// user's request, 2026-11-19; out of Settings > Display)

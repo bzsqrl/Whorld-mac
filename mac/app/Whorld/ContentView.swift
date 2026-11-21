@@ -216,8 +216,35 @@ struct OutputDropDelegate: DropDelegate {
 /// quality has lowered. It replaced the frame-rate overlay and the key
 /// readout over the picture.
 struct StatsStrip: View {
-	@EnvironmentObject private var model: AppModel
 	static let height: CGFloat = 24
+
+	/// in a hosting view of its own that takes the first click: with the
+	/// detached picture's window (or a panel's) in front, a click on the
+	/// bar acts at once, not only bringing the Whorld window forward
+	var body: some View {
+		FirstClickHost(content: AnyView(StatsStripContent().environmentObject(AppModel.shared)))
+			.frame(height: Self.height)
+	}
+}
+
+private struct FirstClickHost: NSViewRepresentable {
+	let content: AnyView
+
+	final class Host: NSHostingView<AnyView> {
+		override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+	}
+
+	func makeNSView(context: Context) -> Host {
+		let v = Host(rootView: content)
+		v.sizingOptions = []	// the bar's size is the frame's
+		return v
+	}
+
+	func updateNSView(_ v: Host, context: Context) {}
+}
+
+private struct StatsStripContent: View {
+	@EnvironmentObject private var model: AppModel
 
 	var body: some View {
 		HStack(spacing: 8) {
@@ -231,10 +258,19 @@ struct StatsStrip: View {
 				.frame(width: StripText.width(.fps) + 8, height: 18)
 				.layoutPriority(2)
 			Divider().frame(height: 14)
+			// the last control changed: narrower, and the first to give way
+			// (the user's request, 2026-11-20)
 			StripText(part: .readout)
 				.frame(minWidth: 0, idealWidth: StripText.width(.readout), maxWidth: StripText.width(.readout))
 			Divider().frame(height: 14)
 			PlaylistTransport()	// previous, Play / Stop, next (the user's request, 2026-11-20)
+				.layoutPriority(2)
+			// the patch playing, and its place in the playlist (12/86)
+			StripText(part: .patch)
+				.frame(minWidth: 50, idealWidth: StripText.width(.patch), maxWidth: StripText.width(.patch))
+				.layoutPriority(1)
+			Divider().frame(height: 14)
+			BlackoutButton()	// Image > Blackout (the user's request, 2026-11-20)
 				.layoutPriority(2)
 			Divider().frame(height: 14)
 			// Audio > Audio Modulation, with the beat: the most live of the
@@ -255,9 +291,7 @@ struct StatsStrip: View {
 			// the locked tempo, BPM: a button of its own while it shows, for
 			// Reset to 1.1 (the user's request, 2026-11-20); AppKit, as it
 			// comes and goes without a SwiftUI layout
-			StripText(part: .tempo)
-				.frame(width: StripText.width(.tempo) + 8, height: 18)
-				.padding(.leading, -6)	// close to its dot, as before
+			StripTempo(shown: StripFeed.shared.tempoShown)	// no room held while there's none
 				.layoutPriority(2)
 			Divider().frame(height: 14)
 			GeometryToggle()	// Image > Geometry Only (the user's request, 2026-11-20)
@@ -278,6 +312,11 @@ struct StatsStrip: View {
 			.layoutPriority(2)
 			.help("Syphon output on or off (View > Syphon, which also sets its size). Faint off, hollow while no app is receiving, filled once one is.")
 			Spacer(minLength: 0)
+			// View > Detach (the user's request, 2026-11-20): the picture in a
+			// window of its own, for a projector; lit while detached, when
+			// the bar is on the swipe pad, and a click docks it again
+			DetachButton()
+				.layoutPriority(2)
 			// View > Enter Full Screen (the user's request, 2026-11-20); the
 			// strip isn't shown in full screen, so it only enters
 			Button { model.toggleFullScreen() } label: {
@@ -295,12 +334,12 @@ struct StatsStrip: View {
 		.controlSize(.small)
 		.font(.caption)
 		.padding(.horizontal, 8)
-		.frame(height: Self.height)
+		.frame(height: StatsStrip.height)
 		.frame(maxWidth: .infinity)
 		.background(Color(nsColor: .windowBackgroundColor))
 	}
 
-	static let info = "Frames drawn a second, orange when display refreshes were missed in the last second. Click it for the rest: the refreshes missed, the time to draw a frame (on the CPU, then on the GPU with Metal), the rings drawn, the display's rate, the renderer and what Automatic quality has lowered.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nThe playlist's previous patch, Play / Stop and next patch (Image > Previous Patch, Auto Advance and Next Patch: Command-Up, Option-Command-L and Command-Down). Play plays through the playlist, each patch for the length set in the Playlist panel; the line under it fills toward the next patch.\n\nClick Mod to turn audio modulation on and off (Audio > Audio Modulation, Command-'). Its dot: faint while it's off, hollow while it's finding the beat, filled and flashing on each beat once it's locked, with the tempo beside it. Click the tempo to reset the count to 1.1 (Audio > Reset to 1.1, Command-\\): the beat nearest now becomes bar 1, beat 1.\n\nClick Full or Geom to switch the patch mode (Image > Geometry Only, Option-Command-G): in Geom, playing a patch changes only its shape and motion.\n\nThe Quality menu sets Render quality (Settings > Display explains it) and Automatic quality (View > Automatic Quality, Command-;); its title says which is in charge, Quality or Auto, and the quality drawn. Automatic quality: when the picture can't keep up with the display, Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare, never above your settings; exports aren't affected. While it has lowered something, the title is orange with a ↓ (Auto ↓75%), and its tooltip says what.\n\nClick the green dot to send the picture to other apps on this Mac by Syphon, or stop (View > Syphon also sets its size): faint while it's off, hollow while no app is receiving, filled once one is.\n\nThe arrows at the right end enter full screen (View > Enter Full Screen, Shift-Command-F).\n\nView > Show Stats (Option-Command-9) hides the strip."
+	static let info = "Frames drawn a second, orange when display refreshes were missed in the last second. Click it for the rest: the refreshes missed, the time to draw a frame (on the CPU, then on the GPU with Metal), the rings drawn, the display's rate, the renderer and what Automatic quality has lowered.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nThe playlist's previous patch, Play / Stop and next patch (Image > Previous Patch, Auto Advance and Next Patch: Command-Up, Option-Command-L and Command-Down). Play plays through the playlist, each patch for the length set in the Playlist panel (or right-click Play to pick one); the line under it fills toward the next patch. Then the patch playing, with its place in the playlist.\n\nThe eye is Blackout (Image > Blackout, Command-B): the picture fades to black, red while it's out, and a second click fades it back. It's black on screen and in Syphon; Whorld goes on running underneath, so the picture returns where it would have been.\n\nClick Mod to turn audio modulation on and off (Audio > Audio Modulation, Command-'). Its dot: faint while it's off, hollow while it's finding the beat, filled and flashing on each beat once it's locked, with the tempo beside it. Click the tempo to reset the count to 1.1 (Audio > Reset to 1.1, Command-\\): the beat nearest now becomes bar 1, beat 1.\n\nClick Full or Geom to switch the patch mode (Image > Geometry Only, Option-Command-G): in Geom, playing a patch changes only its shape and motion.\n\nThe Quality menu sets Render quality (Settings > Display explains it) and Automatic quality (View > Automatic Quality, Command-;); its title says which is in charge, Quality or Auto, and the quality drawn. Automatic quality: when the picture can't keep up with the display, Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare, never above your settings; exports aren't affected. While it has lowered something, the title is orange with a ↓ (Auto ↓75%), and its tooltip says what.\n\nClick the green dot to send the picture to other apps on this Mac by Syphon, or stop (View > Syphon also sets its size): faint while it's off, hollow while no app is receiving, filled once one is.\n\nAt the right end: Detach (View > Detach, Shift-Command-D), the picture in a window of its own for a projector, lit while it's detached (a click docks it); and the arrows, full screen (View > Enter Full Screen, Shift-Command-F).\n\nView > Show Performance Bar (Option-Command-9) hides the bar."
 }
 
 /// What the stats strip shows, set by AppModel; its text views redraw only
@@ -321,6 +360,10 @@ final class StripFeed {
 	/// quality steps (seldom), not every second
 	let autoTag = AutoTagFeed()
 	private(set) var syphon = 0	// 0 off, 1 publishing with no app receiving, 2 an app receiving
+	private(set) var patch = (place: "", name: "")	// "12/86", the patch's name
+	/// whether a tempo shows: published, so the bar makes room for it only
+	/// then (a layout when the beat locks or is lost, not every second)
+	let tempoShown = TempoShownFeed()
 	private var views: [WeakView] = []
 	private var dimWork: DispatchWorkItem?
 
@@ -399,6 +442,7 @@ final class StripFeed {
 			}
 			beat.tempo = new.tempo
 			redraw(.tempo)
+			if tempoShown.shown == new.tempo.isEmpty { tempoShown.shown = !new.tempo.isEmpty }
 		}
 	}
 
@@ -451,6 +495,14 @@ final class StripFeed {
 		p.show(relativeTo: view.bounds, of: view, preferredEdge: .maxY)
 	}
 
+	func setPatch(place: String, name: String) {
+		guard place != patch.place || name != patch.name else { return }
+		patch = (place, name)
+		let tip = place.isEmpty ? name : "\(name): patch \(place.replacingOccurrences(of: "/", with: " of ")) in the playlist"
+		for w in views where w.view?.part == .patch { w.view?.toolTip = tip }
+		redraw(.patch)
+	}
+
 	func setSyphon(_ state: Int) {
 		guard state != syphon else { return }
 		syphon = state
@@ -496,6 +548,63 @@ private final class SolidView: NSView {
 /// What Automatic quality has lowered ("curves 1.0 px, 75%"; empty: nothing)
 /// and the quality drawn, in percent. Published on their own, changing only
 /// when Automatic quality steps (seldom), so the strip lays out only then.
+final class TempoShownFeed: ObservableObject {
+	@Published var shown = false
+}
+
+/// The locked tempo beside Mod's dot, room for it only while it shows
+private struct StripTempo: View {
+	@ObservedObject var shown: TempoShownFeed
+
+	var body: some View {
+		StripText(part: .tempo)
+			.frame(width: shown.shown ? StripText.width(.tempo) + 8 : 0, height: 18)
+			.padding(.leading, shown.shown ? -6 : -8)	// close to its dot
+	}
+}
+
+/// Image > Blackout in the performance bar: an eye, struck through and red
+/// while the picture is out
+private struct BlackoutButton: View {
+	@EnvironmentObject private var model: AppModel
+
+	var body: some View {
+		let _ = model.changes.main.n
+		let on = model.engine.blackout
+		Button { model.setBlackout(!on) } label: {
+			Image(systemName: on ? "eye.slash.fill" : "eye")
+				.imageScale(.small)
+				.foregroundStyle(on ? Color.white : Color.primary)
+				.frame(width: 18)
+				.background(RoundedRectangle(cornerRadius: 3).fill(on ? Color.red : Color.clear).padding(-2))
+		}
+		.buttonStyle(StripToggleStyle())
+		.fixedSize()
+		.help(on ? "Blackout: the picture is faded out. Click to fade it back (Image > Blackout, ⌘B)."
+			: "Blackout: fade the picture to black, on screen and in Syphon (Image > Blackout, ⌘B).")
+	}
+}
+
+/// View > Detach in the performance bar, lit while detached
+private struct DetachButton: View {
+	@EnvironmentObject private var model: AppModel
+
+	var body: some View {
+		let _ = model.changes.menus.n
+		let on = model.isDetached
+		Button { model.toggleDetach() } label: {
+			Image(systemName: "macwindow.on.rectangle")
+				.imageScale(.small)
+				.foregroundStyle(on ? Color.accentColor : Color.primary)
+				.padding(.horizontal, 3)
+		}
+		.buttonStyle(StripToggleStyle())
+		.fixedSize()
+		.help(on ? "The picture is detached, in its own window. Click to put it back in the Whorld window (View > Detach, ⇧⌘D)."
+			: "Detach the picture into a window of its own, to move to a projector or second display (View > Detach, ⇧⌘D)")
+	}
+}
+
 final class AutoTagFeed: ObservableObject {
 	@Published var detail = ""
 	@Published var percent = 100
@@ -570,7 +679,8 @@ private struct PlaylistTransport: View {
 			.buttonStyle(StripToggleStyle())
 			.help("The playlist's previous patch (Image > Previous Patch, ⌘↑)")
 			AutoAdvanceButton(strip: true, running: e.autoAdvancing, enabled: !empty,
-				unit: unit, length: e.autoAdvanceLength, engine: e) { model.setAutoAdvance(!e.autoAdvancing) }
+				unit: unit, length: e.autoAdvanceLength, engine: e,
+				setLength: { model.setAutoAdvanceLength($0, unit: $1) }) { model.setAutoAdvance(!e.autoAdvancing) }
 				.frame(width: 24, height: 18)
 			Button { model.stepPatch(1) } label: {
 				Image(systemName: "forward.end.fill").imageScale(.small).padding(.horizontal, 2)
@@ -580,6 +690,19 @@ private struct PlaylistTransport: View {
 		}
 		.disabled(empty && !e.autoAdvancing)
 		.fixedSize()
+		.onAppear { feedPatch() }
+		.onChange(of: patchKey) { feedPatch() }
+	}
+
+	/// the patch playing, for the bar's AppKit text (no SwiftUI layout)
+	private var patchKey: String {
+		"\(model.playingPatch)/\(model.playlistPatches.count)/\(model.title)"
+	}
+
+	private func feedPatch() {
+		let n = model.playlistPatches.count
+		let i = model.playingPatch
+		StripFeed.shared.setPatch(place: i >= 0 && i < n ? "\(i + 1)/\(n)" : "", name: model.title)
 	}
 }
 
@@ -605,7 +728,7 @@ private struct StripToggleStyle: ButtonStyle {
 
 /// One of the stats strip's live texts (StripFeed), drawn in AppKit
 struct StripText: NSViewRepresentable {
-	enum Part { case fps, readout, syphon, beat, tempo }
+	enum Part { case fps, readout, patch, syphon, beat, tempo }
 
 	static func beatTip(_ state: Int) -> String {
 		state == 0 ? "Audio modulation is off" : state == 2 ? "The beat is locked" : "Finding the beat…"
@@ -623,7 +746,8 @@ struct StripText: NSViewRepresentable {
 	static func width(_ part: Part) -> CGFloat {
 		let sample = switch part {
 		case .fps: "000 fps"
-		case .readout: "Rotate Speed Freq  -00.000"
+		case .readout: "Ring Growth  -00.000"
+		case .patch: "00/00  bull lotus5 edit_cvx"
 		case .syphon, .beat: ""
 		case .tempo: "000"
 		}
@@ -638,6 +762,7 @@ struct StripText: NSViewRepresentable {
 		}
 
 		override var isFlipped: Bool { true }
+		override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 		// the dots: clicks and tips are their button's. The tempo is a
 		// button itself while it shows: Reset to 1.1
 		override func hitTest(_ point: NSPoint) -> NSView? {
@@ -710,6 +835,11 @@ struct StripText: NSViewRepresentable {
 			}
 			let text = NSMutableAttributedString()
 			switch part {
+			case .patch:
+				if !feed.patch.place.isEmpty {
+					text.append(NSAttributedString(string: feed.patch.place + "  ", attributes: attrs(.secondaryLabelColor)))
+				}
+				text.append(NSAttributedString(string: feed.patch.name, attributes: attrs(.labelColor)))
 			case .readout:
 				text.append(NSAttributedString(string: feed.readout,
 					attributes: attrs(feed.readoutFresh ? .labelColor : .secondaryLabelColor)))

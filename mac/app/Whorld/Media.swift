@@ -1120,7 +1120,8 @@ struct AutoAdvanceControls: View {
 		let length = e.autoAdvanceLength
 		HStack(spacing: 4) {
 			AutoAdvanceButton(running: e.autoAdvancing, enabled: !model.playlistPatches.isEmpty,
-				unit: unit, length: length, engine: e) { model.setAutoAdvance(!e.autoAdvancing) }
+				unit: unit, length: length, engine: e,
+				setLength: { model.setAutoAdvanceLength($0, unit: $1) }) { model.setAutoAdvance(!e.autoAdvancing) }
 				.frame(width: 32, height: 22)
 			NumberField(
 				value: length,
@@ -1170,7 +1171,16 @@ struct AutoAdvanceButton: NSViewRepresentable {
 	let unit: AutoAdvanceUnit
 	let length: Double
 	let engine: WHEngine
+	/// a right click's lengths (the user's request, 2026-11-20)
+	var setLength: ((Double, AutoAdvanceUnit) -> Void)? = nil
 	let action: () -> Void
+
+	/// the lengths a right click offers
+	static let presets: [(Double, AutoAdvanceUnit)] = [
+		(15, .seconds), (30, .seconds), (60, .seconds), (120, .seconds),
+		(4, .beats), (8, .beats), (16, .beats),
+		(4, .bars), (8, .bars), (16, .bars), (32, .bars),
+	]
 
 	final class Button: NSButton {
 		var running = false { didSet { if running != oldValue { update() } } }
@@ -1178,6 +1188,7 @@ struct AutoAdvanceButton: NSViewRepresentable {
 		var length = 30.0
 		weak var engine: WHEngine?
 		var onPress: (() -> Void)?
+		var onLength: ((Double, AutoAdvanceUnit) -> Void)?
 		var strip = false {
 			didSet {
 				guard strip != oldValue else { return }
@@ -1204,6 +1215,38 @@ struct AutoAdvanceButton: NSViewRepresentable {
 		required init?(coder: NSCoder) { fatalError() }
 
 		@objc private func pressed() { onPress?() }
+
+		override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+		// a right click: how long each patch plays, from the usual lengths
+		override func menu(for event: NSEvent) -> NSMenu? {
+			guard onLength != nil else { return nil }
+			let menu = NSMenu()
+			let head = NSMenuItem(title: "Each patch plays", action: nil, keyEquivalent: "")
+			head.isEnabled = false
+			menu.addItem(head)
+			var last: AutoAdvanceUnit?
+			for (i, p) in AutoAdvanceButton.presets.enumerated() {
+				if let last, last != p.1 { menu.addItem(.separator()) }
+				last = p.1
+				let item = NSMenuItem(title: p.1.describe(p.0), action: #selector(pickLength(_:)), keyEquivalent: "")
+				item.target = self
+				item.tag = i
+				item.state = p.0 == length && p.1 == unit ? .on : .off
+				menu.addItem(item)
+			}
+			return menu
+		}
+
+		override func rightMouseDown(with event: NSEvent) {
+			guard let menu = menu(for: event) else { return super.rightMouseDown(with: event) }
+			NSMenu.popUpContextMenu(menu, with: event, for: self)
+		}
+
+		@objc private func pickLength(_ item: NSMenuItem) {
+			let p = AutoAdvanceButton.presets[item.tag]
+			onLength?(p.0, p.1)
+		}
 
 		override func updateTrackingAreas() {
 			super.updateTrackingAreas()
@@ -1249,7 +1292,8 @@ struct AutoAdvanceButton: NSViewRepresentable {
 			let tip = running
 				? "Stop playing through the playlist. Each patch plays \(unit.describe(length)), then the next; after the last, the first again.\(how)"
 				: "Play through the playlist: \(unit.describe(length)) each, then the next, round and round. A patch played by hand starts its count afresh."
-			if toolTip != tip { toolTip = tip }
+			let tipped = onLength == nil ? tip : tip + " Right-click for another length."
+			if toolTip != tipped { toolTip = tipped }
 			if abs(p - progress) > 0.002 || follow != following {
 				progress = p
 				following = follow
@@ -1288,6 +1332,7 @@ struct AutoAdvanceButton: NSViewRepresentable {
 		b.unit = unit
 		b.length = length
 		b.onPress = action
+		b.onLength = setLength
 		b.isEnabled = enabled || running
 		b.running = running
 		b.update()

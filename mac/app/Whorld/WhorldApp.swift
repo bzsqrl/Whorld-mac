@@ -123,7 +123,8 @@ final class AppModel: ObservableObject {
 	let engine = WHEngine()
 	let undoManager = UndoManager()
 	@Published private(set) var title = "Untitled"
-	/// View > Show Stats: the stats strip (ContentView.swift), kept between runs
+	/// View > Show Performance Bar (was Show Stats): the strip above the
+	/// picture (ContentView.swift), kept between runs
 	@Published var showStats: Bool = UserDefaults.standard.bool(forKey: "View_bShowStats") {
 		didSet { UserDefaults.standard.set(showStats, forKey: "View_bShowStats") }
 	}
@@ -355,6 +356,8 @@ final class AppModel: ObservableObject {
 			changes.menus.bump()
 		case 8:	// the Auto Advance target: 0 stop, 1 start, 2 the other way
 			setAutoAdvance(value == 2 ? !engine.autoAdvancing : value != 0)
+		case 9:	// the Blackout target: 0 back, 1 to black, 2 the other way
+			setBlackout(value == 2 ? !engine.blackout : value != 0)
 		case 5:	// a parameter, from a mapping
 			let iParam = Int(value & 0xff)
 			midiPending.params.insert(iParam)
@@ -572,6 +575,16 @@ final class AppModel: ObservableObject {
 			playPatch(playlistSelection.min() ?? 0)
 		}
 		changes.playlist.bump()
+		changes.menus.bump()
+	}
+
+	/// Image > Blackout (Mac addition, the performance bar; the user's
+	/// request, 2026-11-20): the picture fades to black, or back
+	/// (WHEngine blackout). Not saved: Whorld starts with the picture showing.
+	func setBlackout(_ on: Bool) {
+		guard on != engine.blackout else { return }
+		engine.blackout = on
+		changes.main.bump()
 		changes.menus.bump()
 	}
 

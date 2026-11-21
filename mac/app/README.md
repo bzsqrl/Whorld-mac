@@ -11,7 +11,7 @@ SwiftUI/AppKit app (`Whorld.xcodeproj`, macOS 14+, Xcode 16.2 or later). It comp
 - `Whorld/ContentView.swift`, `Commands.swift`: the render window, menus and shortcuts.
 - `generate_project.py`: regenerates `Whorld.xcodeproj`. Add new source files to its lists.
 
-Build: `xcodebuild -project mac/app/Whorld.xcodeproj -scheme Whorld build`. Set `WHORLD_STATS=1` in the environment to print the frame-rate line (View > Show Stats shows the same figures) to stderr once a second.
+Build: `xcodebuild -project mac/app/Whorld.xcodeproj -scheme Whorld build`. Set `WHORLD_STATS=1` in the environment to print the frame-rate line (View > Show Performance Bar shows the same figures) to stderr once a second.
 
 ## Keyboard shortcuts
 
