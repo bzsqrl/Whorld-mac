@@ -1037,14 +1037,20 @@ final class AppModel: ObservableObject {
 	/// A two-finger tap (a secondary click) over the picture while a key in
 	/// the key map is held: that key's control goes back to its value in the
 	/// patch as loaded (opened, played from the playlist, or new) or last saved.
-	/// With no key held but Shift, which turns a swipe there into Damping
-	/// (wheel), Damping goes back the same way (the user's request,
-	/// 2026-11-21). Returns false otherwise, so the click goes on as usual.
+	/// With no key held, what a swipe there moves (wheel) goes back the same
+	/// way: Zoom, or Damping with Shift (the user's requests, 2026-11-21).
+	/// Returns false with another modifier held, so the click goes on as usual.
 	func resetHeldKeyControl() -> Bool {
 		guard let b = outputKeys.heldTarget, let t = b.targetIndex else {
-			guard NSEvent.modifierFlags.intersection([.shift, .command, .control, .option]) == .shift else { return false }
-			let i = MasterProp.damping.rawValue
-			setMaster(i, engine.loadedMasterValue(i))
+			switch NSEvent.modifierFlags.intersection([.shift, .command, .control, .option]) {
+			case []:
+				setZoom(engine.loadedMasterValue(MasterProp.zoom.rawValue))
+			case .shift:
+				let i = MasterProp.damping.rawValue
+				setMaster(i, engine.loadedMasterValue(i))
+			default:
+				return false
+			}
 			return true
 		}
 		let nParams = WHMappingInfo.paramTargetCount, nMaster = WHMappingInfo.masterTargetCount
