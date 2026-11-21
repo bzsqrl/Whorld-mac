@@ -1098,15 +1098,34 @@ final class ModMap {
 		}
 	}
 
-	/// Starting rows: bass widens the lines, each kick pulses the zoom, and
-	/// (off until wanted) a hit randomizes the oscillators' phases.
+	/// Starting rows (the user's choice, 2026-11-20: beat-based and subtle,
+	/// with a few examples off; was Bass, Kick and Hit, a first guess): a
+	/// push of Speed and Line Width on every beat, and slow swells of the
+	/// whole picture's star and pinwheel over 4 and 8 bars. Off until wanted:
+	/// Random Phase every 8 bars, Rotate Hue every 16, and Bass on Line Width,
+	/// a row that follows the sound itself.
 	static let standard: [ModRowSetting] = {
-		var hit = ModRowSetting.make("Hit", "", 0, on: false)
-		hit.action = "RandomPhase"
+		func swell(_ target: String, _ amount: Double, bars: Double) -> ModRowSetting {
+			var r = ModRowSetting.make("BeatLFO", target, amount, prop: .global)
+			r.lfoBeats = bars * 4
+			r.lfoInBars = true
+			r.lfoShape = 0		// ModRow::LFO_Sine
+			r.centered = true	// either side of the patch's own shape
+			return r
+		}
+		func every(_ span: String, _ action: String) -> ModRowSetting {
+			var r = ModRowSetting.make(span, "", 0, on: false)
+			r.action = action
+			return r
+		}
 		return [
-			.make("Bass", "LineWidth", 0.3, attack: 10, release: 150),
-			.make("Kick", "Zoom", 0.08, release: 250),
-			hit,
+			.make("Beat", "Speed", 0.06, release: 250),
+			.make("Beat", "LineWidth", 0.08, release: 200),
+			swell("StarFactor", 0.2, bars: 4),
+			swell("Pinwheel", 0.2, bars: 8),
+			every("Bar8", "RandomPhase"),
+			every("Bar16", "RotateHue"),
+			.make("Bass", "LineWidth", 0.2, attack: 10, release: 150, on: false),
 		]
 	}()
 
