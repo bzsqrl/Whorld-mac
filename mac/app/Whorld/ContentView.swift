@@ -267,6 +267,17 @@ struct StatsStrip: View {
 			.layoutPriority(2)
 			.help("Syphon output on or off (View > Syphon, which also sets its size). The dot: faint off, hollow while no app is receiving, filled once one is.")
 			Spacer(minLength: 0)
+			// View > Enter Full Screen (the user's request, 2026-11-20); the
+			// strip isn't shown in full screen, so it only enters
+			Button { model.toggleFullScreen() } label: {
+				Image(systemName: "arrow.up.left.and.arrow.down.right")
+					.imageScale(.small)
+					.padding(.horizontal, 3)	// an easier target
+			}
+			.buttonStyle(StripToggleStyle())
+			.fixedSize()
+			.layoutPriority(2)
+			.help("Full screen (View > Enter Full Screen, ⇧⌘F; Esc returns)")
 			InfoButton(text: Self.info, small: true)
 				.layoutPriority(2)
 		}
@@ -278,7 +289,7 @@ struct StatsStrip: View {
 		.background(Color(nsColor: .windowBackgroundColor))
 	}
 
-	static let info = "Frames drawn a second, display refreshes missed in the last second (orange when any are), and the time to draw a frame (on the CPU, then on the GPU with Metal). The rings drawn, the display's rate and the renderer are in the statistics' tooltip.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nClick Mod to turn audio modulation on and off (Audio > Audio Modulation, Command-'). Its dot: faint while it's off, hollow while it's finding the beat, filled and flashing on each beat once it's locked, with the tempo beside it.\n\nClick Full or Geom to switch the patch mode (Image > Geometry Only, Option-Command-G): in Geom, playing a patch changes only its shape and motion.\n\nThe Quality menu sets Render quality (Settings > Display explains it) and Automatic quality (View > Automatic Quality, Command-;); its title says which is in charge, Quality or Auto, and the quality drawn. Automatic quality: when the picture can't keep up with the display, Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare, never above your settings; exports aren't affected. While it has lowered something, the title is orange with a ↓ (Auto ↓75%), and its tooltip says what.\n\nClick Syphon to send the picture to other apps on this Mac, or stop (View > Syphon also sets its size). Its dot: faint while it's off, hollow while no app is receiving, filled once one is.\n\nView > Show Stats (Option-Command-9) hides the strip."
+	static let info = "Frames drawn a second, display refreshes missed in the last second (orange when any are), and the time to draw a frame (on the CPU, then on the GPU with Metal). The rings drawn, the display's rate and the renderer are in the statistics' tooltip.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nClick Mod to turn audio modulation on and off (Audio > Audio Modulation, Command-'). Its dot: faint while it's off, hollow while it's finding the beat, filled and flashing on each beat once it's locked, with the tempo beside it.\n\nClick Full or Geom to switch the patch mode (Image > Geometry Only, Option-Command-G): in Geom, playing a patch changes only its shape and motion.\n\nThe Quality menu sets Render quality (Settings > Display explains it) and Automatic quality (View > Automatic Quality, Command-;); its title says which is in charge, Quality or Auto, and the quality drawn. Automatic quality: when the picture can't keep up with the display, Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare, never above your settings; exports aren't affected. While it has lowered something, the title is orange with a ↓ (Auto ↓75%), and its tooltip says what.\n\nClick Syphon to send the picture to other apps on this Mac, or stop (View > Syphon also sets its size). Its dot: faint while it's off, hollow while no app is receiving, filled once one is.\n\nThe arrows at the right end enter full screen (View > Enter Full Screen, Shift-Command-F).\n\nView > Show Stats (Option-Command-9) hides the strip."
 }
 
 /// What the stats strip shows, set by AppModel; its text views redraw only
