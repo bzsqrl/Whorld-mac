@@ -345,8 +345,8 @@ private struct StatsStripContent: View {
 			.fixedSize()
 			.layoutPriority(2)
 			.help("Full screen (View > Enter Full Screen, ⌘F; Esc returns). Option-click: full screen on another display (⇧⌘F).")
-			InfoButton(text: Self.info, small: true)
-				.layoutPriority(2)
+			// no ⓘ: each item has its own tooltip, and Help describes the
+			// bar (the user's request, 2026-11-21)
 		}
 		.controlSize(.small)
 		.font(.caption)
@@ -355,8 +355,6 @@ private struct StatsStripContent: View {
 		.frame(maxWidth: .infinity)
 		.background(Color(nsColor: .windowBackgroundColor))
 	}
-
-	static let info = "At the left, the eye is Blackout (Image > Blackout, Command-B): the picture fades to black, red while it's out, and a second click fades it back. It's black on screen and in Syphon; Whorld goes on running underneath, so the picture returns where it would have been.\n\nThen the frames drawn a second, orange when display refreshes were missed in the last second. Click it for the rest: the refreshes missed, the time to draw a frame (on the CPU, then on the GPU with Metal), the rings drawn, the display's rate, the renderer and what Automatic quality has lowered.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nThe playing patch's place in the playlist (12/86; its name is in the tooltip): click it for the next patch (Image > Next Patch, Command-Down). Then Play / Stop (Image > Auto Advance, Option-Command-L): Play plays through the playlist, each patch for the length set in the Playlist panel (or right-click Play to pick one); the line under it fills toward the next patch.\n\nClick Full or Geom to switch the patch mode (Image > Geometry Only, Option-Command-G): in Geom, playing a patch changes only its shape and motion.\n\nAuto turns Automatic quality on or off (View > Automatic Quality, Command-;): when the picture can't keep up with the display, Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare, never above your settings; exports aren't affected. Bright while on; while it has lowered something it reads Auto ↓ in orange, and its tooltip says what.\n\nRes is Render quality, the resolution drawn (Settings > Display explains it); orange while Automatic quality draws it lower than your setting.\n\nClick Mod to turn audio modulation on and off (Audio > Audio Modulation, Command-'). Its dot: faint while it's off, hollow while it's finding the beat, filled and flashing on each beat once it's locked, with the tempo beside it. Click the tempo to reset the count to 1.1 (Audio > Reset to 1.1, Command-\\): the beat nearest now becomes bar 1, beat 1.\n\nClick Syp to send the picture to other apps on this Mac by Syphon, or stop (View > Syphon also sets its size). Its dot: faint while it's off, hollow while no app is receiving, filled once one is.\n\nAt the right end: Detach (View > Detach, Shift-Command-D), the picture in a window of its own for a projector, lit while it's detached (a click docks it); and the arrows, full screen on the display the picture is on (View > Enter Full Screen, Command-F). Option-click them for full screen on another display (View > Enter Full Screen on Other Display, Shift-Command-F); while full screen, Shift-Command-F moves the picture on to the next display. Leaving full screen puts the picture back where it was.\n\nView > Show Perform Bar (Option-Command-9) hides the bar."
 }
 
 /// What the stats strip shows, set by AppModel; its text views redraw only
@@ -538,10 +536,15 @@ final class StripFeed {
 		if percent != autoTag.percent { autoTag.percent = percent }
 	}
 
+	/// the readout's tooltip: what it is, and the control's whole name
+	private(set) var readoutTip = "The last control you change, in a panel or menu, by MIDI or OSC, or by swiping over the picture, shows here with its value. Modulation doesn't show."
+
 	/// `full`: the control's whole name, for the tooltip, where the readout
 	/// shortens it (Ring Growth Amp for Ring Growth Amplitude)
 	func setReadout(_ s: String, full: String? = nil) {
-		let tip = full ?? s
+		let name = (full ?? s).replacingOccurrences(of: "  ", with: " ")
+		let tip = "Last control changed: \(name). In a panel or menu, by MIDI or OSC, or by swiping over the picture; modulation doesn't show."
+		readoutTip = tip
 		for w in views where w.view?.part == .readout && w.view?.toolTip != tip { w.view?.toolTip = tip }
 		if s != readout || !readoutFresh {
 			readout = s
@@ -603,8 +606,9 @@ private struct BlackoutButton: View {
 		}
 		.buttonStyle(StripToggleStyle())
 		.fixedSize()
-		.help(on ? "Blackout: the picture is faded out. Click to fade it back (Image > Blackout, ⌘B)."
-			: "Blackout: fade the picture to black, on screen and in Syphon (Image > Blackout, ⌘B).")
+		.help((on ? "Blackout: the picture is faded out. Click to fade it back (Image > Blackout, ⌘B)."
+			: "Blackout: fade the picture to black over a second (Image > Blackout, ⌘B).")
+			+ " Black on screen and in Syphon, not in exports; Whorld keeps running underneath, so the picture returns where it would have been.")
 	}
 }
 
@@ -846,6 +850,7 @@ struct StripText: NSViewRepresentable {
 			if window != nil {
 				StripFeed.shared.add(self)
 				if part == .fps { toolTip = Self.fpsTip }
+				if part == .readout { toolTip = StripFeed.shared.readoutTip }
 				if part == .syphon { toolTip = StripText.syphonTip(StripFeed.shared.syphon) }
 				if part == .beat { toolTip = StripText.beatTip(StripFeed.shared.beat.state) }
 				if part == .tempo { toolTip = StripFeed.shared.beat.tempo.isEmpty ? nil : Self.tempoTip }
