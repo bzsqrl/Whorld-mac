@@ -952,12 +952,21 @@ struct PlaylistPanel: View {
 				Button { moveSelection(1) } label: { Image(systemName: "arrow.down") }
 					.help("Move down")
 					.disabled(model.playlistSelection.isEmpty)
+				AutoAdvanceControls()
+					.padding(.leading, 6)
 				Spacer()
-				Text(model.playlistTitle + (model.playlistModified ? " — Edited" : ""))
+				// the name, shortened in a narrow pane, and left out where it
+				// would be a letter or two (the auto-advance controls come first)
+				let title = Text(model.playlistTitle + (model.playlistModified ? " — Edited" : ""))
 					.font(.caption)
 					.foregroundStyle(.secondary)
 					.lineLimit(1)
 					.truncationMode(.middle)
+				ViewThatFits(in: .horizontal) {
+					title.fixedSize()
+					title.frame(width: 72)
+					Color.clear.frame(width: 0, height: 0)
+				}
 				// the patch mode, named as it is now (the user's request,
 				// 2026-11-18): Geom or Full; click for the other
 				let geometry = model.engine.geometryMode
@@ -1043,5 +1052,186 @@ private struct PlayingRowScroller: NSViewRepresentable {
 		}
 		search(root)
 		return best
+	}
+}
+
+// MARK: Auto-advance (Mac addition, the user's request, 2026-11-20)
+
+/// What an auto-advance length counts (whorld::AutoAdvance UNIT_*)
+enum AutoAdvanceUnit: Int, CaseIterable {
+	case seconds = 0, beats, bars
+
+	var label: String {
+		switch self {
+		case .seconds: "sec"
+		case .beats: "beats"
+		case .bars: "bars"
+		}
+	}
+
+	func describe(_ length: Double) -> String {
+		let n = length == length.rounded() ? String(Int(length)) : String(format: "%g", length)
+		switch self {
+		case .seconds: return length == 1 ? "1 second" : "\(n) seconds"
+		case .beats: return length == 1 ? "1 beat" : "\(n) beats"
+		case .bars: return length == 1 ? "1 bar" : "\(n) bars"
+		}
+	}
+}
+
+/// The Playlist panel's Play / Stop button, with how long each patch plays:
+/// a number and its unit (seconds, beats or bars), saved with the playlist.
+struct AutoAdvanceControls: View {
+	@EnvironmentObject private var model: AppModel
+
+	var body: some View {
+		let _ = model.changes.playlist.n
+		let e = model.engine
+		let unit = AutoAdvanceUnit(rawValue: e.autoAdvanceUnit) ?? .seconds
+		let length = e.autoAdvanceLength
+		HStack(spacing: 4) {
+			AutoAdvanceButton(running: e.autoAdvancing, enabled: !model.playlistPatches.isEmpty,
+				unit: unit, length: length, engine: e) { model.setAutoAdvance(!e.autoAdvancing) }
+				.frame(width: 32, height: 22)
+			NumberField(
+				value: length,
+				format: { String(format: "%g", $0) },
+				parse: { Double($0.trimmingCharacters(in: .whitespaces)) ?? NumberField.fraction($0) ?? length },
+				commit: { model.setAutoAdvanceLength(Self.clamp($0, unit), unit: unit) },
+				step: { v, d, k in Self.clamp(v + Double(d) * (k == .coarse ? 10 : 1), unit) },
+				lo: Self.range(unit).lowerBound,
+				hi: Self.range(unit).upperBound,
+				width: NumberField.width(characters: 4),
+				fractions: true)
+				.help("How long each patch plays before the next, in \(unit == .seconds ? "seconds" : unit == .beats ? "beats" : "bars (4 beats)").")
+			Picker("", selection: Binding(
+				get: { unit },
+				set: { u in model.setAutoAdvanceLength(Self.clamp(length, u), unit: u) })) {
+				ForEach(AutoAdvanceUnit.allCases, id: \.self) { Text($0.label).tag($0) }
+			}
+			.labelsHidden()
+			.fixedSize()
+			.help("Count in seconds, or in beats or bars of the music's beat (with an audio input, or Ableton Link). Without a beat it counts at the last tempo heard, or 120 BPM.")
+		}
+	}
+
+	static func range(_ unit: AutoAdvanceUnit) -> ClosedRange<Double> {
+		switch unit {
+		case .seconds: 1...3600
+		case .beats: 1...1024
+		case .bars: 0.25...256
+		}
+	}
+
+	static func clamp(_ v: Double, _ unit: AutoAdvanceUnit) -> Double {
+		guard v.isFinite else { return 30 }
+		return min(max(v, range(unit).lowerBound), range(unit).upperBound)
+	}
+}
+
+/// Play / Stop, in AppKit so its progress line and tooltip can follow the
+/// count many times a second without SwiftUI laying out the panel again
+/// (which drops tooltips). The line under the symbol fills toward the next
+/// patch: the accent color, or orange while counting beats without a beat.
+private struct AutoAdvanceButton: NSViewRepresentable {
+	let running: Bool
+	let enabled: Bool
+	let unit: AutoAdvanceUnit
+	let length: Double
+	let engine: WHEngine
+	let action: () -> Void
+
+	final class Button: NSButton {
+		var running = false { didSet { if running != oldValue { update() } } }
+		var unit = AutoAdvanceUnit.seconds
+		var length = 30.0
+		weak var engine: WHEngine?
+		var onPress: (() -> Void)?
+		private var progress = 0.0
+		private var following = true
+		private var timer: Timer?
+
+		override init(frame: NSRect) {
+			super.init(frame: frame)
+			bezelStyle = .rounded
+			setButtonType(.momentaryPushIn)
+			imagePosition = .imageOnly
+			target = self
+			action = #selector(pressed)
+			update()
+		}
+
+		required init?(coder: NSCoder) { fatalError() }
+
+		@objc private func pressed() { onPress?() }
+
+		func update() {
+			image = NSImage(systemSymbolName: running ? "stop.fill" : "play.fill",
+				accessibilityDescription: running ? "Stop" : "Play")
+			contentTintColor = running ? .controlAccentColor : nil
+			if running, timer == nil {
+				let t = Timer(timeInterval: 1.0 / 15, repeats: true) { [weak self] _ in
+					MainActor.assumeIsolated { self?.poll() }
+				}
+				RunLoop.main.add(t, forMode: .common)
+				timer = t
+			} else if !running {
+				timer?.invalidate()
+				timer = nil
+				progress = 0
+			}
+			poll()
+			needsDisplay = true
+		}
+
+		private func poll() {
+			var f: ObjCBool = true
+			var tempo = 0.0
+			let p = running ? engine?.autoAdvanceProgress(followingBeat: &f, tempo: &tempo) ?? 0 : 0
+			let beats = unit != .seconds
+			let follow = !beats || f.boolValue
+			let how = !beats ? "" : follow
+				? String(format: " Following the beat, %.0f BPM.", tempo)
+				: String(format: " No beat now: counting at %.0f BPM until there is one.", tempo)
+			let tip = running
+				? "Stop playing through the playlist. Each patch plays \(unit.describe(length)), then the next; after the last, the first again.\(how)"
+				: "Play through the playlist: \(unit.describe(length)) each, then the next, round and round. A patch played by hand starts its count afresh."
+			if toolTip != tip { toolTip = tip }
+			if abs(p - progress) > 0.002 || follow != following {
+				progress = p
+				following = follow
+				needsDisplay = true
+			}
+		}
+
+		override func draw(_ dirtyRect: NSRect) {
+			super.draw(dirtyRect)
+			guard running else { return }
+			let inner = bounds.insetBy(dx: 7, dy: 0)
+			let y = bounds.maxY - 5.5	// flipped: near the bezel's bottom
+			let track = NSRect(x: inner.minX, y: y, width: inner.width, height: 2)
+			NSColor.tertiaryLabelColor.setFill()
+			NSBezierPath(roundedRect: track, xRadius: 1, yRadius: 1).fill()
+			(following ? NSColor.controlAccentColor : NSColor.systemOrange).setFill()
+			var fill = track
+			fill.size.width = track.width * min(max(progress, 0), 1)
+			NSBezierPath(roundedRect: fill, xRadius: 1, yRadius: 1).fill()
+		}
+
+		override var isFlipped: Bool { true }
+
+		deinit { timer?.invalidate() }
+	}
+
+	func makeNSView(context: Context) -> Button { Button(frame: .zero) }
+
+	func updateNSView(_ b: Button, context: Context) {
+		b.engine = engine
+		b.unit = unit
+		b.length = length
+		b.onPress = action
+		b.isEnabled = enabled || running
+		b.running = running
+		b.update()
 	}
 }

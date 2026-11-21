@@ -98,6 +98,7 @@ const char* const	kMiscName[] = {
 	"mod/barback",	// BarBack
 	"mod/barfwd",	// BarForward
 	"mod/halfbeat",	// HalfBeat
+	"advance",	// AutoAdvance
 };
 static_assert(sizeof(kMiscName) / sizeof(kMiscName[0]) == MappingBase::MISC_TARGETS, "a name per miscellaneous target");
 

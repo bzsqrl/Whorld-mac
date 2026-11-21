@@ -19,6 +19,8 @@
 #include <string>
 #include <vector>
 
+#include "whorld/AutoAdvance.h"
+
 namespace whorld {
 
 class Playlist {
@@ -44,6 +46,12 @@ public:
 	// Geometry, which Windows Whorld ignores (and drops if it saves).
 	enum { PM_FULL, PM_GEOMETRY };
 	int		m_nPatchMode = PM_FULL;
+	// Mac addition, auto-advance (AutoAdvance.h): how long each patch plays
+	// before the next, in AutoAdvance::UNIT_Seconds, _Beats or _Bars. In
+	// [MacPlaylist] too, written only when not the default (30 seconds).
+	// Whether it's running isn't saved: a playlist opens stopped.
+	double	m_fAdvanceLength = AutoAdvance::kDefaultLength;
+	int		m_nAdvanceUnit = AutoAdvance::UNIT_Seconds;
 
 // Operations
 	bool	Read(const std::string& sPath, std::string* pError = nullptr, bool* pbNewer = nullptr);

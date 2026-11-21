@@ -201,6 +201,11 @@ struct WhorldCommands: Commands {
 			Button("Previous Patch") { Self.arrowOrStep(down: false) { model.stepPatch(-1) } }
 				.keyboardShortcut(.upArrow, modifiers: .command)
 				.disabled(model.playlistPatches.isEmpty)
+			// play through the playlist (the Playlist panel's Play button;
+			// the user's request, 2026-11-20)
+			Toggle("Auto Advance", isOn: Binding(get: { e.autoAdvancing }, set: { model.setAutoAdvance($0) }))
+				.keyboardShortcut("l", modifiers: [.command, .option])
+				.disabled(model.playlistPatches.isEmpty && !e.autoAdvancing)
 			// V1's Edit > Patch Mode (Mac addition), one toggle: on, playing a
 			// patch changes only its geometry; off, everything (Full). Was a
 			// submenu on Shift-F and Shift-G, letters the key map uses (the

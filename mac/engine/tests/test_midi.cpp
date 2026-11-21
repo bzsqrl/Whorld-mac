@@ -191,6 +191,35 @@ TEST(PlaylistPatchMode) {
 	CHECK_EQ(q.m_nPatchMode, int(Playlist::PM_FULL));
 }
 
+TEST(PlaylistAutoAdvance) {
+	// Mac addition: the length and unit in [MacPlaylist], only when not 30 seconds
+	Playlist	pl;
+	pl.m_arrPatch = {"a.whp"};
+	IniFile	plain;
+	pl.Write(plain);
+	CHECK(WriteIni(plain).find("Advance") == std::string::npos);
+	pl.m_fAdvanceLength = 8.5;
+	pl.m_nAdvanceUnit = AutoAdvance::UNIT_Bars;
+	IniFile	ini;
+	pl.Write(ini);
+	std::string	text = WriteIni(ini);
+	CHECK(text.find("AdvanceLength=8.5\r\n") != std::string::npos);
+	CHECK(text.find("AdvanceUnit=2\r\n") != std::string::npos);
+	std::istringstream	in(text);
+	IniFile	back;
+	back.Read(in);
+	Playlist	q;
+	CHECK(q.Read(back));
+	CHECK_EQ(q.m_fAdvanceLength, 8.5);
+	CHECK_EQ(q.m_nAdvanceUnit, int(AutoAdvance::UNIT_Bars));
+	std::istringstream	inPlain(WriteIni(plain));	// without them: 30 seconds
+	IniFile	backPlain;
+	backPlain.Read(inPlain);
+	CHECK(q.Read(backPlain));
+	CHECK_EQ(q.m_fAdvanceLength, AutoAdvance::kDefaultLength);
+	CHECK_EQ(q.m_nAdvanceUnit, int(AutoAdvance::UNIT_Seconds));
+}
+
 TEST(SamplePlaylistValues) {
 	fs::path	path = fs::path(WHORLD_TESTDATA_DIR) / "playlists" / "SMC-Mixer_Logitech_8BitDo.whl";
 	if (!fs::exists(path))
@@ -220,8 +249,9 @@ TEST(MappingDefaultsAndNames) {
 	CHECK_EQ(m.m_iControl, 1);
 	CHECK_EQ(m.m_fEnd, 100.0);
 	// 17 miscellaneous targets on Windows, plus the Mac's Hue, Rotate Hue, Invert Color,
-	// Mark Downbeat, Modulation On, Modulation Depth, Geometry Mode and Reset Bar Count
-	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 30);
+	// Mark Downbeat, Modulation On, Modulation Depth, Geometry Mode, Reset Bar Count, the
+	// beat and bar steps, Half Beat and Auto Advance
+	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 31);
 	CHECK_EQ(MB::GetTargetName(MB::TARGET_ResetBars), std::string("Reset Bar Count"));
 	CHECK_EQ(MB::GetTargetType(MB::TARGET_ResetBars), int(MB::TT_ACTION));
 	CHECK(MB::IsMacOnlyTarget(MB::TARGET_ResetBars));
@@ -434,6 +464,24 @@ TEST(GeometryModeTarget) {
 	sink.Clear();
 	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 42, 0));	// off
 	CHECK_EQ(sink.posts[0].type, Post::PATCH_MODE);
+	CHECK_EQ(sink.posts[0].iVal, 0);
+}
+
+TEST(AutoAdvanceTarget) {
+	// Mac addition: start and stop the playlist's auto-advance, by the app
+	CHECK(MB::IsMacOnlyTarget(MB::TARGET_AutoAdvance));
+	CHECK_EQ(MB::GetTargetName(MB::TARGET_AutoAdvance), std::string("Auto Advance"));
+	CHECK_EQ(MB::GetTargetType(MB::TARGET_AutoAdvance), int(MB::TT_BOOL));
+	RecordingSink	sink;
+	MidiManager	mgr(sink);
+	using Post = MidiManager::Post;
+	mgr.DispatchTarget(MB::TARGET_AutoAdvance, -1, 1);
+	CHECK(sink.cmds.empty());
+	CHECK_EQ(sink.posts.size(), size_t(1));
+	CHECK_EQ(sink.posts[0].type, Post::AUTO_ADVANCE);
+	CHECK_EQ(sink.posts[0].iVal, 1);
+	sink.Clear();
+	mgr.DispatchTarget(MB::TARGET_AutoAdvance, -1, 0);
 	CHECK_EQ(sink.posts[0].iVal, 0);
 }
 

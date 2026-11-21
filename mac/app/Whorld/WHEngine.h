@@ -336,7 +336,8 @@ typedef struct {
 // 2 play patch `value`, 3 learn message `value`, 5 parameter row
 // `value & 0xff` changed, in column `value >> 8` (WHParamProperty), 6 master
 // property `value` changed; kind 0's `value` is the main property plus 1), and when the MIDI sources
-// change (kind 4); kind 7: the Geometry Mode target set geometryMode. The
+// change (kind 4); kind 7: the Geometry Mode target set geometryMode; kind
+// 8: the Auto Advance target (value 0 stop, 1 start, 2 toggle). The
 // modulation targets go to modulationOscHandler.
 @property (nonatomic, copy, nullable) void (^midiHandler)(NSInteger kind, uint32_t value);
 
@@ -375,6 +376,19 @@ typedef struct {
 // Global column). Applies to New, Open and playing a patch. Changed by
 // the MIDI and OSC Geometry Mode target too (midiHandler kind 7).
 @property (nonatomic) BOOL geometryMode;
+// Playlist auto-advance (Mac addition, whorld::AutoAdvance, stepped on the
+// render thread): every autoAdvanceLength seconds, beats or bars (unit 0, 1,
+// 2; saved with the playlist), while autoAdvancing, autoAdvanceHandler is
+// called on the main thread to play the next patch. restartAutoAdvance:
+// a patch was played otherwise, count from now.
+@property (nonatomic) double autoAdvanceLength;
+@property (nonatomic) NSInteger autoAdvanceUnit;
+@property (nonatomic) BOOL autoAdvancing;
+- (void)restartAutoAdvance;
+@property (nonatomic, copy, nullable) void (^autoAdvanceHandler)(void);
+// how far toward the next patch (0 to 1), and for beats and bars, whether
+// it's following the beat, and the tempo it counts at (BPM)
+- (double)autoAdvanceProgressFollowingBeat:(BOOL *)following tempo:(double *)tempo;
 // Loads a patch as an untitled document (CWhorldDoc::SetPatch, from
 // CPlaylistBar::Play). Returns NO if it can't be read.
 - (BOOL)playPatchAtPath:(NSString *)path;

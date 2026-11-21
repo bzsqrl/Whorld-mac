@@ -10,6 +10,10 @@
 
 #include "whorld/Playlist.h"
 
+#include <iomanip>
+#include <locale>
+#include <sstream>
+
 namespace whorld {
 
 const char* const Playlist::m_pszPlaylistExt = "whl";
@@ -27,6 +31,8 @@ const char* const Playlist::m_pszPlaylistExt = "whl";
 #define RK_LAYOUT_DATA		"Data"
 #define RK_MAC_SECTION		"MacPlaylist"	// Mac addition
 #define RK_MAC_PATCH_MODE	"PatchMode"
+#define RK_MAC_ADVANCE_LENGTH	"AdvanceLength"
+#define RK_MAC_ADVANCE_UNIT	"AdvanceUnit"
 
 // ported from Playlist.cpp CPlaylist::OnOpenDocument, ValidateFileType, ReadPatches
 bool Playlist::Read(const IniFile& fIn, std::string* pError, bool* pbNewer)
@@ -51,6 +57,19 @@ bool Playlist::Read(const IniFile& fIn, std::string* pError, bool* pbNewer)
 	m_sLayout = fIn.GetString(RK_LAYOUT_SECTION, RK_LAYOUT_DATA, "");	// Mac addition
 	m_nPatchMode = fIn.GetInt(RK_MAC_SECTION, RK_MAC_PATCH_MODE, PM_FULL) == PM_GEOMETRY	// Mac addition
 		? PM_GEOMETRY : PM_FULL;
+	m_nAdvanceUnit = fIn.GetInt(RK_MAC_SECTION, RK_MAC_ADVANCE_UNIT, AutoAdvance::UNIT_Seconds);	// Mac addition
+	if (!AutoAdvance::IsValidUnit(m_nAdvanceUnit))
+		m_nAdvanceUnit = AutoAdvance::UNIT_Seconds;
+	m_fAdvanceLength = AutoAdvance::kDefaultLength;
+	std::string	sLength = fIn.GetString(RK_MAC_SECTION, RK_MAC_ADVANCE_LENGTH, "");
+	if (!sLength.empty()) {	// a decimal, whatever the locale
+		std::istringstream	in(sLength);
+		in.imbue(std::locale::classic());
+		double	f;
+		if (in >> f)
+			m_fAdvanceLength = f;
+	}
+	m_fAdvanceLength = AutoAdvance::ClampLength(m_fAdvanceLength, m_nAdvanceUnit);
 	return true;
 }
 
@@ -67,6 +86,13 @@ void Playlist::Write(IniFile& fOut) const
 	m_arrMapping.Write(fOut);	// CMidiManager::WriteMappings
 	if (m_nPatchMode == PM_GEOMETRY)	// Mac addition, only when not the default
 		fOut.WriteInt(RK_MAC_SECTION, RK_MAC_PATCH_MODE, m_nPatchMode);
+	if (m_fAdvanceLength != AutoAdvance::kDefaultLength || m_nAdvanceUnit != AutoAdvance::UNIT_Seconds) {	// Mac addition
+		std::ostringstream	out;
+		out.imbue(std::locale::classic());
+		out << std::setprecision(15) << m_fAdvanceLength;
+		fOut.WriteString(RK_MAC_SECTION, RK_MAC_ADVANCE_LENGTH, out.str());
+		fOut.WriteInt(RK_MAC_SECTION, RK_MAC_ADVANCE_UNIT, m_nAdvanceUnit);
+	}
 	// Mac addition, last and only when there is one, so other playlists are
 	// byte for byte the Windows format; one line (line breaks would end it)
 	if (!m_sLayout.empty() && m_sLayout.find_first_of("\r\n") == std::string::npos)

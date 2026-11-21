@@ -43,6 +43,7 @@ public:
 			ROTATE_HUE,			// Mac addition: the main thread rotates the hue 90 degrees
 			MODULATION,			// Mac addition, audio modulation: iVal 0 on (fVal 1 or 0), 1 depth (fVal 0 to 1), 2 Mark Downbeat, 3 Reset Bar Count
 			PATCH_MODE,			// Mac addition: iVal 1 Geometry, 0 Full (V1's MIDI PatchMode)
+			AUTO_ADVANCE,		// Mac addition: iVal 1 start, 0 stop the playlist's auto-advance
 		};
 		Type	type;
 		int		iParam = 0;

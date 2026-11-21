@@ -236,6 +236,14 @@ void MidiManager::PushMiscTarget(int iMiscTarget, double fNormVal)
 			m_sink.PostToMain(post);
 		}
 		break;
+	case MT_AutoAdvance:	// the app runs the playlist
+		{
+			Post	post;
+			post.type = Post::AUTO_ADVANCE;
+			post.iVal = fNormVal != 0;
+			m_sink.PostToMain(post);
+		}
+		break;
 	}
 }
 

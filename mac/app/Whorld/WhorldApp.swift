@@ -217,6 +217,7 @@ final class AppModel: ObservableObject {
 		engine.midiHandler = { [weak self] kind, value in
 			self?.onMidi(kind: kind, value: value)
 		}
+		engine.autoAdvanceHandler = { [weak self] in self?.autoAdvanceNext() }
 	}
 
 	// MARK: MIDI and mappings
@@ -297,6 +298,8 @@ final class AppModel: ObservableObject {
 		case 7:	// the Geometry Mode target (engine.geometryMode is already set)
 			changes.playlist.bump()
 			changes.menus.bump()
+		case 8:	// the Auto Advance target: 0 stop, 1 start, 2 the other way
+			setAutoAdvance(value == 2 ? !engine.autoAdvancing : value != 0)
 		case 5:	// a parameter, from a mapping
 			let iParam = Int(value & 0xff)
 			midiPending.params.insert(iParam)
@@ -483,17 +486,59 @@ final class AppModel: ObservableObject {
 	// screen), this never asks: playing through a playlist live shouldn't
 	// be interrupted, and unsaved edits are simply let go (the user's choice,
 	// 2026-11-09). File > New, Open and Quit still ask.
-	func playPatch(_ index: Int) {
+	@discardableResult
+	func playPatch(_ index: Int, automatic: Bool = false) -> Bool {
 		let paths = engine.playlistPatches
-		guard index >= 0, index < paths.count, let url = resolvePatchPath(paths[index]) else { return }
-		if engine.playPatch(atPath: url.path) {
-			playedName = url.deletingPathExtension().lastPathComponent
-			playingPatch = index
-			patchPlays += 1
-			originFromPatch()
-			resetUndo()
-			updateTitle()
-			changed()
+		guard index >= 0, index < paths.count, let url = resolvePatchPath(paths[index]) else { return false }
+		guard engine.playPatch(atPath: url.path) else { return false }
+		if !automatic {	// played by hand: auto-advance counts from now
+			engine.restartAutoAdvance()
+		}
+		playedName = url.deletingPathExtension().lastPathComponent
+		playingPatch = index
+		patchPlays += 1
+		originFromPatch()
+		resetUndo()
+		updateTitle()
+		changed()
+		return true
+	}
+
+	// MARK: Auto-advance (Mac addition, the user's request, 2026-11-20)
+
+	/// Starts or stops playing through the playlist (the Playlist panel's
+	/// Play button, Image > Auto Advance, MIDI and OSC). Starting keeps the
+	/// patch playing, or plays the selected one (else the first).
+	func setAutoAdvance(_ on: Bool) {
+		let n = engine.playlistPatches.count
+		guard on != engine.autoAdvancing, !on || n > 0 else { return }
+		engine.autoAdvancing = on
+		if on, !(playingPatch >= 0 && playingPatch < n) {
+			playPatch(playlistSelection.min() ?? 0)
+		}
+		changes.playlist.bump()
+		changes.menus.bump()
+	}
+
+	/// How long each patch plays: seconds, beats or bars (AutoAdvanceUnit),
+	/// saved with the playlist
+	func setAutoAdvanceLength(_ length: Double, unit: AutoAdvanceUnit) {
+		guard length != engine.autoAdvanceLength || unit.rawValue != engine.autoAdvanceUnit else { return }
+		engine.autoAdvanceUnit = unit.rawValue
+		engine.autoAdvanceLength = length
+		playlistModified = true
+		changes.playlist.bump()
+	}
+
+	/// Time for the next patch: the one after, wrapping round, passing over
+	/// any that can't be found or read
+	func autoAdvanceNext() {
+		guard engine.autoAdvancing else { return }
+		let n = engine.playlistPatches.count
+		guard n > 0 else { return }
+		let from = playingPatch >= 0 && playingPatch < n ? playingPatch : -1
+		for k in 1...n where playPatch((from + k + n) % n, automatic: true) {
+			return
 		}
 	}
 

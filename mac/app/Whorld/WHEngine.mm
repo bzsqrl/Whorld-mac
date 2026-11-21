@@ -25,6 +25,7 @@
 #include "AudioVideoExport.h"
 #include "VideoWriter.h"
 #include <IOSurface/IOSurface.h>
+#include "whorld/AutoAdvance.h"
 #include "whorld/Controls.h"
 #include "whorld/MidiManager.h"
 #include "whorld/Playlist.h"
@@ -486,6 +487,15 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 	int		_curRate;
 	int		_lastMovieIO;	// render thread: for movieStateHandler
 	whorld::Modulator	_modulator;	// render thread
+	whorld::AutoAdvance	_autoAdvance;	// render thread
+	bool	_aaHasLast;		// render thread
+	std::chrono::steady_clock::time_point	_aaLast;
+	// auto-advance settings from the main thread, and its status back (_mutex)
+	double	_aaLength;
+	NSInteger	_aaUnit;
+	BOOL	_aaRunning;
+	bool	_aaChanged, _aaRestart;
+	whorld::AutoAdvance::Status	_aaStatus;
 	bool	_modulating;	// render thread: offsets were set
 	bool	_modHasLast;
 	std::chrono::steady_clock::time_point	_modLast;
@@ -562,6 +572,12 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 		_hueFromPatchChanged = false;
 		_modDepth = 1;
 		_modBypass = false;
+		_aaLength = whorld::AutoAdvance::kDefaultLength;
+		_aaUnit = whorld::AutoAdvance::UNIT_Seconds;
+		_aaRunning = NO;
+		_aaChanged = true;
+		_aaRestart = false;
+		_aaHasLast = false;
 		_modFollowTempo = false;
 		_modChanged = false;
 		_modulating = false;
@@ -946,6 +962,110 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 				strong.modulationActionHandler(nActions);
 		});
 	}
+}
+
+// Render thread, once per frame: the playlist's auto-advance (Mac
+// addition); the next patch is played on the main thread.
+- (void)stepAutoAdvance
+{
+	double	fLength;
+	int		nUnit;
+	bool	bRunning, bChanged, bRestart;
+	{
+		std::lock_guard<std::mutex>	lock(_mutex);
+		fLength = _aaLength;
+		nUnit = (int)_aaUnit;
+		bRunning = _aaRunning;
+		bChanged = _aaChanged;
+		bRestart = _aaRestart;
+		_aaChanged = _aaRestart = false;
+	}
+	if (bChanged) {
+		_autoAdvance.SetLength(fLength, nUnit);
+		if (bRunning && !_autoAdvance.IsRunning())
+			_autoAdvance.Start();
+		else if (!bRunning && _autoAdvance.IsRunning())
+			_autoAdvance.Stop();
+	}
+	if (bRestart)
+		_autoAdvance.Restart();
+	auto	now = std::chrono::steady_clock::now();
+	double	dt = _aaHasLast ? std::chrono::duration<double>(now - _aaLast).count() : 0;
+	dt = std::min(dt, 0.25);	// after a stall, don't jump
+	_aaLast = now;
+	_aaHasLast = true;
+	whorld::ModSources	src;	// the beat (its clock runs even while stopped)
+	WHAudioInputRead(src);
+	WHLinkRead(src);
+	bool	bNext = _autoAdvance.Step(dt, _engine->IsPaused(), src);
+	{
+		std::lock_guard<std::mutex>	lock(_mutex);
+		_aaStatus = _autoAdvance.GetStatus();
+	}
+	if (bNext) {
+		__weak WHEngine	*weakSelf = self;
+		dispatch_async(dispatch_get_main_queue(), ^{
+			WHEngine	*strong = weakSelf;
+			if (strong.autoAdvanceHandler)
+				strong.autoAdvanceHandler();
+		});
+	}
+}
+
+- (double)autoAdvanceLength
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	return _aaLength;
+}
+
+- (void)setAutoAdvanceLength:(double)length
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	_aaLength = whorld::AutoAdvance::ClampLength(length, (int)_aaUnit);
+	_aaChanged = true;
+}
+
+- (NSInteger)autoAdvanceUnit
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	return _aaUnit;
+}
+
+- (void)setAutoAdvanceUnit:(NSInteger)unit
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	_aaUnit = whorld::AutoAdvance::IsValidUnit((int)unit) ? unit : whorld::AutoAdvance::UNIT_Seconds;
+	_aaLength = whorld::AutoAdvance::ClampLength(_aaLength, (int)_aaUnit);
+	_aaChanged = true;
+}
+
+- (BOOL)autoAdvancing
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	return _aaRunning;
+}
+
+- (void)setAutoAdvancing:(BOOL)on
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	_aaRunning = on;
+	_aaChanged = true;
+}
+
+- (void)restartAutoAdvance
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	_aaRestart = true;
+}
+
+- (double)autoAdvanceProgressFollowingBeat:(BOOL *)following tempo:(double *)tempo
+{
+	std::lock_guard<std::mutex>	lock(_mutex);
+	if (following)
+		*following = _aaStatus.bFollowingBeat;
+	if (tempo)
+		*tempo = _aaStatus.fTempo;
+	return _aaStatus.fProgress;
 }
 
 - (void)setHueFromPatch:(BOOL)fromPatch
@@ -1606,6 +1726,10 @@ static NSString *SourceName(MIDIEndpointRef src)
 		if (_modulationOscHandler)
 			_modulationOscHandler(post.iVal, post.fVal);
 		return;
+	case Post::AUTO_ADVANCE:	// Mac addition: the app starts and stops it
+		if (_midiHandler)
+			_midiHandler(8, (uint32_t)post.iVal);
+		return;
 	case Post::PATCH_MODE:	// Mac addition: V1's MIDI PatchMode
 		_geometryMode = post.iVal != 0;
 		if (_midiHandler)
@@ -1787,6 +1911,11 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	using R = whorld::OscRemote::Request;
 	switch (type) {
 	case R::TOGGLE:	// a switch with no argument: the other way from now
+		if (iTarget == whorld::MappingBase::TARGET_AutoAdvance) {	// the app's
+			if (_midiHandler)
+				_midiHandler(8, 2);
+			break;
+		}
 		{
 			whorld::OscArg	cur;
 			if (whorld::OscRemote::StateValue(_doc, iTarget, -1, cur))
@@ -1849,6 +1978,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	[self oscSend:p + "/playlist/name" arg:OscArg::String(playlistName.UTF8String ?: "")];
 	[self oscSend:p + "/fs" arg:OscArg::Float(fullScreen ? 1 : 0)];
 	[self oscSend:p + "/geometry" arg:OscArg::Float(_geometryMode ? 1 : 0)];
+	[self oscSend:p + "/advance" arg:OscArg::Float(self.autoAdvancing ? 1 : 0)];
 	double	fDepth;
 	bool	bBypass;
 	{
@@ -1890,6 +2020,9 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	_midiMgr->m_midiMaps.RemoveAll();
 	_playlistLayout = nil;
 	_geometryMode = NO;	// V1's CMainFrame::SetDefaults: PM_FULL
+	self.autoAdvancing = NO;	// a new playlist starts stopped, at 30 seconds
+	self.autoAdvanceUnit = whorld::AutoAdvance::UNIT_Seconds;
+	self.autoAdvanceLength = whorld::AutoAdvance::kDefaultLength;
 }
 
 // ported from Playlist.cpp CPlaylist::OnOpenDocument
@@ -1909,6 +2042,9 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	_playlistPatches = pl.m_arrPatch;
 	_playlistLayout = pl.m_sLayout.empty() ? nil : ToNS(pl.m_sLayout);
 	_geometryMode = pl.m_nPatchMode == whorld::Playlist::PM_GEOMETRY;
+	self.autoAdvancing = NO;	// opens stopped
+	self.autoAdvanceUnit = pl.m_nAdvanceUnit;
+	self.autoAdvanceLength = pl.m_fAdvanceLength;
 	_midiMgr->m_midiMaps.SetArray(pl.m_arrMapping);
 	return YES;
 }
@@ -1921,6 +2057,8 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	pl.m_arrMapping = _midiMgr->m_midiMaps.GetArray();
 	pl.m_sLayout = _playlistLayout.UTF8String ?: "";
 	pl.m_nPatchMode = _geometryMode ? whorld::Playlist::PM_GEOMETRY : whorld::Playlist::PM_FULL;
+	pl.m_fAdvanceLength = self.autoAdvanceLength;
+	pl.m_nAdvanceUnit = (int)self.autoAdvanceUnit;
 	std::string	sErr;
 	if (!pl.Write(path.fileSystemRepresentation, &sErr)) {
 		if (error) {
@@ -2093,6 +2231,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 			}
 		}
 		[self stepModulation];	// Mac addition: audio modulation, before drawing
+		[self stepAutoAdvance];	// Mac addition: the playlist's next patch, when it's time
 		Surface	*pSurf = [self freeSurface];
 		if (!pSurf) {
 			_handoff->nNoSurface++;
