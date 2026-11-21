@@ -54,11 +54,11 @@ From the Windows accelerator table (`Whorld.rc`, `IDR_MAINFRAME`), with Ctrl map
 | Fill | F6 | ⌘1, or F6 |
 | Outline | F7 | ⌘2, or F7 |
 | Mirror | F5 | ⌘3, or F5 |
-| Reverse | Ctrl+Backspace | ⌘Delete |
 | Convex | Ctrl+Tab | ⌘4 |
-| Loop Hue | F2 | ⌘5, or F2 |
-| Rotate Hue (Mac, as in Whorld 1) | — | ⌘6, or F3 |
-| Invert Color (Mac, as in Whorld 1) | — | ⌘7, or F4 |
+| Reverse | Ctrl+Backspace | ⌘5 |
+| Invert Color (Mac, as in Whorld 1) | — | ⌘6, or F4 |
+| Rotate Hue (Mac, as in Whorld 1) | — | ⌘7, or F3 |
+| Loop Hue | F2 | ⌘8, or F2 |
 | Zoom Center | Shift+W | ⌥⌘Z |
 | Geometry Only, on or off (Mac, Whorld 1's patch mode) | — | ⌥⌘G |
 | Antialiasing (Image > Antialiasing, or the Properties panel) | Ctrl+Alt+A | ⌥⌘A |

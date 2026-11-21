@@ -1988,9 +1988,9 @@ enum SecondKeys {
 		case (97, none): m.toggleFill()	// F6 (Cmd-1)
 		case (98, none): m.toggleOutline()	// F7 (Cmd-2)
 		case (96, none): m.toggle(.mirror)	// F5 (Cmd-3)
-		case (120, none): m.toggle(.loopHue)	// F2 (Cmd-5)
-		case (99, none): m.rotateHue()	// F3 (Cmd-6)
-		case (118, none): m.toggle(.invertColor)	// F4 (Cmd-7)
+		case (120, none): m.toggle(.loopHue)	// F2 (Cmd-8)
+		case (99, none): m.rotateHue()	// F3 (Cmd-7)
+		case (118, none): m.toggle(.invertColor)	// F4 (Cmd-6)
 		case (101, none): e.randomPhase()	// F9 (Cmd-9)
 		default: return false
 		}

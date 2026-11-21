@@ -222,30 +222,33 @@ struct WhorldCommands: Commands {
 			toggle("Blackout", e.blackout) { model.setBlackout(!e.blackout) }
 				.keyboardShortcut("b")
 			Divider()
+			// Cmd-1 to Cmd-8 in order (the user's request, 2026-11-21):
+			// Reverse joins them on Cmd-5 (was Cmd-Delete, beside Clear's
+			// Delete), then Invert Color, Rotate Hue, Loop Hue
 			toggle("Fill", e.fill) { model.toggleFill() }
 				.keyboardShortcut("1")	// and F6
 			toggle("Outline", e.outline) { model.toggleOutline() }
 				.keyboardShortcut("2")	// and F7
 			toggle("Mirror", e.mirror) { model.toggle(.mirror) }
 				.keyboardShortcut("3")	// and F5
-			Divider()
-			toggle("Reverse", e.reverse) { model.toggle(.reverse) }
-				.keyboardShortcut(.delete, modifiers: .command)
 			toggle("Convex", e.convex) { model.toggle(.convex) }
 				.keyboardShortcut("4")	// Windows' Ctrl+Tab dropped (the user's request, 2026-11-21): on the Mac it moves keyboard focus
-			toggle("Loop Hue", e.loopHue) { model.toggle(.loopHue) }
-				.keyboardShortcut("5")	// and F2
+			toggle("Reverse", e.reverse) { model.toggle(.reverse) }
+				.keyboardShortcut("5")	// Windows' Ctrl+Backspace
+			// not on Windows' Image menu (its Properties grid only); here the
+			// Properties panel mirrors this menu, so it's in both
+			toggle("Invert Color", e.invertColor) { model.toggle(.invertColor) }
+				.keyboardShortcut("6")	// and F4, V1's
 			Button("Rotate Hue") { model.rotateHue() }	// V1's (Mac addition)
-				.keyboardShortcut("6")	// and F3
+				.keyboardShortcut("7")	// and F3
+			toggle("Loop Hue", e.loopHue) { model.toggle(.loopHue) }
+				.keyboardShortcut("8")	// and F2
+			Divider()
 			toggle("Zoom Center", e.zoomCenter) { model.toggle(.zoomCenter) }
 				// Windows' Shift+W until the user's menu audit (2026-11-18):
 				// W is a key-map letter, so Shift then W over the picture
 				// toggled this instead
 				.keyboardShortcut("z", modifiers: [.command, .option])
-			// not on Windows' Image menu (its Properties grid only); here the
-			// Properties panel mirrors this menu, so it's in both
-			toggle("Invert Color", e.invertColor) { model.toggle(.invertColor) }
-				.keyboardShortcut("7")	// and F4, V1's
 			// Windows' Ctrl+Alt+A, Option-Command-A; in the Properties grid on
 			// Windows. Out of the menu in the 2026-11-18 audit, back at the
 			// user's request (2026-11-21) so its shortcut can be found.
