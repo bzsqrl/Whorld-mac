@@ -2293,7 +2293,7 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		}
 		[self stepModulation];	// Mac addition: audio modulation, before drawing
 		[self stepAutoAdvance];	// Mac addition: the playlist's next patch, when it's time
-		[self stepBlackout];	// Mac addition: the performance bar's blackout
+		[self stepBlackout];	// Mac addition: the Perform Bar's blackout
 		Surface	*pSurf = [self freeSurface];
 		if (!pSurf) {
 			_handoff->nNoSurface++;

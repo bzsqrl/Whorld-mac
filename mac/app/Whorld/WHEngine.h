@@ -390,7 +390,7 @@ typedef struct {
 // how far toward the next patch (0 to 1), and for beats and bars, whether
 // it's following the beat, and the tempo it counts at (BPM)
 - (double)autoAdvanceProgressFollowingBeat:(BOOL *)following tempo:(double *)tempo;
-// Blackout (Mac addition, the performance bar): the picture fades to black
+// Blackout (Mac addition, the Perform Bar): the picture fades to black
 // over blackoutFadeSeconds, and back; on screen and in Syphon's frames, not
 // in exports. A black layer drawn over each frame, which goes on running.
 @property (nonatomic) BOOL blackout;

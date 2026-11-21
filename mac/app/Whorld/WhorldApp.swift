@@ -123,7 +123,7 @@ final class AppModel: ObservableObject {
 	let engine = WHEngine()
 	let undoManager = UndoManager()
 	@Published private(set) var title = "Untitled"
-	/// View > Show Performance Bar (was Show Stats): the strip above the
+	/// View > Show Perform Bar (was Show Stats): the strip above the
 	/// picture (ContentView.swift), kept between runs
 	@Published var showStats: Bool = UserDefaults.standard.bool(forKey: "View_bShowStats") {
 		didSet { UserDefaults.standard.set(showStats, forKey: "View_bShowStats") }
@@ -578,7 +578,7 @@ final class AppModel: ObservableObject {
 		changes.menus.bump()
 	}
 
-	/// Image > Blackout (Mac addition, the performance bar; the user's
+	/// Image > Blackout (Mac addition, the Perform Bar; the user's
 	/// request, 2026-11-20): the picture fades to black, or back
 	/// (WHEngine blackout). Not saved: Whorld starts with the picture showing.
 	func setBlackout(_ on: Bool) {

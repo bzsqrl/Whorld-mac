@@ -102,7 +102,7 @@ MAPPINGDEF_MISC_TARGET(BarForward,		ACTION)
 MAPPINGDEF_MISC_TARGET(HalfBeat,		ACTION)
 // the playlist's auto-advance, on and off (AutoAdvance.h; 2026-11-20)
 MAPPINGDEF_MISC_TARGET(AutoAdvance,		BOOL)
-// the picture faded to black and back (the performance bar; 2026-11-20)
+// the picture faded to black and back (the Perform Bar; 2026-11-20)
 MAPPINGDEF_MISC_TARGET(Blackout,		BOOL)
 
 #undef MAPPINGDEF_MISC_TARGET

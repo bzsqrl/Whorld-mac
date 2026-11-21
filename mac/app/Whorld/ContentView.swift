@@ -253,7 +253,7 @@ private struct StatsStripContent: View {
 			// each at a fixed width, so nothing moves as the numbers change
 			// the frame rate, a button: the rest of the statistics in a
 			// pop-up (the user's request, 2026-11-20, the strip as a live
-			// performance bar)
+			// Perform Bar)
 			StripText(part: .fps)
 				.frame(width: StripText.width(.fps) + 8, height: 18)
 				.layoutPriority(2)
@@ -263,12 +263,14 @@ private struct StatsStripContent: View {
 			StripText(part: .readout)
 				.frame(minWidth: 0, idealWidth: StripText.width(.readout), maxWidth: StripText.width(.readout))
 			Divider().frame(height: 14)
-			PlaylistTransport()	// previous, Play / Stop, next (the user's request, 2026-11-20)
-				.layoutPriority(2)
-			// the patch playing, and its place in the playlist (12/86)
+			// the patch playing, and its place in the playlist (12/86); a
+			// click plays the next (the user's request, 2026-11-20)
 			StripText(part: .patch)
-				.frame(minWidth: 50, idealWidth: StripText.width(.patch), maxWidth: StripText.width(.patch))
+				.frame(minWidth: 50, idealWidth: StripText.width(.patch) + 8, maxWidth: StripText.width(.patch) + 8)
+				.frame(height: 18)
 				.layoutPriority(1)
+			PlaylistTransport()	// Play / Stop (the user's request, 2026-11-20)
+				.layoutPriority(2)
 			Divider().frame(height: 14)
 			BlackoutButton()	// Image > Blackout (the user's request, 2026-11-20)
 				.layoutPriority(2)
@@ -297,7 +299,11 @@ private struct StatsStripContent: View {
 			GeometryToggle()	// Image > Geometry Only (the user's request, 2026-11-20)
 				.layoutPriority(2)
 			Divider().frame(height: 14)
-			QualityMenu(feed: StripFeed.shared.autoTag)
+			// Automatic quality and Render quality, apart (the user's
+			// request, 2026-11-20)
+			AutoQualityToggle(feed: StripFeed.shared.autoTag)
+				.layoutPriority(2)
+			ResolutionMenu(feed: StripFeed.shared.autoTag)
 				.layoutPriority(2)
 			Divider().frame(height: 14)
 			// the dot alone (the user's request, 2026-11-20)
@@ -339,7 +345,7 @@ private struct StatsStripContent: View {
 		.background(Color(nsColor: .windowBackgroundColor))
 	}
 
-	static let info = "Frames drawn a second, orange when display refreshes were missed in the last second. Click it for the rest: the refreshes missed, the time to draw a frame (on the CPU, then on the GPU with Metal), the rings drawn, the display's rate, the renderer and what Automatic quality has lowered.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nThe playlist's previous patch, Play / Stop and next patch (Image > Previous Patch, Auto Advance and Next Patch: Command-Up, Option-Command-L and Command-Down). Play plays through the playlist, each patch for the length set in the Playlist panel (or right-click Play to pick one); the line under it fills toward the next patch. Then the patch playing, with its place in the playlist.\n\nThe eye is Blackout (Image > Blackout, Command-B): the picture fades to black, red while it's out, and a second click fades it back. It's black on screen and in Syphon; Whorld goes on running underneath, so the picture returns where it would have been.\n\nClick Mod to turn audio modulation on and off (Audio > Audio Modulation, Command-'). Its dot: faint while it's off, hollow while it's finding the beat, filled and flashing on each beat once it's locked, with the tempo beside it. Click the tempo to reset the count to 1.1 (Audio > Reset to 1.1, Command-\\): the beat nearest now becomes bar 1, beat 1.\n\nClick Full or Geom to switch the patch mode (Image > Geometry Only, Option-Command-G): in Geom, playing a patch changes only its shape and motion.\n\nThe Quality menu sets Render quality (Settings > Display explains it) and Automatic quality (View > Automatic Quality, Command-;); its title says which is in charge, Quality or Auto, and the quality drawn. Automatic quality: when the picture can't keep up with the display, Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare, never above your settings; exports aren't affected. While it has lowered something, the title is orange with a ↓ (Auto ↓75%), and its tooltip says what.\n\nClick the green dot to send the picture to other apps on this Mac by Syphon, or stop (View > Syphon also sets its size): faint while it's off, hollow while no app is receiving, filled once one is.\n\nAt the right end: Detach (View > Detach, Shift-Command-D), the picture in a window of its own for a projector, lit while it's detached (a click docks it); and the arrows, full screen (View > Enter Full Screen, Shift-Command-F).\n\nView > Show Performance Bar (Option-Command-9) hides the bar."
+	static let info = "Frames drawn a second, orange when display refreshes were missed in the last second. Click it for the rest: the refreshes missed, the time to draw a frame (on the CPU, then on the GPU with Metal), the rings drawn, the display's rate, the renderer and what Automatic quality has lowered.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nThe patch playing, with its place in the playlist: click it for the next patch (Image > Next Patch, Command-Down). Then Play / Stop (Image > Auto Advance, Option-Command-L): Play plays through the playlist, each patch for the length set in the Playlist panel (or right-click Play to pick one); the line under it fills toward the next patch.\n\nThe eye is Blackout (Image > Blackout, Command-B): the picture fades to black, red while it's out, and a second click fades it back. It's black on screen and in Syphon; Whorld goes on running underneath, so the picture returns where it would have been.\n\nClick Mod to turn audio modulation on and off (Audio > Audio Modulation, Command-'). Its dot: faint while it's off, hollow while it's finding the beat, filled and flashing on each beat once it's locked, with the tempo beside it. Click the tempo to reset the count to 1.1 (Audio > Reset to 1.1, Command-\\): the beat nearest now becomes bar 1, beat 1.\n\nClick Full or Geom to switch the patch mode (Image > Geometry Only, Option-Command-G): in Geom, playing a patch changes only its shape and motion.\n\nAuto turns Automatic quality on or off (View > Automatic Quality, Command-;): when the picture can't keep up with the display, Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare, never above your settings; exports aren't affected. Bright while on; while it has lowered something it reads Auto ↓ in orange, and its tooltip says what.\n\nRes is Render quality, the resolution drawn (Settings > Display explains it); orange while Automatic quality draws it lower than your setting.\n\nClick the green dot to send the picture to other apps on this Mac by Syphon, or stop (View > Syphon also sets its size): faint while it's off, hollow while no app is receiving, filled once one is.\n\nAt the right end: Detach (View > Detach, Shift-Command-D), the picture in a window of its own for a projector, lit while it's detached (a click docks it); and the arrows, full screen (View > Enter Full Screen, Shift-Command-F).\n\nView > Show Perform Bar (Option-Command-9) hides the bar."
 }
 
 /// What the stats strip shows, set by AppModel; its text views redraw only
@@ -495,10 +501,14 @@ final class StripFeed {
 		p.show(relativeTo: view.bounds, of: view, preferredEdge: .maxY)
 	}
 
-	func setPatch(place: String, name: String) {
-		guard place != patch.place || name != patch.name else { return }
+	private(set) var patchCanStep = false	// a playlist to step through: the name is a button
+
+	func setPatch(place: String, name: String, canStep: Bool) {
+		guard place != patch.place || name != patch.name || canStep != patchCanStep else { return }
 		patch = (place, name)
-		let tip = place.isEmpty ? name : "\(name): patch \(place.replacingOccurrences(of: "/", with: " of ")) in the playlist"
+		patchCanStep = canStep
+		var tip = place.isEmpty ? name : "\(name): patch \(place.replacingOccurrences(of: "/", with: " of ")) in the playlist"
+		if canStep { tip += ". Click for the next patch (Image > Next Patch, ⌘↓)." }
 		for w in views where w.view?.part == .patch { w.view?.toolTip = tip }
 		redraw(.patch)
 	}
@@ -563,7 +573,7 @@ private struct StripTempo: View {
 	}
 }
 
-/// Image > Blackout in the performance bar: an eye, struck through and red
+/// Image > Blackout in the Perform Bar: an eye, struck through and red
 /// while the picture is out
 private struct BlackoutButton: View {
 	@EnvironmentObject private var model: AppModel
@@ -585,7 +595,7 @@ private struct BlackoutButton: View {
 	}
 }
 
-/// View > Detach in the performance bar, lit while detached
+/// View > Detach in the Perform Bar, lit while detached
 private struct DetachButton: View {
 	@EnvironmentObject private var model: AppModel
 
@@ -610,32 +620,49 @@ final class AutoTagFeed: ObservableObject {
 	@Published var percent = 100
 }
 
-/// The stats strip's Quality menu (the user's request, 2026-11-19): Render
-/// quality and Automatic quality in one, its title what's in effect:
-/// "Quality 100%", "Auto 100%", or "Auto ↓75%" in orange while Automatic
-/// quality has lowered something
-private struct QualityMenu: View {
+/// View > Automatic Quality in the Perform Bar (the user's request,
+/// 2026-11-20; it was in one menu with Render quality): Auto, a click on or
+/// off, bright while on, and orange with a ↓ while it has lowered something
+private struct AutoQualityToggle: View {
 	@EnvironmentObject private var model: AppModel
 	@ObservedObject var feed: AutoTagFeed
 
 	var body: some View {
-		let lowered = model.autoQuality && !feed.detail.isEmpty
-		let percent = lowered ? feed.percent : Int((model.renderScale * 100).rounded())
-		let title = (model.autoQuality ? "Auto " : "Quality ") + (lowered ? "↓" : "") + "\(percent)%"
+		let on = model.autoQuality
+		let lowered = on && !feed.detail.isEmpty
+		Button { model.autoQuality.toggle() } label: {
+			Text(lowered ? "Auto ↓" : "Auto")
+				.foregroundStyle(lowered ? Color.orange : on ? Color.primary : Color.secondary)
+		}
+		.buttonStyle(StripToggleStyle())
+		.fixedSize()
+		.help(lowered ? "Automatic quality has lowered: \(feed.detail). Click to turn it off (View > Automatic Quality, ⌘;)."
+			: on ? "Automatic quality is on, and hasn't needed to lower anything. Click to turn it off (⌘;)."
+			: "Automatic quality is off. Click to turn it on: when the picture can't keep up, Whorld lowers curve quality, then resolution (⌘;).")
+	}
+}
+
+/// Render quality in the Perform Bar: Res and the resolution drawn, a menu
+/// of the settings; orange while Automatic quality draws it lower
+private struct ResolutionMenu: View {
+	@EnvironmentObject private var model: AppModel
+	@ObservedObject var feed: AutoTagFeed
+
+	var body: some View {
+		let set = Int((model.renderScale * 100).rounded())
+		let lowered = model.autoQuality && !feed.detail.isEmpty && feed.percent < set
 		Menu {
-			Toggle("Automatic", isOn: $model.autoQuality)
-			Divider()
 			ForEach(AppModel.renderScales, id: \.value) { s in
 				Toggle(s.name, isOn: Binding(get: { model.renderScale == s.value }, set: { _ in model.renderScale = s.value }))
 			}
 		} label: {
-			Text(title)
+			Text("Res \(lowered ? feed.percent : set)%")
 		}
 		.menuStyle(.borderlessButton)
 		.foregroundStyle(lowered ? Color.orange : Color.primary)
 		.fixedSize()
-		.help(lowered ? "Automatic quality has lowered: \(feed.detail)"
-			: model.autoQuality ? "Automatic quality is on, and hasn't needed to lower anything (⌘;)" : "Render quality; Automatic quality is off (⌘;)")
+		.help(lowered ? "Resolution: set to \(set)%, drawn at \(feed.percent)% by Automatic quality"
+			: "Resolution (Render quality): fewer pixels, scaled up, for heavy patches (Settings > Display)")
 	}
 }
 
@@ -672,23 +699,12 @@ private struct PlaylistTransport: View {
 		let e = model.engine
 		let empty = model.playlistPatches.isEmpty
 		let unit = AutoAdvanceUnit(rawValue: e.autoAdvanceUnit) ?? .seconds
-		HStack(spacing: 0) {
-			Button { model.stepPatch(-1) } label: {
-				Image(systemName: "backward.end.fill").imageScale(.small).padding(.horizontal, 2)
-			}
-			.buttonStyle(StripToggleStyle())
-			.help("The playlist's previous patch (Image > Previous Patch, ⌘↑)")
-			AutoAdvanceButton(strip: true, running: e.autoAdvancing, enabled: !empty,
-				unit: unit, length: e.autoAdvanceLength, engine: e,
-				setLength: { model.setAutoAdvanceLength($0, unit: $1) }) { model.setAutoAdvance(!e.autoAdvancing) }
-				.frame(width: 24, height: 18)
-			Button { model.stepPatch(1) } label: {
-				Image(systemName: "forward.end.fill").imageScale(.small).padding(.horizontal, 2)
-			}
-			.buttonStyle(StripToggleStyle())
-			.help("The playlist's next patch (Image > Next Patch, ⌘↓)")
-		}
-		.disabled(empty && !e.autoAdvancing)
+		AutoAdvanceButton(strip: true, running: e.autoAdvancing, enabled: !empty,
+			unit: unit, length: e.autoAdvanceLength, engine: e,
+			setLength: { model.setAutoAdvanceLength($0, unit: $1) }) { model.setAutoAdvance(!e.autoAdvancing) }
+			.frame(width: 24, height: 18)
+			.padding(.leading, -6)	// close to the patch's name
+			.disabled(empty && !e.autoAdvancing)
 		.fixedSize()
 		.onAppear { feedPatch() }
 		.onChange(of: patchKey) { feedPatch() }
@@ -702,7 +718,7 @@ private struct PlaylistTransport: View {
 	private func feedPatch() {
 		let n = model.playlistPatches.count
 		let i = model.playingPatch
-		StripFeed.shared.setPatch(place: i >= 0 && i < n ? "\(i + 1)/\(n)" : "", name: model.title)
+		StripFeed.shared.setPatch(place: i >= 0 && i < n ? "\(i + 1)/\(n)" : "", name: model.title, canStep: n > 0)
 	}
 }
 
@@ -759,14 +775,16 @@ struct StripText: NSViewRepresentable {
 		/// the frame rate and the tempo are buttons (the tempo while it shows)
 		private var clickable: Bool {
 			part == .fps || (part == .tempo && !StripFeed.shared.beat.tempo.isEmpty)
+				|| (part == .patch && StripFeed.shared.patchCanStep)
 		}
+		private var button: Bool { part == .tempo || part == .fps || part == .patch }
 
 		override var isFlipped: Bool { true }
 		override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 		// the dots: clicks and tips are their button's. The tempo is a
 		// button itself while it shows: Reset to 1.1
 		override func hitTest(_ point: NSPoint) -> NSView? {
-			if part == .tempo || part == .fps { return clickable ? super.hitTest(point) : nil }
+			if button { return clickable ? super.hitTest(point) : nil }
 			return part == .beat || part == .syphon ? nil : super.hitTest(point)
 		}
 
@@ -775,13 +793,13 @@ struct StripText: NSViewRepresentable {
 
 		override func updateTrackingAreas() {
 			super.updateTrackingAreas()
-			guard part == .tempo || part == .fps else { return }
+			guard button else { return }
 			trackingAreas.forEach(removeTrackingArea)
 			addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
 				owner: self))
 		}
 
-		override func mouseEntered(with event: NSEvent) { hover = part == .tempo || part == .fps }
+		override func mouseEntered(with event: NSEvent) { hover = clickable }
 		override func mouseExited(with event: NSEvent) { hover = false }
 
 		override func mouseDown(with event: NSEvent) {
@@ -790,17 +808,20 @@ struct StripText: NSViewRepresentable {
 		}
 
 		override func mouseDragged(with event: NSEvent) {
-			guard part == .tempo || part == .fps else { return super.mouseDragged(with: event) }
+			guard button else { return super.mouseDragged(with: event) }
 			pressed = bounds.contains(convert(event.locationInWindow, from: nil))
 		}
 
 		override func mouseUp(with event: NSEvent) {
-			guard part == .tempo || part == .fps else { return super.mouseUp(with: event) }
+			guard button else { return super.mouseUp(with: event) }
 			let inside = pressed
 			pressed = false
 			guard inside else { return }
-			if part == .tempo { ModMap.markDownbeat() }	// Audio > Reset to 1.1
-			else { StripFeed.shared.toggleStatsPopover(from: self) }
+			switch part {
+			case .tempo: ModMap.markDownbeat()	// Audio > Reset to 1.1
+			case .patch: AppModel.shared.stepPatch(1)	// Image > Next Patch
+			default: StripFeed.shared.toggleStatsPopover(from: self)
+			}
 		}
 
 		static let fpsTip = "Frames drawn a second; orange when display refreshes were missed. Click for the rest of the statistics."
@@ -840,6 +861,18 @@ struct StripText: NSViewRepresentable {
 					text.append(NSAttributedString(string: feed.patch.place + "  ", attributes: attrs(.secondaryLabelColor)))
 				}
 				text.append(NSAttributedString(string: feed.patch.name, attributes: attrs(.labelColor)))
+				// a button (Next Patch): lit on hover around the text, at a
+				// fixed width so Play after it never moves
+				let tw = ceil(text.size().width)
+				if hover || pressed {
+					NSColor.labelColor.withAlphaComponent(pressed ? 0.18 : 0.09).setFill()
+					NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: min(tw + 8, bounds.width), height: bounds.height),
+						xRadius: 4, yRadius: 4).fill()
+				}
+				let h = ceil(font.ascender - font.descender + font.leading)
+				text.draw(with: NSRect(x: 4, y: floor((bounds.height - h) / 2), width: bounds.width - 8, height: h),
+					options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
+				return
 			case .readout:
 				text.append(NSAttributedString(string: feed.readout,
 					attributes: attrs(feed.readoutFresh ? .labelColor : .secondaryLabelColor)))
