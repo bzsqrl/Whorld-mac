@@ -495,8 +495,15 @@ extension AppModel {
 	// CPlaylistBar::Move
 	func movePatches(from source: IndexSet, to destination: Int) {
 		var paths = playlistPatches
+		var order = Array(paths.indices)	// where each patch goes (Mac: the
+		order.move(fromOffsets: source, toOffset: destination)	// playing one and the selection follow)
+		guard order != Array(paths.indices) else { return }
 		paths.move(fromOffsets: source, toOffset: destination)
 		setPlaylistPatches(paths, title: "Move")
+		if playingPatch >= 0, let i = order.firstIndex(of: playingPatch) {
+			playingPatch = i
+		}
+		playlistSelection = Set(source.compactMap { order.firstIndex(of: $0) })
 	}
 
 	// CPlaylist::CheckPatchPaths and CMissingFilesDlg: offer to search a
@@ -906,7 +913,7 @@ struct PlaylistPanel: View {
 		let _ = model.changes.playlist.n
 		let rows = model.playlistPatches.enumerated().map { Row(id: $0.offset, path: $0.element) }
 		VStack(spacing: 0) {
-			Table(rows, selection: $model.playlistSelection) {
+			Table(of: Row.self, selection: $model.playlistSelection) {
 				TableColumn("Patch") { row in
 					HStack(spacing: 4) {
 						Image(systemName: "play.fill")
@@ -927,6 +934,18 @@ struct PlaylistPanel: View {
 				TableColumn("Folder") { row in
 					Text(row.folder).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
 				}
+			} rows: {
+				// drag rows to reorder (the user's choice, 2026-11-20, for the
+				// Move Up and Move Down buttons): a selected row takes the
+				// whole selection with it
+				ForEach(rows) { row in
+					TableRow(row).itemProvider {
+						NSItemProvider(object: PlaylistRowDrag.payload(row.id, model.playlistSelection) as NSString)
+					}
+				}
+				.onInsert(of: [.plainText]) { offset, providers in
+					dropRows(providers, at: offset)
+				}
 			}
 			.contextMenu(forSelectionType: Int.self) { _ in
 				Button("Play") { playSelected() }
@@ -940,33 +959,38 @@ struct PlaylistPanel: View {
 			}
 			.background(PlayingRowScroller(row: model.playingPatch, plays: model.patchPlays))
 			Divider()
-			HStack {
-				Button { model.insertPatches() } label: { Image(systemName: "plus") }
-					.help("Insert patches")
-				Button { model.deletePatches() } label: { Image(systemName: "minus") }
-					.help("Delete the selected patches")
-					.disabled(model.playlistSelection.isEmpty)
-				Button { moveSelection(-1) } label: { Image(systemName: "arrow.up") }
-					.help("Move up")
-					.disabled(model.playlistSelection.isEmpty)
-				Button { moveSelection(1) } label: { Image(systemName: "arrow.down") }
-					.help("Move down")
-					.disabled(model.playlistSelection.isEmpty)
-				AutoAdvanceControls()
-					.padding(.leading, 6)
-				Spacer()
-				// the name, shortened in a narrow pane, and left out where it
-				// would be a letter or two (the auto-advance controls come first)
-				let title = Text(model.playlistTitle + (model.playlistModified ? " — Edited" : ""))
+			// the bottom bar, as much of it as fits: everything, then without
+			// the playlist's name, then without the patch mode button; never
+			// wider than the pane (a wider bar pushed the panel's title bar
+			// out of place)
+			ViewThatFits(in: .horizontal) {
+				bottomBar(title: true, mode: true)
+				bottomBar(title: false, mode: true)
+				bottomBar(title: false, mode: false)
+			}
+			.frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+			.clipped()
+		}
+	}
+
+	private func bottomBar(title: Bool, mode: Bool) -> some View {
+		HStack {
+			Button { model.insertPatches() } label: { Image(systemName: "plus") }
+				.help("Insert patches")
+			Button { model.deletePatches() } label: { Image(systemName: "minus") }
+				.help("Delete the selected patches")
+				.disabled(model.playlistSelection.isEmpty)
+			AutoAdvanceControls()
+				.padding(.leading, 6)
+			Spacer(minLength: 0)
+			if title {
+				Text(model.playlistTitle + (model.playlistModified ? " — Edited" : ""))
 					.font(.caption)
 					.foregroundStyle(.secondary)
 					.lineLimit(1)
-					.truncationMode(.middle)
-				ViewThatFits(in: .horizontal) {
-					title.fixedSize()
-					title.frame(width: 72)
-					Color.clear.frame(width: 0, height: 0)
-				}
+					.fixedSize()
+			}
+			if mode {
 				// the patch mode, named as it is now (the user's request,
 				// 2026-11-18): Geom or Full; click for the other
 				let geometry = model.engine.geometryMode
@@ -977,7 +1001,20 @@ struct PlaylistPanel: View {
 						? "Geometry mode: playing a patch changes only its shape and motion, keeping colors, Hue, Master, Properties and Global values. Click for Full mode, where everything changes. Saved with the playlist (Image > Geometry Only, ⌥⌘G)."
 						: "Full mode: playing a patch changes everything. Click for Geometry mode, where only its shape and motion change, keeping colors, Hue, Master, Properties and Global values. Saved with the playlist (Image > Geometry Only, ⌥⌘G).")
 			}
-			.padding(8)
+		}
+		.padding(8)
+	}
+
+	/// rows dragged within the list: moved to `offset` (their text says which)
+	private func dropRows(_ providers: [NSItemProvider], at offset: Int) {
+		guard let p = providers.first(where: { $0.canLoadObject(ofClass: NSString.self) }) else { return }
+		_ = p.loadObject(ofClass: NSString.self) { obj, _ in
+			guard let text = obj as? String, let moved = PlaylistRowDrag.rows(text) else { return }
+			DispatchQueue.main.async {
+				let valid = moved.filter { $0 >= 0 && $0 < model.playlistPatches.count }
+				guard !valid.isEmpty else { return }
+				model.movePatches(from: IndexSet(valid), to: offset)
+			}
 		}
 	}
 
@@ -985,14 +1022,6 @@ struct PlaylistPanel: View {
 		if let i = model.playlistSelection.min() { model.playPatch(i) }
 	}
 
-	private func moveSelection(_ delta: Int) {
-		let sel = model.playlistSelection.sorted()
-		guard let first = sel.first, let last = sel.last else { return }
-		let count = model.playlistPatches.count
-		if delta < 0 && first == 0 || delta > 0 && last == count - 1 { return }
-		model.movePatches(from: IndexSet(sel), to: delta < 0 ? first - 1 : last + 2)
-		model.playlistSelection = Set(sel.map { $0 + delta })
-	}
 }
 
 /// Keeps the playing patch in view (the user's request, 2026-11-20): each
@@ -1233,5 +1262,22 @@ private struct AutoAdvanceButton: NSViewRepresentable {
 		b.isEnabled = enabled || running
 		b.running = running
 		b.update()
+	}
+}
+
+/// A playlist row drag (Mac addition): the rows' indices as text with a
+/// prefix, so a drop of other text is ignored
+enum PlaylistRowDrag {
+	static let prefix = "whorld-playlist-rows:"
+
+	static func payload(_ row: Int, _ selection: Set<Int>) -> String {
+		let rows = selection.contains(row) ? selection.sorted() : [row]
+		return prefix + rows.map(String.init).joined(separator: ",")
+	}
+
+	static func rows(_ text: String) -> [Int]? {
+		guard text.hasPrefix(prefix) else { return nil }
+		let r = text.dropFirst(prefix.count).split(separator: ",").compactMap { Int($0) }
+		return r.isEmpty ? nil : r
 	}
 }
