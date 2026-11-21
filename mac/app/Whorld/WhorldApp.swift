@@ -1275,7 +1275,8 @@ final class AppModel: ObservableObject {
 
 	/// Full screen (Secondary), a Mac addition (the user's request,
 	/// 2026-11-21): a display other than the Whorld window's, so the panels
-	/// stay in view; nil with a single display
+	/// stay in view; nil with a single display. The output detaches onto it
+	/// (enterSecondaryFullScreen).
 	var secondaryScreen: NSScreen? {
 		let here = mainWindow?.screen ?? NSScreen.main
 		return NSScreen.screens.first { $0 != here }
@@ -1292,18 +1293,50 @@ final class AppModel: ObservableObject {
 			// The origin stays where it is, as on Windows: a patch's own
 			// origin is kept (until 2026-11-12, leaving full screen ran
 			// Origin Center; removed at the user's request)
+		} else if secondary {
+			enterSecondaryFullScreen()
+			return
 		} else {
 			let from = layout.layout.detached ? outputWindow.window : mainWindow
-			var screen = from?.screen ?? NSScreen.main
-			if secondary {
-				guard let other = secondaryScreen else { return }	// one display
-				screen = other
-			}
-			fullScreen.enter(from: from, on: screen, secondary: secondary, engine: engine, renderScale: renderScale, smoothUpscaling: smoothUpscaling) { [weak self] in
+			fullScreen.enter(from: from, on: from?.screen ?? NSScreen.main, secondary: false, engine: engine,
+				renderScale: renderScale, smoothUpscaling: smoothUpscaling) { [weak self] in
 				self?.toggleFullScreen()
 			}
 		}
 		changed()
+	}
+
+	/// Full Screen (Secondary), as if by hand (the user's request,
+	/// 2026-11-21): the output detached (if it isn't), its window moved onto
+	/// the other display, then that window full screen. The Whorld window
+	/// stays where it is, with the swipe pad; leaving full screen leaves the
+	/// detached window on the other display, as it would by hand.
+	private func enterSecondaryFullScreen() {
+		guard let screen = secondaryScreen else { return }	// one display
+		if !layout.layout.detached {
+			layout.layout.detached = true
+			outputWindow.show(model: self, near: mainWindow?.frame)
+		}
+		guard let w = outputWindow.window else { return }
+		if w.screen != screen {	// centered on the other display, kept within it
+			let area = screen.visibleFrame
+			var f = w.frame
+			f.size.width = min(f.width, area.width)
+			f.size.height = min(f.height, area.height)
+			f.origin = NSPoint(x: area.midX - f.width / 2, y: area.midY - f.height / 2)
+			w.setFrame(f, display: true)
+		}
+		w.contentView?.layoutSubtreeIfNeeded()
+		// the next turn: a window just shown has its picture view (and the
+		// engine drawing to it) once SwiftUI has built it
+		DispatchQueue.main.async { [weak self] in
+			guard let self, !self.fullScreen.isFullScreen, let w = self.outputWindow.window else { return }
+			self.fullScreen.enter(from: w, on: screen, secondary: true, engine: self.engine,
+				renderScale: self.renderScale, smoothUpscaling: self.smoothUpscaling) { [weak self] in
+				self?.toggleFullScreen()
+			}
+			self.changed()
+		}
 	}
 
 	/// Where a press on the full-screen picture started: the origin motion and
