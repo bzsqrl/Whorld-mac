@@ -1815,6 +1815,14 @@ final class OutputKeys {
 			}
 			return true
 		}
+		// Delete: Image > Clear (the user's request, 2026-11-21), taken
+		// before the menu and the panels' buttons, except where Delete has a
+		// job of its own: editing text, or a list with focus (MIDI Mapping's
+		// Delete removes its selected rows). Held, it clears once.
+		if !up, code == 51, modifiers == 0, Self.takesDelete() {
+			if !isRepeat { AppModel.shared.engine.clear() }
+			return true
+		}
 		// Command-Left and Command-Right: the previous and next snapshot
 		// (File > Snapshots > Previous and Next, Page Up and Page Down), in full
 		// screen or with the pointer over the picture
@@ -1855,6 +1863,19 @@ final class OutputKeys {
 		case is NSTableView, is NSSlider:
 			return true
 		case is NSButton, is NSSegmentedControl, is NSTextField:
+			return false
+		default:
+			return true
+		}
+	}
+
+	/// Delete clears the picture: not in a dialog, a sheet or the Key Map's
+	/// key capture, nor while text is edited or a list has focus
+	private static func takesDelete() -> Bool {
+		guard NSApp.modalWindow == nil, KeyMap.shared.capturing == nil,
+			let w = NSApp.keyWindow, w.attachedSheet == nil, !w.isSheet else { return false }
+		switch w.firstResponder {
+		case is NSTextView, is NSTextField, is NSTableView, is NSOutlineView:
 			return false
 		default:
 			return true
@@ -1963,7 +1984,7 @@ enum SecondKeys {
 		switch (code, modifiers) {
 		case (103, none): m.toggleFullScreen()	// F11, Windows' full screen
 		case (3, ctrlCmd): m.toggleFullScreen()	// Ctrl-Cmd-F, macOS's (Cmd-F in the menu)
-		case (117, cmd): e.clear()	// Cmd-Forward Delete, Windows' Ctrl+Delete (Cmd-K in the menu)
+		case (117, cmd): e.clear()	// Cmd-Forward Delete, Windows' Ctrl+Delete (Delete in the menu)
 		case (97, none): m.toggleFill()	// F6 (Cmd-1)
 		case (98, none): m.toggleOutline()	// F7 (Cmd-2)
 		case (96, none): m.toggle(.mirror)	// F5 (Cmd-3)
