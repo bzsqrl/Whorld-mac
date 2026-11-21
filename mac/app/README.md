@@ -15,7 +15,7 @@ Build: `xcodebuild -project mac/app/Whorld.xcodeproj -scheme Whorld build`. Set 
 
 ## Keyboard shortcuts
 
-From the Windows accelerator table (`Whorld.rc`, `IDR_MAINFRAME`), with Ctrl mapped to Command except where macOS reserves the key.
+From the Windows accelerator table (`Whorld.rc`, `IDR_MAINFRAME`), with Ctrl mapped to Command except where macOS reserves the key, and the same as the table in Help (`Help/index.html`).
 
 | Command | Windows | macOS |
 |---|---|---|
@@ -24,45 +24,65 @@ From the Windows accelerator table (`Whorld.rc`, `IDR_MAINFRAME`), with Ctrl map
 | Save As | — | ⇧⌘S |
 | Undo | Ctrl+Z | ⌘Z |
 | Redo | Ctrl+Y | ⇧⌘Z |
-| Parameters panel | Shift+P | ⇧⌘P |
-| Master panel | Shift+M | ⇧⌘M |
-| Globals panel | Shift+G | ⇧⌘G |
-| Properties panel | — | ⇧⌘R |
+| Parameters panel | Shift+P | ⌥⌘1 |
+| Master panel | Shift+M | ⌥⌘2 |
+| Globals panel | Shift+G | ⌥⌘3 |
+| Properties panel | — | ⌥⌘4 |
+| Show all panels | — | ⌥⌘P |
+| Move the panel under the pointer a step (Mac) | — | ⌥⌘← ⌥⌘→ ⌥⌘↑ ⌥⌘↓ |
+| Move it all the way (Mac) | — | ⇧⌥⌘ and an arrow |
 | Preferences | Shift+O | ⌘, |
-| Playlist window | Shift+A | ⇧⌘A |
+| Playlist panel | Shift+A | ⌥⌘5 |
 | Take Snapshot | Ctrl+T | ⌘T |
 | Load Snapshot | Ctrl+L | ⌘L |
 | Export image | Ctrl+E | ⌘E |
-| First / Previous / Next / Last snapshot | Home / Page Up / Page Down / End | same |
-| Record movie, Play movie | Ctrl+M, Ctrl+Shift+M | none (Movie menu) |
-| Modulation panel, show or hide (Mac) | — | ⌘M |
-| Rewind movie | Ctrl+Home | ⌘Home |
-| MIDI Mapping window | Shift+I | ⇧⌘I |
-| MIDI Learn | Shift+L | ⇧⌘L |
+| First / Previous / Next / Last snapshot | Home / Page Up / Page Down / End | same (fn‑← / fn‑↑ / fn‑↓ / fn‑→ on laptops); also ⌘← / ⌘→ for previous / next, in full screen or with the pointer over the picture |
+| Record movie, Play movie | Ctrl+M, Ctrl+Shift+M | none (File > Movie) |
+| Modulation panel (Mac) | — | ⌥⌘6 |
+| Key Map panel (Mac) | — | ⌥⌘8 |
+| Rewind movie | Ctrl+Home | ⌘Home (fn‑⌘‑← on laptops) |
+| MIDI Mapping panel | Shift+I | ⌥⌘7 |
+| MIDI Learn | Shift+L | none (the MIDI Mapping panel's Learn switch) |
 | New Playlist | Ctrl+Shift+N | ⇧⌘N |
 | Open Playlist | Ctrl+Shift+O | ⇧⌘O |
 | Save Playlist | Ctrl+Shift+S | ⌥⌘S (⇧⌘S is Save As) |
+| Save Playlist As | — | ⌥⇧⌘S |
+| Next / previous playlist patch (Image menu) | none | ⌘↓ / ⌘↑ |
+| Auto Advance through the playlist, on or off (Mac) | — | ⌥⌘L |
+| Blackout, fade to black or back (Mac) | — | ⌘B |
 | Open patch | Ctrl+O | ⌘O |
-| Fill | F6 | F6 |
-| Outline | F7 | F7 |
-| Mirror | F5 | F5 |
+| Fill | F6 | ⌘1, or F6 |
+| Outline | F7 | ⌘2, or F7 |
+| Mirror | F5 | ⌘3, or F5 |
 | Reverse | Ctrl+Backspace | ⌘Delete |
 | Convex | Ctrl+Tab | ⌘4 |
-| Loop Hue | F2 | F2 |
-| Zoom Center | Shift+W | ⇧W |
-| Patch Mode: Full / Geometry (Mac, V1's) | — | ⇧F / ⇧G |
-| Antialiasing | Ctrl+Alt+A | ⌥⌘A (Image > Antialiasing) |
+| Loop Hue | F2 | ⌘5, or F2 |
+| Rotate Hue (Mac, as in Whorld 1) | — | ⌘6, or F3 |
+| Invert Color (Mac, as in Whorld 1) | — | ⌘7, or F4 |
+| Zoom Center | Shift+W | ⌥⌘Z |
+| Geometry Only, on or off (Mac, Whorld 1's patch mode) | — | ⌥⌘G |
+| Antialiasing (Image > Antialiasing, or the Properties panel) | Ctrl+Alt+A | ⌥⌘A |
 | Origin Center | Ctrl+0 | ⌘0 |
-| Origin Drag | Ctrl+D | ⌘− |
-| Origin Random | Ctrl+R | ⌘= |
-| Random Phase | F9 | F9 |
+| Origin Drag, on or off (off parks the origin) | Ctrl+D | ⌘− (minus) |
+| Origin Random, on or off (off parks the origin) | Ctrl+R | ⌘= |
+| Origin Park (Mac) | — | ⌥⌘0 |
+| Random Phase | F9 | ⌘9, or F9 |
+| Audio Modulation on or off (Mac) | — | ⌘' |
+| Automatic Quality on or off (Mac) | — | ⌘; |
+| Reset to 1.1 (Mac) | — | ⌘\ |
+| Beat Back, Beat Forward (Mac) | — | ⌘[, ⌘] |
+| Bar Back, Bar Forward (Mac) | — | ⇧⌘[, ⇧⌘] |
+| Half Beat Back, Half Beat Forward (Mac) | — | ⌥⌘[, ⌥⌘] |
 | Pause | Ctrl+Space | Space (⌃Space switches input sources) |
 | Step | Shift+Space | ⇧Space |
-| Clear | Ctrl+Delete | ⌘⌦ (forward delete; fn+Delete on laptops) |
-| Full screen | F11 | ⌘F (View > Enter Full Screen), or F11; Esc also leaves. With more than one display, ⇧⌘F (View > Enter Full Screen on Other Display) fills the next display, and while full screen moves the picture on to the next |
+| Clear | Ctrl+Delete | ⌘K, or ⌘⌦ (forward delete: fn‑⌘‑Delete on laptops) |
+| Full screen | F11 | ⌘F (View > Enter Full Screen), or ⌃⌘F as in other Mac apps, or F11 if your keyboard sends it; Esc also leaves |
+| Full screen on another display | — | ⇧⌘F (View > Enter Full Screen on Other Display), with more than one display; while full screen, the next display |
+| Detach | Ctrl+F12 | ⇧⌘D |
+| Show Perform Bar | — | ⌥⌘9 |
 
-Panel shortcuts add ⌘ because a plain Shift+letter would fire while typing a capital letter in a panel's text field. Space (Pause) is safe: a focused text field takes it first.
+Panels use ⌥⌘ and a digit, not Windows' Shift+letter, which would fire while typing a capital letter in a panel's text field. Space (Pause) is safe: a focused text field takes it first.
 
-The scroll wheel over the render window zooms, and Shift+wheel changes damping (`CWhorldDoc::OnMouseWheel`), scaled by Preferences > Wheel sensitivity.
+The scroll wheel over the render window zooms, and Shift+wheel changes damping (`CWhorldDoc::OnMouseWheel`), scaled by Settings > Control > Wheel sensitivity.
 
 Function keys need fn on keyboards set to media keys. F11 is also macOS's Show Desktop shortcut by default, so the system takes it unless that shortcut is turned off in System Settings > Keyboard > Keyboard Shortcuts; ⌘F always works.
