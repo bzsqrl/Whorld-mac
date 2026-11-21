@@ -240,14 +240,19 @@ struct StatsStrip: View {
 					Text("Mod").foregroundStyle(ModMap.shared.bypass ? .secondary : .primary)
 					StripText(part: .beat)	// off, finding the beat, or locked (flashing on the beat)
 						.frame(width: 8, height: 8)
-					StripText(part: .tempo)	// the locked tempo, BPM
-						.frame(width: StripText.width(.tempo), height: 14)
 				}
 			}
 			.buttonStyle(StripToggleStyle())
 			.fixedSize()
 			.layoutPriority(2)
-			.help("Audio modulation on or off (Audio > Audio Modulation, ⌘'). The dot: faint off, hollow finding the beat, filled once it's locked, flashing on each beat; then the tempo.")
+			.help("Audio modulation on or off (Audio > Audio Modulation, ⌘'). The dot: faint off, hollow finding the beat, filled once it's locked, flashing on each beat.")
+			// the locked tempo, BPM: a button of its own while it shows, for
+			// Reset to 1.1 (the user's request, 2026-11-20); AppKit, as it
+			// comes and goes without a SwiftUI layout
+			StripText(part: .tempo)
+				.frame(width: StripText.width(.tempo) + 8, height: 18)
+				.padding(.leading, -6)	// close to its dot, as before
+				.layoutPriority(2)
 			Divider().frame(height: 14)
 			GeometryToggle()	// Image > Geometry Only (the user's request, 2026-11-20)
 				.layoutPriority(2)
@@ -289,7 +294,7 @@ struct StatsStrip: View {
 		.background(Color(nsColor: .windowBackgroundColor))
 	}
 
-	static let info = "Frames drawn a second, display refreshes missed in the last second (orange when any are), and the time to draw a frame (on the CPU, then on the GPU with Metal). The rings drawn, the display's rate and the renderer are in the statistics' tooltip.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nClick Mod to turn audio modulation on and off (Audio > Audio Modulation, Command-'). Its dot: faint while it's off, hollow while it's finding the beat, filled and flashing on each beat once it's locked, with the tempo beside it.\n\nClick Full or Geom to switch the patch mode (Image > Geometry Only, Option-Command-G): in Geom, playing a patch changes only its shape and motion.\n\nThe Quality menu sets Render quality (Settings > Display explains it) and Automatic quality (View > Automatic Quality, Command-;); its title says which is in charge, Quality or Auto, and the quality drawn. Automatic quality: when the picture can't keep up with the display, Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare, never above your settings; exports aren't affected. While it has lowered something, the title is orange with a ↓ (Auto ↓75%), and its tooltip says what.\n\nClick Syphon to send the picture to other apps on this Mac, or stop (View > Syphon also sets its size). Its dot: faint while it's off, hollow while no app is receiving, filled once one is.\n\nThe arrows at the right end enter full screen (View > Enter Full Screen, Shift-Command-F).\n\nView > Show Stats (Option-Command-9) hides the strip."
+	static let info = "Frames drawn a second, display refreshes missed in the last second (orange when any are), and the time to draw a frame (on the CPU, then on the GPU with Metal). The rings drawn, the display's rate and the renderer are in the statistics' tooltip.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nClick Mod to turn audio modulation on and off (Audio > Audio Modulation, Command-'). Its dot: faint while it's off, hollow while it's finding the beat, filled and flashing on each beat once it's locked, with the tempo beside it. Click the tempo to reset the count to 1.1 (Audio > Reset to 1.1, Command-\\): the beat nearest now becomes bar 1, beat 1.\n\nClick Full or Geom to switch the patch mode (Image > Geometry Only, Option-Command-G): in Geom, playing a patch changes only its shape and motion.\n\nThe Quality menu sets Render quality (Settings > Display explains it) and Automatic quality (View > Automatic Quality, Command-;); its title says which is in charge, Quality or Auto, and the quality drawn. Automatic quality: when the picture can't keep up with the display, Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare, never above your settings; exports aren't affected. While it has lowered something, the title is orange with a ↓ (Auto ↓75%), and its tooltip says what.\n\nClick Syphon to send the picture to other apps on this Mac, or stop (View > Syphon also sets its size). Its dot: faint while it's off, hollow while no app is receiving, filled once one is.\n\nThe arrows at the right end enter full screen (View > Enter Full Screen, Shift-Command-F).\n\nView > Show Stats (Option-Command-9) hides the strip."
 }
 
 /// What the stats strip shows, set by AppModel; its text views redraw only
@@ -380,6 +385,11 @@ final class StripFeed {
 			redraw(.beat)
 		}
 		if new.tempo != beat.tempo {
+			if new.tempo.isEmpty != beat.tempo.isEmpty {	// a button only while it shows
+				for w in views where w.view?.part == .tempo {
+					w.view?.toolTip = new.tempo.isEmpty ? nil : StripText.View.tempoTip
+				}
+			}
 			beat.tempo = new.tempo
 			redraw(.tempo)
 		}
@@ -544,10 +554,45 @@ struct StripText: NSViewRepresentable {
 		var part: Part = .stats
 
 		override var isFlipped: Bool { true }
-		// the dots and the tempo: clicks and tips are their button's
+		// the dots: clicks and tips are their button's. The tempo is a
+		// button itself while it shows: Reset to 1.1
 		override func hitTest(_ point: NSPoint) -> NSView? {
-			part == .beat || part == .tempo || part == .syphon ? nil : super.hitTest(point)
+			if part == .tempo { return StripFeed.shared.beat.tempo.isEmpty ? nil : super.hitTest(point) }
+			return part == .beat || part == .syphon ? nil : super.hitTest(point)
 		}
+
+		private var hover = false { didSet { if hover != oldValue { needsDisplay = true } } }
+		private var pressed = false { didSet { if pressed != oldValue { needsDisplay = true } } }
+
+		override func updateTrackingAreas() {
+			super.updateTrackingAreas()
+			guard part == .tempo else { return }
+			trackingAreas.forEach(removeTrackingArea)
+			addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+				owner: self))
+		}
+
+		override func mouseEntered(with event: NSEvent) { hover = part == .tempo }
+		override func mouseExited(with event: NSEvent) { hover = false }
+
+		override func mouseDown(with event: NSEvent) {
+			guard part == .tempo, !StripFeed.shared.beat.tempo.isEmpty else { return super.mouseDown(with: event) }
+			pressed = true
+		}
+
+		override func mouseDragged(with event: NSEvent) {
+			guard part == .tempo else { return super.mouseDragged(with: event) }
+			pressed = bounds.contains(convert(event.locationInWindow, from: nil))
+		}
+
+		override func mouseUp(with event: NSEvent) {
+			guard part == .tempo else { return super.mouseUp(with: event) }
+			let inside = pressed
+			pressed = false
+			if inside { ModMap.markDownbeat() }	// Audio > Reset to 1.1
+		}
+
+		static let tempoTip = "The tempo, BPM. Click to reset the count to 1.1: the beat nearest now becomes bar 1, beat 1 (Audio > Reset to 1.1, ⌘\\)."
 
 		override func viewDidMoveToWindow() {
 			super.viewDidMoveToWindow()
@@ -556,7 +601,7 @@ struct StripText: NSViewRepresentable {
 				if part == .stats { toolTip = StripFeed.shared.statsTip }
 				if part == .syphon { toolTip = StripText.syphonTip(StripFeed.shared.syphon) }
 				if part == .beat { toolTip = StripText.beatTip(StripFeed.shared.beat.state) }
-				if part == .tempo { toolTip = "The tempo, BPM" }
+				if part == .tempo { toolTip = StripFeed.shared.beat.tempo.isEmpty ? nil : Self.tempoTip }
 			} else {
 				StripFeed.shared.remove(self)
 			}
@@ -586,8 +631,17 @@ struct StripText: NSViewRepresentable {
 			case .readout:
 				text.append(NSAttributedString(string: feed.readout,
 					attributes: attrs(feed.readoutFresh ? .labelColor : .secondaryLabelColor)))
-			case .tempo:
-				text.append(NSAttributedString(string: feed.beat.tempo, attributes: attrs(.secondaryLabelColor)))
+			case .tempo:	// lit on hover, as StripToggleStyle; the text inset as its label
+				guard !feed.beat.tempo.isEmpty else { return }
+				if hover || pressed {
+					NSColor.labelColor.withAlphaComponent(pressed ? 0.18 : 0.09).setFill()
+					NSBezierPath(roundedRect: bounds, xRadius: 4, yRadius: 4).fill()
+				}
+				text.append(NSAttributedString(string: feed.beat.tempo, attributes: attrs(.labelColor)))
+				let h = ceil(font.ascender - font.descender + font.leading)
+				text.draw(with: NSRect(x: 4, y: floor((bounds.height - h) / 2), width: bounds.width - 8, height: h),
+					options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
+				return
 			case .beat:	// a dot: faint off, an outline finding the beat, filled locked, bright on the beat
 				let r = bounds.insetBy(dx: 1, dy: 1)
 				switch feed.beat.state {
