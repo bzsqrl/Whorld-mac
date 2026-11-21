@@ -224,12 +224,18 @@ struct StatsStrip: View {
 			// the live text is AppKit, redrawn by StripFeed: a SwiftUI layout
 			// pass every second (or every swipe) would drop the panes' tooltips;
 			// each at a fixed width, so nothing moves as the numbers change
-			StripText(part: .stats)
-				.frame(minWidth: 90, idealWidth: StripText.width(.stats), maxWidth: StripText.width(.stats))
-				.layoutPriority(1)	// a narrow picture shortens the readout first
+			// the frame rate, a button: the rest of the statistics in a
+			// pop-up (the user's request, 2026-11-20, the strip as a live
+			// performance bar)
+			StripText(part: .fps)
+				.frame(width: StripText.width(.fps) + 8, height: 18)
+				.layoutPriority(2)
 			Divider().frame(height: 14)
 			StripText(part: .readout)
 				.frame(minWidth: 0, idealWidth: StripText.width(.readout), maxWidth: StripText.width(.readout))
+			Divider().frame(height: 14)
+			PlaylistTransport()	// previous, Play / Stop, next (the user's request, 2026-11-20)
+				.layoutPriority(2)
 			Divider().frame(height: 14)
 			// Audio > Audio Modulation, with the beat: the most live of the
 			// levers, so first (the user's request, 2026-11-19). Mod and Syphon
@@ -260,17 +266,17 @@ struct StatsStrip: View {
 			QualityMenu(feed: StripFeed.shared.autoTag)
 				.layoutPriority(2)
 			Divider().frame(height: 14)
+			// the dot alone (the user's request, 2026-11-20)
 			Button { model.setSyphonEnabled(!model.syphonEnabled) } label: {
-				HStack(spacing: 5) {
-					Text("Syphon").foregroundStyle(model.syphonEnabled ? .primary : .secondary)
-					StripText(part: .syphon)	// off, publishing, or an app receiving
-						.frame(width: 8, height: 8)
-				}
+				StripText(part: .syphon)	// off, publishing, or an app receiving
+					.frame(width: 8, height: 8)
+					.padding(.horizontal, 2)	// an easier target
+					.padding(.vertical, 3)
 			}
 			.buttonStyle(StripToggleStyle())
 			.fixedSize()
 			.layoutPriority(2)
-			.help("Syphon output on or off (View > Syphon, which also sets its size). The dot: faint off, hollow while no app is receiving, filled once one is.")
+			.help("Syphon output on or off (View > Syphon, which also sets its size). Faint off, hollow while no app is receiving, filled once one is.")
 			Spacer(minLength: 0)
 			// View > Enter Full Screen (the user's request, 2026-11-20); the
 			// strip isn't shown in full screen, so it only enters
@@ -294,7 +300,7 @@ struct StatsStrip: View {
 		.background(Color(nsColor: .windowBackgroundColor))
 	}
 
-	static let info = "Frames drawn a second, display refreshes missed in the last second (orange when any are), and the time to draw a frame (on the CPU, then on the GPU with Metal). The rings drawn, the display's rate and the renderer are in the statistics' tooltip.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nClick Mod to turn audio modulation on and off (Audio > Audio Modulation, Command-'). Its dot: faint while it's off, hollow while it's finding the beat, filled and flashing on each beat once it's locked, with the tempo beside it. Click the tempo to reset the count to 1.1 (Audio > Reset to 1.1, Command-\\): the beat nearest now becomes bar 1, beat 1.\n\nClick Full or Geom to switch the patch mode (Image > Geometry Only, Option-Command-G): in Geom, playing a patch changes only its shape and motion.\n\nThe Quality menu sets Render quality (Settings > Display explains it) and Automatic quality (View > Automatic Quality, Command-;); its title says which is in charge, Quality or Auto, and the quality drawn. Automatic quality: when the picture can't keep up with the display, Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare, never above your settings; exports aren't affected. While it has lowered something, the title is orange with a ↓ (Auto ↓75%), and its tooltip says what.\n\nClick Syphon to send the picture to other apps on this Mac, or stop (View > Syphon also sets its size). Its dot: faint while it's off, hollow while no app is receiving, filled once one is.\n\nThe arrows at the right end enter full screen (View > Enter Full Screen, Shift-Command-F).\n\nView > Show Stats (Option-Command-9) hides the strip."
+	static let info = "Frames drawn a second, orange when display refreshes were missed in the last second. Click it for the rest: the refreshes missed, the time to draw a frame (on the CPU, then on the GPU with Metal), the rings drawn, the display's rate, the renderer and what Automatic quality has lowered.\n\nNext, the last control you changed, with its value: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (Zoom, Damping with Shift, or a held key's control; see the Key Map). Modulation and patches loading don't change it.\n\nThe playlist's previous patch, Play / Stop and next patch (Image > Previous Patch, Auto Advance and Next Patch: Command-Up, Option-Command-L and Command-Down). Play plays through the playlist, each patch for the length set in the Playlist panel; the line under it fills toward the next patch.\n\nClick Mod to turn audio modulation on and off (Audio > Audio Modulation, Command-'). Its dot: faint while it's off, hollow while it's finding the beat, filled and flashing on each beat once it's locked, with the tempo beside it. Click the tempo to reset the count to 1.1 (Audio > Reset to 1.1, Command-\\): the beat nearest now becomes bar 1, beat 1.\n\nClick Full or Geom to switch the patch mode (Image > Geometry Only, Option-Command-G): in Geom, playing a patch changes only its shape and motion.\n\nThe Quality menu sets Render quality (Settings > Display explains it) and Automatic quality (View > Automatic Quality, Command-;); its title says which is in charge, Quality or Auto, and the quality drawn. Automatic quality: when the picture can't keep up with the display, Whorld lowers Curve quality first, then Render quality down to 50%, a step at a time, and raises them again once there's room to spare, never above your settings; exports aren't affected. While it has lowered something, the title is orange with a ↓ (Auto ↓75%), and its tooltip says what.\n\nClick the green dot to send the picture to other apps on this Mac by Syphon, or stop (View > Syphon also sets its size): faint while it's off, hollow while no app is receiving, filled once one is.\n\nThe arrows at the right end enter full screen (View > Enter Full Screen, Shift-Command-F).\n\nView > Show Stats (Option-Command-9) hides the strip."
 }
 
 /// What the stats strip shows, set by AppModel; its text views redraw only
@@ -303,10 +309,11 @@ struct StatsStrip: View {
 final class StripFeed {
 	static let shared = StripFeed()
 
-	private(set) var stats = ""		// before and after "n missed", which
-	private(set) var missed = ""	// is drawn orange when n > 0
-	private(set) var statsTail = ""
-	private(set) var statsTip = ""
+	private(set) var fps = ""		// "60 fps"
+	private(set) var fpsWarn = false	// display refreshes missed: drawn orange
+	private(set) var statsDetail = ""	// the rest, in the frame rate's pop-up
+	private var statsPopover: NSPopover?
+	private var statsLabel: NSTextField?
 	private(set) var readout = ""
 	private(set) var readoutFresh = false	// just changed; dimmed after a few seconds
 	/// what Automatic quality has lowered, if anything: SwiftUI text at its
@@ -399,16 +406,49 @@ final class StripFeed {
 		for w in views where w.view?.part == part { w.view?.needsDisplay = true }
 	}
 
-	func setStats(_ s: String, missed m: String, _ tail: String, tip: String) {
-		guard s != stats || m != missed || tail != statsTail || tip != statsTip else { return }
-		stats = s
-		missed = m
-		statsTail = tail
-		if tip != statsTip {
-			statsTip = tip
-			for w in views where w.view?.part == .stats { w.view?.toolTip = tip }
+	func setStats(fps f: String, warn: Bool, detail: String) {
+		if f != fps || warn != fpsWarn {
+			fps = f
+			fpsWarn = warn
+			redraw(.fps)
 		}
-		redraw(.stats)
+		if detail != statsDetail {
+			statsDetail = detail
+			statsLabel?.stringValue = detail	// live while the pop-up is open
+		}
+	}
+
+	/// The frame rate's pop-up: the rest of the statistics, updated each
+	/// second while it's open; a click elsewhere (or on the frame rate
+	/// again) closes it
+	func toggleStatsPopover(from view: NSView) {
+		if let p = statsPopover, p.isShown {
+			p.performClose(nil)
+			return
+		}
+		let label = NSTextField(wrappingLabelWithString: statsDetail)
+		label.font = StripText.font
+		label.textColor = .labelColor
+		label.isSelectable = false
+		label.translatesAutoresizingMaskIntoConstraints = false
+		let vc = NSViewController()
+		let box = SolidView()	// not see-through: the picture behind would make it hard to read
+		box.addSubview(label)
+		NSLayoutConstraint.activate([
+			label.leadingAnchor.constraint(equalTo: box.leadingAnchor, constant: 10),
+			label.trailingAnchor.constraint(equalTo: box.trailingAnchor, constant: -10),
+			label.topAnchor.constraint(equalTo: box.topAnchor, constant: 8),
+			label.bottomAnchor.constraint(equalTo: box.bottomAnchor, constant: -8),
+			label.widthAnchor.constraint(equalToConstant: 310),
+		])
+		vc.view = box
+		let p = NSPopover()
+		p.contentViewController = vc
+		p.behavior = .transient
+		p.animates = false
+		statsLabel = label
+		statsPopover = p
+		p.show(relativeTo: view.bounds, of: view, preferredEdge: .maxY)
 	}
 
 	func setSyphon(_ state: Int) {
@@ -442,6 +482,14 @@ final class StripFeed {
 		}
 		dimWork = work
 		DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: work)
+	}
+}
+
+/// The window's background color, filled (the frame rate's pop-up)
+private final class SolidView: NSView {
+	override func draw(_ dirtyRect: NSRect) {
+		NSColor.windowBackgroundColor.setFill()
+		dirtyRect.fill()
 	}
 }
 
@@ -503,6 +551,38 @@ private struct GeometryToggle: View {
 	}
 }
 
+/// The playlist in the stats strip (the user's request, 2026-11-20): the
+/// previous patch, Play / Stop (auto-advance, the Playlist panel's button,
+/// its line filling toward the next patch) and the next patch. Reads the
+/// playlist's change counter, so it redraws only when those change.
+private struct PlaylistTransport: View {
+	@EnvironmentObject private var model: AppModel
+
+	var body: some View {
+		let _ = model.changes.playlist.n
+		let e = model.engine
+		let empty = model.playlistPatches.isEmpty
+		let unit = AutoAdvanceUnit(rawValue: e.autoAdvanceUnit) ?? .seconds
+		HStack(spacing: 0) {
+			Button { model.stepPatch(-1) } label: {
+				Image(systemName: "backward.end.fill").imageScale(.small).padding(.horizontal, 2)
+			}
+			.buttonStyle(StripToggleStyle())
+			.help("The playlist's previous patch (Image > Previous Patch, ⌘↑)")
+			AutoAdvanceButton(strip: true, running: e.autoAdvancing, enabled: !empty,
+				unit: unit, length: e.autoAdvanceLength, engine: e) { model.setAutoAdvance(!e.autoAdvancing) }
+				.frame(width: 24, height: 18)
+			Button { model.stepPatch(1) } label: {
+				Image(systemName: "forward.end.fill").imageScale(.small).padding(.horizontal, 2)
+			}
+			.buttonStyle(StripToggleStyle())
+			.help("The playlist's next patch (Image > Next Patch, ⌘↓)")
+		}
+		.disabled(empty && !e.autoAdvancing)
+		.fixedSize()
+	}
+}
+
 /// Mod, Full/Geom and Syphon in the stats strip: a label a click toggles, lit on hover
 private struct StripToggleStyle: ButtonStyle {
 	func makeBody(configuration: Configuration) -> some View { Lit(configuration: configuration) }
@@ -525,7 +605,7 @@ private struct StripToggleStyle: ButtonStyle {
 
 /// One of the stats strip's live texts (StripFeed), drawn in AppKit
 struct StripText: NSViewRepresentable {
-	enum Part { case stats, readout, syphon, beat, tempo }
+	enum Part { case fps, readout, syphon, beat, tempo }
 
 	static func beatTip(_ state: Int) -> String {
 		state == 0 ? "Audio modulation is off" : state == 2 ? "The beat is locked" : "Finding the beat…"
@@ -542,7 +622,7 @@ struct StripText: NSViewRepresentable {
 	/// a part's width: its longest usual text
 	static func width(_ part: Part) -> CGFloat {
 		let sample = switch part {
-		case .stats: "000 fps · 00 missed · 00.0/00.0 ms"
+		case .fps: "000 fps"
 		case .readout: "Rotate Speed Freq  -00.000"
 		case .syphon, .beat: ""
 		case .tempo: "000"
@@ -551,13 +631,17 @@ struct StripText: NSViewRepresentable {
 	}
 
 	final class View: NSView {
-		var part: Part = .stats
+		var part: Part = .fps
+		/// the frame rate and the tempo are buttons (the tempo while it shows)
+		private var clickable: Bool {
+			part == .fps || (part == .tempo && !StripFeed.shared.beat.tempo.isEmpty)
+		}
 
 		override var isFlipped: Bool { true }
 		// the dots: clicks and tips are their button's. The tempo is a
 		// button itself while it shows: Reset to 1.1
 		override func hitTest(_ point: NSPoint) -> NSView? {
-			if part == .tempo { return StripFeed.shared.beat.tempo.isEmpty ? nil : super.hitTest(point) }
+			if part == .tempo || part == .fps { return clickable ? super.hitTest(point) : nil }
 			return part == .beat || part == .syphon ? nil : super.hitTest(point)
 		}
 
@@ -566,31 +650,35 @@ struct StripText: NSViewRepresentable {
 
 		override func updateTrackingAreas() {
 			super.updateTrackingAreas()
-			guard part == .tempo else { return }
+			guard part == .tempo || part == .fps else { return }
 			trackingAreas.forEach(removeTrackingArea)
 			addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
 				owner: self))
 		}
 
-		override func mouseEntered(with event: NSEvent) { hover = part == .tempo }
+		override func mouseEntered(with event: NSEvent) { hover = part == .tempo || part == .fps }
 		override func mouseExited(with event: NSEvent) { hover = false }
 
 		override func mouseDown(with event: NSEvent) {
-			guard part == .tempo, !StripFeed.shared.beat.tempo.isEmpty else { return super.mouseDown(with: event) }
+			guard clickable else { return super.mouseDown(with: event) }
 			pressed = true
 		}
 
 		override func mouseDragged(with event: NSEvent) {
-			guard part == .tempo else { return super.mouseDragged(with: event) }
+			guard part == .tempo || part == .fps else { return super.mouseDragged(with: event) }
 			pressed = bounds.contains(convert(event.locationInWindow, from: nil))
 		}
 
 		override func mouseUp(with event: NSEvent) {
-			guard part == .tempo else { return super.mouseUp(with: event) }
+			guard part == .tempo || part == .fps else { return super.mouseUp(with: event) }
 			let inside = pressed
 			pressed = false
-			if inside { ModMap.markDownbeat() }	// Audio > Reset to 1.1
+			guard inside else { return }
+			if part == .tempo { ModMap.markDownbeat() }	// Audio > Reset to 1.1
+			else { StripFeed.shared.toggleStatsPopover(from: self) }
 		}
+
+		static let fpsTip = "Frames drawn a second; orange when display refreshes were missed. Click for the rest of the statistics."
 
 		static let tempoTip = "The tempo, BPM. Click to reset the count to 1.1: the beat nearest now becomes bar 1, beat 1 (Audio > Reset to 1.1, ⌘\\)."
 
@@ -598,7 +686,7 @@ struct StripText: NSViewRepresentable {
 			super.viewDidMoveToWindow()
 			if window != nil {
 				StripFeed.shared.add(self)
-				if part == .stats { toolTip = StripFeed.shared.statsTip }
+				if part == .fps { toolTip = Self.fpsTip }
 				if part == .syphon { toolTip = StripText.syphonTip(StripFeed.shared.syphon) }
 				if part == .beat { toolTip = StripText.beatTip(StripFeed.shared.beat.state) }
 				if part == .tempo { toolTip = StripFeed.shared.beat.tempo.isEmpty ? nil : Self.tempoTip }
@@ -622,22 +710,18 @@ struct StripText: NSViewRepresentable {
 			}
 			let text = NSMutableAttributedString()
 			switch part {
-			case .stats:
-				guard !feed.stats.isEmpty else { break }
-				let warn = !feed.missed.hasPrefix("0 ")
-				text.append(NSAttributedString(string: feed.stats, attributes: attrs(.secondaryLabelColor)))
-				text.append(NSAttributedString(string: feed.missed, attributes: attrs(warn ? .systemOrange : .secondaryLabelColor)))
-				text.append(NSAttributedString(string: feed.statsTail, attributes: attrs(.secondaryLabelColor)))
 			case .readout:
 				text.append(NSAttributedString(string: feed.readout,
 					attributes: attrs(feed.readoutFresh ? .labelColor : .secondaryLabelColor)))
-			case .tempo:	// lit on hover, as StripToggleStyle; the text inset as its label
-				guard !feed.beat.tempo.isEmpty else { return }
+			case .tempo, .fps:	// lit on hover, as StripToggleStyle; the text inset as its label
+				let s = part == .fps ? feed.fps : feed.beat.tempo
+				guard !s.isEmpty else { return }
 				if hover || pressed {
 					NSColor.labelColor.withAlphaComponent(pressed ? 0.18 : 0.09).setFill()
 					NSBezierPath(roundedRect: bounds, xRadius: 4, yRadius: 4).fill()
 				}
-				text.append(NSAttributedString(string: feed.beat.tempo, attributes: attrs(.labelColor)))
+				let color: NSColor = part == .tempo ? .labelColor : feed.fpsWarn ? .systemOrange : .secondaryLabelColor
+				text.append(NSAttributedString(string: s, attributes: attrs(color)))
 				let h = ceil(font.ascender - font.descender + font.leading)
 				text.draw(with: NSRect(x: 4, y: floor((bounds.height - h) / 2), width: bounds.width - 8, height: h),
 					options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])

@@ -1162,7 +1162,9 @@ struct AutoAdvanceControls: View {
 /// count many times a second without SwiftUI laying out the panel again
 /// (which drops tooltips). The line under the symbol fills toward the next
 /// patch: the accent color, or orange while counting beats without a beat.
-private struct AutoAdvanceButton: NSViewRepresentable {
+/// `strip`: the stats strip's borderless form, lit on hover as its others are.
+struct AutoAdvanceButton: NSViewRepresentable {
+	var strip = false
 	let running: Bool
 	let enabled: Bool
 	let unit: AutoAdvanceUnit
@@ -1176,6 +1178,15 @@ private struct AutoAdvanceButton: NSViewRepresentable {
 		var length = 30.0
 		weak var engine: WHEngine?
 		var onPress: (() -> Void)?
+		var strip = false {
+			didSet {
+				guard strip != oldValue else { return }
+				isBordered = !strip
+				updateTrackingAreas()
+				update()
+			}
+		}
+		private var hover = false { didSet { if hover != oldValue { needsDisplay = true } } }
 		private var progress = 0.0
 		private var following = true
 		private var timer: Timer?
@@ -1194,10 +1205,23 @@ private struct AutoAdvanceButton: NSViewRepresentable {
 
 		@objc private func pressed() { onPress?() }
 
+		override func updateTrackingAreas() {
+			super.updateTrackingAreas()
+			trackingAreas.forEach(removeTrackingArea)
+			guard strip else { return }
+			addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+				owner: self))
+		}
+
+		override func mouseEntered(with event: NSEvent) { hover = strip }
+		override func mouseExited(with event: NSEvent) { hover = false }
+
 		func update() {
-			image = NSImage(systemSymbolName: running ? "stop.fill" : "play.fill",
+			var image = NSImage(systemSymbolName: running ? "stop.fill" : "play.fill",
 				accessibilityDescription: running ? "Stop" : "Play")
-			contentTintColor = running ? .controlAccentColor : nil
+			if strip { image = image?.withSymbolConfiguration(.init(scale: .small)) }
+			self.image = image
+			contentTintColor = running ? .controlAccentColor : strip && isEnabled ? .labelColor : nil
 			if running, timer == nil {
 				let t = Timer(timeInterval: 1.0 / 15, repeats: true) { [weak self] _ in
 					MainActor.assumeIsolated { self?.poll() }
@@ -1234,10 +1258,14 @@ private struct AutoAdvanceButton: NSViewRepresentable {
 		}
 
 		override func draw(_ dirtyRect: NSRect) {
+			if strip, isEnabled, hover || isHighlighted {	// as StripToggleStyle
+				NSColor.labelColor.withAlphaComponent(isHighlighted ? 0.18 : 0.09).setFill()
+				NSBezierPath(roundedRect: bounds, xRadius: 4, yRadius: 4).fill()
+			}
 			super.draw(dirtyRect)
 			guard running else { return }
-			let inner = bounds.insetBy(dx: 7, dy: 0)
-			let y = bounds.maxY - 5.5	// flipped: near the bezel's bottom
+			let inner = bounds.insetBy(dx: strip ? 3 : 7, dy: 0)
+			let y = bounds.maxY - (strip ? 2.5 : 5.5)	// flipped: near the bezel's bottom
 			let track = NSRect(x: inner.minX, y: y, width: inner.width, height: 2)
 			NSColor.tertiaryLabelColor.setFill()
 			NSBezierPath(roundedRect: track, xRadius: 1, yRadius: 1).fill()
@@ -1256,6 +1284,7 @@ private struct AutoAdvanceButton: NSViewRepresentable {
 
 	func updateNSView(_ b: Button, context: Context) {
 		b.engine = engine
+		b.strip = strip
 		b.unit = unit
 		b.length = length
 		b.onPress = action

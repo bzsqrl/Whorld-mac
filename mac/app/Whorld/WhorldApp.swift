@@ -213,11 +213,15 @@ final class AppModel: ObservableObject {
 			// every open panel, about 100 ms with four open, a stutter)
 			if self.showStats {
 				StripFeed.shared.setSyphon(self.syphonState)
-				let gpuTime = e.gpuMilliseconds > 0 ? String(format: "/%.1f", e.gpuMilliseconds) : ""
-				StripFeed.shared.setStats(String(format: "%.0f fps · ", e.framesPerSecond),
-					missed: "\(e.missedFrames) missed",
-					String(format: " · %.1f%@ ms", e.renderMilliseconds, gpuTime),
-					tip: "\(e.ringCount) rings · \(e.refreshRate) Hz display · \(e.rendererName) · draw time on the CPU" + (gpuTime.isEmpty ? "" : "/GPU"))
+				var detail = String(format: "%.0f frames a second\n%ld display refreshes missed in the last second\nDraw time: %.1f ms on the CPU",
+					e.framesPerSecond, e.missedFrames, e.renderMilliseconds)
+				if e.gpuMilliseconds > 0 { detail += String(format: ", %.1f ms on the GPU", e.gpuMilliseconds) }
+				detail += "\n\(e.ringCount) rings\n\(e.refreshRate) Hz display · \(e.rendererName)"
+				if self.autoQuality {
+					detail += "\nAutomatic quality: " + (e.autoQualityStatus.isEmpty ? "nothing lowered" : e.autoQualityStatus)
+				}
+				StripFeed.shared.setStats(fps: String(format: "%.0f fps", e.framesPerSecond),
+					warn: e.missedFrames > 0, detail: detail)
 				StripFeed.shared.setAuto(Self.autoTag(e.autoQualityStatus),
 					percent: Int((self.renderScale * (self.autoQuality ? e.autoScaleFactor : 1) * 100).rounded()))
 			}
