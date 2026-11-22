@@ -960,6 +960,22 @@ struct PlaylistPanel: View {
 				return .handled
 			}
 			.background(PlayingRowScroller(row: model.playingPatch, plays: model.patchPlays))
+			// an empty table has no rows to drop between: while it's empty, the
+			// whole list takes patches dragged from the Patches panel
+			.overlay {
+				if rows.isEmpty {
+					Text("Drag patches here from the Patches panel, or click +")
+						.font(.callout).foregroundStyle(.secondary)
+						.multilineTextAlignment(.center)
+						.padding()
+						.frame(maxWidth: .infinity, maxHeight: .infinity)
+						.contentShape(Rectangle())
+						.onDrop(of: [.plainText], isTargeted: nil) { providers in
+							dropRows(providers, at: 0)
+							return true
+						}
+				}
+			}
 			Divider()
 			// the bottom bar, as much of it as fits: everything, then without
 			// the playlist's name, then without the patch mode button; never
@@ -1011,7 +1027,12 @@ struct PlaylistPanel: View {
 	private func dropRows(_ providers: [NSItemProvider], at offset: Int) {
 		guard let p = providers.first(where: { $0.canLoadObject(ofClass: NSString.self) }) else { return }
 		_ = p.loadObject(ofClass: NSString.self) { obj, _ in
-			guard let text = obj as? String, let moved = PlaylistRowDrag.rows(text) else { return }
+			guard let text = obj as? String else { return }
+			if let files = PatchFileDrag.paths(text) {	// from the Patches panel
+				DispatchQueue.main.async { model.addPatchesToPlaylist(files, at: offset) }
+				return
+			}
+			guard let moved = PlaylistRowDrag.rows(text) else { return }
 			DispatchQueue.main.async {
 				let valid = moved.filter { $0 >= 0 && $0 < model.playlistPatches.count }
 				guard !valid.isEmpty else { return }

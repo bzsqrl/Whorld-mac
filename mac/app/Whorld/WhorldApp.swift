@@ -290,6 +290,8 @@ final class AppModel: ObservableObject {
 	@Published var currentSnapshot = 0
 	/// Index of the playing playlist patch (CPlaylistBar::m_iPlayingPatch).
 	@Published var playingPatch = -1
+	/// the patch file playing or open, for the Patches panel's marker
+	@Published var playingFile: URL?
 	/// Counts patches played from the playlist (the Playlist panel scrolls
 	/// to the playing one on each, even the same one again)
 	@Published var patchPlays = 0
@@ -569,12 +571,43 @@ final class AppModel: ObservableObject {
 		}
 		playedName = url.deletingPathExtension().lastPathComponent
 		playingPatch = index
+		playingFile = url
 		patchPlays += 1
 		originFromPatch()
 		resetUndo()
 		updateTitle()
 		changed()
 		return true
+	}
+
+	/// The Patches panel (PatchBrowser.swift): plays a patch file at once,
+	/// crossfading and letting unsaved edits go, as playPatch does. If the
+	/// playlist has it, that entry is the one playing.
+	@discardableResult
+	func playPatchFile(_ url: URL) -> Bool {
+		guard engine.playPatch(atPath: url.path) else { return false }
+		engine.restartAutoAdvance()
+		let target = url.standardizedFileURL
+		playingPatch = engine.playlistPatches.firstIndex { resolvePatchPath($0)?.standardizedFileURL == target } ?? -1
+		playedName = url.deletingPathExtension().lastPathComponent
+		playingFile = url
+		patchPlays += 1
+		originFromPatch()
+		resetUndo()
+		updateTitle()
+		changed()
+		return true
+	}
+
+	/// The Patches panel's Add to Playlist and drags: the files go in after
+	/// the selected entry (else at the end), or at `offset`, and are selected
+	func addPatchesToPlaylist(_ paths: [String], at offset: Int? = nil) {
+		guard !paths.isEmpty else { return }
+		var all = playlistPatches
+		let at = min(offset ?? ((playlistSelection.max() ?? all.count - 1) + 1), all.count)
+		all.insert(contentsOf: paths, at: at)
+		setPlaylistPatches(all, title: "Add Patches")
+		playlistSelection = Set(at..<(at + paths.count))
 	}
 
 	// MARK: Auto-advance (Mac addition, the user's request, 2026-11-20)
@@ -1189,6 +1222,7 @@ final class AppModel: ObservableObject {
 		do {
 			try engine.openPatch(atPath: url.path)
 			playedName = nil
+			playingFile = url
 			originFromPatch()
 			resetUndo()
 			NSDocumentController.shared.noteNewRecentDocumentURL(url)
@@ -2192,6 +2226,12 @@ struct WhorldApp: App {
 
 		// View > Key Map (keys held over the picture; KeyMap.swift): a panel
 		// since 2026-11-18, floating here (the window's id is its PanelID)
+		Window("Patches", id: PanelID.patches.rawValue) {
+			FloatingPanel(id: .patches).environmentObject(model)
+		}
+		.commandsRemoved()
+		.defaultSize(width: 320, height: 520)
+
 		Window("Key Map", id: PanelID.keymap.rawValue) {
 			FloatingPanel(id: .keymap).environmentObject(model)
 		}

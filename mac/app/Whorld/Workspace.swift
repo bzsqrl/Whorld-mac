@@ -33,6 +33,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 	case modulation	// the Modulation window, a panel since 2026-11-18 (the user's request)
 	case mapping
 	case keymap		// the Key Map window, a panel since 2026-11-18 (the user's request); its raw value is the window's id
+	case patches	// the patch browser (PatchBrowser.swift; the user's request, 2026-11-22)
 
 	var id: String { rawValue }
 
@@ -46,6 +47,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		case .mapping: "MIDI Mapping"
 		case .modulation: "Modulation"
 		case .keymap: "Key Map"
+		case .patches: "Patches"
 		}
 	}
 
@@ -69,6 +71,8 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 			"Audio modulation: what Whorld hears, and the rows that let the music and its beat move the picture."
 		case .keymap:
 			"Hold a key with the pointer over the picture and scroll (two fingers up or down, or the mouse wheel) to move its control; up increases."
+		case .patches:
+			"The patches in Documents › Whorld › Patches (or a folder you choose) and its subfolders. Click one to play it; the arrow keys play each in turn. Drag patches into the Playlist to add them."
 		}
 	}
 
@@ -77,9 +81,11 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 	/// to remember, instead of a letter each with Shift-Command, where a
 	/// wrong letter did something else; Shift-Command-3, 4 and 5 are
 	/// macOS's screenshots, so Option-Command)
-	var shortcut: KeyEquivalent {
+	/// Nil past the eighth: Option-Command-9 is Show Perform Bar and
+	/// Option-Command-0 Origin Park (Patches has none, 2026-11-22).
+	var shortcut: KeyEquivalent? {
 		let n = Self.allCases.firstIndex(of: self)! + 1
-		return KeyEquivalent(Character(String(n)))
+		return n <= 8 ? KeyEquivalent(Character(String(n))) : nil
 	}
 
 	var shortcutModifiers: EventModifiers { [.command, .option] }
@@ -96,7 +102,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		switch self {
 		case .params, .mapping, .modulation: .bottom
 		case .master, .globals, .keymap: .right
-		case .properties, .playlist: .left
+		case .properties, .playlist, .patches: .left
 		}
 	}
 
@@ -115,7 +121,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 
 	/// Tables scroll themselves (both ways); the others are forms the
 	/// workspace scrolls.
-	var scrollsItself: Bool { self == .playlist || self == .mapping || self == .modulation || self == .keymap }
+	var scrollsItself: Bool { self == .playlist || self == .mapping || self == .modulation || self == .keymap || self == .patches }
 
 	/// A form's narrowest width: it stretches to fill a wider pane (its
 	/// sliders widen) and scrolls sideways in a narrower one.
@@ -137,6 +143,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		case .playlist: CGSize(width: 360, height: 200)
 		case .modulation: CGSize(width: 640, height: 0)	// its own content sets its height (one row of the table)
 		case .keymap: CGSize(width: 460, height: 360)	// (its window's smallest)
+		case .patches: CGSize(width: 240, height: 240)
 		default: CGSize(width: 0, height: 0)
 		}
 	}
@@ -946,6 +953,13 @@ final class LayoutModel: ObservableObject {
 	/// beside the same neighbour; failing that, at the end of its last region.
 	func dock(_ id: PanelID) {
 		guard !isDocked(id) else { return }
+		// Patches, docked for the first time: above the Playlist, sharing its
+		// pane, so patches can be dragged down into it (2026-11-22; as a tab
+		// the Playlist would be hidden while dragging)
+		if id == .patches, layout.lastRegion[id] == nil, layout.region(of: .playlist) != nil {
+			move(id, to: .top, of: .playlist)
+			return
+		}
 		let r = layout.lastRegion[id] ?? id.defaultRegion
 		guard layout.lastRegion[id] != nil, let place = layout.lastPlace[id] else { move(id, to: r); return }
 		var l = layout
@@ -1287,6 +1301,7 @@ struct PanelBody: View {
 		case .mapping: MappingPanel()
 		case .modulation: ModulationView()
 		case .keymap: KeyMapView()
+		case .patches: PatchBrowserPanel()
 		}
 	}
 }

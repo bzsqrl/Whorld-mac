@@ -50,7 +50,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <!-- ============================================================ -->
 <h2 id="start">Getting started</h2>
 <ol>
-<li><b>Open a playlist.</b> Choose File &gt; Playlist &gt; Open Playlist (<kbd>⇧⌘O</kbd>). Whorld keeps playlists in Documents &gt; Whorld &gt; Playlists.</li>
+<li><b>Open a playlist.</b> Choose File &gt; Playlist &gt; Open Playlist (<kbd>⇧⌘O</kbd>). Whorld keeps playlists in Documents &gt; Whorld &gt; Playlists. Or browse patches one by one in View &gt; Patches.</li>
 <li><b>Play a patch.</b> Double-click one in the Playlist panel. <kbd>⌘↓</kbd> and <kbd>⌘↑</kbd> play the next and previous patch, from anywhere.</li>
 <li><b>Swipe over the picture.</b> A two-finger swipe up or down (or the mouse wheel) zooms; with <kbd>⇧</kbd> it changes Damping.</li>
 <li><b>Hold a key and swipe.</b> Each letter moves one control: hold <kbd>Q</kbd> over the picture and swipe to change Ring Spacing, <kbd>W</kbd> for Line Width. The Perform Bar names the control as soon as you press the key. View &gt; Key Map (<kbd>⌥⌘8</kbd>) lists them all.</li>
@@ -83,6 +83,15 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <li>Each time a patch plays (double-click, keys, MIDI or OSC), the list scrolls it to about a third of the way down, its green triangle showing where you are. Scroll freely in between; the list moves only when a patch plays.</li>
 <li>Drag patches up or down to reorder them (a selected patch takes the rest of the selection with it). <b>+</b> and <b>&minus;</b> in the bottom bar insert and delete patches. In a narrow pane the bar leaves out the playlist's name, then the Full / Geom button.</li>
 <li>Playing a patch replaces the one showing without asking to save it, so you can move between patches freely; to keep changes, save first (<kbd>⌘S</kbd>). File &gt; New, File &gt; Open and Quit still ask.</li>
+</ul>
+
+<h3 id="browser">The Patches panel</h3>
+<p>View &gt; Patches lists the patches in Documents &gt; Whorld &gt; Patches and its subfolders (the Folder column), to try them out while you build a set. The first time, it opens above the Playlist.</p>
+<ul>
+<li><b>Click a patch</b> to play it at once, crossfading as the playlist does (unsaved changes to the patch showing are let go, as when a playlist patch plays). <kbd>↑</kbd> <kbd>↓</kbd> move through the list, playing each in turn; typing a name's first letters jumps to it. The green triangle marks the patch playing.</li>
+<li><b>Drag patches into the Playlist</b> to add them where you drop them, or right-click and choose Add to Playlist (after the selected entry). <kbd>⌘</kbd>- or <kbd>⇧</kbd>-click to select several.</li>
+<li>Right-click a patch to Play it, Open as Patch (as File &gt; Open does, so <kbd>⌘S</kbd> saves to it), or Show in Finder.</li>
+<li><b>Search</b> narrows the list by name or folder. The folder menu at the top left chooses another folder to list (Choose Folder&hellip;), goes back to the Whorld Patches folder, shows it in the Finder, or refreshes the list (it also refreshes whenever you come back to Whorld).</li>
 </ul>
 
 <h3 id="advance">Auto-advance</h3>
@@ -126,7 +135,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <h2 id="picture">Changing the picture</h2>
 
 <h3 id="panels">The panels</h3>
-<p>The Whorld window holds the picture in the middle and the panels around it: Parameters, Master, Globals, Properties, Playlist, Modulation, MIDI Mapping and Key Map. Click the <b>ⓘ</b> by a panel's title for what it controls. Show or hide each from the View menu, or with <kbd>⌥⌘</kbd> and its number there: <kbd>⌥⌘1</kbd> Parameters, <kbd>⌥⌘2</kbd> Master, <kbd>⌥⌘3</kbd> Globals, <kbd>⌥⌘4</kbd> Properties, <kbd>⌥⌘5</kbd> Playlist, <kbd>⌥⌘6</kbd> Modulation, <kbd>⌥⌘7</kbd> MIDI Mapping, <kbd>⌥⌘8</kbd> Key Map. A panel's shortcut brings it to the front when it's a tab behind another.</p>
+<p>The Whorld window holds the picture in the middle and the panels around it: Parameters, Master, Globals, Properties, Playlist, Modulation, MIDI Mapping, Key Map and <a href="#browser">Patches</a>. Click the <b>ⓘ</b> by a panel's title for what it controls. Show or hide each from the View menu, or with <kbd>⌥⌘</kbd> and its number there: <kbd>⌥⌘1</kbd> Parameters, <kbd>⌥⌘2</kbd> Master, <kbd>⌥⌘3</kbd> Globals, <kbd>⌥⌘4</kbd> Properties, <kbd>⌥⌘5</kbd> Playlist, <kbd>⌥⌘6</kbd> Modulation, <kbd>⌥⌘7</kbd> MIDI Mapping, <kbd>⌥⌘8</kbd> Key Map (Patches has none yet). A panel's shortcut brings it to the front when it's a tab behind another.</p>
 <ul>
 <li><b>Hover over a control's name</b> for a short explanation, starting with its Key Map key if it has one: <i>(S):</i> for Speed. (Settings &gt; General &gt; Show tips on control names turns these off.) Settings &gt; General &gt; Show Key Map keys in panels shows each control's key before its name in Parameters, Master and Globals.</li>
 <li><b>Right-click</b> (or Control-click) a slider or number box to set it back to its value in the patch as it was loaded (opened, played from the playlist, or new) or last saved.</li>
