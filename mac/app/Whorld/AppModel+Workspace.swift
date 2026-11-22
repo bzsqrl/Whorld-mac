@@ -136,7 +136,9 @@ extension AppModel {
 		let panel = NSSavePanel()
 		panel.allowedContentTypes = [.whorldLayout]
 		panel.nameFieldStringValue = (NamedLayouts.shared.current?.name ?? "Layout") + ".whlayout"
+		panel.directoryURL = WhorldFolders.start(.layouts)	// Documents/Whorld/Layouts (2026-11-22)
 		guard panel.runModal() == .OK, let url = panel.url else { return }
+		WhorldFolders.used(.layouts, url)
 		let e = JSONEncoder()
 		e.outputFormatting = [.prettyPrinted, .sortedKeys]
 		do {
@@ -150,7 +152,9 @@ extension AppModel {
 	func importLayout() {
 		let panel = NSOpenPanel()
 		panel.allowedContentTypes = [.whorldLayout]
+		panel.directoryURL = WhorldFolders.start(.layouts)
 		guard panel.runModal() == .OK, let url = panel.url else { return }
+		WhorldFolders.used(.layouts, url)
 		openLayout(url)
 	}
 

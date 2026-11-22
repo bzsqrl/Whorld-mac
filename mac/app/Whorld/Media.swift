@@ -68,6 +68,9 @@ extension AppModel {
 		if !path.isEmpty {
 			return URL(fileURLWithPath: path)
 		}
+		// none chosen: Documents/Whorld/Exports (the user's request,
+		// 2026-11-22), or Pictures, as Windows, if it's gone
+		if let exports = WhorldFolders.existing(.exports) { return exports }
 		return FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first
 			?? URL(fileURLWithPath: NSHomeDirectory())	// SetDefaultExportImageFolder: Pictures
 	}

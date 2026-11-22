@@ -186,13 +186,18 @@ enum WhorldFolders {
 		case snapshots = "Snapshots"
 		/// Record Movie's and Play Movie's (the user's request, 2026-11-22)
 		case movies = "Movies"
-		static let all: [Kind] = [.patches, .playlists, .snapshots, .movies]
-		/// the folder last used for this kind (`Folder_sPatches`, `Folder_sPlaylists`, `Folder_sSnapshots`, `Folder_sMovies`)
+		/// images, videos and image sequences, unless Settings > Export names
+		/// a folder (the user's request, 2026-11-22; Pictures before, as Windows)
+		case exports = "Exports"
+		/// Export Layout's and Import Layout's (the user's request, 2026-11-22)
+		case layouts = "Layouts"
+		static let all: [Kind] = [.patches, .playlists, .snapshots, .movies, .exports, .layouts]
+		/// the folder last used for this kind (`Folder_sPatches`, `Folder_sPlaylists`, `Folder_sSnapshots`, `Folder_sMovies`, `Folder_sLayouts`)
 		var lastKey: String { "Folder_s" + rawValue }
 	}
 
 	/// the folders made, so a deleted one isn't made again (each kind once:
-	/// Snapshots and Movies came later); `General_bMadeFolders` stands for the first two
+	/// Snapshots, Movies, Exports and Layouts came later); `General_bMadeFolders` stands for the first two
 	private static let madeKey = "General_sMadeFolders"
 	private static let madeKeyV1 = "General_bMadeFolders"
 
@@ -591,9 +596,10 @@ struct PreferencesView: View {
 
 	@ViewBuilder private var exportTab: some View {
 			Section {
-				LabeledContent("Image folder") {
+				LabeledContent("Export folder") {
 					HStack {
-						Text(imageFolder.isEmpty ? "Pictures" : (imageFolder as NSString).abbreviatingWithTildeInPath)
+						Text(imageFolder.isEmpty ? (WhorldFolders.existing(.exports) != nil ? "Whorld › Exports" : "Pictures")
+							: (imageFolder as NSString).abbreviatingWithTildeInPath)
 							.lineLimit(1)
 							.truncationMode(.middle)
 						Button("Choose…", action: chooseFolder)
@@ -616,9 +622,9 @@ struct PreferencesView: View {
 				}
 				Toggle("Ask for export options each time", isOn: $promptUser)
 			} header: {
-				Text("Images and movies")
+				Text("Images and videos")
 			} footer: {
-				Text("File › Export saves the picture as an image, an image sequence or a video.").font(.caption).foregroundStyle(.secondary)
+				Text("File › Export saves the picture as an image, and a movie as a video or an image sequence, in the export folder: Whorld › Exports unless you choose another.").font(.caption).foregroundStyle(.secondary)
 					.frame(maxWidth: .infinity, alignment: .leading)
 			}
 			Section {
