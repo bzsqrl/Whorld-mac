@@ -149,10 +149,7 @@ extension AppModel {
 				in: WhorldFolders.start(.snapshots))
 			if let url { WhorldFolders.used(.snapshots, url) }
 		} else {
-			var isDir: ObjCBool = false
-			let folder = WhorldFolders.folder(.snapshots)
-			let there = FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDir) && isDir.boolValue
-			url = makeUniqueExportPath("whs", in: there ? folder : nil)
+			url = makeUniqueExportPath("whs", in: WhorldFolders.existing(.snapshots))
 		}
 		guard let url else { return }
 		engine.takeSnapshot(toPath: url.path) { [weak self] error in
@@ -284,11 +281,14 @@ extension AppModel {
 			changed()
 			return
 		}
+		// into Documents/Whorld/Movies, where it's there (the user's request,
+		// 2026-11-22), as snapshots
 		let url: URL?
 		if promptingForExport {
-			url = savePanel(.whorldMovie, title: "Movie Save As", name: "Untitled.whm")
+			url = savePanel(.whorldMovie, title: "Movie Save As", name: "Untitled.whm", in: WhorldFolders.start(.movies))
+			if let url { WhorldFolders.used(.movies, url) }
 		} else {
-			url = makeUniqueExportPath("whm")
+			url = makeUniqueExportPath("whm", in: WhorldFolders.existing(.movies))
 		}
 		guard let url else { return }
 		engine.recordMovie(toPath: url.path)	// start recording
@@ -307,7 +307,9 @@ extension AppModel {
 		let panel = NSOpenPanel()
 		panel.title = "Movie Open"
 		panel.allowedContentTypes = [.whorldMovie]
+		panel.directoryURL = WhorldFolders.start(.movies)
 		guard panel.runModal() == .OK, let url = panel.url else { return }
+		WhorldFolders.used(.movies, url)
 		playMovie(url)
 	}
 

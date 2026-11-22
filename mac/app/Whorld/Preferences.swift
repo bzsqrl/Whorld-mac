@@ -184,13 +184,15 @@ enum WhorldFolders {
 		case patches = "Patches", playlists = "Playlists"
 		/// Take Snapshot's and Load Snapshot's (the user's request, 2026-11-22)
 		case snapshots = "Snapshots"
-		static let all: [Kind] = [.patches, .playlists, .snapshots]
-		/// the folder last used for this kind (`Folder_sPatches`, `Folder_sPlaylists`, `Folder_sSnapshots`)
+		/// Record Movie's and Play Movie's (the user's request, 2026-11-22)
+		case movies = "Movies"
+		static let all: [Kind] = [.patches, .playlists, .snapshots, .movies]
+		/// the folder last used for this kind (`Folder_sPatches`, `Folder_sPlaylists`, `Folder_sSnapshots`, `Folder_sMovies`)
 		var lastKey: String { "Folder_s" + rawValue }
 	}
 
 	/// the folders made, so a deleted one isn't made again (each kind once:
-	/// Snapshots came later); `General_bMadeFolders` stands for the first two
+	/// Snapshots and Movies came later); `General_bMadeFolders` stands for the first two
 	private static let madeKey = "General_sMadeFolders"
 	private static let madeKeyV1 = "General_bMadeFolders"
 
@@ -206,6 +208,13 @@ enum WhorldFolders {
 	}
 
 	static func folder(_ kind: Kind) -> URL { root.appendingPathComponent(kind.rawValue, isDirectory: true) }
+
+	/// the kind's folder, if it's there (deleted: nil)
+	static func existing(_ kind: Kind) -> URL? {
+		var isDir: ObjCBool = false
+		let f = folder(kind)
+		return FileManager.default.fileExists(atPath: f.path, isDirectory: &isDir) && isDir.boolValue ? f : nil
+	}
 
 	/// At launch: makes each kind's folder, the first time only (an existing
 	/// Whorld folder is kept as it is, with the folders added; one added in a
