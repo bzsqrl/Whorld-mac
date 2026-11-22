@@ -443,7 +443,9 @@ final class AppModel: ObservableObject {
 		guard confirmDiscardPlaylist() else { return }
 		let panel = NSOpenPanel()
 		panel.allowedContentTypes = [.whorldPlaylist]
+		panel.directoryURL = WhorldFolders.start(.playlists)
 		guard panel.runModal() == .OK, let url = panel.url else { return }
+		WhorldFolders.used(.playlists, url)
 		openPlaylist(url)
 	}
 
@@ -480,6 +482,7 @@ final class AppModel: ObservableObject {
 		let panel = NSSavePanel()
 		panel.allowedContentTypes = [.whorldPlaylist]
 		panel.nameFieldStringValue = playlistTitle + ".whl"
+		panel.directoryURL = WhorldFolders.start(.playlists)
 		// the panel layout goes in the playlist if this is checked (remembered)
 		let include = NSButton(checkboxWithTitle: "Include the panel layout", target: nil, action: nil)
 		include.state = Preferences.playlistSavesLayout ? .on : .off
@@ -488,6 +491,7 @@ final class AppModel: ObservableObject {
 		row.edgeInsets = NSEdgeInsets(top: 10, left: 20, bottom: 10, right: 20)
 		panel.accessoryView = row
 		guard panel.runModal() == .OK, let url = panel.url else { return false }
+		WhorldFolders.used(.playlists, url)
 		let on = include.state == .on
 		UserDefaults.standard.set(on, forKey: "Playlist_bSaveLayout")
 		engine.playlistLayout = on ? currentLayoutFile().line : nil
@@ -1208,7 +1212,9 @@ final class AppModel: ObservableObject {
 		let panel = NSOpenPanel()
 		panel.allowedContentTypes = [.whorldPatch]
 		panel.allowsMultipleSelection = false
+		panel.directoryURL = WhorldFolders.start(.patches)
 		if panel.runModal() == .OK, let url = panel.url {
+			WhorldFolders.used(.patches, url)
 			open(url)
 		}
 	}
@@ -1226,6 +1232,7 @@ final class AppModel: ObservableObject {
 		let panel = NSSavePanel()
 		panel.allowedContentTypes = [.whorldPatch]
 		panel.nameFieldStringValue = title + ".whp"
+		panel.directoryURL = WhorldFolders.start(.patches)
 		// the patch's author, or for a patch without one Settings > General > Your name
 		let author = NSTextField(string: authorToSuggest)
 		author.placeholderString = "who made this patch (optional)"
@@ -1235,6 +1242,7 @@ final class AppModel: ObservableObject {
 		row.edgeInsets = NSEdgeInsets(top: 10, left: 20, bottom: 10, right: 20)
 		panel.accessoryView = row
 		guard panel.runModal() == .OK, let url = panel.url else { return false }
+		WhorldFolders.used(.patches, url)
 		setPatchAuthor(author.stringValue)
 		return write(to: url)
 	}
@@ -2027,6 +2035,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 	func applicationDidFinishLaunching(_ notification: Notification) {
 		StandardViewMenu.removeWhenAdded()
+		MainActor.assumeIsolated { WhorldFolders.makeOnce() }
 		NumberBoxSelect.install()
 		PanelKeys.install()
 		TitleBarClicks.install()

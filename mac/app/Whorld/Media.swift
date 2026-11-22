@@ -475,7 +475,9 @@ extension AppModel {
 		let panel = NSOpenPanel()
 		panel.allowedContentTypes = [.whorldPatch]
 		panel.allowsMultipleSelection = true
+		panel.directoryURL = WhorldFolders.start(.patches)
 		guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
+		WhorldFolders.used(.patches, panel.urls[0])
 		var paths = playlistPatches
 		let at = min((playlistSelection.max() ?? paths.count - 1) + 1, paths.count)
 		paths.insert(contentsOf: panel.urls.map { $0.path }, at: at)

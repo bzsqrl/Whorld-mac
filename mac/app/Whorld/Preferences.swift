@@ -171,6 +171,69 @@ enum Preferences {
 	}
 }
 
+/// The Whorld folder in Documents, with Patches and Playlists folders in it,
+/// made at the first launch (the user's request, 2026-11-22: patches and
+/// playlists kept apart). The patch dialogs start in Patches and the playlist
+/// dialogs in Playlists, and after that each where its kind was last opened
+/// or saved, instead of macOS's one last folder for every dialog. A Mac
+/// addition; files already elsewhere stay where they are.
+@MainActor
+enum WhorldFolders {
+	enum Kind: String {
+		case patches = "Patches", playlists = "Playlists"
+		/// the folder last used for this kind (`Folder_sPatches`, `Folder_sPlaylists`)
+		var lastKey: String { "Folder_s" + rawValue }
+	}
+
+	/// set once the folders are made, so a deleted one isn't made again
+	private static let madeKey = "General_bMadeFolders"
+
+	/// ~/Documents/Whorld; `General_sWhorldFolder` (no setting shows it) moves
+	/// it, for testing
+	static var root: URL {
+		if let p = Preferences.defaults.string(forKey: "General_sWhorldFolder"), !p.isEmpty {
+			return URL(fileURLWithPath: (p as NSString).expandingTildeInPath, isDirectory: true)
+		}
+		let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+			?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents")
+		return docs.appendingPathComponent("Whorld", isDirectory: true)
+	}
+
+	static func folder(_ kind: Kind) -> URL { root.appendingPathComponent(kind.rawValue, isDirectory: true) }
+
+	/// At launch: makes the folders, the first time only (an existing Whorld
+	/// folder is kept as it is, with the two added). If that fails, the next
+	/// launch tries again.
+	static func makeOnce() {
+		guard !Preferences.defaults.bool(forKey: madeKey) else { return }
+		do {
+			for kind in [Kind.patches, .playlists] {
+				try FileManager.default.createDirectory(at: folder(kind), withIntermediateDirectories: true)
+			}
+			Preferences.defaults.set(true, forKey: madeKey)
+		} catch {
+			NSLog("Whorld: can't make the Whorld folder in Documents: \(error.localizedDescription)")
+		}
+	}
+
+	/// where a dialog for this kind starts: where it was last used, else its
+	/// Whorld folder; nil (macOS's choice) if neither is there
+	static func start(_ kind: Kind) -> URL? {
+		var isDir: ObjCBool = false
+		if let p = Preferences.defaults.string(forKey: kind.lastKey),
+			FileManager.default.fileExists(atPath: p, isDirectory: &isDir), isDir.boolValue {
+			return URL(fileURLWithPath: p, isDirectory: true)
+		}
+		let f = folder(kind)
+		return FileManager.default.fileExists(atPath: f.path, isDirectory: &isDir) && isDir.boolValue ? f : nil
+	}
+
+	/// a file of this kind, chosen in a dialog: its folder is where the next starts
+	static func used(_ kind: Kind, _ url: URL) {
+		Preferences.defaults.set(url.deletingLastPathComponent().path, forKey: kind.lastKey)
+	}
+}
+
 struct PreferencesView: View {
 	@EnvironmentObject private var model: AppModel
 	@AppStorage("Input_fWheelSense") private var wheelSense = 6.25
