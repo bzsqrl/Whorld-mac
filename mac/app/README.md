@@ -37,7 +37,8 @@ From the Windows accelerator table (`Whorld.rc`, `IDR_MAINFRAME`), with Ctrl map
 | Load Snapshot | Ctrl+L | ⌘L |
 | Export image | Ctrl+E | ⌘E |
 | First / Previous / Next / Last snapshot | Home / Page Up / Page Down / End | same (fn‑← / fn‑↑ / fn‑↓ / fn‑→ on laptops); also ⌘← / ⌘→ for previous / next, in full screen or with the pointer over the picture |
-| Record movie, Play movie | Ctrl+M, Ctrl+Shift+M | none (File > Movie) |
+| Record movie (and stop) | Ctrl+M | ⌘R |
+| Play movie | Ctrl+Shift+M | none (File > Movie) |
 | Patches panel (Mac) | — | ⌥⌘6 |
 | Modulation panel (Mac) | — | ⌥⌘7 |
 | Key Map panel (Mac) | — | ⌥⌘9 |

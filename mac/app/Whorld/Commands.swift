@@ -124,12 +124,13 @@ struct WhorldCommands: Commands {
 			}
 			Menu("Movie") {
 				let ms = model.engine.movieState
-				// no shortcuts (the user's choice, 2026-11-17: Windows' Ctrl+M,
-				// Command-M here, was the Modulation panel's, and is Minimize since 2026-11-18)
+				// Windows' Ctrl+M, Command-M here, was the Modulation panel's, and
+				// is Minimize since 2026-11-18; Record is Command-R (2026-11-22)
 				// "Movie" named in each item (the user's request, 2026-11-22): a
 				// movie is Whorld's own replayable recording (.whm); a video is
 				// what Export makes of it
 				Button(ms.io == .writing ? "Stop Recording" : "Record Movie…") { model.toggleRecordMovie() }
+					.keyboardShortcut("r")	// R for Record, free since Origin Random left it (2026-11-21); the user's request, 2026-11-22, in place of a Perform Bar button
 					.disabled(ms.io == .reading)
 				Button(ms.io == .reading ? "Stop Playing" : "Play Movie…") { model.togglePlayMovie() }
 					.disabled(ms.io == .writing)
