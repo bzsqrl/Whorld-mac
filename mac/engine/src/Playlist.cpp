@@ -10,6 +10,7 @@
 
 #include "whorld/Playlist.h"
 
+#include <filesystem>
 #include <iomanip>
 #include <locale>
 #include <sstream>
@@ -27,6 +28,7 @@ const char* const Playlist::m_pszPlaylistExt = "whl";
 #define RK_PATCH_COUNT		"Count"
 #define RK_PATCH_SECTION	"Patch"
 #define RK_PATCH_PATH		"Path"
+#define RK_PATCH_REL_PATH	"RelPath"	// Mac addition
 #define RK_LAYOUT_SECTION	"Layout"	// Mac addition
 #define RK_LAYOUT_DATA		"Data"
 #define RK_MAC_SECTION		"MacPlaylist"	// Mac addition
@@ -50,8 +52,10 @@ bool Playlist::Read(const IniFile& fIn, std::string* pError, bool* pbNewer)
 		*pbNewer = m_nFileVersion > FILE_VERSION;
 	int	nPatches = fIn.GetInt(RK_PATCH_SECTION, RK_PATCH_COUNT, 0);
 	m_arrPatch.assign(nPatches > 0 ? nPatches : 0, std::string());
+	m_arrRelPath.assign(m_arrPatch.size(), std::string());
 	for (int iPatch = 0; iPatch < nPatches; iPatch++) {	// for each patch
 		fIn.GetUnicodeString(RK_PATCH_SECTION "\\" + std::to_string(iPatch), RK_PATCH_PATH, m_arrPatch[iPatch]);
+		fIn.GetUnicodeString(RK_PATCH_SECTION "\\" + std::to_string(iPatch), RK_PATCH_REL_PATH, m_arrRelPath[iPatch]);	// Mac addition
 	}
 	m_arrMapping.Read(fIn);	// CMidiManager::ReadMappings
 	m_sLayout = fIn.GetString(RK_LAYOUT_SECTION, RK_LAYOUT_DATA, "");	// Mac addition
@@ -74,7 +78,7 @@ bool Playlist::Read(const IniFile& fIn, std::string* pError, bool* pbNewer)
 }
 
 // ported from Playlist.cpp CPlaylist::OnSaveDocument and WritePatches
-void Playlist::Write(IniFile& fOut) const
+void Playlist::Write(IniFile& fOut, const std::string& sPlaylistDir) const
 {
 	fOut.Put(RK_FILE_ID, std::string(FILE_ID));
 	fOut.Put(RK_FILE_VERSION, static_cast<int>(FILE_VERSION));
@@ -82,6 +86,9 @@ void Playlist::Write(IniFile& fOut) const
 	fOut.WriteInt(RK_PATCH_SECTION, RK_PATCH_COUNT, nPatches);
 	for (int iPatch = 0; iPatch < nPatches; iPatch++) {	// for each patch
 		fOut.WriteUnicodeString(RK_PATCH_SECTION "\\" + std::to_string(iPatch), RK_PATCH_PATH, m_arrPatch[iPatch]);
+		std::string	sRel = RelativePath(m_arrPatch[iPatch], sPlaylistDir);	// Mac addition
+		if (!sRel.empty())
+			fOut.WriteUnicodeString(RK_PATCH_SECTION "\\" + std::to_string(iPatch), RK_PATCH_REL_PATH, sRel);
 	}
 	m_arrMapping.Write(fOut);	// CMidiManager::WriteMappings
 	if (m_nPatchMode == PM_GEOMETRY)	// Mac addition, only when not the default
@@ -99,18 +106,47 @@ void Playlist::Write(IniFile& fOut) const
 		fOut.WriteString(RK_LAYOUT_SECTION, RK_LAYOUT_DATA, m_sLayout);
 }
 
+// Mac addition: a Mac (absolute, '/') patch path relative to the playlist's
+// folder, with '/' separators; empty for a Windows path or no folder
+std::string Playlist::RelativePath(const std::string& sPatch, const std::string& sPlaylistDir)
+{
+	if (sPlaylistDir.empty() || sPatch.empty() || sPatch[0] != '/' || sPlaylistDir[0] != '/')
+		return std::string();
+	namespace fs = std::filesystem;
+	fs::path	rel = fs::path(sPatch).lexically_normal().lexically_relative(fs::path(sPlaylistDir).lexically_normal());
+	return rel.empty() ? std::string() : rel.generic_string();
+}
+
 bool Playlist::Read(const std::string& sPath, std::string* pError, bool* pbNewer)
 {
 	IniFile	fIn;
 	if (!fIn.Read(sPath, pError))
 		return false;
-	return Read(fIn, pError, pbNewer);
+	if (!Read(fIn, pError, pbNewer))
+		return false;
+	// Mac addition: a patch that isn't at its Path, but is at its RelPath
+	// from this playlist's folder, plays from there (the playlist and its
+	// patches were moved together)
+	namespace fs = std::filesystem;
+	fs::path	dir = fs::path(sPath).parent_path();
+	std::error_code	ec;
+	for (size_t i = 0; i < m_arrPatch.size() && i < m_arrRelPath.size(); i++) {
+		if (m_arrRelPath[i].empty() || (!m_arrPatch[i].empty() && fs::exists(m_arrPatch[i], ec)))
+			continue;
+		fs::path	cand = (dir / fs::path(m_arrRelPath[i])).lexically_normal();
+		if (fs::is_regular_file(cand, ec))
+			m_arrPatch[i] = cand.string();
+	}
+	return true;
 }
 
 bool Playlist::Write(const std::string& sPath, std::string* pError) const
 {
 	IniFile	fOut;
-	Write(fOut);
+	namespace fs = std::filesystem;
+	std::error_code	ec;
+	fs::path	dir = fs::absolute(fs::path(sPath), ec).parent_path();	// for RelPath (Mac addition)
+	Write(fOut, ec ? std::string() : dir.string());
 	return fOut.Write(sPath, pError);
 }
 

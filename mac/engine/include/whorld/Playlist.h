@@ -33,6 +33,13 @@ public:
 
 // Public data
 	std::vector<std::string>	m_arrPatch;	// patch paths, as stored (Windows paths from Windows)
+	// Mac addition (the user's choice, 2026-11-22): each patch's path relative
+	// to the playlist's folder, as read (empty for none). A "RelPath" key in
+	// the patch's section beside "Path", which Windows Whorld ignores; written
+	// for Mac paths when the playlist is saved to a file, so a playlist and
+	// its patches moved together (another Mac, user or folder) still play.
+	// Read(sPath) uses it for a Path that doesn't exist.
+	std::vector<std::string>	m_arrRelPath;
 	MappingArray	m_arrMapping;			// MIDI mappings
 	int		m_nFileVersion = FILE_VERSION;	// file version number obtained from document
 	// Mac addition: the panel layout saved with the playlist, as the app's
@@ -57,7 +64,9 @@ public:
 	bool	Read(const std::string& sPath, std::string* pError = nullptr, bool* pbNewer = nullptr);
 	bool	Write(const std::string& sPath, std::string* pError = nullptr) const;
 	bool	Read(const IniFile& fIn, std::string* pError = nullptr, bool* pbNewer = nullptr);
-	void	Write(IniFile& fOut) const;
+	// sPlaylistDir: the folder the playlist is saved in, for RelPath (none if empty)
+	void	Write(IniFile& fOut, const std::string& sPlaylistDir = std::string()) const;
+	static std::string	RelativePath(const std::string& sPatch, const std::string& sPlaylistDir);
 };
 
 } // namespace whorld

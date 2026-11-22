@@ -15,6 +15,9 @@
 #include "whorld/MidiManager.h"
 #include "whorld/Playlist.h"
 
+#include <fstream>
+#include <unistd.h>
+
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -163,6 +166,46 @@ TEST(PlaylistLayoutSection) {
 	IniFile	bad;
 	pl.Write(bad);
 	CHECK(WriteIni(bad).find("Layout") == std::string::npos);
+}
+
+TEST(PlaylistRelativePaths) {
+	// Mac addition: RelPath beside Path, for Mac paths only, so a playlist
+	// and its patches moved together still find each other
+	fs::path	root = fs::temp_directory_path() / ("whorld-relpath-" + std::to_string(::getpid()));
+	std::error_code	ec;
+	fs::remove_all(root, ec);
+	fs::path	a = root / "A";
+	fs::create_directories(a / "Patches" / "Sub");
+	fs::create_directories(a / "Playlists");
+	for (const char* name : {"Patches/one.whp", "Patches/Sub/two.whp"}) {
+		std::ofstream	f(a / name);
+		f << "x";
+	}
+	Playlist	pl;
+	pl.m_arrPatch = {(a / "Patches/one.whp").string(), (a / "Patches/Sub/two.whp").string(), "C:\\Users\\user\\three.whp"};
+	fs::path	list = a / "Playlists" / "set.whl";
+	CHECK(pl.Write(list.string()));
+	std::string	text = ReadBytes(list);
+	CHECK(text.find("RelPath=../Patches/one.whp\r\n") != std::string::npos);
+	CHECK(text.find("RelPath=../Patches/Sub/two.whp\r\n") != std::string::npos);
+	CHECK(text.find("three.whp\r\nRelPath") == std::string::npos);	// none for a Windows path
+	// the whole folder moves: Path no longer exists, RelPath finds the patches
+	fs::path	b = root / "B";
+	fs::rename(a, b);
+	Playlist	q;
+	CHECK(q.Read((b / "Playlists" / "set.whl").string()));
+	CHECK_EQ(q.m_arrPatch.size(), size_t(3));
+	CHECK_EQ(q.m_arrPatch[0], (b / "Patches" / "one.whp").string());
+	CHECK_EQ(q.m_arrPatch[1], (b / "Patches" / "Sub" / "two.whp").string());
+	CHECK_EQ(q.m_arrPatch[2], std::string("C:\\Users\\user\\three.whp"));	// as stored
+	// a Path that exists wins over RelPath
+	Playlist	r;
+	r.m_arrPatch = {(b / "Patches/one.whp").string()};
+	r.m_arrRelPath = {"../Patches/Sub/two.whp"};
+	IniFile	ini;
+	r.Write(ini);	// no folder: no RelPath written
+	CHECK(WriteIni(ini).find("RelPath") == std::string::npos);
+	fs::remove_all(root, ec);
 }
 
 TEST(PlaylistPatchMode) {
