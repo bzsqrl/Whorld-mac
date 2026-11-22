@@ -986,7 +986,9 @@ extension WHControls {
 
 struct ParamsPanel: View {
 	@EnvironmentObject private var model: AppModel
-
+	/// the oscillator columns shown (the user's request, 2026-11-22: a
+	/// simple view of Name and Value alone, for playing; on at first)
+	@AppStorage(ParamColumn.oscillatorsKey) private var oscillators = true
 
 	var body: some View {
 		// The workspace (or a floating window) scrolls it, both ways.
@@ -999,10 +1001,23 @@ struct ParamsPanel: View {
 					Text("Name").frame(width: ParamColumn.name, alignment: .leading)
 					Text("Value").frame(minWidth: ParamColumn.slider, maxWidth: .infinity, alignment: .leading)	// over the slider, which stretches
 					Color.clear.frame(width: ParamColumn.field, height: 1)
-					Text("Waveform").frame(width: ParamColumn.wave, alignment: .leading)
-					Text("Amplitude").frame(width: ParamColumn.field, alignment: .leading)
-					Text("Frequency").frame(width: ParamColumn.freq, alignment: .leading)
-					Text("Pulse Width").frame(width: ParamColumn.pw, alignment: .leading)
+					if oscillators {
+						Text("Waveform").frame(width: ParamColumn.wave, alignment: .leading)
+						Text("Amplitude").frame(width: ParamColumn.field, alignment: .leading)
+						Text("Frequency").frame(width: ParamColumn.freq, alignment: .leading)
+						Text("Pulse Width").frame(width: ParamColumn.pw, alignment: .leading)
+					}
+					Button {
+						oscillators.toggle()
+					} label: {
+						Image(systemName: oscillators ? "chevron.left.2" : "waveform")
+							.frame(width: ParamColumn.oscButton - 4)
+					}
+					.buttonStyle(.borderless)
+					.help(oscillators
+						? "Hide the oscillator columns (Waveform, Amplitude, Frequency, Pulse Width), for a simpler panel"
+						: "Show the oscillator columns: each parameter's waveform, amplitude, frequency and pulse width")
+					.frame(width: ParamColumn.oscButton)
 				}
 				.font(.caption)
 				.foregroundStyle(.secondary)
@@ -1030,11 +1045,20 @@ enum ParamColumn {
 	static let wave: CGFloat = 104
 	static let pw: CGFloat = NumberField.standardWidth
 	/// the narrowest the panel gets: every column, the gaps, the padding
-	static var panelMin: CGFloat { name + slider + field + wave + field + freq + pw + 6 * spacing + 20 + KeyBadge.room(spacing) }
+	/// the oscillator columns' switch at the header's end, and in the
+	/// simple view the mark of a running oscillator
+	static let oscButton: CGFloat = 22
+	static let oscillatorsKey = "View_bParamOscillators"
+	static var showsOscillators: Bool { UserDefaults.standard.object(forKey: oscillatorsKey) as? Bool ?? true }
+	static var panelMin: CGFloat {
+		(showsOscillators ? name + slider + field + wave + field + freq + pw + 7 * spacing : name + slider + field + 3 * spacing)
+			+ oscButton + 20 + KeyBadge.room(spacing)
+	}
 }
 
 struct ParamRow: View {
 	@EnvironmentObject private var model: AppModel
+	@AppStorage(ParamColumn.oscillatorsKey) private var oscillators = true
 	let iParam: Int
 
 	private func control(_ col: Int) -> WHControlInfo {
@@ -1076,6 +1100,15 @@ struct ParamRow: View {
 				marker: .param(iParam))
 			field(.val, column: 0)
 				.frame(width: ParamColumn.field, alignment: .leading)
+			if oscillators {
+				oscillatorColumns(e)
+			} else {
+				OscillatorMark(iParam: iParam)	// the simple view's sign of a running oscillator
+			}
+		}
+	}
+
+	@ViewBuilder private func oscillatorColumns(_ e: WHEngine) -> some View {
 			Picker("", selection: Binding(
 				get: { Int(e.paramValue(iParam, property: .wave)) },
 				set: { model.setParam(iParam, .wave, Double($0)) })) {
@@ -1091,7 +1124,32 @@ struct ParamRow: View {
 				.frame(width: ParamColumn.freq, alignment: .leading)
 			field(.PW, column: 3, width: ParamColumn.pw)
 				.frame(width: ParamColumn.pw, alignment: .leading)
+			Color.clear.frame(width: ParamColumn.oscButton, height: 1)	// under the header's switch
+	}
+}
+
+/// The Parameters panel's simple view (oscillator columns hidden): a wave
+/// beside a parameter its oscillator is moving (amplitude and frequency
+/// both nonzero), with what it's doing in its tip. The symbol is drawn as
+/// text: as an Image it stayed blank for a patch opened at launch (its tip
+/// was there; found 2026-11-22).
+struct OscillatorMark: View {
+	@EnvironmentObject private var model: AppModel
+	let iParam: Int
+
+	var body: some View {
+		let _ = model.changes.params[iParam].n
+		let e = model.engine
+		let amp = e.paramValue(iParam, property: .amp), freq = e.paramValue(iParam, property: .freq)
+		ZStack {
+			if amp != 0 && freq != 0 {
+				let wave = WHControls.waveformName(Int(e.paramValue(iParam, property: .wave)))
+				Text(Image(systemName: "waveform"))
+					.foregroundStyle(Color.accentColor)
+					.help("Its oscillator moves it: \(wave), amplitude \(paramText(amp, WHControls.paramControl(iParam, column: 1))), frequency \(paramText(freq, WHControls.paramControl(iParam, column: 2))). Click the wave at the top of the panel to show the oscillator columns.")
+			}
 		}
+		.frame(width: ParamColumn.oscButton)
 	}
 }
 

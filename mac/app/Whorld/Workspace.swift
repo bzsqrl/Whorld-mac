@@ -1320,14 +1320,22 @@ extension UTType {
 /// from the top and scroll if the pane is shorter.
 struct FormScroller: View {
 	let id: PanelID
+	/// System Settings' scroll bars, Always (or Automatic with a mouse): the
+	/// vertical scroll bar then takes its width from the pane, and a form as
+	/// wide as the pane had its last column under it (found 2026-11-22)
+	@State private var legacyScrollers = NSScroller.preferredScrollerStyle == .legacy
 
 	var body: some View {
 		GeometryReader { g in
+			let scroller = legacyScrollers ? NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy) : 0
 			ScrollView([.horizontal, .vertical]) {
 				PanelBody(id: id)
-					.frame(width: max(g.size.width, id.formMinWidth), alignment: .topLeading)
+					.frame(width: max(g.size.width - scroller, id.formMinWidth), alignment: .topLeading)
 					.frame(minHeight: g.size.height, alignment: .top)
 			}
+		}
+		.onReceive(NotificationCenter.default.publisher(for: NSScroller.preferredScrollerStyleDidChangeNotification)) { _ in
+			legacyScrollers = NSScroller.preferredScrollerStyle == .legacy
 		}
 	}
 }
