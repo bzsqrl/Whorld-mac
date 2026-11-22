@@ -86,6 +86,6 @@ From the Windows accelerator table (`Whorld.rc`, `IDR_MAINFRAME`), with Ctrl map
 
 Panels use ⌥⌘ and a digit, not Windows' Shift+letter, which would fire while typing a capital letter in a panel's text field. Space (Pause) is safe: a focused text field takes it first.
 
-The scroll wheel over the render window zooms, and Shift+wheel changes damping (`CWhorldDoc::OnMouseWheel`), scaled by Settings > Control > Wheel sensitivity.
+The scroll wheel over the render window zooms, and Shift+wheel changes damping (`CWhorldDoc::OnMouseWheel`), scaled by Settings > Input > Wheel sensitivity.
 
 Function keys need fn on keyboards set to media keys. F11 is also macOS's Show Desktop shortcut by default, so the system takes it unless that shortcut is turned off in System Settings > Keyboard > Keyboard Shortcuts; ⌘F always works.

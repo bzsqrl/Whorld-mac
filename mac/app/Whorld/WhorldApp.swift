@@ -128,7 +128,7 @@ final class AppModel: ObservableObject {
 	@Published var showStats: Bool = UserDefaults.standard.bool(forKey: "View_bShowStats") {
 		didSet { UserDefaults.standard.set(showStats, forKey: "View_bShowStats") }
 	}
-	/// Settings > Display > Render quality (renderScale) and Upscaling (Mac addition): the
+	/// Settings > Performance > Render quality (renderScale) and Upscaling (Mac addition): the
 	/// picture is drawn at this fraction of the display's pixels and scaled up
 	@Published var renderScale: Double = {
 		Preferences.register()
@@ -149,7 +149,7 @@ final class AppModel: ObservableObject {
 			fullScreen.setRender(scale: renderScale, smooth: smoothUpscaling)
 		}
 	}
-	/// Settings > Display > Automatic quality (Mac addition): steps curve
+	/// Settings > Display > Automatic quality (until 2026-11-19; now View > Automatic Quality) (Mac addition): steps curve
 	/// quality, then render scale, down when frames are missed (WHEngine)
 	@Published var autoQuality: Bool = {
 		Preferences.register()
@@ -160,7 +160,7 @@ final class AppModel: ObservableObject {
 			engine.autoQuality = autoQuality
 		}
 	}
-	/// Settings > Display > Curve quality (Mac addition), 0 (Low) to 1
+	/// Settings > Performance > Curve quality (Mac addition), 0 (Low) to 1
 	/// (High): the live view's curve flattening tolerance, 1 px to 0.1 px
 	@Published var curveQuality: Double = {
 		Preferences.register()
@@ -1558,7 +1558,7 @@ final class AppModel: ObservableObject {
 	@Published private(set) var oscError: String?
 	private var oscTimer: Timer?
 
-	/// Starts (or stops) OSC remote control as Settings > Control > OSC says. Whorld
+	/// Starts (or stops) OSC remote control as Settings > Input > OSC says. Whorld
 	/// sends what changed about 10 times a second, but only while some
 	/// device is listening (WHEngine oscSendState returns at once otherwise).
 	func restartOSC() {

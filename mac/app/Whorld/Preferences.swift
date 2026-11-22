@@ -132,7 +132,7 @@ enum Preferences {
 		return defaults.bool(forKey: "Rings_bFadeEased")
 	}
 
-	/// Settings > Display > Patch colors on load (Mac addition): true, a
+	/// Settings > Picture > Patch colors on load (Mac addition): true, a
 	/// loaded patch starts from its own Hue; false, the hue carries on from
 	/// the previous patch (as Windows V2)
 	static var hueFromPatch: Bool {
@@ -306,43 +306,40 @@ struct PreferencesView: View {
 	@AppStorage("Settings_nTab") private var tab = 0	// the tab last shown
 
 	var body: some View {
-		// Tabs, as macOS settings windows have them: each one short, with
-		// room to grow (two columns on one page had filled up, 2026-11-14)
+		// Tabs by task (the user's request, 2026-11-22, from the big-picture
+		// review): what Whorld does at launch and in the panels, how the
+		// picture looks, how fast it runs, how you play it, and what it
+		// saves. Each section says what it's for underneath.
 		TabView(selection: $tab) {
 			Form { generalTab }
 				.formStyle(.grouped)
 				.tabItem { Label("General", systemImage: "gearshape") }
 				.tag(0)
-			Form { displayTab }
+			Form { pictureTab }
 				.formStyle(.grouped)
-				.tabItem { Label("Display", systemImage: "display") }
+				.tabItem { Label("Picture", systemImage: "paintpalette") }
 				.tag(1)
-			Form { controlTab }
+			Form { performanceTab }
 				.formStyle(.grouped)
-				.tabItem { Label("Control", systemImage: "slider.horizontal.3") }
+				.tabItem { Label("Performance", systemImage: "gauge.medium") }
 				.tag(2)
-			Form { outputTab }
+			Form { inputTab }
 				.formStyle(.grouped)
-				.tabItem { Label("Output", systemImage: "rectangle.portrait.and.arrow.right") }
+				.tabItem { Label("Input", systemImage: "hand.point.up.left") }
 				.tag(3)
+			Form { exportTab }
+				.formStyle(.grouped)
+				.tabItem { Label("Export", systemImage: "square.and.arrow.up") }
+				.tag(4)
 		}
-		.frame(width: 520, height: 500)
+		.frame(width: 540, height: 600)
 		.background(NoInitialFocus(tab: tab))
 		.onAppear { Preferences.register() }
 	}
 
 	@ViewBuilder private var generalTab: some View {
-			Section("General") {
+			Section {
 				Toggle("Reopen the last playlist and patch at launch", isOn: $reopenLast)
-				Toggle(isOn: $controlTips) {
-					InfoLabel("Show tips on control names", info: "Hovering over a control's name in Parameters, Master, Globals or Properties shows a short explanation of what it does, after its Key Map key, if it has one: (S) for Speed.")
-				}
-				Toggle(isOn: $keyBadges) {
-					InfoLabel("Show Key Map keys in panels", info: "Each control in Parameters, Master and Globals that has a key in the Key Map (View > Key Map) shows it before its name: hold that key over the picture and swipe to change the control. They follow the Key Map as you change it.")
-				}
-				Toggle(isOn: $applyPlaylistLayouts) {
-					InfoLabel("Open playlists with their layout", info: "A playlist saved with its panel layout (Save Playlist As > Include the panel layout) arranges the panels and windows that way when it's opened. Window > Save Layout and Open Layout keep layouts in files of their own.")
-				}
 				HStack {
 					Toggle(isOn: $checkUpdates) {
 						InfoLabel("Check for updates automatically", info: "Once a day, Whorld asks GitHub whether a newer version has been released; only Whorld's version number is sent. Updates are never installed by themselves, and never announced in full screen.")
@@ -350,6 +347,13 @@ struct PreferencesView: View {
 					Spacer()
 					Button("Check Now") { UpdateChecker.shared.checkNow() }
 				}
+			} header: {
+				Text("Starting up")
+			} footer: {
+				Text("What Whorld does when it opens.").font(.caption).foregroundStyle(.secondary)
+					.frame(maxWidth: .infinity, alignment: .leading)
+			}
+			Section {
 				LabeledContent {
 					TextField("Your name", text: $authorName, prompt: Text("optional"))
 						.labelsHidden()
@@ -358,11 +362,81 @@ struct PreferencesView: View {
 				} label: {
 					InfoLabel("Your name", info: "Suggested as the Author in the Save As dialog for a patch that doesn't name one yet. A patch's existing author is never replaced unless you change it.")
 				}
+				Toggle(isOn: $applyPlaylistLayouts) {
+					InfoLabel("Open playlists with their layout", info: "A playlist saved with its panel layout (Save Playlist As > Include the panel layout) arranges the panels and windows that way when it's opened. It changes the current layout (Window menu).")
+				}
+				LabeledContent("Whorld folder") {
+					HStack {
+						Text((WhorldFolders.root.path as NSString).abbreviatingWithTildeInPath)
+							.lineLimit(1)
+							.truncationMode(.middle)
+							.foregroundStyle(.secondary)
+						Button("Show in Finder") {
+							NSWorkspace.shared.activateFileViewerSelecting([WhorldFolders.root])
+						}
+					}
+				}
+			} header: {
+				Text("Patches and playlists")
+			} footer: {
+				Text("Patches and playlists are saved in the Whorld folder's Patches and Playlists folders unless you choose another.").font(.caption).foregroundStyle(.secondary)
+					.frame(maxWidth: .infinity, alignment: .leading)
+			}
+			Section {
+				Toggle(isOn: $controlTips) {
+					InfoLabel("Show tips on control names", info: "Hovering over a control's name in Parameters, Master, Globals or Properties shows a short explanation of what it does, after its Key Map key, if it has one: (S) for Speed.")
+				}
+				Toggle(isOn: $keyBadges) {
+					InfoLabel("Show Key Map keys in panels", info: "Each control in Parameters, Master and Globals that has a key in the Key Map (View > Key Map) shows it before its name: hold that key over the picture and swipe to change the control. They follow the Key Map as you change it.")
+				}
+			} header: {
+				Text("Panels")
+			} footer: {
+				Text("Help in Parameters, Master, Globals and Properties.").font(.caption).foregroundStyle(.secondary)
+					.frame(maxWidth: .infinity, alignment: .leading)
 			}
 	}
 
-	@ViewBuilder private var displayTab: some View {
-			Section("Rendering") {
+	@ViewBuilder private var pictureTab: some View {
+			Section {
+				Picker(selection: $hueFromPatch) {
+					Text("Continue").tag(false)
+					Text("Start from the patch").tag(true)
+				} label: {
+					InfoLabel("Patch colors", info: "When a patch is loaded. Continue: the hue carries on from the previous patch, as on Windows, so a patch's colors depend on what played before. Start from the patch: colors start from the patch's Hue (Master pane), so a patch looks the same each time it's opened.")
+				}
+				.onChange(of: hueFromPatch) { _, on in model.engine.setHueFromPatch(on) }
+				Picker(selection: $ringFadeEased) {
+					Text("Linear").tag(false)
+					Text("Eased").tag(true)
+				} label: {
+					InfoLabel("Ring fade curve", info: "How old rings fade out when Master > Fade is above 0: Linear fades evenly; Eased starts and ends the fade gently.")
+				}
+				.onChange(of: ringFadeEased) { _, eased in model.engine.setRingFadeEased(eased) }
+			} header: {
+				Text("Look")
+			} footer: {
+				Text("How patches look as they change and as rings fade.").font(.caption).foregroundStyle(.secondary)
+					.frame(maxWidth: .infinity, alignment: .leading)
+			}
+			Section {
+				Picker(selection: $maxFrameRate) {
+					Text("Display refresh rate").tag(0)
+					Text("60 fps").tag(60)
+				} label: {
+					InfoLabel("Frame rate", info: "Rings move a step each frame, so at 120 Hz patches run twice as fast as on a 60 Hz display. 60 fps matches Windows on a typical monitor and uses about half the power.")
+				}
+				.onChange(of: maxFrameRate) { _, rate in model.engine.maxFrameRate = rate }
+			} header: {
+				Text("Speed")
+			} footer: {
+				Text("Patches move a step each frame, so the frame rate sets how fast they run.").font(.caption).foregroundStyle(.secondary)
+					.frame(maxWidth: .infinity, alignment: .leading)
+			}
+	}
+
+	@ViewBuilder private var performanceTab: some View {
+			Section {
 				Picker(selection: $useMetal) {
 					Text("Metal (GPU)").tag(true)
 					Text("Core Graphics (CPU)").tag(false)
@@ -372,29 +446,13 @@ struct PreferencesView: View {
 						: "Draws the live view. Metal needs a Mac with Apple silicon, so this Mac uses Core Graphics, for exports too.")
 				}
 				.onChange(of: useMetal) { _, on in model.engine.preferMetal = on }
-				Picker(selection: $maxFrameRate) {
-					Text("Display refresh rate").tag(0)
-					Text("60 fps").tag(60)
-				} label: {
-					InfoLabel("Frame rate", info: "Rings move a step each frame, so at 120 Hz patches run twice as fast as on a 60 Hz display. 60 fps matches Windows on a typical monitor and uses about half the power.")
-				}
-				.onChange(of: maxFrameRate) { _, rate in model.engine.maxFrameRate = rate }
-				Picker(selection: $ringFadeEased) {
-					Text("Linear").tag(false)
-					Text("Eased").tag(true)
-				} label: {
-					InfoLabel("Ring fade curve", info: "How old rings fade out when Master > Fade is above 0: Linear fades evenly; Eased starts and ends the fade gently.")
-				}
-				.onChange(of: ringFadeEased) { _, eased in model.engine.setRingFadeEased(eased) }
-				Picker(selection: $hueFromPatch) {
-					Text("Continue").tag(false)
-					Text("Start from the patch").tag(true)
-				} label: {
-					InfoLabel("Patch colors", info: "When a patch is loaded. Continue: the hue carries on from the previous patch, as on Windows, so a patch's colors depend on what played before. Start from the patch: colors start from the patch's Hue (Master pane), so a patch looks the same each time it's opened.")
-				}
-				.onChange(of: hueFromPatch) { _, on in model.engine.setHueFromPatch(on) }
+			} header: {
+				Text("Drawing")
+			} footer: {
+				Text("What draws the picture.").font(.caption).foregroundStyle(.secondary)
+					.frame(maxWidth: .infinity, alignment: .leading)
 			}
-			Section("Performance") {	// trading detail for frame rate (Mac additions)
+			Section {
 				Picker(selection: $model.renderScale) {
 					ForEach(AppModel.renderScales, id: \.value) { s in
 						Text(s.name).tag(s.value)
@@ -419,13 +477,45 @@ struct PreferencesView: View {
 				} label: {
 					InfoLabel("Curve quality", info: "How smoothly curved rings are drawn. Curves are drawn as many short straight segments; lower quality uses fewer, which speeds up patches with large curved rings (bloom, typhoon, boomer) and helps where Render quality doesn't, since the work is in the rings, not the pixels. At the lowest setting curves may look slightly faceted, by up to a pixel. Straight-sided patches aren't affected. Exports always use High.")
 				}
-				// Automatic quality: View > Automatic Quality (Command-;) and the
-				// stats strip's Auto (the user's request, 2026-11-19)
+			} header: {
+				Text("Quality")
+			} footer: {
+				Text("Trading detail for a smoother picture on heavy patches or a slower Mac. Automatic quality, which lowers it only while frames are missed, is View › Automatic Quality (⌘;). Exports always draw at full quality.").font(.caption).foregroundStyle(.secondary)
+					.frame(maxWidth: .infinity, alignment: .leading)
 			}
 	}
 
-	@ViewBuilder private var controlTab: some View {
-			Section("Control") {
+	@ViewBuilder private var inputTab: some View {
+			Section {
+				LabeledContent {
+					HStack {
+						// halves and doubles evenly: the slider is the power of two
+						Slider(value: Binding(get: { log2(swipeSense) }, set: { swipeSense = pow(2, ($0 * 4).rounded() / 4) }),
+							in: -2...2)
+						Text(String(format: "×%.2f", swipeSense))
+							.monospacedDigit()
+							.frame(width: 44, alignment: .trailing)
+					}
+				} label: {
+					InfoLabel("Trackpad sensitivity", info: "How far a two-finger swipe moves a value: over the picture (zoom, Damping, or a held key's control), on a slider, and in a number box. ×1 is the usual; ×2 goes twice as far for the same swipe, ×0.5 half as far.")
+				}
+				LabeledContent {
+					HStack {
+						Slider(value: $wheelSense, in: 0.1...10)
+						Text(String(format: "%.2f", wheelSense))
+							.monospacedDigit()
+							.frame(width: 36, alignment: .trailing)
+					}
+				} label: {
+					InfoLabel("Wheel sensitivity", info: "How far each click of a mouse wheel moves a control over the picture (zoom, Damping with Shift, or a held key's control). Trackpad swipes have their own setting below.")
+				}
+			} header: {
+				Text("Trackpad and mouse")
+			} footer: {
+				Text("Swiping over the picture, the swipe pad, sliders and number boxes.").font(.caption).foregroundStyle(.secondary)
+					.frame(maxWidth: .infinity, alignment: .leading)
+			}
+			Section {
 				let _ = model.changes.midi.n
 				Picker("MIDI input", selection: $midiInput) {
 					Text("None").tag("")
@@ -439,28 +529,13 @@ struct PreferencesView: View {
 				.onChange(of: midiInput) { _, name in
 					model.engine.midiInputName = name.isEmpty ? nil : name
 				}
-				LabeledContent {
-					HStack {
-						Slider(value: $wheelSense, in: 0.1...10)
-						Text(String(format: "%.2f", wheelSense))
-							.monospacedDigit()
-							.frame(width: 36, alignment: .trailing)
-					}
-				} label: {
-					InfoLabel("Wheel sensitivity", info: "How far each click of a mouse wheel moves a control over the picture (zoom, Damping with Shift, or a held key's control). Trackpad swipes have their own setting below.")
-				}
-				LabeledContent {
-					HStack {
-						// halves and doubles evenly: the slider is the power of two
-						Slider(value: Binding(get: { log2(swipeSense) }, set: { swipeSense = pow(2, ($0 * 4).rounded() / 4) }),
-							in: -2...2)
-						Text(String(format: "×%.2f", swipeSense))
-							.monospacedDigit()
-							.frame(width: 44, alignment: .trailing)
-					}
-				} label: {
-					InfoLabel("Trackpad sensitivity", info: "How far a two-finger swipe moves a value: over the picture (zoom, Damping, or a held key's control), on a slider, and in a number box. ×1 is the usual; ×2 goes twice as far for the same swipe, ×0.5 half as far.")
-				}
+			} header: {
+				Text("MIDI")
+			} footer: {
+				Text("Map controls to MIDI in View › MIDI Mapping.").font(.caption).foregroundStyle(.secondary)
+					.frame(maxWidth: .infinity, alignment: .leading)
+			}
+			Section {
 				Toggle(isOn: $oscEnabled) {
 					InfoLabel("OSC remote control", info: "Every control MIDI can map has an OSC address, such as /w/m/sp for Speed; see Help > Whorld Help. Whorld answers each device that has sent it something in the last 30 seconds, on the send port, with the values as they change and the frame statistics (/w/stat/...). \"Also send to\" adds a fixed address, for a monitor that never sends.\n\nTouchOSC: open Whorld.tosc, and set a connection to this Mac's address, send port \(oscReceivePort), receive port \(oscSendPort).")
 					OSCStatus()
@@ -484,14 +559,19 @@ struct PreferencesView: View {
 					}
 				}
 				.disabled(!oscEnabled)
+			} header: {
+				Text("OSC")
+			} footer: {
+				Text("Remote control over the network, from TouchOSC or another app.").font(.caption).foregroundStyle(.secondary)
+					.frame(maxWidth: .infinity, alignment: .leading)
 			}
 			.onChange(of: oscEnabled) { model.restartOSC() }
 			.onChange(of: oscReceivePort) { model.restartOSC() }
 			.onChange(of: oscSendPort) { model.restartOSC() }
 	}
 
-	@ViewBuilder private var outputTab: some View {
-			Section("Export") {
+	@ViewBuilder private var exportTab: some View {
+			Section {
 				LabeledContent("Image folder") {
 					HStack {
 						Text(imageFolder.isEmpty ? "Pictures" : (imageFolder as NSString).abbreviatingWithTildeInPath)
@@ -516,8 +596,13 @@ struct PreferencesView: View {
 					Text("Both").tag(3)
 				}
 				Toggle("Ask for export options each time", isOn: $promptUser)
+			} header: {
+				Text("Images and movies")
+			} footer: {
+				Text("File › Export saves the picture as an image, an image sequence or a video.").font(.caption).foregroundStyle(.secondary)
+					.frame(maxWidth: .infinity, alignment: .leading)
 			}
-			Section("Snapshots") {
+			Section {
 				Toggle("Letterbox", isOn: $letterbox)
 					.onChange(of: letterbox) { _, on in model.engine.setSnapshotLetterbox(on) }
 				Picker("Legacy snapshot size", selection: $legacySize) {
@@ -525,6 +610,11 @@ struct PreferencesView: View {
 					Text("800 × 600 (SVGA)").tag(1)
 					Text("1024 × 768 (XGA)").tag(2)
 				}
+			} header: {
+				Text("Snapshots")
+			} footer: {
+				Text("How a snapshot fits a window of another shape, and the size assumed for snapshots from older versions of Whorld, which don't record one.").font(.caption).foregroundStyle(.secondary)
+					.frame(maxWidth: .infinity, alignment: .leading)
 			}
 	}
 
@@ -630,7 +720,7 @@ private struct SizeFields: View {
 	}
 }
 
-/// Settings > Control > OSC's status line: listening where, and who's connected,
+/// Settings > Input > OSC's status line: listening where, and who's connected,
 /// checked once a second while Settings is open.
 private struct OSCStatus: View {
 	@EnvironmentObject private var model: AppModel

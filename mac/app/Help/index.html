@@ -179,7 +179,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <li><b>Two-finger tap</b> (or right-click) to put a control back to its value when the patch was loaded or last saved: Zoom with nothing held, Damping with <kbd>⇧</kbd>, or the held key's control.</li>
 <li><b>Hold the mouse button</b> (or press the trackpad) on the picture and its center follows the mouse; let go and it stays there (Origin in the Properties panel becomes Park, and Edit &gt; Undo puts it back).</li>
 <li>An off-center origin keeps its place in the picture at any size, so a patch looks the same in the window and full screen. (Windows Whorld keeps the distance from the middle in pixels instead, so there an off-center origin moves toward the middle on a bigger picture.)</li>
-<li>How far a mouse wheel's click goes is Settings &gt; Control &gt; Wheel sensitivity, and how far a two-finger swipe goes, here and on the panels, is Trackpad sensitivity (×0.25 to ×4; at ×1 a slider's knob moves half as far as your fingers, for fine adjustments).</li>
+<li>How far a mouse wheel's click goes is Settings &gt; Input &gt; Wheel sensitivity, and how far a two-finger swipe goes, here and on the panels, is Trackpad sensitivity (×0.25 to ×4; at ×1 a slider's knob moves half as far as your fingers, for fine adjustments).</li>
 </ul>
 
 <h3 id="keymap">The Key Map</h3>
@@ -198,14 +198,14 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <li><b>Image &gt; Rotate Hue</b> (<kbd>⌘7</kbd> or <kbd>F3</kbd>) turns the colors of the rings already showing by 90 degrees and adds 90 to Hue, so new rings follow; four in a row come back to where you started. Undo puts Hue back, but not the colors already turned.</li>
 <li><b>Image &gt; Invert Color</b> (<kbd>⌘6</kbd> or <kbd>F4</kbd>, or Properties) shows all rings as a photographic negative: hue and lightness both flip, so while it's on, raising Lightness darkens the rings. The background isn't affected.</li>
 </ul>
-<p>Normally a patch's colors carry on from where the previous patch left them, as on Windows, so the same patch can look different each time. To have each patch start from its own Hue, choose Settings &gt; Display &gt; Patch colors &gt; Start from the patch.</p>
+<p>Normally a patch's colors carry on from where the previous patch left them, as on Windows, so the same patch can look different each time. To have each patch start from its own Hue, choose Settings &gt; Picture &gt; Patch colors &gt; Start from the patch.</p>
 
 <h3 id="fade">Fading rings</h3>
 <p>Normally, once there are as many rings as Master &gt; Rings allows, the oldest ring vanishes as each new one appears, and rings that grow past the edge of the picture, or past the canvas (Master &gt; Canvas, around the rings' center), simply leave or vanish. <b>Master &gt; Fade</b> makes them fade out instead: at 20, each ring fades from its own transparency to nothing over its last 20 rings before it would vanish or leave the picture, whichever comes first.</p>
 <ul>
 <li>That holds however small Canvas is: rings fade out before the canvas removes them. A ring counts as gone once all of it is outside the picture, so with the rings' center off to one side they fade toward the farthest corner.</li>
 <li>Fade goes from 0 (off, as in Windows Whorld) to 200, is saved with the patch, and can be a MIDI mapping target. Patches with Fade above 0 still open in Windows Whorld, which ignores it.</li>
-<li>Settings &gt; Display &gt; Ring fade curve chooses Eased (the default), which starts and ends gently, or Linear.</li>
+<li>Settings &gt; Picture &gt; Ring fade curve chooses Eased (the default), which starts and ends gently, or Linear.</li>
 <li>The fade applies to the picture, snapshots, movies and exports; snapshots and movies don't record the Rings setting, so their own ring count stands in for it.</li>
 <li>With Rings at its maximum (unlimited), rings fade only at the edge of the picture. Rings that shrink toward the center (negative Ring Growth) fade only before the Rings limit.</li>
 </ul>
@@ -329,7 +329,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <p>Mappings are saved in the playlist. Those to the Mac's targets go in a section of their own, which Windows Whorld doesn't read, so the playlist still opens there with the rest (saving it on Windows leaves the Mac's out).</p>
 
 <h3 id="osc">OSC and TouchOSC</h3>
-<p>Everything MIDI can map can also be controlled by OSC over the network. Whorld listens on UDP port 8000 and answers on port 8001 (Settings &gt; Control, which also shows this Mac's address). It sends its state to every device that has sent it something in the last 30 seconds, and to "Also send to" if set: the values of the controls below as they change, and the frame statistics once a second. macOS may ask whether Whorld can use the local network: allow it, or other devices can't reach it.</p>
+<p>Everything MIDI can map can also be controlled by OSC over the network. Whorld listens on UDP port 8000 and answers on port 8001 (Settings &gt; Input, which also shows this Mac's address). It sends its state to every device that has sent it something in the last 30 seconds, and to "Also send to" if set: the values of the controls below as they change, and the frame statistics once a second. macOS may ask whether Whorld can use the local network: allow it, or other devices can't reach it.</p>
 <p><b>TouchOSC:</b> the DMG's TouchOSC folder has <code>Whorld.tosc</code>, a layout for a tablet or a computer with four pages: MAIN (Master, the Image switches and actions, the origin), PARAMS, GLOBALS and MONITOR. In TouchOSC set a UDP connection: host = the Whorld Mac's address (<code>127.0.0.1</code> on the same Mac), send port 8000, receive port 8001; open the layout and start it (▶). It shows "connected" when Whorld answers.</p>
 <p><b>Addresses</b> start with <code>/w</code>. Numbers are what a MIDI mapping sends: 0 to 1 covers a slider's range (values beyond act like a mapping with a wider Start and End). Switches take 1 or 0 (no argument toggles); actions happen on a message with no argument or a nonzero one.</p>
 <table>
@@ -359,13 +359,21 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 
 <!-- ============================================================ -->
 <h2 id="perf">Settings and performance</h2>
-<p>Whorld &gt; Settings (<kbd>⌘,</kbd>) holds the options.</p>
+<p>Whorld &gt; Settings (<kbd>⌘,</kbd>) holds the options, in tabs by task, each section saying what it's for:</p>
 <ul>
-<li><b>Renderer</b> (Settings &gt; Display): Metal (the GPU, the default) or Core Graphics (the CPU). Metal needs an Apple silicon Mac; on an Intel Mac, or if Metal fails, Whorld draws with Core Graphics.</li>
-<li><b>Frame rate</b> can hold the picture to 60 fps. Rings move a step each frame, so on a 120 Hz display patches otherwise run twice as fast as on a 60 Hz monitor; 60 fps also uses less power.</li>
-<li><b>Render quality</b> (the Perform Bar's Res menu, or Settings &gt; Display) trades sharpness for speed: at 75%, 50% or 33% the picture is drawn with fewer pixels and scaled up. Rings and lines keep their size; only edges get coarser. At 50% the graphics work is roughly a third to a half of full resolution's, so a patch that drops frames may run smoothly again (work that doesn't depend on pixels, such as building very complex rings, doesn't shrink). Exports aren't affected; Syphon gets the smaller frames unless its size is fixed.</li>
+<li><b>General:</b> starting up and updates; your name, playlists' layouts and the Whorld folder; help in the panels.</li>
+<li><b>Picture:</b> patch colors, the ring fade curve, and the frame rate, which sets how fast patches run.</li>
+<li><b>Performance:</b> the renderer, Render quality, Upscaling and Curve quality.</li>
+<li><b>Input:</b> trackpad and mouse sensitivity, the MIDI input, and OSC.</li>
+<li><b>Export:</b> images and movies, and snapshots.</li>
+</ul>
+<p>For speed:</p>
+<ul>
+<li><b>Renderer</b> (Settings &gt; Performance): Metal (the GPU, the default) or Core Graphics (the CPU). Metal needs an Apple silicon Mac; on an Intel Mac, or if Metal fails, Whorld draws with Core Graphics.</li>
+<li><b>Frame rate</b> (Settings &gt; Picture) can hold the picture to 60 fps. Rings move a step each frame, so on a 120 Hz display patches otherwise run twice as fast as on a 60 Hz monitor; 60 fps also uses less power.</li>
+<li><b>Render quality</b> (the Perform Bar's Res menu, or Settings &gt; Performance) trades sharpness for speed: at 75%, 50% or 33% the picture is drawn with fewer pixels and scaled up. Rings and lines keep their size; only edges get coarser. At 50% the graphics work is roughly a third to a half of full resolution's, so a patch that drops frames may run smoothly again (work that doesn't depend on pixels, such as building very complex rings, doesn't shrink). Exports aren't affected; Syphon gets the smaller frames unless its size is fixed.</li>
 <li><b>Upscaling</b> chooses how it's enlarged: Smooth, or Sharp pixels, which keeps the pixels square and crisp (most even at 50%) and suits patches drawn without antialiasing.</li>
-<li><b>Curve quality</b> (Settings &gt; Display, Low to High) helps where Render quality can't, on patches with large curved rings such as bloom, typhoon and boomer: curves are drawn as short straight segments, and lower quality uses fewer (boomer at full screen with antialiasing: about 54 fps at High, 69 at Low on an M1 Max). At Low, curves may look faceted by up to a pixel; straight-sided patches look the same at any setting. High is the default and how exports are always drawn.</li>
+<li><b>Curve quality</b> (Settings &gt; Performance, Low to High) helps where Render quality can't, on patches with large curved rings such as bloom, typhoon and boomer: curves are drawn as short straight segments, and lower quality uses fewer (boomer at full screen with antialiasing: about 54 fps at High, 69 at Low on an M1 Max). At Low, curves may look faceted by up to a pixel; straight-sided patches look the same at any setting. High is the default and how exports are always drawn.</li>
 <li><b>Automatic quality</b> (View &gt; Automatic Quality, <kbd>⌘;</kbd>, or Auto in the Perform Bar) does this for you: when the picture can't keep up, Whorld lowers Curve quality first, then Render quality to 75% and 50%, a step at a time, and raises them again once there's room, never above your settings. The Perform Bar shows Auto ↓ in orange, its tooltip saying what's lowered (for example, "curves 1.0 px, 75%"). On an M1 Max at 120 Hz full screen, boomer settles at 75% and runs at a steady 120 fps; a change of scale costs one frame.</li>
 </ul>
 

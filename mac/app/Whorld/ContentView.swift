@@ -687,7 +687,7 @@ private struct ResolutionMenu: View {
 		.foregroundStyle(lowered ? Color.orange : Color.primary)
 		.fixedSize()
 		.help(lowered ? "Resolution: set to \(set)%, drawn at \(feed.percent)% by Automatic quality"
-			: "Resolution (Render quality): fewer pixels, scaled up, for heavy patches (Settings > Display)")
+			: "Resolution (Render quality): fewer pixels, scaled up, for heavy patches (Settings > Performance)")
 	}
 }
 

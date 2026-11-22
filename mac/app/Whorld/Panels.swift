@@ -362,7 +362,7 @@ struct KeyTextField: NSViewRepresentable {
 				return
 			}
 			if t.first { swipeTravel = 0 }
-			swipeTravel += t.points * Preferences.swipeSense * level.rate	// Settings > Control > Trackpad sensitivity
+			swipeTravel += t.points * Preferences.swipeSense * level.rate	// Settings > Input > Trackpad sensitivity
 			let q = swipeTravel / Self.pointsPerStep
 			let n = Int(q + (q < 0 ? -1e-9 : 1e-9))	// whole steps, toward zero
 			guard n != 0 else { return }
