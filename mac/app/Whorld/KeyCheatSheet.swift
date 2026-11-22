@@ -8,11 +8,15 @@
 // any later version. See the LICENSE file at the repository root.
 
 // The Key Map cheat sheet (new in the Mac port, the user's request,
-// 2026-11-22): hold the key left of 1 (` on US keyboards) with the pointer
+// 2026-11-22): press the key left of 1 (` on US keyboards) with the pointer
 // over the picture or the swipe pad, and a drawing of the keyboard shows
-// which key moves which control, over that view; let go and it's gone. A
-// window of its own over the view, so it's never in Syphon or exports, and
-// never over a full-screen picture.
+// which key moves which control, over that view, until the key is pressed
+// again (a toggle since the user's second request that day; it was held).
+// A click-through window of its own over the view, so swipes, held keys,
+// taps and drags still reach the picture beneath, it's never in Syphon or
+// exports, and never over a full-screen picture. It follows the view as its
+// window moves or resizes, and hides if the view leaves its window or goes
+// full screen.
 
 import AppKit
 import SwiftUI
@@ -26,19 +30,46 @@ final class KeyCheatSheet {
 	static let keyLabel = "`"
 
 	private var panel: NSPanel?
+	/// the picture or swipe pad it's over, and the observers that follow it
+	private weak var host: NSView?
+	private var observers: [Any] = []
+	/// shown and not hidden since (the panel itself is hidden while Whorld
+	/// is inactive, hidesOnDeactivate, and comes back with it)
+	private(set) var isShown = false
 
-	var isShown: Bool { panel?.isVisible == true }
+	/// the sheet's window, which the pointer test looks past (OutputKeys)
+	var windowNumber: Int? { isShown ? panel?.windowNumber : nil }
+
+	func toggle(over view: NSView) {
+		if isShown { hide() } else { show(over: view) }
+	}
 
 	/// Shows the sheet centered over `view` (a picture or the swipe pad),
 	/// scaled down to fit it
 	func show(over view: NSView) {
+		guard place(over: view) else { return }
+		host = view
+		isShown = true
+		follow(view)
+	}
+
+	/// Sizes and places the sheet over the view; false (and hidden) where it
+	/// can't go: no window, full screen, or too small to read
+	@discardableResult
+	private func place(over view: NSView) -> Bool {
 		// never over a full-screen picture, which the audience may see (the
 		// user's rule, 2026-11-22); the swipe pad and windowed pictures only
-		guard let window = view.window, !(window is FullScreenWindow) else { return }
+		guard let window = view.window, !(window is FullScreenWindow) else {
+			hide()
+			return false
+		}
 		let rect = window.convertToScreen(view.convert(view.bounds, to: nil))
 		let natural = KeyCheatSheetView.naturalSize
 		let scale = min(1, (rect.width - 24) / natural.width, (rect.height - 24) / natural.height)
-		guard scale > 0.3 else { return }	// too small a view to read it
+		guard scale > 0.3 else {	// too small a view to read it
+			hide()
+			return false
+		}
 		let size = CGSize(width: natural.width * scale, height: natural.height * scale)
 		let host = NSHostingView(rootView: KeyCheatSheetView(scale: scale))
 		host.frame = CGRect(origin: .zero, size: size)
@@ -49,10 +80,42 @@ final class KeyCheatSheet {
 		p.level = NSWindow.Level(rawValue: max(window.level.rawValue, NSWindow.Level.floating.rawValue) + 1)	// above full screen too
 		p.orderFront(nil)
 		panel = p
+		return true
 	}
 
 	func hide() {
 		panel?.orderOut(nil)
+		isShown = false
+		host = nil
+		for o in observers { NotificationCenter.default.removeObserver(o) }
+		observers = []
+	}
+
+	/// Keeps it over the view as its window moves or resizes (the panes'
+	/// dividers resize the view itself)
+	private func follow(_ view: NSView) {
+		for o in observers { NotificationCenter.default.removeObserver(o) }
+		observers = []
+		view.postsFrameChangedNotifications = true
+		let names: [(Notification.Name, AnyObject?)] = [
+			(NSWindow.didMoveNotification, view.window), (NSWindow.didResizeNotification, view.window),
+			(NSView.frameDidChangeNotification, view),
+		]
+		for (name, object) in names {
+			observers.append(NotificationCenter.default.addObserver(forName: name, object: object, queue: .main) { _ in
+				MainActor.assumeIsolated { KeyCheatSheet.shared.refresh() }
+			})
+		}
+	}
+
+	/// Back over its view, or hidden if the view has left its window (the
+	/// picture detached or docked) or gone full screen
+	func refresh() {
+		guard isShown else { return }
+		guard let view = host, view.window != nil, place(over: view) else {
+			hide()
+			return
+		}
 	}
 
 	private func makePanel() -> NSPanel {
@@ -145,7 +208,7 @@ struct KeyCheatSheetView: View {
 				}
 			}
 			Text(others.isEmpty
-				? "Let go of \(KeyCheatSheet.keyLabel) to close. View › Key Map changes the keys."
+				? "Press \(KeyCheatSheet.keyLabel) again to close. View › Key Map changes the keys."
 				: "Also: " + others.map { "\($0.keyLabel) \($0.displayName)" }.joined(separator: ", "))
 				.font(.system(size: 12 * s)).foregroundStyle(.secondary)
 				.lineLimit(1).minimumScaleFactor(0.6)

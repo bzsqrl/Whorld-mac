@@ -1377,6 +1377,7 @@ final class AppModel: ObservableObject {
 	/// (CMainFrame::OnWindowFullscreen), and again to leave. It never moves
 	/// the output to another display.
 	func toggleFullScreen() {
+		KeyCheatSheet.shared.hide()	// never over a full-screen picture, and its view may move
 		if isFullScreen {
 			exitFullScreen()
 			return
@@ -1395,6 +1396,7 @@ final class AppModel: ObservableObject {
 	/// its window moved onto that display, then full screen, so a Whorld
 	/// window elsewhere stays in view with the swipe pad.
 	func fullScreenNextDisplay() {
+		KeyCheatSheet.shared.hide()
 		let target: NSScreen?
 		if isFullScreen {
 			target = Self.display(after: FullScreenController.coveredScreen)
@@ -1645,6 +1647,7 @@ final class AppModel: ObservableObject {
 	/// View > Detach (CMainFrame::OnWindowDetach): the output to a window of
 	/// its own, or back to the workspace. Not while full screen, as on Windows.
 	func toggleDetach() {
+		KeyCheatSheet.shared.hide()	// its picture moves to another window
 		guard !isFullScreen else { return }
 		if layout.layout.detached {
 			outputWindow.hide()
@@ -1828,6 +1831,8 @@ final class AppModel: ObservableObject {
 final class OutputKeys {
 
 	private(set) var held: String?
+	/// the cheat sheet's key went down here, so its repeats and key-up are taken too
+	private var sheetKeyTaken = false
 	private var heldCode: CGKeyCode = 0
 	/// the held key's control, if the key is still down (a key-up can be
 	/// missed, e.g. released while a menu tracks: then ask the keyboard)
@@ -1860,10 +1865,7 @@ final class OutputKeys {
 		}
 		resign = NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification,
 			object: nil, queue: .main) { [weak self] _ in
-			MainActor.assumeIsolated {	// its key-up goes to another app
-				self?.held = nil
-				KeyCheatSheet.shared.hide()
-			}
+			MainActor.assumeIsolated { self?.held = nil }	// its key-up goes to another app (the cheat sheet stays, hidden with the app)
 		}
 	}
 
@@ -1902,18 +1904,26 @@ final class OutputKeys {
 			if code == 124 { AppModel.shared.snapshotNext() } else { AppModel.shared.snapshotPrev() }
 			return true
 		}
-		// the Key Map cheat sheet (KeyCheatSheet; the user's request,
-		// 2026-11-22): shown while the key left of 1 is held over the picture
+		// the Key Map cheat sheet (KeyCheatSheet; the user's requests,
+		// 2026-11-22): the key left of 1, over the picture, shows it; pressed
+		// again (anywhere), or Esc, hides it
+		let sheet = KeyCheatSheet.shared
 		if KeyCheatSheet.keyCodes.contains(code), KeyMap.shared.capturing == nil {
-			let sheet = KeyCheatSheet.shared
-			if up {
-				guard sheet.isShown else { return false }
+			if up || isRepeat { return sheetKeyTaken }
+			sheetKeyTaken = false
+			guard modifiers == 0 else { return false }
+			if sheet.isShown {
 				sheet.hide()
-				return true
+			} else if let view = Self.outputViewUnderPointer() {
+				sheet.show(over: view)
+			} else {
+				return false
 			}
-			if sheet.isShown { return true }	// key repeat
-			guard modifiers == 0, let view = Self.outputViewUnderPointer() else { return false }
-			sheet.show(over: view)
+			sheetKeyTaken = true
+			return true
+		}
+		if !up, code == 53, modifiers == 0, sheet.isShown, NSApp.modalWindow == nil {	// Esc
+			sheet.hide()
 			return true
 		}
 		if up {
@@ -1977,7 +1987,10 @@ final class OutputKeys {
 	/// that picture or swipe pad
 	static func outputViewUnderPointer() -> NSView? {
 		let p = NSEvent.mouseLocation
-		let n = NSWindow.windowNumber(at: p, belowWindowWithWindowNumber: 0)
+		var n = NSWindow.windowNumber(at: p, belowWindowWithWindowNumber: 0)
+		if let sheet = KeyCheatSheet.shared.windowNumber, n == sheet {	// the cheat sheet lets the pointer through
+			n = NSWindow.windowNumber(at: p, belowWindowWithWindowNumber: sheet)
+		}
 		guard let w = NSApp.window(withWindowNumber: n), let content = w.contentView else { return nil }
 		var v = content.hitTest(w.convertPoint(fromScreen: p))	// hitTest takes its superview's (the window's) coordinates
 		while let view = v {
