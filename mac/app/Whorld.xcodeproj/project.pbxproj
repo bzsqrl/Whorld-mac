@@ -382,12 +382,12 @@
 			);
 			inputPaths = (
 			);
-			name = "Copy Help";
+			name = "Copy Help and Samples";
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "H=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Help\"\nmkdir -p \"$H/V1\" \"$H/images\"\nrsync -a --delete --exclude V1 --exclude images \"$SRCROOT/Help/\" \"$H/\"\nrsync -a --delete \"$SRCROOT/../../docs/Help/\" \"$H/V1/\"\ncp \"$SRCROOT/../../docs/images/whorld-icon-32x32.gif\" \"$H/images/\"\n";
+			shellScript = "H=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Help\"\nmkdir -p \"$H/V1\" \"$H/images\"\nrsync -a --delete --exclude V1 --exclude images \"$SRCROOT/Help/\" \"$H/\"\nrsync -a --delete \"$SRCROOT/../../docs/Help/\" \"$H/V1/\"\ncp \"$SRCROOT/../../docs/images/whorld-icon-32x32.gif\" \"$H/images/\"\n# The sample patches and playlists (mac/app/Samples, its Patches and\n# Playlists folders) go in Contents/Resources/Samples; the first launch\n# copies them into ~/Documents/Whorld (WhorldFolders.installSamples).\nS=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Samples\"\nrm -rf \"$S\"\nfor k in Patches Playlists; do\n	if [ -d \"$SRCROOT/Samples/$k\" ]; then\n		mkdir -p \"$S/$k\"\n		rsync -a --exclude '.*' \"$SRCROOT/Samples/$k/\" \"$S/$k/\"\n	fi\ndone\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

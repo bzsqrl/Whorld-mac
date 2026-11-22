@@ -228,6 +228,45 @@ enum WhorldFolders {
 		return FileManager.default.fileExists(atPath: f.path, isDirectory: &isDir) && isDir.boolValue ? f : nil
 	}
 
+	/// the sample files already copied, as "Patches/name.whp"
+	private static let samplesKey = "General_sInstalledSamples"
+
+	/// At launch, after makeOnce: copies the sample patches and playlists
+	/// that come with the app (Contents/Resources/Samples, from
+	/// mac/app/Samples) into Patches and Playlists (the user's request,
+	/// 2026-11-22). Each file once: never over a file of the same name, never
+	/// again once it's been deleted, and not into a folder that's gone; a
+	/// later version's new samples are copied when it first runs.
+	static func installSamples() {
+		guard let src = Bundle.main.resourceURL?.appendingPathComponent("Samples", isDirectory: true) else { return }
+		let fm = FileManager.default
+		var installed = Set(Preferences.defaults.stringArray(forKey: samplesKey) ?? [])
+		let before = installed.count
+		for kind in [Kind.patches, .playlists] {
+			let from = src.appendingPathComponent(kind.rawValue, isDirectory: true)
+			let to = folder(kind)
+			guard let names = try? fm.contentsOfDirectory(atPath: from.path),
+				fm.fileExists(atPath: to.path) else { continue }
+			for name in names.sorted() where !name.hasPrefix(".") {
+				let id = kind.rawValue + "/" + name
+				guard !installed.contains(id) else { continue }
+				let dest = to.appendingPathComponent(name)
+				if !fm.fileExists(atPath: dest.path) {
+					do {
+						try fm.copyItem(at: from.appendingPathComponent(name), to: dest)
+					} catch {
+						NSLog("Whorld: can't copy the sample \(id): \(error.localizedDescription)")
+						continue	// tried again next launch
+					}
+				}
+				installed.insert(id)
+			}
+		}
+		if installed.count != before {
+			Preferences.defaults.set(installed.sorted(), forKey: samplesKey)
+		}
+	}
+
 	/// a file of this kind, chosen in a dialog: its folder is where the next starts
 	static func used(_ kind: Kind, _ url: URL) {
 		Preferences.defaults.set(url.deletingLastPathComponent().path, forKey: kind.lastKey)

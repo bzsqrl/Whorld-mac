@@ -533,7 +533,8 @@ final class AppModel: ObservableObject {
 
 	/// Resolves a playlist's patch path. Windows playlists store Windows
 	/// paths; if the path doesn't exist here, look for the same file name
-	/// next to the playlist (full missing-file handling is Phase 6).
+	/// next to the playlist, then in Documents/Whorld/Patches (where the
+	/// sample playlists' patches are, named without a folder; 2026-11-22).
 	func resolvePatchPath(_ stored: String) -> URL? {
 		let fm = FileManager.default
 		if fm.fileExists(atPath: stored) {
@@ -545,6 +546,10 @@ final class AppModel: ObservableObject {
 			if fm.fileExists(atPath: candidate.path) {
 				return candidate
 			}
+		}
+		let inPatches = WhorldFolders.folder(.patches).appendingPathComponent(name)
+		if fm.fileExists(atPath: inPatches.path) {
+			return inPatches
 		}
 		return nil
 	}
@@ -2035,7 +2040,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 	func applicationDidFinishLaunching(_ notification: Notification) {
 		StandardViewMenu.removeWhenAdded()
-		MainActor.assumeIsolated { WhorldFolders.makeOnce() }
+		MainActor.assumeIsolated {
+			WhorldFolders.makeOnce()
+			WhorldFolders.installSamples()
+		}
 		NumberBoxSelect.install()
 		PanelKeys.install()
 		TitleBarClicks.install()

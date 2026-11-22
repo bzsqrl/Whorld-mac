@@ -36,6 +36,17 @@ mkdir -p "$H/V1" "$H/images"
 rsync -a --delete --exclude V1 --exclude images "$SRCROOT/Help/" "$H/"
 rsync -a --delete "$SRCROOT/../../docs/Help/" "$H/V1/"
 cp "$SRCROOT/../../docs/images/whorld-icon-32x32.gif" "$H/images/"
+# The sample patches and playlists (mac/app/Samples, its Patches and
+# Playlists folders) go in Contents/Resources/Samples; the first launch
+# copies them into ~/Documents/Whorld (WhorldFolders.installSamples).
+S="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Samples"
+rm -rf "$S"
+for k in Patches Playlists; do
+	if [ -d "$SRCROOT/Samples/$k" ]; then
+		mkdir -p "$S/$k"
+		rsync -a --exclude '.*' "$SRCROOT/Samples/$k/" "$S/$k/"
+	fi
+done
 '''
 # Builds Syphon.framework (the mac/third_party/Syphon-Framework submodule,
 # BSD license) for this build's architectures into the products folder,
@@ -165,7 +176,7 @@ def script_phase(key, name, script):
 w("/* Begin PBXShellScriptBuildPhase section */\n")
 script_phase('syphonbuild', 'Build Syphon', syphon_build_script)
 script_phase('syphonembed', 'Embed Syphon', syphon_embed_script)
-w(f"\t\t{gid('helpscript')} /* Copy Help */ = {{\n\t\t\tisa = PBXShellScriptBuildPhase;\n\t\t\talwaysOutOfDate = 1;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n\t\t\t);\n\t\t\tinputPaths = (\n\t\t\t);\n\t\t\tname = \"Copy Help\";\n\t\t\toutputPaths = (\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t\tshellPath = /bin/sh;\n\t\t\tshellScript = {pbxstr(help_script)};\n\t\t}};\n/* End PBXShellScriptBuildPhase section */\n\n/* Begin XCBuildConfiguration section */\n")
+w(f"\t\t{gid('helpscript')} /* Copy Help */ = {{\n\t\t\tisa = PBXShellScriptBuildPhase;\n\t\t\talwaysOutOfDate = 1;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n\t\t\t);\n\t\t\tinputPaths = (\n\t\t\t);\n\t\t\tname = \"Copy Help and Samples\";\n\t\t\toutputPaths = (\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;\n\t\t\tshellPath = /bin/sh;\n\t\t\tshellScript = {pbxstr(help_script)};\n\t\t}};\n/* End PBXShellScriptBuildPhase section */\n\n/* Begin XCBuildConfiguration section */\n")
 common = """\t\t\t\tALWAYS_SEARCH_USER_PATHS = NO;
 \t\t\t\tCLANG_CXX_LANGUAGE_STANDARD = "c++17";
 \t\t\t\tCLANG_CXX_LIBRARY = "libc++";
