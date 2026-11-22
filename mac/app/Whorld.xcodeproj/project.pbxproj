@@ -8,6 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		322FC43E14B472C793C7C588 /* WhorldApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB79CE023AD8CB0A2563E7CB /* WhorldApp.swift */; };
+		70D4103D604F817E9C2EC333 /* AppModel+Playlist.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86CF9F30A3DD893F46886E22 /* AppModel+Playlist.swift */; };
+		51FF091E3E2ECED86B48E4F1 /* AppModel+Files.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9315F3EC9BF9DFD1D10D04FC /* AppModel+Files.swift */; };
+		98481F3CE7AF1738CF1B84A0 /* AppModel+Display.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAE5C0FD8CDA4CF9DFB2E172 /* AppModel+Display.swift */; };
+		3DC37802A34BF035B41D0757 /* AppModel+Workspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD709CBA0E4477418D4F83F3 /* AppModel+Workspace.swift */; };
+		75B3363A5DDAE0AE23F96BB8 /* OutputKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 179053C4C15F2CE5EB57E46E /* OutputKeys.swift */; };
 		35821651C530768F9F52354C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A99C51A509F02C86E66128F /* ContentView.swift */; };
 		031C794DDED1BC1890B78647 /* Commands.swift in Sources */ = {isa = PBXBuildFile; fileRef = C33528911E3CFEFF12BAD665 /* Commands.swift */; };
 		659668C4B0184BDE707B153E /* Panels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B2CB79B02B0E8B107A93389 /* Panels.swift */; };
@@ -63,6 +68,11 @@
 /* Begin PBXFileReference section */
 		F5BF48AA40CAD7891EB709FC /* Whorld.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Whorld.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DB79CE023AD8CB0A2563E7CB /* WhorldApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WhorldApp.swift"; sourceTree = "<group>"; };
+		86CF9F30A3DD893F46886E22 /* AppModel+Playlist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+Playlist.swift"; sourceTree = "<group>"; };
+		9315F3EC9BF9DFD1D10D04FC /* AppModel+Files.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+Files.swift"; sourceTree = "<group>"; };
+		CAE5C0FD8CDA4CF9DFB2E172 /* AppModel+Display.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+Display.swift"; sourceTree = "<group>"; };
+		BD709CBA0E4477418D4F83F3 /* AppModel+Workspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+Workspace.swift"; sourceTree = "<group>"; };
+		179053C4C15F2CE5EB57E46E /* OutputKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OutputKeys.swift"; sourceTree = "<group>"; };
 		4A99C51A509F02C86E66128F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView.swift"; sourceTree = "<group>"; };
 		C33528911E3CFEFF12BAD665 /* Commands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Commands.swift"; sourceTree = "<group>"; };
 		3B2CB79B02B0E8B107A93389 /* Panels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Panels.swift"; sourceTree = "<group>"; };
@@ -155,6 +165,11 @@
 			isa = PBXGroup;
 			children = (
 				DB79CE023AD8CB0A2563E7CB /* WhorldApp.swift */,
+				86CF9F30A3DD893F46886E22 /* AppModel+Playlist.swift */,
+				9315F3EC9BF9DFD1D10D04FC /* AppModel+Files.swift */,
+				CAE5C0FD8CDA4CF9DFB2E172 /* AppModel+Display.swift */,
+				BD709CBA0E4477418D4F83F3 /* AppModel+Workspace.swift */,
+				179053C4C15F2CE5EB57E46E /* OutputKeys.swift */,
 				4A99C51A509F02C86E66128F /* ContentView.swift */,
 				C33528911E3CFEFF12BAD665 /* Commands.swift */,
 				3B2CB79B02B0E8B107A93389 /* Panels.swift */,
@@ -290,6 +305,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				322FC43E14B472C793C7C588 /* WhorldApp.swift in Sources */,
+				70D4103D604F817E9C2EC333 /* AppModel+Playlist.swift in Sources */,
+				51FF091E3E2ECED86B48E4F1 /* AppModel+Files.swift in Sources */,
+				98481F3CE7AF1738CF1B84A0 /* AppModel+Display.swift in Sources */,
+				3DC37802A34BF035B41D0757 /* AppModel+Workspace.swift in Sources */,
+				75B3363A5DDAE0AE23F96BB8 /* OutputKeys.swift in Sources */,
 				35821651C530768F9F52354C /* ContentView.swift in Sources */,
 				031C794DDED1BC1890B78647 /* Commands.swift in Sources */,
 				659668C4B0184BDE707B153E /* Panels.swift in Sources */,

@@ -1,0 +1,271 @@
+// This file is part of Whorld for macOS, a port of Whorld by Chris Korda.
+// Copyright 2026 Jeff Matson.
+// Written with Claude (Anthropic).
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version. See the LICENSE file at the repository root.
+
+// The playlist and auto-advance (AppModel, split out of WhorldApp.swift on 2026-11-22;
+// no change in behavior).
+
+import AppKit
+import SwiftUI
+
+extension AppModel {
+	// MARK: Playlist
+
+	func newPlaylist() {
+		guard confirmDiscardPlaylist() else { return }
+		engine.newPlaylist()
+		playlistURL = nil
+		playingPatch = -1
+		playlistTitle = "Untitled Playlist"
+		playlistModified = false
+		mappingSelection = []
+		resetUndo()
+		changed()
+	}
+
+	func openPlaylist() {
+		guard confirmDiscardPlaylist() else { return }
+		let panel = NSOpenPanel()
+		panel.allowedContentTypes = [.whorldPlaylist]
+		panel.directoryURL = WhorldFolders.start(.playlists)
+		guard panel.runModal() == .OK, let url = panel.url else { return }
+		WhorldFolders.used(.playlists, url)
+		openPlaylist(url)
+	}
+
+	func openPlaylist(_ url: URL) {
+		do {
+			try engine.openPlaylist(atPath: url.path)
+			if Preferences.applyPlaylistLayouts, let line = engine.playlistLayout, let f = LayoutFile(line: line) {
+				applyLayout(f)
+			}
+			playlistURL = url
+			playingPatch = -1
+			checkMissingPatches()
+			playlistTitle = url.deletingPathExtension().lastPathComponent
+			playlistModified = false
+			mappingSelection = []
+			resetUndo()
+			NSDocumentController.shared.noteNewRecentDocumentURL(url)
+		} catch {
+			NSAlert(error: error).runModal()
+		}
+		changed()
+	}
+
+	@discardableResult
+	func savePlaylist() -> Bool {
+		if let url = playlistURL {
+			return writePlaylist(to: url)
+		}
+		return savePlaylistAs()
+	}
+
+	@discardableResult
+	func savePlaylistAs() -> Bool {
+		let panel = NSSavePanel()
+		panel.allowedContentTypes = [.whorldPlaylist]
+		panel.nameFieldStringValue = playlistTitle + ".whl"
+		panel.directoryURL = WhorldFolders.start(.playlists)
+		// the panel layout goes in the playlist if this is checked (remembered)
+		let include = NSButton(checkboxWithTitle: "Include the panel layout", target: nil, action: nil)
+		include.state = Preferences.playlistSavesLayout ? .on : .off
+		include.toolTip = "Saves the panels' arrangement with the playlist, to restore when it's opened (Whorld for Mac only; Windows Whorld ignores it)."
+		let row = NSStackView(views: [include])
+		row.edgeInsets = NSEdgeInsets(top: 10, left: 20, bottom: 10, right: 20)
+		panel.accessoryView = row
+		guard panel.runModal() == .OK, let url = panel.url else { return false }
+		WhorldFolders.used(.playlists, url)
+		let on = include.state == .on
+		UserDefaults.standard.set(on, forKey: "Playlist_bSaveLayout")
+		engine.playlistLayout = on ? currentLayoutFile().line : nil
+		return writePlaylist(to: url)
+	}
+
+	func writePlaylist(to url: URL) -> Bool {
+		if engine.playlistLayout != nil {	// a playlist with a layout keeps it current
+			engine.playlistLayout = currentLayoutFile().line
+		}
+		do {
+			try engine.savePlaylist(toPath: url.path)
+			NSDocumentController.shared.noteNewRecentDocumentURL(url)
+			playlistURL = url
+			playlistTitle = url.deletingPathExtension().lastPathComponent
+			playlistModified = false
+			changed()
+			return true
+		} catch {
+			NSAlert(error: error).runModal()
+			return false
+		}
+	}
+
+	func confirmDiscardPlaylist() -> Bool {
+		guard playlistModified else { return true }
+		let alert = NSAlert()
+		alert.messageText = "Do you want to save the changes you made to the playlist \"\(playlistTitle)\"?"
+		alert.informativeText = "This includes its MIDI mappings."
+		alert.addButton(withTitle: "Save")
+		alert.addButton(withTitle: "Cancel")
+		alert.addButton(withTitle: "Don't Save")
+		switch alert.runModal() {
+		case .alertFirstButtonReturn: return savePlaylist()
+		case .alertThirdButtonReturn: return true
+		default: return false
+		}
+	}
+
+	/// Resolves a playlist's patch path. Windows playlists store Windows
+	/// paths; if the path doesn't exist here, look for the same file name
+	/// next to the playlist, then in Documents/Whorld/Patches (where the
+	/// sample playlists' patches are, named without a folder; 2026-11-22).
+	func resolvePatchPath(_ stored: String) -> URL? {
+		let fm = FileManager.default
+		if fm.fileExists(atPath: stored) {
+			return URL(fileURLWithPath: stored)
+		}
+		let name = stored.split(whereSeparator: { $0 == "\\" || $0 == "/" }).last.map(String.init) ?? stored
+		if let dir = playlistURL?.deletingLastPathComponent() {
+			let candidate = dir.appendingPathComponent(name)
+			if fm.fileExists(atPath: candidate.path) {
+				return candidate
+			}
+		}
+		let inPatches = WhorldFolders.folder(.patches).appendingPathComponent(name)
+		if fm.fileExists(atPath: inPatches.path) {
+			return inPatches
+		}
+		return nil
+	}
+
+	// CPlaylistBar::Play (also from the MIDI and OSC Patch target). Unlike
+	// Windows, which asks to save an edited patch first (except in full
+	// screen), this never asks: playing through a playlist live shouldn't
+	// be interrupted, and unsaved edits are simply let go (the user's choice,
+	// 2026-11-09). File > New, Open and Quit still ask.
+	@discardableResult
+	func playPatch(_ index: Int, automatic: Bool = false) -> Bool {
+		let paths = engine.playlistPatches
+		guard index >= 0, index < paths.count, let url = resolvePatchPath(paths[index]) else { return false }
+		guard engine.playPatch(atPath: url.path) else { return false }
+		if !automatic {	// played by hand: auto-advance counts from now
+			engine.restartAutoAdvance()
+		}
+		playedName = url.deletingPathExtension().lastPathComponent
+		playingPatch = index
+		playingFile = url
+		patchPlays += 1
+		originFromPatch()
+		resetUndo()
+		updateTitle()
+		changed()
+		return true
+	}
+
+	/// The Patches panel (PatchBrowser.swift): plays a patch file at once,
+	/// crossfading and letting unsaved edits go, as playPatch does. If the
+	/// playlist has it, that entry is the one playing.
+	@discardableResult
+	func playPatchFile(_ url: URL) -> Bool {
+		guard engine.playPatch(atPath: url.path) else { return false }
+		engine.restartAutoAdvance()
+		let target = url.standardizedFileURL
+		playingPatch = engine.playlistPatches.firstIndex { resolvePatchPath($0)?.standardizedFileURL == target } ?? -1
+		playedName = url.deletingPathExtension().lastPathComponent
+		playingFile = url
+		patchPlays += 1
+		originFromPatch()
+		resetUndo()
+		updateTitle()
+		changed()
+		return true
+	}
+
+	/// The Patches panel's Add to Playlist and drags: the files go in after
+	/// the selected entry (else at the end), or at `offset`, and are selected
+	func addPatchesToPlaylist(_ paths: [String], at offset: Int? = nil) {
+		guard !paths.isEmpty else { return }
+		var all = playlistPatches
+		let at = min(offset ?? ((playlistSelection.max() ?? all.count - 1) + 1), all.count)
+		all.insert(contentsOf: paths, at: at)
+		setPlaylistPatches(all, title: "Add Patches")
+		playlistSelection = Set(at..<(at + paths.count))
+	}
+
+	// MARK: Auto-advance (Mac addition, the user's request, 2026-11-20)
+
+	/// Starts or stops playing through the playlist (the Playlist panel's
+	/// Play button, Image > Auto Advance, MIDI and OSC). Starting keeps the
+	/// patch playing, or plays the selected one (else the first).
+	func setAutoAdvance(_ on: Bool) {
+		let n = engine.playlistPatches.count
+		guard on != engine.autoAdvancing, !on || n > 0 else { return }
+		engine.autoAdvancing = on
+		if on, !(playingPatch >= 0 && playingPatch < n) {
+			playPatch(playlistSelection.min() ?? 0)
+		}
+		changes.playlist.bump()
+		changes.menus.bump()
+	}
+
+	/// Image > Blackout (Mac addition, the Perform Bar; the user's
+	/// request, 2026-11-20): the picture fades to black, or back
+	/// (WHEngine blackout). Not saved: Whorld starts with the picture showing.
+	func setBlackout(_ on: Bool) {
+		guard on != engine.blackout else { return }
+		engine.blackout = on
+		changes.main.bump()
+		changes.menus.bump()
+	}
+
+	/// How long each patch plays: seconds, beats or bars (AutoAdvanceUnit),
+	/// saved with the playlist
+	func setAutoAdvanceLength(_ length: Double, unit: AutoAdvanceUnit) {
+		guard length != engine.autoAdvanceLength || unit.rawValue != engine.autoAdvanceUnit else { return }
+		engine.autoAdvanceUnit = unit.rawValue
+		engine.autoAdvanceLength = length
+		playlistModified = true
+		changes.playlist.bump()
+	}
+
+	/// Time for the next patch: the one after, wrapping round, passing over
+	/// any that can't be found or read
+	func autoAdvanceNext() {
+		guard engine.autoAdvancing else { return }
+		let n = engine.playlistPatches.count
+		guard n > 0 else { return }
+		let from = playingPatch >= 0 && playingPatch < n ? playingPatch : -1
+		for k in 1...n where playPatch((from + k + n) % n, automatic: true) {
+			return
+		}
+	}
+
+	/// V1's patch mode (Mac addition, saved with the playlist): in Geometry
+	/// mode New, Open and playing a patch change only its shape and motion
+	/// parameters (WHEngine geometryMode). Set from the menu or the panel,
+	/// it marks the playlist edited; from MIDI or OSC (onMidi kind 7) it
+	/// doesn't, as V1's PatchMode controller didn't, so live switching
+	/// doesn't leave a playlist to save.
+	func setGeometryMode(_ on: Bool) {
+		guard on != engine.geometryMode else { return }
+		engine.geometryMode = on
+		playlistModified = true
+		changes.playlist.bump()
+		changes.menus.bump()
+	}
+
+	/// The playlist's next (+1) or previous (-1) patch, wrapping around at
+	/// the ends; with none playing, the first or last. (A Mac addition:
+	/// Image > Next Patch and Previous Patch, Command-Down and Command-Up.)
+	func stepPatch(_ step: Int) {
+		let n = engine.playlistPatches.count
+		guard n > 0 else { return }
+		let i = playingPatch >= 0 && playingPatch < n ? (playingPatch + step + n) % n : (step > 0 ? 0 : n - 1)
+		playPatch(i)
+	}
+}
