@@ -2966,17 +2966,45 @@ static std::vector<std::pair<float, double>> AutoQualitySteps(float fUserTol, do
 	[self updateDrawableSize];
 	if (_fullScreenOutput)	// hidden if the pointer is already over it; shown again on leaving the window
 		[self setCursorHidden:self.window != nil && [self mouseIsInside]];
+	NSPointerArray	*shown = [WHRenderView viewsInWindows];
+	for (NSUInteger i = shown.count; i-- > 0; ) {	// out of the list (and nil entries dropped)
+		void	*v = [shown pointerAtIndex:i];
+		if (!v || v == (__bridge void *)self)
+			[shown removePointerAtIndex:i];
+	}
 	if (self.window) {
 		// A view entering a window shows the output (the workspace's middle,
 		// the detached window, the full-screen window): it's where the
 		// output just moved to.
+		[shown addPointer:(__bridge void *)self];
 		if (_engine)
 			[_engine attachLayer:self.layer];
 		// paced by this view's display, run on the presenter thread
 		_displayLink = [self displayLinkWithTarget:self selector:@selector(displayLinkFired:)];
 		_linkMaxRate = 0;	// a new link runs at the display's rate until the first callback
 		[_displayLink addToRunLoop:[WHEngine presenterRunLoop] forMode:NSRunLoopCommonModes];
+	} else if (_engine && _engine.attachedLayer == _ownLayer) {
+		// Leaving its window while it has the output: the output goes back
+		// to the view that last entered a window. Detaching, SwiftUI can put
+		// the workspace's old picture back in its window for a moment, after
+		// the detached window's picture has taken the output; it took the
+		// output back, and kept it on leaving, so the detached picture froze
+		// (the user's report, 2026-11-22).
+		for (NSUInteger i = shown.count; i-- > 0; ) {
+			WHRenderView	*v = (__bridge WHRenderView *)[shown pointerAtIndex:i];
+			if (v.window && v.engine == _engine) {
+				[_engine attachLayer:v.layer];
+				break;
+			}
+		}
 	}
+}
+
+/// The render views in windows, in the order they entered them (main thread)
++ (NSPointerArray *)viewsInWindows
+{
+	static NSPointerArray	*views = [NSPointerArray weakObjectsPointerArray];
+	return views;
 }
 
 // Presenter thread: no AppKit here.
