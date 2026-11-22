@@ -1860,7 +1860,10 @@ final class OutputKeys {
 		}
 		resign = NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification,
 			object: nil, queue: .main) { [weak self] _ in
-			MainActor.assumeIsolated { self?.held = nil }	// its key-up goes to another app
+			MainActor.assumeIsolated {	// its key-up goes to another app
+				self?.held = nil
+				KeyCheatSheet.shared.hide()
+			}
 		}
 	}
 
@@ -1897,6 +1900,20 @@ final class OutputKeys {
 		if !up, code == 123 || code == 124, modifiers == NSEvent.ModifierFlags.command.rawValue,
 			AppModel.shared.hasSnapshots, AppModel.shared.isFullScreen || Self.pointerOverOutput() {
 			if code == 124 { AppModel.shared.snapshotNext() } else { AppModel.shared.snapshotPrev() }
+			return true
+		}
+		// the Key Map cheat sheet (KeyCheatSheet; the user's request,
+		// 2026-11-22): shown while the key left of 1 is held over the picture
+		if KeyCheatSheet.keyCodes.contains(code), KeyMap.shared.capturing == nil {
+			let sheet = KeyCheatSheet.shared
+			if up {
+				guard sheet.isShown else { return false }
+				sheet.hide()
+				return true
+			}
+			if sheet.isShown { return true }	// key repeat
+			guard modifiers == 0, let view = Self.outputViewUnderPointer() else { return false }
+			sheet.show(over: view)
 			return true
 		}
 		if up {
@@ -1955,16 +1972,19 @@ final class OutputKeys {
 
 	/// the pointer is over a picture (WHRenderView), or the swipe pad standing
 	/// for it, in the topmost window under it
-	private static func pointerOverOutput() -> Bool {
+	private static func pointerOverOutput() -> Bool { outputViewUnderPointer() != nil }
+
+	/// that picture or swipe pad
+	static func outputViewUnderPointer() -> NSView? {
 		let p = NSEvent.mouseLocation
 		let n = NSWindow.windowNumber(at: p, belowWindowWithWindowNumber: 0)
-		guard let w = NSApp.window(withWindowNumber: n), let content = w.contentView else { return false }
+		guard let w = NSApp.window(withWindowNumber: n), let content = w.contentView else { return nil }
 		var v = content.hitTest(w.convertPoint(fromScreen: p))	// hitTest takes its superview's (the window's) coordinates
 		while let view = v {
-			if view is WHRenderView || view is SwipePadView { return true }
+			if view is WHRenderView || view is SwipePadView { return view }
 			v = view.superview
 		}
-		return false
+		return nil
 	}
 }
 

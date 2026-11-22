@@ -53,7 +53,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <li><b>Open a playlist.</b> Choose File &gt; Playlist &gt; Open Playlist (<kbd>⇧⌘O</kbd>). Whorld keeps playlists in Documents &gt; Whorld &gt; Playlists. Or browse patches one by one in View &gt; Patches.</li>
 <li><b>Play a patch.</b> Double-click one in the Playlist panel. <kbd>⌘↓</kbd> and <kbd>⌘↑</kbd> play the next and previous patch, from anywhere.</li>
 <li><b>Swipe over the picture.</b> A two-finger swipe up or down (or the mouse wheel) zooms; with <kbd>⇧</kbd> it changes Damping.</li>
-<li><b>Hold a key and swipe.</b> Each letter moves one control: hold <kbd>Q</kbd> over the picture and swipe to change Ring Spacing, <kbd>W</kbd> for Line Width. The Perform Bar names the control as soon as you press the key. View &gt; Key Map (<kbd>⌥⌘9</kbd>) lists them all.</li>
+<li><b>Hold a key and swipe.</b> Each letter moves one control: hold <kbd>Q</kbd> over the picture and swipe to change Ring Spacing, <kbd>W</kbd> for Line Width. Hold <kbd>`</kbd> (left of 1) to see them all on a keyboard. The Perform Bar names the control as soon as you press the key. View &gt; Key Map (<kbd>⌥⌘9</kbd>) lists them all.</li>
 <li><b>Go full screen.</b> <kbd>⌘F</kbd> fills the display the picture is on; <kbd>⇧⌘F</kbd> fills another display, such as a projector. <kbd>Esc</kbd> leaves.</li>
 </ol>
 <p>Also handy from the start: <kbd>Space</kbd> pauses, <kbd>⌘B</kbd> fades to black and back, and View &gt; Show Perform Bar (<kbd>⇧⌘B</kbd>) puts the frame rate and the live controls under the picture.</p>
@@ -164,6 +164,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <h3 id="overpicture">Over the picture: swipes, keys and taps</h3>
 <ul>
 <li><b>Swipe</b> up or down with two fingers (or turn the mouse wheel) to zoom; with <kbd>⇧</kbd>, to change Damping.</li>
+<li><b>Hold <kbd>`</kbd></b> (the key left of 1) to see the whole Key Map drawn on a keyboard, over the picture or swipe pad under the pointer, colored by kind (shape, color, Master, hue and origin); let go to hide it. It never shows in Syphon or exports.</li>
 <li><b>Hold a key while you swipe</b> to change that key's control instead (up increases). As soon as you press the key, the Perform Bar names its control and value, so if it's the wrong key you can let go with nothing changed.</li>
 <li><b>Two-finger tap</b> (or right-click) to put a control back to its value when the patch was loaded or last saved: Zoom with nothing held, Damping with <kbd>⇧</kbd>, or the held key's control.</li>
 <li><b>Hold the mouse button</b> (or press the trackpad) on the picture and its center follows the mouse; let go and it stays there (Origin in the Properties panel becomes Park, and Edit &gt; Undo puts it back).</li>
@@ -172,7 +173,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 </ul>
 
 <h3 id="keymap">The Key Map</h3>
-<p>View &gt; Key Map (<kbd>⌥⌘9</kbd>), a panel like the others (it opens floating; dock it beside the picture to keep it in view while you play), lists which key moves which control, and lets you change them. Click a key and press the new one; a key moves one control, and assigning a key that's in use takes it from the other row. Any parameter column (Value, Amplitude, Frequency, Pulse Width, Global), Master row, Hue or the origin can have a key, each with its own speed. The map is a setting, the same for every patch and playlist. File &gt; Key Map &gt; Restore Defaults brings back the starting map, and Export&hellip; and Import&hellip; keep a map in a file. The starting map:</p>
+<p>View &gt; Key Map (<kbd>⌥⌘9</kbd>), a panel like the others (it opens floating; dock it beside the picture to keep it in view while you play), lists which key moves which control, and lets you change them. Click a key and press the new one (any plain key but <kbd>`</kbd>, which shows the cheat sheet); a key moves one control, and assigning a key that's in use takes it from the other row. Any parameter column (Value, Amplitude, Frequency, Pulse Width, Global), Master row, Hue or the origin can have a key, each with its own speed. The map is a setting, the same for every patch and playlist. File &gt; Key Map &gt; Restore Defaults brings back the starting map, and Export&hellip; and Import&hellip; keep a map in a file. The starting map:</p>
 <ul>
 <li><b>Top letter row, ring shape:</b> Q Ring Spacing, W Line Width, E Ring Growth, R Rings, T Ring Sides, Y Star Factor, U Pinwheel, I Rotate Speed, O Aspect Ratio, P Skew Radius, [ Skew Angle.</li>
 <li><b>Home row, color:</b> A Color Speed, S Speed, D Damping, F Fade, G Saturation, H Hue, J Lightness, K Alpha, L Hue Span.</li>

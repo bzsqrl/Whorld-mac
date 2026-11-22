@@ -382,7 +382,8 @@ private struct KeyCaptureButton: View {
 				return nil
 			}
 			let mods = e.modifierFlags.intersection([.shift, .command, .control, .option])
-			guard mods.isEmpty, let c = e.charactersIgnoringModifiers?.lowercased(), c.count == 1,
+			guard mods.isEmpty, !KeyCheatSheet.keyCodes.contains(e.keyCode),	// the key left of 1 shows the cheat sheet
+				let c = e.charactersIgnoringModifiers?.lowercased(), c.count == 1,
 				let scalar = c.unicodeScalars.first,
 				!CharacterSet.whitespacesAndNewlines.contains(scalar), !CharacterSet.controlCharacters.contains(scalar),
 				scalar.value < 0xF700	// function and arrow keys

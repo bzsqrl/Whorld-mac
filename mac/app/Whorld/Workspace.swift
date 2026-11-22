@@ -70,7 +70,7 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		case .modulation:
 			"Audio modulation: what Whorld hears, and the rows that let the music and its beat move the picture."
 		case .keymap:
-			"Hold a key with the pointer over the picture and scroll (two fingers up or down, or the mouse wheel) to move its control; up increases."
+			"Hold a key with the pointer over the picture and scroll (two fingers up or down, or the mouse wheel) to move its control; up increases. Hold ` (left of 1) over the picture to see them all on a keyboard."
 		case .patches:
 			"The patches in Documents › Whorld › Patches (or a folder you choose) and its subfolders. Click one to play it; the arrow keys play each in turn. Drag patches into the Playlist to add them."
 		}
