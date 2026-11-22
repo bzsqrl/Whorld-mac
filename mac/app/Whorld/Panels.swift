@@ -1254,7 +1254,7 @@ struct PropertiesPanel: View {
 	private enum OriginChoice: Hashable, CaseIterable { case center, drag, random, park }
 
 	private enum Row: Hashable, CaseIterable {
-		case fill, outline, mirror, reverse, convex, loopHue, zoomCenter, antialiasing, invertColor
+		case fill, outline, mirror, convex, reverse, invertColor, loopHue, zoomCenter, antialiasing
 		case origin, randomPhase
 	}
 
@@ -1276,13 +1276,15 @@ struct PropertiesPanel: View {
 			check(.fill, "Fill", e.fill)
 			check(.outline, "Outline", e.outline)
 			check(.mirror, WHControls.mainName(MainProp.mirror.rawValue), model.isOn(.mirror))
-			divider
-			check(.reverse, WHControls.mainName(MainProp.reverse.rawValue), model.isOn(.reverse))
+			// the Image menu's order, Cmd-1 to Cmd-8 (Rotate Hue, an action,
+			// isn't here), then its next group (the user's request, 2026-11-22)
 			check(.convex, WHControls.mainName(MainProp.convex.rawValue), model.isOn(.convex))
+			check(.reverse, WHControls.mainName(MainProp.reverse.rawValue), model.isOn(.reverse))
+			check(.invertColor, WHControls.mainName(MainProp.invertColor.rawValue), model.isOn(.invertColor))
 			check(.loopHue, WHControls.mainName(MainProp.loopHue.rawValue), model.isOn(.loopHue))
+			divider
 			check(.zoomCenter, WHControls.mainName(MainProp.zoomCenter.rawValue), model.isOn(.zoomCenter))
 			check(.antialiasing, WHControls.mainName(MainProp.antialiasing.rawValue), model.isOn(.antialiasing))
-			check(.invertColor, WHControls.mainName(MainProp.invertColor.rawValue), model.isOn(.invertColor))
 			divider
 			// "Origin", its choices under it (Windows' Origin Motion): four
 			// buttons, two by two, the current one lit; clicking it again
