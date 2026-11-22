@@ -627,8 +627,8 @@ private struct DetachButton: View {
 		}
 		.buttonStyle(StripToggleStyle())
 		.fixedSize()
-		.help(on ? "The picture is detached, in its own window. Click to put it back in the Whorld window (View > Detach, ⇧⌘D)."
-			: "Detach the picture into a window of its own, to move to a projector or second display (View > Detach, ⇧⌘D)")
+		.help(on ? "The picture is detached, in its own window. Click to put it back in the Whorld window (View > Detach, ⌘D)."
+			: "Detach the picture into a window of its own, to move to a projector or second display (View > Detach, ⌘D)")
 	}
 }
 

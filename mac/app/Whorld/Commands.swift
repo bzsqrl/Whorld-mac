@@ -344,7 +344,7 @@ struct WhorldCommands: Commands {
 			// Screen, the other way to show the picture (the user's menu
 			// audit, 2026-11-18)
 			Toggle("Detach", isOn: Binding(get: { model.isDetached }, set: { _ in model.toggleDetach() }))
-				.keyboardShortcut("d", modifiers: [.command, .shift])	// Windows: Ctrl+F12
+				.keyboardShortcut("d")	// Windows: Ctrl+F12; ⌘D beside Full Screen's ⌘F (the user's request, 2026-11-22; was ⇧⌘D)
 				.disabled(model.isFullScreen)
 			Divider()
 			// CMainFrame's ID_VIEW_BAR_ commands: show or hide a panel
