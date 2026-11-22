@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<!-- This file is part of Whorld for macOS, a port of Whorld by Chris Korda.
+     Copyright 2026 Jeff Matson. GNU GPL version 3 or later; see LICENSE.
+     Written with Claude (Anthropic).
+     The shortcuts and gestures that are easy to miss; Help > Tips and Gestures. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whorld Tips and Gestures</title>
+<style>
+:root { color-scheme: light dark; --fg: #1d1d1f; --bg: #fff; --muted: #6e6e73; --rule: #d2d2d7; --link: #0066cc; }
+@media (prefers-color-scheme: dark) { :root { --fg: #f5f5f7; --bg: #1d1d1f; --muted: #a1a1a6; --rule: #424245; --link: #2997ff; } }
+body { font: 15px/1.5 -apple-system, system-ui, sans-serif; color: var(--fg); background: var(--bg); max-width: 46em; margin: 2em auto; padding: 0 16px; }
+h1 { font-size: 1.8em; margin-bottom: .2em; } h2 { margin-top: 1.8em; border-bottom: 1px solid var(--rule); padding-bottom: .2em; }
+.sub { color: var(--muted); margin-top: 0; } a { color: var(--link); }
+table { border-collapse: collapse; width: 100%; font-size: .95em; }
+th, td { text-align: left; padding: .35em .6em; border-bottom: 1px solid var(--rule); vertical-align: top; }
+td:first-child { width: 42%; }
+code, kbd { font: .92em ui-monospace, Menlo, monospace; }
+</style>
+</head>
+<body>
+<h1>Tips and Gestures</h1>
+<p class="sub">The shortcuts and gestures that are easy to miss. The full story is in <a href="index.html">Whorld Help</a>.</p>
+
+<h2>Over the picture</h2>
+<table>
+<tr><th>Do this</th><th>To</th></tr>
+<tr><td>Two-finger swipe up or down</td><td>Zoom</td></tr>
+<tr><td><kbd>⇧</kbd> and swipe</td><td>Change Damping</td></tr>
+<tr><td>Hold a letter and swipe</td><td>Change that key's control (View &gt; Key Map lists them)</td></tr>
+<tr><td>Press a Key Map key, without swiping</td><td>See its control and value in the Perform Bar first</td></tr>
+<tr><td>Two-finger tap (or right-click)</td><td>Put Zoom back; with <kbd>⇧</kbd>, Damping; with a letter held, that key's control</td></tr>
+<tr><td>Hold the mouse button and move</td><td>Move the rings' center (the origin)</td></tr>
+<tr><td>Double-click</td><td>Detach the picture into its own window, or dock it again</td></tr>
+<tr><td><kbd>⌘←</kbd> <kbd>⌘→</kbd></td><td>Previous and next snapshot, with snapshots loaded</td></tr>
+</table>
+
+<h2>The Perform Bar</h2>
+<table>
+<tr><th>Do this</th><th>To</th></tr>
+<tr><td>Click the frame rate</td><td>See the rest of the figures: missed frames, draw time, rings, renderer</td></tr>
+<tr><td>Click the playlist place (12/86)</td><td>Play the next patch</td></tr>
+<tr><td>Right-click Play</td><td>Pick how long each patch plays</td></tr>
+<tr><td>Click the tempo beside Mod</td><td>Reset to 1.1: the nearest beat becomes bar 1, beat 1</td></tr>
+<tr><td>Option-click the full-screen button</td><td>Go full screen on another display</td></tr>
+</table>
+
+<h2>Sliders and number boxes</h2>
+<table>
+<tr><th>Do this</th><th>To</th></tr>
+<tr><td>Right-click</td><td>Put it back to its value when the patch was loaded or saved</td></tr>
+<tr><td>Rest the pointer and swipe with two fingers</td><td>Move it: sideways on a slider, up or down on a number box</td></tr>
+<tr><td>Hold <kbd>⌘</kbd>, <kbd>⌥</kbd> or <kbd>⇧</kbd> while swiping</td><td>Go finer (<kbd>⌘</kbd> finest, <kbd>⌥</kbd> fine) or coarser (<kbd>⇧</kbd>)</td></tr>
+<tr><td>Hover over a control's name</td><td>See what it does, and its Key Map key</td></tr>
+</table>
+
+<h2>Panels</h2>
+<table>
+<tr><th>Do this</th><th>To</th></tr>
+<tr><td>Double-click a panel's title bar</td><td>Float it in its own window, or dock it again</td></tr>
+<tr><td>Drag a title bar onto another panel</td><td>Place it beside that panel, or stack them as tabs</td></tr>
+<tr><td>Drop a panel in the thin strip along an area's edge</td><td>Make it span the whole area</td></tr>
+<tr><td><kbd>⌥⌘</kbd> and an arrow, pointer over a panel</td><td>Move it a step; with <kbd>⇧</kbd>, all the way</td></tr>
+<tr><td>Click the ⓘ by a panel's title</td><td>See what the panel is for</td></tr>
+<tr><td>Drag playlist rows</td><td>Reorder the playlist</td></tr>
+</table>
+
+<h2>Keys worth knowing</h2>
+<table>
+<tr><th>Press</th><th>To</th></tr>
+<tr><td><kbd>Space</kbd>, <kbd>⇧Space</kbd></td><td>Pause, step (even with a number box selected)</td></tr>
+<tr><td><kbd>Delete</kbd></td><td>Clear the picture (except while typing)</td></tr>
+<tr><td><kbd>⌘↓</kbd> <kbd>⌘↑</kbd></td><td>Next and previous patch, from anywhere</td></tr>
+<tr><td><kbd>⌘B</kbd></td><td>Fade to black and back</td></tr>
+<tr><td><kbd>⌘F</kbd>, <kbd>⇧⌘F</kbd>, <kbd>Esc</kbd></td><td>Full screen; on another display; leave</td></tr>
+<tr><td><kbd>⌘1</kbd>–<kbd>⌘8</kbd></td><td>Fill, Outline, Mirror, Convex, Reverse, Invert Color, Rotate Hue, Loop Hue</td></tr>
+<tr><td><kbd>⌘\</kbd>, <kbd>⌘[</kbd> <kbd>⌘]</kbd></td><td>Reset to 1.1; move the beat count back or on</td></tr>
+<tr><td><kbd>⌥⌘9</kbd></td><td>Show or hide the Perform Bar</td></tr>
+</table>
+<p>Every shortcut is in the <a href="index.html#keys">shortcut table</a>.</p>
+</body>
+</html>

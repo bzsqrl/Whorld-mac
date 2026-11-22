@@ -409,6 +409,7 @@ struct HelpCommands: Commands {
 		CommandGroup(replacing: .help) {
 			Button("Whorld Help") { Self.openHelp("index.html") }
 				.keyboardShortcut("?")
+			Button("Tips and Gestures") { Self.openHelp("tips.html") }
 			Button("Whorld Manual") { Self.openHelp("frames.html") }
 			Divider()
 			Button("Report a Bug…") { Self.openIssueForm("bug_report.yml") }
