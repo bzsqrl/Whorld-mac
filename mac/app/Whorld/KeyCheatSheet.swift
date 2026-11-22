@@ -11,7 +11,8 @@
 // 2026-11-22): hold the key left of 1 (` on US keyboards) with the pointer
 // over the picture or the swipe pad, and a drawing of the keyboard shows
 // which key moves which control, over that view; let go and it's gone. A
-// window of its own over the view, so it's never in Syphon or exports.
+// window of its own over the view, so it's never in Syphon or exports, and
+// never over a full-screen picture.
 
 import AppKit
 import SwiftUI
@@ -31,7 +32,9 @@ final class KeyCheatSheet {
 	/// Shows the sheet centered over `view` (a picture or the swipe pad),
 	/// scaled down to fit it
 	func show(over view: NSView) {
-		guard let window = view.window else { return }
+		// never over a full-screen picture, which the audience may see (the
+		// user's rule, 2026-11-22); the swipe pad and windowed pictures only
+		guard let window = view.window, !(window is FullScreenWindow) else { return }
 		let rect = window.convertToScreen(view.convert(view.bounds, to: nil))
 		let natural = KeyCheatSheetView.naturalSize
 		let scale = min(1, (rect.width - 24) / natural.width, (rect.height - 24) / natural.height)
