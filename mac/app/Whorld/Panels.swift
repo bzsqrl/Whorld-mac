@@ -923,6 +923,39 @@ private struct KeyedControlTip: ViewModifier {
 	}
 }
 
+/// A control's Key Map key, as a small keycap before its name, while
+/// Settings > General > Show Key Map keys in panels is on (the user's
+/// request, 2026-11-21: to learn the keys). It follows the Key Map; a control
+/// with no key keeps the room, so the names stay in line.
+struct KeyBadge: View {
+	static let defaultsKey = "General_bKeyBadges"
+	static let width: CGFloat = 18
+	/// the room it takes in a row with this spacing; none while it's off
+	static func room(_ spacing: CGFloat) -> CGFloat {
+		UserDefaults.standard.bool(forKey: defaultsKey) ? width + spacing : 0
+	}
+
+	let target: String	// mapping target tag, as KeyBinding stores it; "" for a blank
+	var prop = 0
+	@AppStorage(KeyBadge.defaultsKey) private var on = false
+	@ObservedObject private var map = KeyMap.shared
+
+	var body: some View {
+		if on {
+			if let b = map.bindings.first(where: { $0.target == target && $0.prop == prop && !$0.key.isEmpty }) {
+				Text(b.keyLabel)
+					.font(.caption.monospaced().weight(.semibold))
+					.foregroundStyle(.secondary)
+					.frame(width: Self.width, height: 15)
+					.background(RoundedRectangle(cornerRadius: 3).strokeBorder(.secondary.opacity(0.6)))
+					.help("Hold \(b.keyLabel) over the picture and swipe to change \(b.displayName)")
+			} else {
+				Color.clear.frame(width: Self.width, height: 1)
+			}
+		}
+	}
+}
+
 extension View {
 	func controlTip(_ text: String) -> some View { modifier(ControlTip(text: text)) }
 	/// the tip, after the Key Map key that moves `target` (`prop`: a
@@ -962,6 +995,7 @@ struct ParamsPanel: View {
 			// cell again whenever one changes, about 10 ms per update here.
 			VStack(alignment: .leading, spacing: 4) {
 				HStack(spacing: ParamColumn.spacing) {
+					KeyBadge(target: "")
 					Text("Name").frame(width: ParamColumn.name, alignment: .leading)
 					Text("Value").frame(minWidth: ParamColumn.slider, maxWidth: .infinity, alignment: .leading)	// over the slider, which stretches
 					Color.clear.frame(width: ParamColumn.field, height: 1)
@@ -996,7 +1030,7 @@ enum ParamColumn {
 	static let wave: CGFloat = 104
 	static let pw: CGFloat = NumberField.standardWidth
 	/// the narrowest the panel gets: every column, the gaps, the padding
-	static let panelMin: CGFloat = name + slider + field + wave + field + freq + pw + 6 * spacing + 20
+	static var panelMin: CGFloat { name + slider + field + wave + field + freq + pw + 6 * spacing + 20 + KeyBadge.room(spacing) }
 }
 
 struct ParamRow: View {
@@ -1026,6 +1060,7 @@ struct ParamRow: View {
 		let _ = model.changes.params[iParam].n	// redraw for this row's changes only
 		let e = model.engine
 		HStack(spacing: ParamColumn.spacing) {
+			KeyBadge(target: WHMappingInfo.targetTag(iParam), prop: WHParamProperty.val.rawValue)
 			Text(WHControls.paramName(iParam))
 				.lineLimit(1)
 				.controlTip(ControlTips.params[iParam], target: WHMappingInfo.targetTag(iParam), prop: WHParamProperty.val.rawValue)
@@ -1064,7 +1099,7 @@ struct ParamRow: View {
 
 struct MasterPanel: View {
 	/// the narrowest the panel gets (name, slider, number box, gaps, padding)
-	static let minWidth: CGFloat = 72 + PositionSlider.minWidth + NumberField.standardWidth + 16 + 24
+	static var minWidth: CGFloat { 72 + PositionSlider.minWidth + NumberField.standardWidth + 16 + 24 + KeyBadge.room(8) }
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 6) {	// rows of fixed columns around a stretching slider
@@ -1088,6 +1123,7 @@ struct MasterRow: View {
 		let ci = WHControls.masterControl(i)
 		let value = model.engine.masterValue(i)
 		HStack(spacing: 8) {
+			KeyBadge(target: WHMappingInfo.targetTag(WHMappingInfo.paramTargetCount + i))
 			Text(WHControls.masterName(i))
 				.lineLimit(1)
 				.controlTip(ControlTips.master[i], target: WHMappingInfo.targetTag(WHMappingInfo.paramTargetCount + i))
@@ -1127,6 +1163,7 @@ struct HueRow: View {
 			min(max(k.apply(v, size: 10, direction: d), 0), 360)	// a degree, ten with Shift
 		}
 		HStack(spacing: 8) {
+			KeyBadge(target: "Hue")
 			Text("Hue")
 				.lineLimit(1)
 				.controlTip(ControlTips.hue, target: "Hue")
@@ -1154,7 +1191,7 @@ struct HueRow: View {
 
 struct GlobalsPanel: View {
 	/// the narrowest the panel gets (name, slider, number box, gaps, padding)
-	static let minWidth: CGFloat = 96 + PositionSlider.minWidth + NumberField.standardWidth + 16 + 24
+	static var minWidth: CGFloat { 96 + PositionSlider.minWidth + NumberField.standardWidth + 16 + 24 + KeyBadge.room(8) }
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 4) {	// rows of fixed columns around a stretching slider
@@ -1175,6 +1212,7 @@ struct GlobalRow: View {
 		let ci = WHControls.globalControl(i)
 		let value = model.engine.paramValue(i, property: .global)
 		HStack(spacing: 8) {
+			KeyBadge(target: WHMappingInfo.targetTag(i), prop: WHParamProperty.global.rawValue)
 			Text(WHControls.paramName(i))
 				.lineLimit(1)
 				.controlTip(ControlTips.global(i), target: WHMappingInfo.targetTag(i), prop: WHParamProperty.global.rawValue)

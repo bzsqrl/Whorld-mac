@@ -993,18 +993,19 @@ final class AppModel: ObservableObject {
 
 	/// A key's control, moved by `delta` (in the units of a slider's travel,
 	/// 0 to 1) times the key's speed; with the readout on, shows the result.
-	private func adjust(_ b: KeyBinding, by delta: Double) {
+	/// `apply` false only shows the control and its value, changing nothing.
+	private func adjust(_ b: KeyBinding, by delta: Double, apply: Bool = true) {
 		guard let t = b.targetIndex else { return }
 		let d = delta * b.speed
 		let nParams = WHMappingInfo.paramTargetCount, nMaster = WHMappingInfo.masterTargetCount
 		var shown = ""
 		if t < nParams {
-			shown = adjustParam(t, WHParamProperty(rawValue: b.prop) ?? .val, d)
+			shown = adjustParam(t, WHParamProperty(rawValue: b.prop) ?? .val, d, apply: apply)
 		} else if t < nParams + nMaster {
 			let i = t - nParams
 			let old = engine.masterValue(i)
 			let value = WHControls.masterDenorm01(i, value: min(max(WHControls.masterNorm01(i, value: old) + d, 0), 1))
-			if value != old {
+			if apply, value != old {
 				if i == MasterProp.zoom.rawValue {
 					setZoom(value)	// damped, as the wheel's zoom
 				} else {
@@ -1015,7 +1016,7 @@ final class AppModel: ObservableObject {
 		} else {
 			switch b.target {
 			case "Hue":	// degrees, 0 to 360
-				setHue(min(max(engine.hue + d * 360, 0), 360))
+				if apply { setHue(min(max(engine.hue + d * 360, 0), 360)) }
 				shown = String(format: "%.1f°", engine.hue)
 			case "OriginX", "OriginY":	// normalized, 0 to 1
 				var p = engine.liveOrigin
@@ -1024,7 +1025,7 @@ final class AppModel: ObservableObject {
 				} else {
 					p.y = min(max(p.y + d, 0), 1)
 				}
-				setOrigin(p)
+				if apply { setOrigin(p) }
 				shown = String(format: "%.3f", b.target == "OriginX" ? p.x : p.y)
 			default:
 				return
@@ -1075,15 +1076,22 @@ final class AppModel: ObservableObject {
 			default: return false
 			}
 		}
-		adjust(b, by: 0)	// the readout, if on
+		adjust(b, by: 0, apply: false)	// the readout
 		return true
+	}
+
+	/// A key in the key map, pressed over the picture: the Perform Bar's
+	/// readout names its control and value before anything moves, so a wrong
+	/// key can be let go unused (the user's request, 2026-11-21)
+	func showKeyControl(_ b: KeyBinding) {
+		adjust(b, by: 0, apply: false)
 	}
 
 	/// A parameter column, moved: Value and Global along their sliders; the
 	/// oscillator columns (number boxes only) within the box's limits, or by
 	/// its stepper increments (one per hundredth of travel) if it has none.
 	/// Returns the new value as the panel shows it.
-	private func adjustParam(_ i: Int, _ prop: WHParamProperty, _ d: Double) -> String {
+	private func adjustParam(_ i: Int, _ prop: WHParamProperty, _ d: Double, apply: Bool = true) -> String {
 		let old = engine.paramValue(i, property: prop)
 		var value = old
 		let ci: WHControlInfo
@@ -1108,7 +1116,7 @@ final class AppModel: ObservableObject {
 		default:
 			return ""	// waveforms aren't continuous
 		}
-		if value != old {
+		if apply, value != old {
 			setParam(i, prop, value)
 		}
 		return paramText(engine.paramValue(i, property: prop), ci)	// as the edit boxes show it
@@ -1860,6 +1868,9 @@ final class OutputKeys {
 		guard Self.pointerOverOutput() else { return false }
 		held = key
 		heldCode = code
+		if let b = KeyMap.shared.binding(for: key) {
+			AppModel.shared.showKeyControl(b)	// named on the press, before any swipe
+		}
 		return true
 	}
 

@@ -36,6 +36,7 @@ enum Preferences {
 			"Playlist_bSaveLayout": true,
 			"Playlist_bApplyLayout": true,
 			"General_bControlTips": true,
+			KeyBadge.defaultsKey: false,
 			"Render_nMaxFrameRate": 0,
 			"Render_fScale": 1.0,
 			"Render_bSmoothUpscale": true,
@@ -190,6 +191,7 @@ struct PreferencesView: View {
 	@AppStorage("General_sAuthorName") private var authorName = ""
 	@AppStorage("Playlist_bApplyLayout") private var applyPlaylistLayouts = true
 	@AppStorage("General_bControlTips") private var controlTips = true
+	@AppStorage(KeyBadge.defaultsKey) private var keyBadges = false
 	@AppStorage("Render_nMaxFrameRate") private var maxFrameRate = 0
 	@AppStorage("Rings_bFadeEased") private var ringFadeEased = true
 	@AppStorage("Rings_bHueFromPatch") private var hueFromPatch = false
@@ -231,6 +233,9 @@ struct PreferencesView: View {
 				Toggle("Reopen the last playlist and patch at launch", isOn: $reopenLast)
 				Toggle(isOn: $controlTips) {
 					InfoLabel("Show tips on control names", info: "Hovering over a control's name in Parameters, Master, Globals or Properties shows a short explanation of what it does, after its Key Map key, if it has one: (S) for Speed.")
+				}
+				Toggle(isOn: $keyBadges) {
+					InfoLabel("Show Key Map keys in panels", info: "Each control in Parameters, Master and Globals that has a key in the Key Map (View > Key Map) shows it before its name: hold that key over the picture and swipe to change the control. They follow the Key Map as you change it.")
 				}
 				Toggle(isOn: $applyPlaylistLayouts) {
 					InfoLabel("Open playlists with their layout", info: "A playlist saved with its panel layout (Save Playlist As > Include the panel layout) arranges the panels and windows that way when it's opened. Window > Save Layout and Open Layout keep layouts in files of their own.")
