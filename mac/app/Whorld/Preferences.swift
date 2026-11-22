@@ -182,12 +182,17 @@ enum Preferences {
 enum WhorldFolders {
 	enum Kind: String {
 		case patches = "Patches", playlists = "Playlists"
-		/// the folder last used for this kind (`Folder_sPatches`, `Folder_sPlaylists`)
+		/// Take Snapshot's and Load Snapshot's (the user's request, 2026-11-22)
+		case snapshots = "Snapshots"
+		static let all: [Kind] = [.patches, .playlists, .snapshots]
+		/// the folder last used for this kind (`Folder_sPatches`, `Folder_sPlaylists`, `Folder_sSnapshots`)
 		var lastKey: String { "Folder_s" + rawValue }
 	}
 
-	/// set once the folders are made, so a deleted one isn't made again
-	private static let madeKey = "General_bMadeFolders"
+	/// the folders made, so a deleted one isn't made again (each kind once:
+	/// Snapshots came later); `General_bMadeFolders` stands for the first two
+	private static let madeKey = "General_sMadeFolders"
+	private static let madeKeyV1 = "General_bMadeFolders"
 
 	/// ~/Documents/Whorld; `General_sWhorldFolder` (no setting shows it) moves
 	/// it, for testing
@@ -202,19 +207,24 @@ enum WhorldFolders {
 
 	static func folder(_ kind: Kind) -> URL { root.appendingPathComponent(kind.rawValue, isDirectory: true) }
 
-	/// At launch: makes the folders, the first time only (an existing Whorld
-	/// folder is kept as it is, with the two added). If that fails, the next
+	/// At launch: makes each kind's folder, the first time only (an existing
+	/// Whorld folder is kept as it is, with the folders added; one added in a
+	/// later version is made when it first runs). If that fails, the next
 	/// launch tries again.
 	static func makeOnce() {
-		guard !Preferences.defaults.bool(forKey: madeKey) else { return }
-		do {
-			for kind in [Kind.patches, .playlists] {
+		let d = Preferences.defaults
+		var made = Set(d.stringArray(forKey: madeKey) ?? [])
+		if d.bool(forKey: madeKeyV1) { made.formUnion([Kind.patches.rawValue, Kind.playlists.rawValue]) }
+		let before = made
+		for kind in Kind.all where !made.contains(kind.rawValue) {
+			do {
 				try FileManager.default.createDirectory(at: folder(kind), withIntermediateDirectories: true)
+				made.insert(kind.rawValue)
+			} catch {
+				NSLog("Whorld: can't make the \(kind.rawValue) folder in Documents/Whorld: \(error.localizedDescription)")
 			}
-			Preferences.defaults.set(true, forKey: madeKey)
-		} catch {
-			NSLog("Whorld: can't make the Whorld folder in Documents: \(error.localizedDescription)")
 		}
+		if made != before { d.set(made.sorted(), forKey: madeKey) }
 	}
 
 	/// where a dialog for this kind starts: where it was last used, else its

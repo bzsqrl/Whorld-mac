@@ -322,6 +322,10 @@ private struct StatsStripContent: View {
 			.layoutPriority(2)
 			.help("Syphon output on or off (View > Syphon, which also sets its size). Faint off, hollow while no app is receiving, filled once one is.")
 			Spacer(minLength: 0)
+			// File > Movie > Record Movie (the user's request, 2026-11-22):
+			// red with the running time while recording
+			RecordButton()
+				.layoutPriority(2)
 			// View > Detach (the user's request, 2026-11-20): the picture in a
 			// window of its own, for a projector; lit while detached, when
 			// the bar is on the swipe pad, and a click docks it again
@@ -609,6 +613,45 @@ private struct BlackoutButton: View {
 		.help((on ? "Blackout: the picture is faded out. Click to fade it back (Image > Blackout, ⌘B)."
 			: "Blackout: fade the picture to black over a second (Image > Blackout, ⌘B).")
 			+ " Black on screen and in Syphon, not in exports; Whorld keeps running underneath, so the picture returns where it would have been.")
+	}
+}
+
+/// File > Movie > Record Movie in the Perform Bar: a dot, red with the
+/// time recorded while recording; a click starts or stops it. Polls only
+/// while recording (the movie bar's reason: each tick lays out the window).
+private struct RecordButton: View {
+	@EnvironmentObject private var model: AppModel
+
+	var body: some View {
+		let _ = model.changes.media.n	// toggleRecordMovie calls changed()
+		let ms = model.movieState
+		Button { model.toggleRecordMovie() } label: {
+			if ms.io == .writing {
+				TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+					HStack(spacing: 4) {
+						Image(systemName: "record.circle.fill").foregroundStyle(.red)
+						Text(Self.time(model.movieState)).monospacedDigit()
+					}
+					.padding(.horizontal, 3)
+				}
+			} else {
+				Image(systemName: "record.circle")
+					.imageScale(.small)
+					.padding(.horizontal, 3)
+			}
+		}
+		.buttonStyle(StripToggleStyle())
+		.fixedSize()
+		.disabled(ms.io == .reading)
+		.help(ms.io == .writing
+			? "Recording a movie. Click to stop (File > Movie > Stop Recording)."
+			: "Record a movie: Whorld's own recording (.whm) of the picture, to play back or export as a video later (File > Movie > Record Movie).")
+	}
+
+	/// minutes and seconds recorded
+	static func time(_ ms: WHMovieState) -> String {
+		let s = ms.frameRate > 0 ? Int(Double(ms.frame) / Double(ms.frameRate)) : 0
+		return String(format: "%d:%02d", s / 60, s % 60)
 	}
 }
 

@@ -81,8 +81,8 @@ extension AppModel {
 
 	/// CMainFrame::MakeUniqueExportPath with CWhorldApp::GetTimestampFileName
 	/// (UTC, like GetSystemTime): Whorld-YYYY-MM-DD-hh-mm-ss-mmm.ext
-	func makeUniqueExportPath(_ ext: String) -> URL? {
-		let folder = exportFolder
+	func makeUniqueExportPath(_ ext: String, in folder: URL? = nil) -> URL? {
+		let folder = folder ?? exportFolder
 		var isDir: ObjCBool = false
 		guard FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDir), isDir.boolValue else {
 			alert("The export folder doesn't exist.", folder.path)
@@ -109,9 +109,10 @@ extension AppModel {
 		a.runModal()
 	}
 
-	private func savePanel(_ type: UTType, title: String, name: String) -> URL? {
+	private func savePanel(_ type: UTType, title: String, name: String, in folder: URL? = nil) -> URL? {
 		let panel = NSSavePanel()
 		panel.title = title
+		if let folder { panel.directoryURL = folder }
 		panel.allowedContentTypes = [type]
 		panel.nameFieldStringValue = name
 		return panel.runModal() == .OK ? panel.url : nil
@@ -137,13 +138,21 @@ extension AppModel {
 
 	// MARK: Snapshots
 
-	// CMainFrame::OnFileTakeSnapshot and WriteSnapshot
+	// CMainFrame::OnFileTakeSnapshot and WriteSnapshot. Into
+	// Documents/Whorld/Snapshots, not the export folder, where it's there
+	// (the user's request, 2026-11-22); the dialog starts where the last
+	// snapshot went.
 	func takeSnapshot() {
 		let url: URL?
 		if promptingForExport {
-			url = savePanel(.whorldSnapshot, title: "Snapshot Save As", name: "Untitled.whs")
+			url = savePanel(.whorldSnapshot, title: "Snapshot Save As", name: "Untitled.whs",
+				in: WhorldFolders.start(.snapshots))
+			if let url { WhorldFolders.used(.snapshots, url) }
 		} else {
-			url = makeUniqueExportPath("whs")
+			var isDir: ObjCBool = false
+			let folder = WhorldFolders.folder(.snapshots)
+			let there = FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDir) && isDir.boolValue
+			url = makeUniqueExportPath("whs", in: there ? folder : nil)
 		}
 		guard let url else { return }
 		engine.takeSnapshot(toPath: url.path) { [weak self] error in
@@ -156,7 +165,9 @@ extension AppModel {
 		let panel = NSOpenPanel()
 		panel.allowedContentTypes = [.whorldSnapshot]
 		panel.allowsMultipleSelection = true
+		panel.directoryURL = WhorldFolders.start(.snapshots)
 		guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
+		WhorldFolders.used(.snapshots, panel.urls[0])
 		loadSnapshots(panel.urls)
 	}
 
