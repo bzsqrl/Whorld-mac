@@ -1009,8 +1009,18 @@ struct ParamsPanel: View {
 					}
 					Button {
 						oscillators.toggle()
+						// the columns shown: the pane widens to fit them where
+						// there's room (else it scrolls sideways; the user's
+						// request, 2026-11-22)
+						if oscillators {
+							DispatchQueue.main.async {
+								AppModel.shared.widenPanel(.params, to: ParamColumn.panelMin + FormScroller.scrollerRoom)
+							}
+						}
 					} label: {
-						Image(systemName: oscillators ? "chevron.left.2" : "waveform")
+						// a plain sine wave, not the audio waveform symbol
+						// (the user's request, 2026-11-22)
+						Image(systemName: oscillators ? "chevron.left.2" : "alternatingcurrent")
 							.frame(width: ParamColumn.oscButton - 4)
 					}
 					.buttonStyle(.borderless)
@@ -1144,7 +1154,7 @@ struct OscillatorMark: View {
 		ZStack {
 			if amp != 0 && freq != 0 {
 				let wave = WHControls.waveformName(Int(e.paramValue(iParam, property: .wave)))
-				Text(Image(systemName: "waveform"))
+				Text(Image(systemName: "alternatingcurrent"))
 					.foregroundStyle(Color.accentColor)
 					.help("Its oscillator moves it: \(wave), amplitude \(paramText(amp, WHControls.paramControl(iParam, column: 1))), frequency \(paramText(freq, WHControls.paramControl(iParam, column: 2))). Click the wave at the top of the panel to show the oscillator columns.")
 			}

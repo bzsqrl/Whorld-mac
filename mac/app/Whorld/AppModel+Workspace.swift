@@ -202,4 +202,43 @@ extension AppModel {
 		NSApp.windows.first { $0.identifier?.rawValue.hasPrefix("main") == true }
 			?? NSApp.mainWindow
 	}
+
+	/// Makes a panel at least `width` wide where there's room (Parameters'
+	/// oscillator columns shown; the user's request, 2026-11-22): a docked
+	/// pane takes it from the pane beside it, to the right first, then the
+	/// left, then its region from its neighbour, and so on out; a floating
+	/// window grows, within its display. What can't be found, it scrolls.
+	func widenPanel(_ id: PanelID, to width: CGFloat) {
+		if layout.isFloating(id) {
+			guard let w = panelWindow(id), let content = w.contentView else { return }
+			let need = width - content.bounds.width
+			guard need > 0.5 else { return }
+			var f = w.frame
+			let area = w.screen?.visibleFrame ?? f
+			f.size.width = min(f.width + need, area.width)
+			if f.maxX > area.maxX { f.origin.x = max(area.minX, area.maxX - f.width) }
+			w.setFrame(f, display: true, animate: true)
+			return
+		}
+		guard let pane = layout.paneViews[id]?.view else { return }
+		var need = width - pane.bounds.width
+		var v: NSView = pane
+		while need > 0.5, let up = v.superview {
+			if let s = up as? NSSplitView, s.isVertical, let i = s.arrangedSubviews.firstIndex(of: v) {
+				if i + 1 < s.arrangedSubviews.count {	// the divider on its right, moved right
+					let before = v.frame.width
+					s.setPosition(v.frame.maxX + need, ofDividerAt: i)
+					s.layoutSubtreeIfNeeded()
+					need -= v.frame.width - before
+				}
+				if need > 0.5, i > 0 {	// the one on its left, moved left
+					let before = v.frame.width
+					s.setPosition(v.frame.minX - need - s.dividerThickness, ofDividerAt: i - 1)
+					s.layoutSubtreeIfNeeded()
+					need -= v.frame.width - before
+				}
+			}
+			v = up
+		}
+	}
 }
