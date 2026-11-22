@@ -1425,6 +1425,26 @@ final class AppModel: ObservableObject {
 		}
 	}
 
+	/// View > Detach to Other Display / Move to Next Display (Shift-Cmd-D,
+	/// Option-click on the Perform Bar's Detach button; a Mac addition, the
+	/// user's request, 2026-11-22), as Shift-Cmd-F without the full screen:
+	/// docked, the output detaches onto the next display from the Whorld
+	/// window's; detached, its window moves on to the next display, through
+	/// them all in turn (Cmd-D docks it). Its remembered size where that
+	/// fits, centered. With one display, or full screen, nothing.
+	func detachNextDisplay() {
+		guard !isFullScreen, let screen = Self.display(after: outputScreen) else { return }
+		KeyCheatSheet.shared.hide()	// its picture moves
+		if !layout.layout.detached {
+			layout.layout.detached = true
+			outputWindow.show(model: self, near: mainWindow?.frame)
+		}
+		guard let w = outputWindow.window else { return }
+		if w.screen != screen {
+			Self.center(w, on: screen)
+		}
+	}
+
 	/// Centered on the display, kept within it
 	private static func center(_ w: NSWindow, on screen: NSScreen) {
 		let area = screen.visibleFrame

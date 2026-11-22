@@ -619,7 +619,15 @@ private struct DetachButton: View {
 	var body: some View {
 		let _ = model.changes.menus.n
 		let on = model.isDetached
-		Button { model.toggleDetach() } label: {
+		Button {
+			// with Option, Detach to Other Display / Move to Next Display
+			// (2026-11-22), as Option on the full-screen button
+			if NSEvent.modifierFlags.contains(.option) {
+				model.detachNextDisplay()
+			} else {
+				model.toggleDetach()
+			}
+		} label: {
 			Image(systemName: "macwindow.on.rectangle")
 				.imageScale(.small)
 				.foregroundStyle(on ? Color.accentColor : Color.primary)
@@ -627,8 +635,8 @@ private struct DetachButton: View {
 		}
 		.buttonStyle(StripToggleStyle())
 		.fixedSize()
-		.help(on ? "The picture is detached, in its own window. Click to put it back in the Whorld window (View > Detach, ⌘D)."
-			: "Detach the picture into a window of its own, to move to a projector or second display (View > Detach, ⌘D)")
+		.help(on ? "The picture is detached, in its own window. Click to put it back in the Whorld window (View > Detach, ⌘D); Option-click to move it to the next display (⇧⌘D)."
+			: "Detach the picture into a window of its own, to move to a projector or second display (View > Detach, ⌘D); Option-click to detach it onto another display (⇧⌘D)")
 	}
 }
 

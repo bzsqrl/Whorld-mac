@@ -346,6 +346,13 @@ struct WhorldCommands: Commands {
 			Toggle("Detach", isOn: Binding(get: { model.isDetached }, set: { _ in model.toggleDetach() }))
 				.keyboardShortcut("d")	// Windows: Ctrl+F12; ⌘D beside Full Screen's ⌘F (the user's request, 2026-11-22; was ⇧⌘D)
 				.disabled(model.isFullScreen)
+			// Detach onto another display, and while detached on to the next
+			// (Mac addition, the user's request, 2026-11-22), as Shift-Cmd-F
+			Button(model.isDetached ? "Move to Next Display" : "Detach to Other Display") {
+				model.detachNextDisplay()
+			}
+			.keyboardShortcut("d", modifiers: [.command, .shift])
+			.disabled(!model.hasOtherDisplay || model.isFullScreen)
 			Divider()
 			// CMainFrame's ID_VIEW_BAR_ commands: show or hide a panel
 			ForEach(PanelID.allCases) { id in

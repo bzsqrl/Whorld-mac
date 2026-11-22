@@ -80,6 +80,7 @@ From the Windows accelerator table (`Whorld.rc`, `IDR_MAINFRAME`), with Ctrl map
 | Full screen | F11 | ⌘F (View > Enter Full Screen), or ⌃⌘F as in other Mac apps, or F11 if your keyboard sends it; Esc also leaves |
 | Full screen on another display | — | ⇧⌘F (View > Enter Full Screen on Other Display), with more than one display; while full screen, the next display |
 | Detach | Ctrl+F12 | ⌘D |
+| Detach to another display | — | ⇧⌘D (View > Detach to Other Display), with more than one display; while detached, the next display |
 | Show Perform Bar | — | ⇧⌘B |
 
 Panels use ⌥⌘ and a digit, not Windows' Shift+letter, which would fire while typing a capital letter in a panel's text field. Space (Pause) is safe: a focused text field takes it first.
