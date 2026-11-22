@@ -510,30 +510,87 @@ extension AppModel {
 
 	// CPlaylist::CheckPatchPaths and CMissingFilesDlg: offer to search a
 	// folder for patches that can't be found
+	/// the playlist entries whose patch can't be found
+	var missingPatchIndices: [Int] {
+		let paths = playlistPatches
+		return paths.indices.filter { !paths[$0].isEmpty && resolvePatchPath(paths[$0]) == nil }
+	}
+
+	/// After a playlist opens (CPlaylist::CheckPatchPaths): if patches are
+	/// missing, offers to search a folder for them by file name. Patches
+	/// beside the playlist or in Documents/Whorld/Patches are found without
+	/// asking (resolvePatchPath). Left missing, they show dimmed, and the
+	/// Playlist's right-click menu can locate them later.
 	func checkMissingPatches() {
-		var paths = playlistPatches
-		let missing = paths.indices.filter { !paths[$0].isEmpty && resolvePatchPath(paths[$0]) == nil }
+		let missing = missingPatchIndices
 		guard !missing.isEmpty else { return }
 		let a = NSAlert()
-		a.messageText = "\(missing.count) of the playlist's \(paths.count) patches can't be found."
-		a.informativeText = "Patch paths from Windows look like C:\\…; search a folder for them by file name?"
+		a.messageText = "\(missing.count) of the playlist's \(playlistPatches.count) patches can't be found."
+		a.informativeText = "Whorld can search a folder and its subfolders for them by file name. Patches still missing are dimmed in the Playlist; right-click one to locate it."
 		a.addButton(withTitle: "Search Folder…")
-		a.addButton(withTitle: "Proceed")
+		a.addButton(withTitle: "Not Now")
 		guard a.runModal() == .alertFirstButtonReturn else { return }
+		findMissingPatches()
+	}
+
+	/// Asks for a folder and relinks the missing patches found in it
+	/// (CFileSearchDlg), saying how many
+	func findMissingPatches() {
+		let missing = missingPatchIndices
+		guard !missing.isEmpty else {
+			alert("No patches are missing.")
+			return
+		}
 		let panel = NSOpenPanel()
 		panel.canChooseDirectories = true
 		panel.canChooseFiles = false
-		panel.message = "Choose a folder to search, including its subfolders."
+		panel.directoryURL = WhorldFolders.start(.patches)
+		panel.message = "Choose a folder to search for the \(missing.count) missing patches, including its subfolders."
+		panel.prompt = "Search"
 		guard panel.runModal() == .OK, let root = panel.url else { return }
-		// index .whp files under the folder by lowercased name (CFileSearchDlg)
-		var byName: [String: String] = [:]
-		if let e = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil) {
-			for case let url as URL in e where url.pathExtension.lowercased() == "whp" {
-				byName[url.lastPathComponent.lowercased()] = byName[url.lastPathComponent.lowercased()] ?? url.path
+		let found = relinkMissing(in: root)
+		alert("Found \(found) of \(missing.count) missing patches.",
+			found < missing.count ? "The rest stay dimmed in the Playlist; right-click one to locate it." : "")
+	}
+
+	/// The Playlist's Locate…: picks the file for one missing entry, then
+	/// looks in that file's folder (and below) for the other missing ones
+	func locatePatch(_ index: Int) {
+		let paths = playlistPatches
+		guard index >= 0, index < paths.count else { return }
+		let name = paths[index].split(whereSeparator: { $0 == "\\" || $0 == "/" }).last.map(String.init) ?? paths[index]
+		let panel = NSOpenPanel()
+		panel.allowedContentTypes = [.whorldPatch]
+		panel.directoryURL = WhorldFolders.start(.patches)
+		panel.message = "Where is \(name)?"
+		panel.prompt = "Locate"
+		guard panel.runModal() == .OK, let url = panel.url else { return }
+		var all = paths
+		all[index] = url.path
+		setPlaylistPatches(all, title: "Locate Patch")
+		let others = missingPatchIndices.count
+		if others > 0 {
+			let found = relinkMissing(in: url.deletingLastPathComponent())
+			if found > 0 {
+				alert("Also found \(found) of the other \(others) missing patches in that folder.")
 			}
 		}
+	}
+
+	/// Relinks the missing entries whose file name is under `root` (the first
+	/// found, as CFileSearchDlg); one undo step. Returns how many.
+	@discardableResult
+	private func relinkMissing(in root: URL) -> Int {
+		var byName: [String: String] = [:]
+		if let e = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles, .skipsPackageDescendants]) {
+			for case let url as URL in e where url.pathExtension.lowercased() == "whp" {
+				let key = url.lastPathComponent.lowercased()
+				if byName[key] == nil { byName[key] = url.path }
+			}
+		}
+		var paths = playlistPatches
 		var found = 0
-		for i in missing {
+		for i in missingPatchIndices {
 			let name = paths[i].split(whereSeparator: { $0 == "\\" || $0 == "/" }).last.map(String.init) ?? paths[i]
 			if let hit = byName[name.lowercased()] {
 				paths[i] = hit
@@ -541,11 +598,9 @@ extension AppModel {
 			}
 		}
 		if found > 0 {
-			engine.setPlaylistPatches(paths)
-			playlistModified = true	// replacing missing files counts as modification
+			setPlaylistPatches(paths, title: "Find Missing Patches")	// marks the playlist edited, as Windows does
 		}
-		alert("Found \(found) of \(missing.count) missing patches.")
-		changed()
+		return found
 	}
 }
 
@@ -921,8 +976,10 @@ struct PlaylistPanel: View {
 						Image(systemName: "play.fill")
 							.foregroundStyle(.green)
 							.opacity(row.id == model.playingPatch ? 1 : 0)
+						let missing = model.resolvePatchPath(row.path) == nil
 						Text(row.name)
-							.foregroundStyle(model.resolvePatchPath(row.path) == nil ? .secondary : .primary)
+							.foregroundStyle(missing ? .secondary : .primary)
+							.help(missing ? "Can't be found: \(row.path). Right-click to locate it." : row.path)
 					}
 				}
 				.width(min: 120, ideal: 180)
@@ -949,9 +1006,20 @@ struct PlaylistPanel: View {
 					dropRows(providers, at: offset)
 				}
 			}
-			.contextMenu(forSelectionType: Int.self) { _ in
+			.contextMenu(forSelectionType: Int.self) { sel in
 				Button("Play") { playSelected() }
 				Button("Delete") { model.deletePatches() }
+				// missing patches (dimmed): locate one, or search a folder
+				// for all of them (the user's request, 2026-11-22)
+				let missing = model.missingPatchIndices
+				if sel.count == 1, let i = sel.first, missing.contains(i) {
+					Divider()
+					Button("Locate…") { model.locatePatch(i) }
+				}
+				if !missing.isEmpty {
+					if !(sel.count == 1 && missing.contains(sel.first!)) { Divider() }
+					Button("Find Missing Patches…") { model.findMissingPatches() }
+				}
 			} primaryAction: { sel in
 				if let i = sel.first { model.playPatch(i) }
 			}
