@@ -1012,9 +1012,13 @@ struct ParamsPanel: View {
 						// the columns shown: the pane widens to fit them where
 						// there's room (else it scrolls sideways; the user's
 						// request, 2026-11-22)
-						if oscillators {
-							DispatchQueue.main.async {
+						// hidden again: the width taken goes back, unless the
+						// pane was resized since (2026-11-22)
+						DispatchQueue.main.async {
+							if oscillators {
 								AppModel.shared.widenPanel(.params, to: ParamColumn.panelMin + FormScroller.scrollerRoom)
+							} else {
+								AppModel.shared.narrowPanel(.params)
 							}
 						}
 					} label: {

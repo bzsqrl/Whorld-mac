@@ -1043,6 +1043,8 @@ final class AppModel: ObservableObject {
 
 	// The workspace: Detach, Show All Panels, layouts: in AppModel+Workspace.swift (its state stays here)
 	var pendingLayout: LayoutFile?
+	/// what widenPanel moved, to put back (narrowPanel)
+	var widening: PanelWidening?
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {

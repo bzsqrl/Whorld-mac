@@ -212,31 +212,38 @@ extension AppModel {
 	/// pane takes it from the pane beside it, to the right first, then the
 	/// left, then its region from its neighbour, and so on out; a floating
 	/// window grows, within its display. What can't be found, it scrolls.
+	/// What moved is kept, for narrowPanel.
 	func widenPanel(_ id: PanelID, to width: CGFloat) {
+		widening = nil
 		if layout.isFloating(id) {
 			guard let w = panelWindow(id), let content = w.contentView else { return }
 			let need = width - content.bounds.width
 			guard need > 0.5 else { return }
-			var f = w.frame
+			let old = w.frame
+			var f = old
 			let area = w.screen?.visibleFrame ?? f
 			f.size.width = min(f.width + need, area.width)
 			if f.maxX > area.maxX { f.origin.x = max(area.minX, area.maxX - f.width) }
 			w.setFrame(f, display: true, animate: true)
+			widening = PanelWidening(id: id, window: w, windowFrame: old, widened: w.frame.width)
 			return
 		}
 		guard let pane = layout.paneViews[id]?.view else { return }
 		var need = width - pane.bounds.width
+		var moves: [PanelWidening.Move] = []
 		var v: NSView = pane
 		while need > 0.5, let up = v.superview {
 			if let s = up as? NSSplitView, s.isVertical, let i = s.arrangedSubviews.firstIndex(of: v) {
 				if i + 1 < s.arrangedSubviews.count {	// the divider on its right, moved right
 					let before = v.frame.width
+					moves.append(.init(split: s, divider: i, position: v.frame.maxX))
 					s.setPosition(v.frame.maxX + need, ofDividerAt: i)
 					s.layoutSubtreeIfNeeded()
 					need -= v.frame.width - before
 				}
 				if need > 0.5, i > 0 {	// the one on its left, moved left
 					let before = v.frame.width
+					moves.append(.init(split: s, divider: i - 1, position: v.frame.minX - s.dividerThickness))
 					s.setPosition(v.frame.minX - need - s.dividerThickness, ofDividerAt: i - 1)
 					s.layoutSubtreeIfNeeded()
 					need -= v.frame.width - before
@@ -244,5 +251,57 @@ extension AppModel {
 			}
 			v = up
 		}
+		if !moves.isEmpty {
+			widening = PanelWidening(id: id, pane: pane, moves: moves, widened: pane.bounds.width)
+		}
+	}
+
+	/// Gives back what widenPanel took, Parameters' oscillator columns hidden
+	/// again (the user's request, 2026-11-22), if the panel is still the
+	/// width it was made: resized by hand since, or moved, it stays as it is.
+	func narrowPanel(_ id: PanelID) {
+		guard let wd = widening, wd.id == id else { return }
+		widening = nil
+		if let w = wd.window {
+			guard layout.isFloating(id), abs(w.frame.width - wd.widened) < 1, let old = wd.windowFrame else { return }
+			w.setFrame(old, display: true, animate: true)
+			return
+		}
+		guard let pane = wd.pane, layout.isDocked(id), abs(pane.bounds.width - wd.widened) < 1 else { return }
+		for m in wd.moves.reversed() {
+			guard let s = m.split else { continue }
+			s.setPosition(m.position, ofDividerAt: m.divider)
+			s.layoutSubtreeIfNeeded()
+		}
+	}
+}
+
+/// What widenPanel moved: a docked pane's dividers (from the inside out),
+/// or a floating window's frame, and the width it left the panel
+struct PanelWidening {
+	struct Move {
+		weak var split: NSSplitView?
+		let divider: Int
+		let position: CGFloat
+	}
+	let id: PanelID
+	weak var pane: NSView?
+	var moves: [Move] = []
+	weak var window: NSWindow?
+	var windowFrame: NSRect?
+	let widened: CGFloat
+
+	init(id: PanelID, pane: NSView, moves: [Move], widened: CGFloat) {
+		self.id = id
+		self.pane = pane
+		self.moves = moves
+		self.widened = widened
+	}
+
+	init(id: PanelID, window: NSWindow, windowFrame: NSRect, widened: CGFloat) {
+		self.id = id
+		self.window = window
+		self.windowFrame = windowFrame
+		self.widened = widened
 	}
 }
