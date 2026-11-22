@@ -313,7 +313,7 @@ struct WhorldCommands: Commands {
 			}))
 			Toggle("Tempo Follows the Beat", isOn: Binding(get: { ModMap.shared.followTempo },
 				set: { ModMap.shared.followTempo = $0 }))
-			// the Modulation panel is View > Modulation (⌥⌘6), with the
+			// the Modulation panel is View > Modulation (⌥⌘7), with the
 			// others (here too until 2026-11-19, the user's request)
 		}
 
@@ -352,9 +352,8 @@ struct WhorldCommands: Commands {
 				Toggle(id.title, isOn: Binding(
 					get: { model.layout.isShown(id) },
 					set: { model.layout.setShown(id, $0) }))
-					// Option-Command 1 to 8, in this order (PanelID.shortcut;
-					// Patches, the ninth, has none); MIDI Learn isn't here:
-					// it's the MIDI Mapping panel's Learn
+					// Option-Command 1 to 9, in this order (PanelID.shortcut);
+					// MIDI Learn isn't here: it's the MIDI Mapping panel's Learn
 					.optionalShortcut(id.shortcut, modifiers: id.shortcutModifiers)
 			}
 			Divider()
@@ -362,7 +361,7 @@ struct WhorldCommands: Commands {
 			// Automatic Quality (the user's request, 2026-11-19)
 			// the stats strip became the Perform Bar (the user's request, 2026-11-20)
 			Toggle("Show Perform Bar", isOn: Binding(get: { model.showStats }, set: { model.showStats = $0 }))
-				.keyboardShortcut("9", modifiers: [.command, .option])	// after the panels' Option-Command 1 to 8 (the user's request, 2026-11-19)
+				.keyboardShortcut("b", modifiers: [.command, .shift])	// "Bar", beside Blackout's Command-B (2026-11-22: Option-Command-9 went to the panels, Patches joining them)
 			// the strip's Auto; beside Audio Modulation's Command-' (the
 			// user's request, 2026-11-19; out of Settings > Display)
 			Toggle("Automatic Quality", isOn: Binding(get: { model.autoQuality }, set: { model.autoQuality = $0 }))

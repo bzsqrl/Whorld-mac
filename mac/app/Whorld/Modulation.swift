@@ -58,7 +58,7 @@ enum AudioSettings {
 	}
 }
 
-/// The Modulation panel (View > Modulation, ⌥⌘6), floating or docked. As
+/// The Modulation panel (View > Modulation, ⌥⌘7), floating or docked. As
 /// wide as two columns allow, the input's settings and Hearing side by
 /// side; narrower (docked, say), one above the other, and narrower than
 /// that, the top half scrolls sideways (the rows table scrolls itself). As

@@ -11,7 +11,7 @@ SwiftUI/AppKit app (`Whorld.xcodeproj`, macOS 14+, Xcode 16.2 or later). It comp
 - `Whorld/ContentView.swift`, `Commands.swift`: the render window, menus and shortcuts.
 - `generate_project.py`: regenerates `Whorld.xcodeproj`. Add new source files to its lists.
 
-Build: `xcodebuild -project mac/app/Whorld.xcodeproj -scheme Whorld build`. Set `WHORLD_STATS=1` in the environment to print the frame-rate line (View > Show Perform Bar shows the same figures) to stderr once a second.
+Build: `xcodebuild -project mac/app/Whorld.xcodeproj -scheme Whorld build`. Set `WHORLD_STATS=1` in the environment to print the frame-rate line (View > Show Perform Bar, ⇧⌘B, shows the same figures) to stderr once a second.
 
 ## Keyboard shortcuts
 
@@ -38,10 +38,11 @@ From the Windows accelerator table (`Whorld.rc`, `IDR_MAINFRAME`), with Ctrl map
 | Export image | Ctrl+E | ⌘E |
 | First / Previous / Next / Last snapshot | Home / Page Up / Page Down / End | same (fn‑← / fn‑↑ / fn‑↓ / fn‑→ on laptops); also ⌘← / ⌘→ for previous / next, in full screen or with the pointer over the picture |
 | Record movie, Play movie | Ctrl+M, Ctrl+Shift+M | none (File > Movie) |
-| Modulation panel (Mac) | — | ⌥⌘6 |
-| Key Map panel (Mac) | — | ⌥⌘8 |
+| Patches panel (Mac) | — | ⌥⌘6 |
+| Modulation panel (Mac) | — | ⌥⌘7 |
+| Key Map panel (Mac) | — | ⌥⌘9 |
 | Rewind movie | Ctrl+Home | ⌘Home (fn‑⌘‑← on laptops) |
-| MIDI Mapping panel | Shift+I | ⌥⌘7 |
+| MIDI Mapping panel | Shift+I | ⌥⌘8 |
 | MIDI Learn | Shift+L | none (the MIDI Mapping panel's Learn switch) |
 | New Playlist | Ctrl+Shift+N | ⇧⌘N |
 | Open Playlist | Ctrl+Shift+O | ⇧⌘O |
@@ -79,7 +80,7 @@ From the Windows accelerator table (`Whorld.rc`, `IDR_MAINFRAME`), with Ctrl map
 | Full screen | F11 | ⌘F (View > Enter Full Screen), or ⌃⌘F as in other Mac apps, or F11 if your keyboard sends it; Esc also leaves |
 | Full screen on another display | — | ⇧⌘F (View > Enter Full Screen on Other Display), with more than one display; while full screen, the next display |
 | Detach | Ctrl+F12 | ⇧⌘D |
-| Show Perform Bar | — | ⌥⌘9 |
+| Show Perform Bar | — | ⇧⌘B |
 
 Panels use ⌥⌘ and a digit, not Windows' Shift+letter, which would fire while typing a capital letter in a panel's text field. Space (Pause) is safe: a focused text field takes it first.
 

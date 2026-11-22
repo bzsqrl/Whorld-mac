@@ -30,10 +30,10 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 	// in the View menu's order, which numbers their keys (the user's
 	// order, 2026-11-18); layouts store the raw values, not the order
 	case params, master, globals, properties, playlist
+	case patches	// the patch browser (PatchBrowser.swift; the user's request, 2026-11-22), beside the Playlist
 	case modulation	// the Modulation window, a panel since 2026-11-18 (the user's request)
 	case mapping
 	case keymap		// the Key Map window, a panel since 2026-11-18 (the user's request); its raw value is the window's id
-	case patches	// the patch browser (PatchBrowser.swift; the user's request, 2026-11-22)
 
 	var id: String { rawValue }
 
@@ -76,16 +76,17 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		}
 	}
 
-	/// Option-Command plus the panel's place in the View menu (1 to 8)
+	/// Option-Command plus the panel's place in the View menu (1 to 9)
 	/// shows or hides it (the user's request, 2026-11-18: one run of keys
 	/// to remember, instead of a letter each with Shift-Command, where a
 	/// wrong letter did something else; Shift-Command-3, 4 and 5 are
 	/// macOS's screenshots, so Option-Command)
-	/// Nil past the eighth: Option-Command-9 is Show Perform Bar and
-	/// Option-Command-0 Origin Park (Patches has none, 2026-11-22).
+	/// 1 to 9 (Patches sixth, after the Playlist, the user's choice,
+	/// 2026-11-22; Show Perform Bar moved to Shift-Command-B); nil past the
+	/// ninth (Option-Command-0 is Origin Park).
 	var shortcut: KeyEquivalent? {
 		let n = Self.allCases.firstIndex(of: self)! + 1
-		return n <= 8 ? KeyEquivalent(Character(String(n))) : nil
+		return n <= 9 ? KeyEquivalent(Character(String(n))) : nil
 	}
 
 	var shortcutModifiers: EventModifiers { [.command, .option] }

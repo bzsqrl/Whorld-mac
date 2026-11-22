@@ -53,16 +53,16 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <li><b>Open a playlist.</b> Choose File &gt; Playlist &gt; Open Playlist (<kbd>⇧⌘O</kbd>). Whorld keeps playlists in Documents &gt; Whorld &gt; Playlists. Or browse patches one by one in View &gt; Patches.</li>
 <li><b>Play a patch.</b> Double-click one in the Playlist panel. <kbd>⌘↓</kbd> and <kbd>⌘↑</kbd> play the next and previous patch, from anywhere.</li>
 <li><b>Swipe over the picture.</b> A two-finger swipe up or down (or the mouse wheel) zooms; with <kbd>⇧</kbd> it changes Damping.</li>
-<li><b>Hold a key and swipe.</b> Each letter moves one control: hold <kbd>Q</kbd> over the picture and swipe to change Ring Spacing, <kbd>W</kbd> for Line Width. The Perform Bar names the control as soon as you press the key. View &gt; Key Map (<kbd>⌥⌘8</kbd>) lists them all.</li>
+<li><b>Hold a key and swipe.</b> Each letter moves one control: hold <kbd>Q</kbd> over the picture and swipe to change Ring Spacing, <kbd>W</kbd> for Line Width. The Perform Bar names the control as soon as you press the key. View &gt; Key Map (<kbd>⌥⌘9</kbd>) lists them all.</li>
 <li><b>Go full screen.</b> <kbd>⌘F</kbd> fills the display the picture is on; <kbd>⇧⌘F</kbd> fills another display, such as a projector. <kbd>Esc</kbd> leaves.</li>
 </ol>
-<p>Also handy from the start: <kbd>Space</kbd> pauses, <kbd>⌘B</kbd> fades to black and back, and View &gt; Show Perform Bar (<kbd>⌥⌘9</kbd>) puts the frame rate and the live controls under the picture.</p>
+<p>Also handy from the start: <kbd>Space</kbd> pauses, <kbd>⌘B</kbd> fades to black and back, and View &gt; Show Perform Bar (<kbd>⇧⌘B</kbd>) puts the frame rate and the live controls under the picture.</p>
 
 <!-- ============================================================ -->
 <h2 id="live">Playing live</h2>
 
 <h3 id="performbar">The Perform Bar</h3>
-<p>View &gt; Show Perform Bar (<kbd>⌥⌘9</kbd>) adds a thin bar along the bottom of the picture, never over it (on the swipe pad while the picture is detached). Its buttons act on the first click, even while another Whorld window is in front. From the left:</p>
+<p>View &gt; Show Perform Bar (<kbd>⇧⌘B</kbd>) adds a thin bar along the bottom of the picture, never over it (on the swipe pad while the picture is detached). Its buttons act on the first click, even while another Whorld window is in front. From the left:</p>
 <ul>
 <li><b>The eye:</b> Blackout (<kbd>⌘B</kbd>), red while the picture is faded out.</li>
 <li><b>Frames a second:</b> orange when display refreshes were missed in the last second. Click it for the rest: refreshes missed, the time to draw a frame on the CPU and GPU, the rings drawn, the display's rate, the renderer, and what Automatic quality has lowered. A click elsewhere closes it.</li>
@@ -86,7 +86,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 </ul>
 
 <h3 id="browser">The Patches panel</h3>
-<p>View &gt; Patches lists the patches in Documents &gt; Whorld &gt; Patches and its subfolders (the Folder column), to try them out while you build a set. The first time, it opens above the Playlist.</p>
+<p>View &gt; Patches (<kbd>⌥⌘6</kbd>) lists the patches in Documents &gt; Whorld &gt; Patches and its subfolders (the Folder column), to try them out while you build a set. The first time, it opens above the Playlist.</p>
 <ul>
 <li><b>Click a patch</b> to play it at once, crossfading as the playlist does (unsaved changes to the patch showing are let go, as when a playlist patch plays). <kbd>↑</kbd> <kbd>↓</kbd> move through the list, playing each in turn; typing a name's first letters jumps to it. The green triangle marks the patch playing.</li>
 <li><b>Drag patches into the Playlist</b> to add them where you drop them, or right-click and choose Add to Playlist (after the selected entry). <kbd>⌘</kbd>- or <kbd>⇧</kbd>-click to select several.</li>
@@ -135,7 +135,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <h2 id="picture">Changing the picture</h2>
 
 <h3 id="panels">The panels</h3>
-<p>The Whorld window holds the picture in the middle and the panels around it: Parameters, Master, Globals, Properties, Playlist, Modulation, MIDI Mapping, Key Map and <a href="#browser">Patches</a>. Click the <b>ⓘ</b> by a panel's title for what it controls. Show or hide each from the View menu, or with <kbd>⌥⌘</kbd> and its number there: <kbd>⌥⌘1</kbd> Parameters, <kbd>⌥⌘2</kbd> Master, <kbd>⌥⌘3</kbd> Globals, <kbd>⌥⌘4</kbd> Properties, <kbd>⌥⌘5</kbd> Playlist, <kbd>⌥⌘6</kbd> Modulation, <kbd>⌥⌘7</kbd> MIDI Mapping, <kbd>⌥⌘8</kbd> Key Map (Patches has none yet). A panel's shortcut brings it to the front when it's a tab behind another.</p>
+<p>The Whorld window holds the picture in the middle and the panels around it: Parameters, Master, Globals, Properties, Playlist, <a href="#browser">Patches</a>, Modulation, MIDI Mapping and Key Map. Click the <b>ⓘ</b> by a panel's title for what it controls. Show or hide each from the View menu, or with <kbd>⌥⌘</kbd> and its number there: <kbd>⌥⌘1</kbd> Parameters, <kbd>⌥⌘2</kbd> Master, <kbd>⌥⌘3</kbd> Globals, <kbd>⌥⌘4</kbd> Properties, <kbd>⌥⌘5</kbd> Playlist, <kbd>⌥⌘6</kbd> Patches, <kbd>⌥⌘7</kbd> Modulation, <kbd>⌥⌘8</kbd> MIDI Mapping, <kbd>⌥⌘9</kbd> Key Map. A panel's shortcut brings it to the front when it's a tab behind another.</p>
 <ul>
 <li><b>Hover over a control's name</b> for a short explanation, starting with its Key Map key if it has one: <i>(S):</i> for Speed. (Settings &gt; General &gt; Show tips on control names turns these off.) Settings &gt; General &gt; Show Key Map keys in panels shows each control's key before its name in Parameters, Master and Globals.</li>
 <li><b>Right-click</b> (or Control-click) a slider or number box to set it back to its value in the patch as it was loaded (opened, played from the playlist, or new) or last saved.</li>
@@ -172,7 +172,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 </ul>
 
 <h3 id="keymap">The Key Map</h3>
-<p>View &gt; Key Map (<kbd>⌥⌘8</kbd>), a panel like the others (it opens floating; dock it beside the picture to keep it in view while you play), lists which key moves which control, and lets you change them. Click a key and press the new one; a key moves one control, and assigning a key that's in use takes it from the other row. Any parameter column (Value, Amplitude, Frequency, Pulse Width, Global), Master row, Hue or the origin can have a key, each with its own speed. The map is a setting, the same for every patch and playlist. File &gt; Key Map &gt; Restore Defaults brings back the starting map, and Export&hellip; and Import&hellip; keep a map in a file. The starting map:</p>
+<p>View &gt; Key Map (<kbd>⌥⌘9</kbd>), a panel like the others (it opens floating; dock it beside the picture to keep it in view while you play), lists which key moves which control, and lets you change them. Click a key and press the new one; a key moves one control, and assigning a key that's in use takes it from the other row. Any parameter column (Value, Amplitude, Frequency, Pulse Width, Global), Master row, Hue or the origin can have a key, each with its own speed. The map is a setting, the same for every patch and playlist. File &gt; Key Map &gt; Restore Defaults brings back the starting map, and Export&hellip; and Import&hellip; keep a map in a file. The starting map:</p>
 <ul>
 <li><b>Top letter row, ring shape:</b> Q Ring Spacing, W Line Width, E Ring Growth, R Rings, T Ring Sides, Y Star Factor, U Pinwheel, I Rotate Speed, O Aspect Ratio, P Skew Radius, [ Skew Angle.</li>
 <li><b>Home row, color:</b> A Color Speed, S Speed, D Damping, F Fade, G Saturation, H Hue, J Lightness, K Alpha, L Hue Span.</li>
@@ -201,7 +201,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 
 <!-- ============================================================ -->
 <h2 id="audio">Audio and tempo</h2>
-<p>Whorld can move with music. The <b>Audio</b> menu gathers it: modulation on or off, the beat corrections, Ableton Link and Tempo Follows the Beat. The controls are in View &gt; Modulation (<kbd>⌥⌘6</kbd>), a panel like the others (it opens floating).</p>
+<p>Whorld can move with music. The <b>Audio</b> menu gathers it: modulation on or off, the beat corrections, Ableton Link and Tempo Follows the Beat. The controls are in View &gt; Modulation (<kbd>⌥⌘7</kbd>), a panel like the others (it opens floating).</p>
 
 <h3 id="input">Listening</h3>
 <ul>
@@ -307,7 +307,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <h2 id="connect">Connecting: MIDI, OSC, Syphon</h2>
 
 <h3 id="midi">MIDI</h3>
-<p>Whorld listens to MIDI input through Core MIDI. Choose the input device in Settings. To map a control, open MIDI Mapping (<kbd>⌥⌘7</kbd>), select one or more mappings, turn on the panel's <b>Learn</b> switch and move the control on your device.</p>
+<p>Whorld listens to MIDI input through Core MIDI. Choose the input device in Settings. To map a control, open MIDI Mapping (<kbd>⌥⌘8</kbd>), select one or more mappings, turn on the panel's <b>Learn</b> switch and move the control on your device.</p>
 <p>Besides the targets Windows Whorld has, the Mac adds:</p>
 <ul>
 <li><b>Hue</b>, <b>Rotate Hue</b> and <b>Invert Color</b>.</li>
@@ -381,10 +381,11 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <tr><td>Export image</td><td>Ctrl+E</td><td>⌘E</td></tr>
 <tr><td>First / Previous / Next / Last snapshot</td><td>Home / Page Up / Page Down / End</td><td>same (fn‑← / fn‑↑ / fn‑↓ / fn‑→ on laptops); also ⌘← / ⌘→ for previous / next, in full screen or with the pointer over the picture</td></tr>
 <tr><td>Record movie, Play movie</td><td>Ctrl+M, Ctrl+Shift+M</td><td>none (File &gt; Movie)</td></tr>
-<tr><td>Modulation panel (Mac)</td><td>&mdash;</td><td>⌥⌘6</td></tr>
-<tr><td>Key Map panel (Mac)</td><td>&mdash;</td><td>⌥⌘8</td></tr>
+<tr><td>Patches panel (Mac)</td><td>&mdash;</td><td>⌥⌘6</td></tr>
+<tr><td>Modulation panel (Mac)</td><td>&mdash;</td><td>⌥⌘7</td></tr>
+<tr><td>Key Map panel (Mac)</td><td>&mdash;</td><td>⌥⌘9</td></tr>
 <tr><td>Rewind movie</td><td>Ctrl+Home</td><td>⌘Home (fn‑⌘‑← on laptops)</td></tr>
-<tr><td>MIDI Mapping panel</td><td>Shift+I</td><td>⌥⌘7</td></tr>
+<tr><td>MIDI Mapping panel</td><td>Shift+I</td><td>⌥⌘8</td></tr>
 <tr><td>MIDI Learn</td><td>Shift+L</td><td>none (the MIDI Mapping panel's Learn switch)</td></tr>
 <tr><td>New Playlist</td><td>Ctrl+Shift+N</td><td>⇧⌘N</td></tr>
 <tr><td>Open Playlist</td><td>Ctrl+Shift+O</td><td>⇧⌘O</td></tr>
@@ -422,7 +423,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <tr><td>Full screen</td><td>F11</td><td>⌘F (View &gt; Enter Full Screen), or ⌃⌘F as in other Mac apps, or F11 if your keyboard sends it; Esc also leaves</td></tr>
 <tr><td>Full screen on another display</td><td>&mdash;</td><td>⇧⌘F (View &gt; Enter Full Screen on Other Display), with more than one display; while full screen, the next display</td></tr>
 <tr><td>Detach</td><td>Ctrl+F12</td><td>⇧⌘D</td></tr>
-<tr><td>Show Perform Bar</td><td>—</td><td>⌥⌘9</td></tr>
+<tr><td>Show Perform Bar</td><td>—</td><td>⇧⌘B</td></tr>
 </table>
 <p class="note">Panels use <kbd>⌥⌘</kbd> and a digit, not Windows' Shift+letter, which would fire while typing a capital letter in a text field.</p>
 
