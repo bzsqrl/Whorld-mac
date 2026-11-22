@@ -82,6 +82,7 @@ From the Windows accelerator table (`Whorld.rc`, `IDR_MAINFRAME`), with Ctrl map
 | Detach | Ctrl+F12 | ⌘D |
 | Detach to another display | — | ⇧⌘D (View > Detach to Other Display), with more than one display; while detached, the next display |
 | Show Perform Bar | — | ⇧⌘B |
+| Layouts: Edit, Perform, your own | — | ⌃⌘1, ⌃⌘2, ⌃⌘3… (Window menu) |
 
 Panels use ⌥⌘ and a digit, not Windows' Shift+letter, which would fire while typing a capital letter in a panel's text field. Space (Pause) is safe: a focused text field takes it first.
 

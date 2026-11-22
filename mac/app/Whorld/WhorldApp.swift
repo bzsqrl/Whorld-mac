@@ -1687,14 +1687,21 @@ final class AppModel: ObservableObject {
 
 	/// Window > Reset Layout (CMainFrame::OnWindowResetLayout, which asks
 	/// first, as this does).
+	/// Named layouts (2026-11-22): the current one's defaults.
 	func resetLayout() {
+		let named = NamedLayouts.shared
+		let name = named.current?.name ?? "Edit"
 		let alert = NSAlert()
-		alert.messageText = "Reset the layout?"
-		alert.informativeText = "The panels go back to their standard places and sizes, as when Whorld is first opened."
+		alert.messageText = "Reset the \(name) layout?"
+		alert.informativeText = switch named.active {
+		case NamedLayouts.editID: "The panels go back to their standard places and sizes, as when Whorld is first opened."
+		case NamedLayouts.performID: "The panels go back to Perform's standard arrangement: a large picture, Patches and Playlist on the left, Parameters and Master on the right."
+		default: "The panels go back to the arrangement \(name) was saved with."
+		}
 		alert.addButton(withTitle: "Reset")
 		alert.addButton(withTitle: "Cancel")
 		guard alert.runModal() == .alertFirstButtonReturn else { return }
-		layout.reset()
+		named.resetCurrent()
 		fitWorkspace()
 	}
 
@@ -1770,11 +1777,12 @@ final class AppModel: ObservableObject {
 		}
 	}
 
-	/// Window > Save Layout...
-	func saveLayout() {
+	/// Window > Export Layout... (Save Layout... before named layouts): the
+	/// arrangement now, as a file to share or keep
+	func exportLayout() {
 		let panel = NSSavePanel()
 		panel.allowedContentTypes = [.whorldLayout]
-		panel.nameFieldStringValue = "Layout.whlayout"
+		panel.nameFieldStringValue = (NamedLayouts.shared.current?.name ?? "Layout") + ".whlayout"
 		guard panel.runModal() == .OK, let url = panel.url else { return }
 		let e = JSONEncoder()
 		e.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -1785,17 +1793,20 @@ final class AppModel: ObservableObject {
 		}
 	}
 
-	/// Window > Open Layout...
-	func openLayout() {
+	/// Window > Import Layout... (Open Layout... before named layouts)
+	func importLayout() {
 		let panel = NSOpenPanel()
 		panel.allowedContentTypes = [.whorldLayout]
 		guard panel.runModal() == .OK, let url = panel.url else { return }
 		openLayout(url)
 	}
 
+	/// A layout file becomes a named layout, named after the file, and the
+	/// current one
 	func openLayout(_ url: URL) {
 		do {
-			applyLayout(try JSONDecoder().decode(LayoutFile.self, from: LayoutFile.sanitized(Data(contentsOf: url))))
+			let f = try JSONDecoder().decode(LayoutFile.self, from: LayoutFile.sanitized(Data(contentsOf: url)))
+			NamedLayouts.shared.importFile(f, name: url.deletingPathExtension().lastPathComponent)
 		} catch {
 			let a = NSAlert()
 			a.messageText = "Can't open the layout \"\(url.lastPathComponent)\"."

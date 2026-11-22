@@ -394,11 +394,26 @@ struct WhorldCommands: Commands {
 		}
 
 		CommandGroup(before: .windowSize) {
+			// Named layouts (Mac addition, the user's request, 2026-11-22):
+			// Edit, Perform and the user's own on Control-Command-1 to 9,
+			// each remembering how it was left (NamedLayouts.swift)
+			let named = NamedLayouts.shared
+			ForEach(Array(named.items.enumerated()), id: \.element.id) { i, item in
+				Toggle(item.name, isOn: Binding(get: { named.active == item.id }, set: { _ in named.switchTo(item.id) }))
+					.optionalShortcut(NamedLayouts.shortcut(i), modifiers: [.command, .control])
+			}
+			Divider()
+			Button("Save Layout As…") { named.saveCurrentAs() }
+			Button("Reset Layout…") { model.resetLayout() }
+			if named.current?.isBuiltIn == false {
+				Button("Rename Layout…") { named.renameCurrent() }
+				Button("Delete Layout…") { named.deleteCurrent() }
+			}
+			Button("Import Layout…") { model.importLayout() }
+			Button("Export Layout…") { model.exportLayout() }
+			Divider()
 			Button("Show All Panels") { model.showAllPanels() }
 				.keyboardShortcut("p", modifiers: [.command, .option])
-			Button("Reset Layout…") { model.resetLayout() }
-			Button("Save Layout…") { model.saveLayout() }
-			Button("Open Layout…") { model.openLayout() }
 			Divider()
 		}
 	}

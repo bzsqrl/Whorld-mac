@@ -159,8 +159,16 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <li>A panel docked again goes back exactly where it was, sizes too, if nothing has moved since; otherwise beside the panel it was next to, or into the same tabs. Floating panels stay above the Whorld windows while Whorld is active, and a panel hidden while floating floats again when shown.</li>
 <li><b>From the keyboard:</b> with the pointer over a panel, <kbd>⌥⌘</kbd> and an arrow moves it a step that way (beside the next panel, or into the next area); with <kbd>⇧⌥⌘</kbd> all the way along that side. Over a floating panel, <kbd>⌥⌘←</kbd> <kbd>⌥⌘→</kbd> <kbd>⌥⌘↓</kbd> dock it on the left, right or bottom. The title bar flashes, also when the panel can go no further. The ⋯ menu lists these moves too.</li>
 <li><b>Modulation</b> opens floating; docked in a narrower pane it puts its settings above Hearing (and scrolls, in a short one).</li>
-<li><b>Window &gt; Show All Panels</b> shows every panel and fits the window to its screen; <b>Window &gt; Reset Layout</b> puts everything back: Parameters on the left beside the picture, and Playlist, Properties, Master and Globals along the bottom.</li>
-<li><b>Layouts:</b> the arrangement is remembered between launches. Window &gt; Save Layout&hellip; keeps the panels, their sizes and the windows in a <code>.whlayout</code> file; Window &gt; Open Layout&hellip; (or double-clicking the file) brings it back, adapted to the screen. A playlist can carry a layout too: tick <i>Include the panel layout</i> in the Save Playlist As dialog (turn this off in Settings &gt; General &gt; Open playlists with their layout). Windows Whorld ignores it.</li>
+<li><b>Window &gt; Show All Panels</b> shows every panel and fits the window to its screen.</li>
+</ul>
+
+<h3 id="layouts">Layouts: Edit, Perform and your own</h3>
+<ul>
+<li>The Window menu lists the layouts, switched with <kbd>⌃⌘1</kbd>, <kbd>⌃⌘2</kbd> and so on. <b>Edit</b> is the standard arrangement: Parameters on the left beside the picture, and Playlist, Properties, Master and Globals along the bottom. <b>Perform</b> is for playing: a large picture with the Perform Bar, Patches above the Playlist on the left, and Parameters (without the oscillator columns) above Master on the right. The Key Map cheat sheet (<kbd>`</kbd>) stands in for the Key Map panel.</li>
+<li><b>Each layout remembers how you leave it,</b> like separate workspaces: rearrange Perform, switch to Edit and back, and Perform is as you left it. Each also remembers whether the Perform Bar and the oscillator columns show. Switching never docks or detaches the picture, or moves the windows.</li>
+<li><b>Window &gt; Reset Layout</b> puts the current layout back to its standard arrangement (yours: as you saved it).</li>
+<li><b>Window &gt; Save Layout As&hellip;</b> keeps the arrangement now under a name, listed after Edit and Perform with the next <kbd>⌃⌘</kbd> number. Rename Layout&hellip; and Delete Layout&hellip; work on your own layouts while they're current.</li>
+<li><b>Files:</b> Window &gt; Export Layout&hellip; saves the arrangement as a <code>.whlayout</code> file to keep or share; Window &gt; Import Layout&hellip; (or double-clicking the file) adds it as a layout named after the file, adapted to the screen. A playlist can carry a layout too: tick <i>Include the panel layout</i> in the Save Playlist As dialog (turn this off in Settings &gt; General &gt; Open playlists with their layout). Windows Whorld ignores it.</li>
 </ul>
 
 <h3 id="overpicture">Over the picture: swipes, keys and taps</h3>
@@ -429,6 +437,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <tr><td>Detach</td><td>Ctrl+F12</td><td>⌘D</td></tr>
 <tr><td>Detach to another display</td><td>&mdash;</td><td>⇧⌘D (View &gt; Detach to Other Display), with more than one display; while detached, the next display</td></tr>
 <tr><td>Show Perform Bar</td><td>—</td><td>⇧⌘B</td></tr>
+<tr><td>Layouts: Edit, Perform, your own</td><td>—</td><td>⌃⌘1, ⌃⌘2, ⌃⌘3&hellip; (Window menu)</td></tr>
 </table>
 <p class="note">Panels use <kbd>⌥⌘</kbd> and a digit, not Windows' Shift+letter, which would fire while typing a capital letter in a text field.</p>
 
