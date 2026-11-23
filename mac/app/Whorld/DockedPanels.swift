@@ -45,31 +45,29 @@ extension UTType {
 }
 
 /// A form panel in its pane or window: as wide as the pane, so its sliders
-/// stretch to fill it (as a table's columns do), down to the form's
-/// narrowest width, below which it scrolls sideways; rows keep their height
-/// from the top and scroll if the pane is shorter.
+/// stretch to fill it (as a table's columns do), its columns fitted to the
+/// width (FormFit), down to the form's narrowest width, below which it
+/// scrolls sideways; rows keep their height from the top and scroll if the
+/// pane is shorter. It scrolls sideways only then: a sideways swipe meant
+/// for a slider otherwise moved the panel (the user's request, 2026-11-22).
 struct FormScroller: View {
 	let id: PanelID
-	/// Parameters' oscillator columns, which change its narrowest width:
-	/// read here so the pane lays out again (and scrolls) when they're shown
-	@AppStorage(ParamColumn.oscillatorsKey) private var oscillators = true
+	/// Key Map keys in panels (Settings > General) widen every row
+	@AppStorage(KeyBadge.defaultsKey) private var badges = false
 	/// System Settings' scroll bars, Always (or Automatic with a mouse): the
 	/// vertical scroll bar then takes its width from the pane, and a form as
 	/// wide as the pane had its last column under it (found 2026-11-22)
 	@State private var legacyScrollers = NSScroller.preferredScrollerStyle == .legacy
 
-	/// the width a vertical scroll bar takes from the pane now
-	@MainActor static var scrollerRoom: CGFloat {
-		NSScroller.preferredScrollerStyle == .legacy ? NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy) : 0
-	}
-
 	var body: some View {
-		let _ = oscillators
+		let _ = badges
 		GeometryReader { g in
 			let scroller = legacyScrollers ? NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy) : 0
-			ScrollView([.horizontal, .vertical]) {
+			let width = g.size.width - scroller
+			ScrollView(width >= id.formMinWidth ? .vertical : [.horizontal, .vertical]) {
 				PanelBody(id: id)
-					.frame(width: max(g.size.width - scroller, id.formMinWidth), alignment: .topLeading)
+					.environment(\.formWidth, max(width, id.formMinWidth))
+					.frame(width: max(width, id.formMinWidth), alignment: .topLeading)
 					.frame(minHeight: g.size.height, alignment: .top)
 			}
 		}

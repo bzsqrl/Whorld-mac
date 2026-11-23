@@ -224,6 +224,28 @@ struct NumberField: View {
 		return ceil(CGFloat(n) * digit) + 20
 	}
 	static let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+	static let digitWidth = ("0" as NSString).size(withAttributes: [.font: font]).width
+
+	/// the characters a box this wide holds (the inverse of width(characters:))
+	static func characters(fitting width: CGFloat) -> Int {
+		max(Int((width - 20) / digitWidth), 1)
+	}
+
+	/// A number as text, rounded to fewer decimals until it fits in `n`
+	/// characters (a narrowed box, FormFit; the user's request, 2026-11-22).
+	/// Anything else (an exponent, too many whole digits) is left as it is,
+	/// to scroll in the box, with the whole value in its tip.
+	static func rounded(_ s: String, toFit n: Int) -> String {
+		guard s.count > n, !s.contains("e"), let dot = s.firstIndex(of: "."), let v = Double(s) else { return s }
+		var d = s.distance(from: dot, to: s.endIndex) - 1 - (s.count - n)
+		while d >= 0 {
+			var t = String(format: "%.*f", d, v)
+			if t.hasPrefix("-"), Double(t) == 0 { t.removeFirst() }	// no "-0.00"
+			if t.count <= n { return t }
+			d -= 1
+		}
+		return s
+	}
 
 	var body: some View {
 		KeyTextField(value: value, format: format, parse: parse, commit: commit,
@@ -338,6 +360,19 @@ struct KeyTextField: NSViewRepresentable {
 	/// asks its delegate, this field, for a context menu).
 	final class Field: NSTextField {
 		var onReset: (() -> Bool)?
+		var onResize: (() -> Void)?
+		var onBeginEditing: (() -> Void)?
+
+		override func setFrameSize(_ newSize: NSSize) {
+			let changed = abs(newSize.width - frame.width) > 0.5
+			super.setFrameSize(newSize)
+			if changed { onResize?() }
+		}
+
+		override func becomeFirstResponder() -> Bool {
+			onBeginEditing?()	// before the field editor copies the text
+			return super.becomeFirstResponder()
+		}
 		var onSwipeStep: ((Int, KeyStep) -> Void)?	// steps up (+) or down (-)
 		private var swipeTravel = 0.0
 		/// finger travel per arrow-key step
@@ -401,13 +436,32 @@ struct KeyTextField: NSViewRepresentable {
 
 		func show(_ field: NSTextField, _ v: Double) {
 			shownValue = v
-			shown = parent.format(v)
+			let full = parent.format(v)
+			// a box narrowed to fit its panel (FormFit) shows the value
+			// rounded to the digits it has room for; editing shows it whole
+			// (Field.becomeFirstResponder)
+			shown = field.currentEditor() == nil && field.bounds.width > 0
+				? NumberField.rounded(full, toFit: NumberField.characters(fitting: field.bounds.width)) : full
 			field.stringValue = shown
 			// the whole value, if the box is too narrow for it
 			// (before the first layout, the box is assumed to hold eight characters)
 			let room = field.bounds.width > 0 ? field.bounds.width - 22 : 8 * 7.2
-			let fits = (shown as NSString).size(withAttributes: [.font: NumberField.font]).width <= room
-			field.toolTip = fits ? nil : shown
+			let fits = shown == full && (shown as NSString).size(withAttributes: [.font: NumberField.font]).width <= room
+			field.toolTip = fits ? nil : full
+		}
+
+		/// the box was resized: its text again, rounded to the new width
+		func resized(_ field: NSTextField) {
+			guard field.currentEditor() == nil, field.stringValue == shown else { return }
+			show(field, shownValue)
+		}
+
+		/// editing starts: the whole value, not a rounded one
+		func beginEditing(_ field: NSTextField) {
+			let full = parent.format(shownValue)
+			guard field.stringValue == shown, shown != full else { return }
+			shown = full
+			field.stringValue = full
 		}
 
 		/// the typed text, if it's a number (Mac: "-" or an empty box, which
@@ -460,6 +514,11 @@ struct KeyTextField: NSViewRepresentable {
 		func controlTextDidEndEditing(_ note: Notification) {
 			if let field = note.object as? NSTextField {
 				apply(field)
+				// rounded to the box again, once the field editor has gone
+				DispatchQueue.main.async { [weak self, weak field] in
+					guard let self, let field else { return }
+					self.resized(field)
+				}
 			}
 		}
 
@@ -507,6 +566,14 @@ struct KeyTextField: NSViewRepresentable {
 		f.onReset = { [weak f, weak c] in
 			guard let f, let c else { return false }
 			return c.reset(f)
+		}
+		f.onResize = { [weak f, weak c] in
+			guard let f, let c else { return }
+			c.resized(f)
+		}
+		f.onBeginEditing = { [weak f, weak c] in
+			guard let f, let c else { return }
+			c.beginEditing(f)
 		}
 		if step != nil {
 			TrackpadSwipe.install()
@@ -965,6 +1032,72 @@ extension View {
 	}
 }
 
+// MARK: Fitting a form to its width
+
+/// How a control panel's columns fit its width (Mac addition, the user's
+/// request, 2026-11-22). A sideways swipe moves a slider, so a panel that
+/// scrolls sideways takes some swipes meant for its controls: a panel keeps
+/// to its pane's width for as long as it can. As the pane narrows, the
+/// sliders first come down to an ideal width, then the number boxes (and
+/// Parameters' Waveform menu) shrink, then the sliders shrink to their
+/// narrowest, and then the columns hide one at a time from the right. Only
+/// when a name and the narrowest slider no longer fit does the panel scroll.
+/// A wider pane gives its extra room to the sliders.
+struct FormFit: Equatable {
+	struct Column {
+		let max: CGFloat
+		let min: CGFloat
+	}
+
+	/// the shown columns' widths, in order; the columns after them are hidden
+	var widths: [CGFloat]
+
+	static let sliderIdeal: CGFloat = 180
+	static let sliderMin: CGFloat = 90
+	/// a number box's narrowest: six characters ("-1.000", "100.00", "0.0097")
+	static let boxMin = NumberField.width(characters: 6)
+
+	/// `fixed`: everything in a row but the slider and the columns (padding,
+	/// name, key badge, the gaps around the slider, an end mark); each
+	/// column also takes a gap of `spacing`
+	init(width w: CGFloat, fixed: CGFloat, spacing: CGFloat, columns: [Column]) {
+		widths = []
+		for n in stride(from: columns.count, through: 1, by: -1) {
+			let shown = columns.prefix(n)
+			let room = w - fixed - CGFloat(n) * spacing	// for the slider and the columns
+			let most = shown.reduce(0) { $0 + $1.max }, least = shown.reduce(0) { $0 + $1.min }
+			if room >= Self.sliderIdeal + most {
+				widths = shown.map(\.max)
+			} else if room >= Self.sliderIdeal + least {
+				let t = (room - Self.sliderIdeal - least) / max(most - least, 1)
+				widths = shown.map { ($0.min + t * ($0.max - $0.min)).rounded(.down) }
+			} else if room >= Self.sliderMin + least {
+				widths = shown.map(\.min)
+			} else {
+				continue
+			}
+			return
+		}
+	}
+
+	func width(_ i: Int) -> CGFloat? { i < widths.count ? widths[i] : nil }
+
+	/// the narrowest a panel gets before it scrolls: a name and the narrowest slider
+	static func minWidth(fixed: CGFloat) -> CGFloat { fixed + sliderMin }
+}
+
+private struct FormWidthKey: EnvironmentKey {
+	static let defaultValue: CGFloat = 10_000	// outside a FormScroller: room for everything
+}
+
+extension EnvironmentValues {
+	/// the width a form panel has (FormScroller), for FormFit
+	var formWidth: CGFloat {
+		get { self[FormWidthKey.self] }
+		set { self[FormWidthKey.self] = newValue }
+	}
+}
+
 // MARK: Parameters
 
 /// The order the Parameters panel, the Key Map and the MIDI target menus list
@@ -986,11 +1119,12 @@ extension WHControls {
 
 struct ParamsPanel: View {
 	@EnvironmentObject private var model: AppModel
-	/// the oscillator columns shown (the user's request, 2026-11-22: a
-	/// simple view of Name and Value alone, for playing; on at first)
-	@AppStorage(ParamColumn.oscillatorsKey) private var oscillators = true
+	@Environment(\.formWidth) private var formWidth
+	@AppStorage(KeyBadge.defaultsKey) private var badges = false
 
 	var body: some View {
+		let _ = badges
+		let fit = ParamColumn.fit(formWidth)
 		// The workspace (or a floating window) scrolls it, both ways.
 		Group {
 			// Rows of fixed-width columns, not a Grid: a Grid measures every
@@ -999,87 +1133,73 @@ struct ParamsPanel: View {
 				HStack(spacing: ParamColumn.spacing) {
 					KeyBadge(target: "")
 					Text("Name").frame(width: ParamColumn.name, alignment: .leading)
-					Text("Value").frame(minWidth: ParamColumn.slider, maxWidth: .infinity, alignment: .leading)	// over the slider, which stretches
-					Color.clear.frame(width: ParamColumn.field, height: 1)
-					if oscillators {
-						Text("Waveform").frame(width: ParamColumn.wave, alignment: .leading)
-						Text("Amplitude").frame(width: ParamColumn.field, alignment: .leading)
-						Text("Frequency").frame(width: ParamColumn.freq, alignment: .leading)
-						Text("Pulse Width").frame(width: ParamColumn.pw, alignment: .leading)
-					}
-					Button {
-						oscillators.toggle()
-						// the columns shown: the pane widens to fit them where
-						// there's room (else it scrolls sideways; the user's
-						// request, 2026-11-22)
-						// hidden again: the width taken goes back, unless the
-						// pane was resized since (2026-11-22)
-						DispatchQueue.main.async {
-							if oscillators {
-								AppModel.shared.widenPanel(.params, to: ParamColumn.panelMin + FormScroller.scrollerRoom)
+					Text("Value").frame(minWidth: FormFit.sliderMin, maxWidth: .infinity, alignment: .leading)	// over the slider, which stretches
+					ForEach(Array(fit.widths.enumerated()), id: \.offset) { c, w in
+						Group {
+							if c == 0 {
+								Color.clear.frame(height: 1)	// Value's box, under Value
 							} else {
-								AppModel.shared.narrowPanel(.params)
+								Text(c == ParamColumn.wave && w < ParamColumn.waveText ? "Wave" : ParamColumn.titles[c])
+									.lineLimit(1)
 							}
 						}
-					} label: {
-						// a plain sine wave, not the audio waveform symbol
-						// (the user's request, 2026-11-22)
-						Image(systemName: oscillators ? "chevron.left.2" : "alternatingcurrent")
-							.frame(width: ParamColumn.oscButton - 4)
+						.frame(width: w, alignment: .leading)
 					}
-					.buttonStyle(.borderless)
-					.help(oscillators
-						? "Hide the oscillator columns (Waveform, Amplitude, Frequency, Pulse Width), for a simpler panel"
-						: "Show the oscillator columns: each parameter's waveform, amplitude, frequency and pulse width")
-					.frame(width: ParamColumn.oscButton)
+					Color.clear.frame(width: ParamColumn.mark, height: 1)	// over the oscillator marks
 				}
 				.font(.caption)
 				.foregroundStyle(.secondary)
 				ForEach(WHControls.paramDisplayOrder, id: \.self) { i in
-					ParamRow(iParam: i)
+					ParamRow(iParam: i, fit: fit)
 				}
 			}
-			.padding(10)
+			.padding(ParamColumn.padding)
 		}
 	}
 }
 
-/// The Parameters panel's column widths. The slider stretches to fill the
-/// pane; the rest keep these widths.
+/// The Parameters panel's columns: the name, the slider (which stretches),
+/// then Value's number box, Waveform, Amplitude, Frequency and Pulse Width,
+/// fitted to the pane (FormFit), and an oscillator's mark at each row's end.
 enum ParamColumn {
 	static let spacing: CGFloat = 8
+	static let padding: CGFloat = 10
 	static let name: CGFloat = 96
-	static let slider: CGFloat = PositionSlider.minWidth	// the narrowest; it stretches
+	static let mark: CGFloat = 18
+	static let titles = ["Value", "Waveform", "Amplitude", "Frequency", "Pulse Width"]
+	static let wave = 1	// Waveform's column
+	/// Waveform's menu shows its name down to this width, then its shape
+	static let waveText: CGFloat = 96
 	// sized to the values the sample patches show (2026-11-18): Value,
 	// Amplitude and Pulse Width fit nine characters in 99.5% (Pulse Width
 	// was 70 points, which clipped one in twenty); Frequency often needs
 	// ten (0.00972658)
-	static let field: CGFloat = NumberField.standardWidth	// Value and Amplitude
-	static let freq: CGFloat = NumberField.width(characters: 10)
-	static let wave: CGFloat = 104
-	static let pw: CGFloat = NumberField.standardWidth
-	/// the narrowest the panel gets: every column, the gaps, the padding
-	/// the oscillator columns' switch at the header's end, and in the
-	/// simple view the mark of a running oscillator
-	static let oscButton: CGFloat = 22
-	static let oscillatorsKey = "View_bParamOscillators"
-	static var showsOscillators: Bool { UserDefaults.standard.object(forKey: oscillatorsKey) as? Bool ?? true }
-	static var panelMin: CGFloat {
-		(showsOscillators ? name + slider + field + wave + field + freq + pw + 7 * spacing : name + slider + field + 3 * spacing)
-			+ oscButton + 20 + KeyBadge.room(spacing)
+	static let columns: [FormFit.Column] = [
+		.init(max: NumberField.standardWidth, min: FormFit.boxMin),	// Value
+		.init(max: 104, min: 48),	// Waveform
+		.init(max: NumberField.standardWidth, min: FormFit.boxMin),	// Amplitude
+		.init(max: NumberField.width(characters: 10), min: FormFit.boxMin),	// Frequency
+		.init(max: NumberField.standardWidth, min: FormFit.boxMin),	// Pulse Width
+	]
+	/// the row but the slider and the columns: padding, badge, name, the
+	/// gaps either side of the slider, the mark
+	static var fixed: CGFloat { 2 * padding + KeyBadge.room(spacing) + name + spacing + spacing + mark }
+	static func fit(_ width: CGFloat) -> FormFit {
+		FormFit(width: width, fixed: fixed, spacing: spacing, columns: columns)
 	}
+	static var panelMin: CGFloat { FormFit.minWidth(fixed: fixed) }
 }
 
 struct ParamRow: View {
 	@EnvironmentObject private var model: AppModel
-	@AppStorage(ParamColumn.oscillatorsKey) private var oscillators = true
 	let iParam: Int
+	let fit: FormFit
 
 	private func control(_ col: Int) -> WHControlInfo {
 		WHControls.paramControl(iParam, column: col)
 	}
 
-	private func field(_ prop: WHParamProperty, column: Int, width: CGFloat = NumberField.standardWidth) -> some View {
+	private func field(_ prop: WHParamProperty, column: Int, width: CGFloat) -> some View {
 		let ci = control(column)
 		let bounded = ci.editClamp.boolValue
 		return NumberField(
@@ -1110,43 +1230,150 @@ struct ParamRow: View {
 				denorm: { WHControls.paramValue(iParam, position: $0) },
 				commit: { model.setParam(iParam, .val, $0) },
 				defaultValue: model.engine.loadedParamValue(iParam, property: .val),
-				width: ParamColumn.slider,
+				width: FormFit.sliderMin,
 				marker: .param(iParam))
-			field(.val, column: 0)
-				.frame(width: ParamColumn.field, alignment: .leading)
-			if oscillators {
-				oscillatorColumns(e)
-			} else {
-				OscillatorMark(iParam: iParam)	// the simple view's sign of a running oscillator
+			if let w = fit.width(0) {
+				field(.val, column: 0, width: w)
 			}
+			if let w = fit.width(1) {
+				WaveformMenu(iParam: iParam, width: w)
+			}
+			if let w = fit.width(2) {
+				field(.amp, column: 1, width: w)
+			}
+			if let w = fit.width(3) {
+				field(.freq, column: 2, width: w)
+			}
+			if let w = fit.width(4) {
+				field(.PW, column: 3, width: w)
+			}
+			OscillatorMark(iParam: iParam)
 		}
 	}
+}
 
-	@ViewBuilder private func oscillatorColumns(_ e: WHEngine) -> some View {
-			Picker("", selection: Binding(
-				get: { Int(e.paramValue(iParam, property: .wave)) },
-				set: { model.setParam(iParam, .wave, Double($0)) })) {
+/// A parameter's oscillator waveform: a menu of the names, or where the
+/// column has narrowed, of the shapes (FormFit)
+struct WaveformMenu: View {
+	@EnvironmentObject private var model: AppModel
+	let iParam: Int
+	let width: CGFloat
+
+	var body: some View {
+		let _ = model.changes.params[iParam].n	// redraw for this row's changes
+		let e = model.engine
+		let selection = Binding(
+			get: { Int(e.paramValue(iParam, property: .wave)) },
+			set: { model.setParam(iParam, .wave, Double($0)) })
+		if width >= ParamColumn.waveText {
+			Picker("", selection: selection) {
 				ForEach(0..<WHControls.waveformCount, id: \.self) { w in
 					Text(WHControls.waveformName(w)).tag(w)
 				}
 			}
 			.labelsHidden()
-			.frame(width: ParamColumn.wave)
-			field(.amp, column: 1)
-				.frame(width: ParamColumn.field, alignment: .leading)
-			field(.freq, column: 2, width: ParamColumn.freq)
-				.frame(width: ParamColumn.freq, alignment: .leading)
-			field(.PW, column: 3, width: ParamColumn.pw)
-				.frame(width: ParamColumn.pw, alignment: .leading)
-			Color.clear.frame(width: ParamColumn.oscButton, height: 1)	// under the header's switch
+			.frame(width: width)
+		} else {
+			Menu {
+				Picker("", selection: selection) {
+					ForEach(0..<WHControls.waveformCount, id: \.self) { w in
+						Label { Text(WHControls.waveformName(w)) } icon: { Image(nsImage: WaveGlyph.image(w)) }.tag(w)
+					}
+				}
+				.pickerStyle(.inline)
+				.labelsHidden()
+			} label: {
+				Image(nsImage: WaveGlyph.image(selection.wrappedValue))
+			}
+			.help("Waveform: \(WHControls.waveformName(selection.wrappedValue))")
+			.frame(width: width)
+		}
 	}
 }
 
-/// The Parameters panel's simple view (oscillator columns hidden): a wave
-/// beside a parameter its oscillator is moving (amplitude and frequency
-/// both nonzero), with what it's doing in its tip. The symbol is drawn as
-/// text: as an Image it stayed blank for a patch opened at launch (its tip
-/// was there; found 2026-11-22).
+/// The oscillator waveforms' shapes, small, for WaveformMenu (in the
+/// engine's order: Triangle, Sine, Ramp Up, Ramp Down, Square, Pulse,
+/// Random, Random Ramp)
+enum WaveGlyph {
+	private static var cache: [Int: NSImage] = [:]
+
+	static func image(_ w: Int) -> NSImage {
+		if let i = cache[w] { return i }
+		let size = NSSize(width: 20, height: 12)
+		let image = NSImage(size: size, flipped: false) { r in
+			let lo = r.minY + 2, hi = r.maxY - 2, mid = r.midY
+			let x0 = r.minX + 1, x1 = r.maxX - 1, span = x1 - x0
+			func x(_ f: CGFloat) -> CGFloat { x0 + f * span }
+			func y(_ f: CGFloat) -> CGFloat { lo + f * (hi - lo) }
+			let p = NSBezierPath()
+			switch w {
+			case 0:	// Triangle
+				p.move(to: NSPoint(x: x(0), y: mid))
+				p.line(to: NSPoint(x: x(0.25), y: hi))
+				p.line(to: NSPoint(x: x(0.75), y: lo))
+				p.line(to: NSPoint(x: x(1), y: mid))
+			case 1:	// Sine
+				p.move(to: NSPoint(x: x(0), y: mid))
+				for i in 1...40 {
+					let f = CGFloat(i) / 40
+					p.line(to: NSPoint(x: x(f), y: mid + sin(f * 2 * .pi) * (hi - mid)))
+				}
+			case 2:	// Ramp Up
+				p.move(to: NSPoint(x: x(0), y: lo))
+				p.line(to: NSPoint(x: x(0.5), y: hi))
+				p.line(to: NSPoint(x: x(0.5), y: lo))
+				p.line(to: NSPoint(x: x(1), y: hi))
+			case 3:	// Ramp Down
+				p.move(to: NSPoint(x: x(0), y: hi))
+				p.line(to: NSPoint(x: x(0.5), y: lo))
+				p.line(to: NSPoint(x: x(0.5), y: hi))
+				p.line(to: NSPoint(x: x(1), y: lo))
+			case 4:	// Square
+				p.move(to: NSPoint(x: x(0), y: hi))
+				p.line(to: NSPoint(x: x(0.5), y: hi))
+				p.line(to: NSPoint(x: x(0.5), y: lo))
+				p.line(to: NSPoint(x: x(1), y: lo))
+			case 5:	// Pulse
+				p.move(to: NSPoint(x: x(0), y: lo))
+				p.line(to: NSPoint(x: x(0.3), y: lo))
+				p.line(to: NSPoint(x: x(0.3), y: hi))
+				p.line(to: NSPoint(x: x(0.45), y: hi))
+				p.line(to: NSPoint(x: x(0.45), y: lo))
+				p.line(to: NSPoint(x: x(1), y: lo))
+			case 6:	// Random: steps
+				let v: [CGFloat] = [0.7, 0.15, 0.95, 0.4, 0.8]
+				p.move(to: NSPoint(x: x(0), y: y(v[0])))
+				for (i, f) in v.enumerated() {
+					p.line(to: NSPoint(x: x(CGFloat(i) / 5), y: y(f)))
+					p.line(to: NSPoint(x: x(CGFloat(i + 1) / 5), y: y(f)))
+				}
+			default:	// Random Ramp: straight lines between random values
+				let v: [CGFloat] = [0.7, 0.15, 0.95, 0.4, 0.8, 0.3]
+				p.move(to: NSPoint(x: x(0), y: y(v[0])))
+				for (i, f) in v.enumerated().dropFirst() {
+					p.line(to: NSPoint(x: x(CGFloat(i) / 5), y: y(f)))
+				}
+			}
+			p.lineWidth = 1.4
+			p.lineJoinStyle = .round
+			p.lineCapStyle = .round
+			NSColor.black.setStroke()
+			p.stroke()
+			return true
+		}
+		image.isTemplate = true
+		image.accessibilityDescription = WHControls.waveformName(w)
+		cache[w] = image
+		return image
+	}
+}
+
+/// A wave at the end of the row of a parameter its oscillator is moving
+/// (amplitude and frequency both nonzero), with what it's doing in its tip:
+/// in view however narrow the panel, when the oscillator columns are hidden
+/// (the user's request, 2026-11-22). The symbol is drawn as text: as an
+/// Image it stayed blank for a patch opened at launch (its tip was there;
+/// found 2026-11-22).
 struct OscillatorMark: View {
 	@EnvironmentObject private var model: AppModel
 	let iParam: Int
@@ -1160,46 +1387,65 @@ struct OscillatorMark: View {
 				let wave = WHControls.waveformName(Int(e.paramValue(iParam, property: .wave)))
 				Text(Image(systemName: "alternatingcurrent"))
 					.foregroundStyle(Color.accentColor)
-					.help("Its oscillator moves it: \(wave), amplitude \(paramText(amp, WHControls.paramControl(iParam, column: 1))), frequency \(paramText(freq, WHControls.paramControl(iParam, column: 2))). Click the wave at the top of the panel to show the oscillator columns.")
+					.help("Its oscillator moves it: \(wave), amplitude \(paramText(amp, WHControls.paramControl(iParam, column: 1))), frequency \(paramText(freq, WHControls.paramControl(iParam, column: 2))). Widen the panel to see the oscillator columns.")
+					.accessibilityLabel("Oscillator on")
 			}
 		}
-		.frame(width: ParamColumn.oscButton)
+		.frame(width: ParamColumn.mark)
 	}
 }
 
 // MARK: Master
 
+/// Master's and Globals' rows: a name, a slider that stretches, and a
+/// number box, fitted to the pane (FormFit)
+enum SliderRowFit {
+	static let spacing: CGFloat = 8
+	static let padding: CGFloat = 12
+	static let columns: [FormFit.Column] = [.init(max: NumberField.standardWidth, min: FormFit.boxMin)]
+	static func fixed(name: CGFloat) -> CGFloat { 2 * padding + KeyBadge.room(spacing) + name + spacing }
+	static func fit(_ width: CGFloat, name: CGFloat) -> FormFit {
+		FormFit(width: width, fixed: fixed(name: name), spacing: spacing, columns: columns)
+	}
+}
+
 struct MasterPanel: View {
-	/// the narrowest the panel gets (name, slider, number box, gaps, padding)
-	static var minWidth: CGFloat { 72 + PositionSlider.minWidth + NumberField.standardWidth + 16 + 24 + KeyBadge.room(8) }
+	static let name: CGFloat = 72
+	/// the narrowest the panel gets before it scrolls (FormFit)
+	static var minWidth: CGFloat { FormFit.minWidth(fixed: SliderRowFit.fixed(name: name)) }
+	@Environment(\.formWidth) private var formWidth
+	@AppStorage(KeyBadge.defaultsKey) private var badges = false
 
 	var body: some View {
+		let _ = badges
+		let box = SliderRowFit.fit(formWidth, name: Self.name).width(0)
 		VStack(alignment: .leading, spacing: 6) {	// rows of fixed columns around a stretching slider
 			ForEach(0..<WHControls.masterCount, id: \.self) { i in
-				MasterRow(i: i)
+				MasterRow(i: i, box: box)
 				if i == MasterProp.hueSpan.rawValue {
-					HueRow()	// after Hue Span: the two shape the colors
+					HueRow(box: box)	// after Hue Span: the two shape the colors
 				}
 			}
 		}
-		.padding(12)
+		.padding(SliderRowFit.padding)
 	}
 }
 
 struct MasterRow: View {
 	@EnvironmentObject private var model: AppModel
 	let i: Int
+	let box: CGFloat?	// the number box's width; nil: hidden
 
 	var body: some View {
 		let _ = model.changes.master[i].n	// redraw for this row's changes only
 		let ci = WHControls.masterControl(i)
 		let value = model.engine.masterValue(i)
-		HStack(spacing: 8) {
+		HStack(spacing: SliderRowFit.spacing) {
 			KeyBadge(target: WHMappingInfo.targetTag(WHMappingInfo.paramTargetCount + i))
 			Text(WHControls.masterName(i))
 				.lineLimit(1)
 				.controlTip(ControlTips.master[i], target: WHMappingInfo.targetTag(WHMappingInfo.paramTargetCount + i))
-				.frame(width: 72, alignment: .leading)
+				.frame(width: MasterPanel.name, alignment: .leading)
 			PositionSlider(
 				value: value,
 				control: ci,
@@ -1208,16 +1454,20 @@ struct MasterRow: View {
 				commit: { model.setMaster(i, $0) },
 				defaultValue: model.engine.loadedMasterValue(i),
 				step: { masterStep(i, ci, $0, $1, $2) },
+				width: FormFit.sliderMin,
 				marker: .master(i))
-			NumberField(
-				value: value,
-				format: { WHControls.formatMaster(i, value: $0) },
-				parse: { WHControls.parseMaster(i, text: $0) },
-				commit: { model.setMaster(i, $0) },
-				step: { masterStep(i, ci, $0, $1, $2) },	// no stepper: as the slider
-				lo: WHControls.masterValue(i, position: Double(ci.rangeMin)),
-				hi: WHControls.masterValue(i, position: Double(ci.rangeMax)),
-				defaultValue: model.engine.loadedMasterValue(i))
+			if let box {
+				NumberField(
+					value: value,
+					format: { WHControls.formatMaster(i, value: $0) },
+					parse: { WHControls.parseMaster(i, text: $0) },
+					commit: { model.setMaster(i, $0) },
+					step: { masterStep(i, ci, $0, $1, $2) },	// no stepper: as the slider
+					lo: WHControls.masterValue(i, position: Double(ci.rangeMin)),
+					hi: WHControls.masterValue(i, position: Double(ci.rangeMax)),
+					defaultValue: model.engine.loadedMasterValue(i),
+					width: box)
+			}
 		}
 	}
 }
@@ -1227,6 +1477,7 @@ struct MasterRow: View {
 /// Rotate Hue adds 90 to it.
 struct HueRow: View {
 	@EnvironmentObject private var model: AppModel
+	let box: CGFloat?
 
 	var body: some View {
 		let _ = model.changes.main.n
@@ -1234,27 +1485,30 @@ struct HueRow: View {
 		let step: (Double, Int, KeyStep) -> Double = { v, d, k in
 			min(max(k.apply(v, size: 10, direction: d), 0), 360)	// a degree, ten with Shift
 		}
-		HStack(spacing: 8) {
+		HStack(spacing: SliderRowFit.spacing) {
 			KeyBadge(target: "Hue")
 			Text("Hue")
 				.lineLimit(1)
 				.controlTip(ControlTips.hue, target: "Hue")
-				.frame(width: 72, alignment: .leading)
+				.frame(width: MasterPanel.name, alignment: .leading)
 			KeySlider(position: min(max(value, 0), 360), range: 0...360,
 				set: { model.setHue($0) },
 				reset: { model.setHue(model.engine.loadedHue) },
 				step: { d, k in model.setHue(step(value, d, k)) },
 				marker: .hue)
-				.frame(minWidth: PositionSlider.minWidth, maxWidth: .infinity, minHeight: 18, maxHeight: 18)
-			NumberField(
-				value: value,
-				format: { String(format: "%.1f", $0) },
-				parse: { min(max(Double($0.trimmingCharacters(in: .whitespaces)) ?? value, 0), 360) },
-				commit: { model.setHue($0) },
-				step: step,
-				lo: 0,
-				hi: 360,
-				defaultValue: model.engine.loadedHue)
+				.frame(minWidth: FormFit.sliderMin, maxWidth: .infinity, minHeight: 18, maxHeight: 18)
+			if let box {
+				NumberField(
+					value: value,
+					format: { String(format: "%.1f", $0) },
+					parse: { min(max(Double($0.trimmingCharacters(in: .whitespaces)) ?? value, 0), 360) },
+					commit: { model.setHue($0) },
+					step: step,
+					lo: 0,
+					hi: 360,
+					defaultValue: model.engine.loadedHue,
+					width: box)
+			}
 		}
 	}
 }
@@ -1262,33 +1516,39 @@ struct HueRow: View {
 // MARK: Globals
 
 struct GlobalsPanel: View {
-	/// the narrowest the panel gets (name, slider, number box, gaps, padding)
-	static var minWidth: CGFloat { 96 + PositionSlider.minWidth + NumberField.standardWidth + 16 + 24 + KeyBadge.room(8) }
+	static let name: CGFloat = 96
+	/// the narrowest the panel gets before it scrolls (FormFit)
+	static var minWidth: CGFloat { FormFit.minWidth(fixed: SliderRowFit.fixed(name: name)) }
+	@Environment(\.formWidth) private var formWidth
+	@AppStorage(KeyBadge.defaultsKey) private var badges = false
 
 	var body: some View {
+		let _ = badges
+		let box = SliderRowFit.fit(formWidth, name: Self.name).width(0)
 		VStack(alignment: .leading, spacing: 4) {	// rows of fixed columns around a stretching slider
 			ForEach(0..<WHControls.globalCount, id: \.self) { g in
-				GlobalRow(i: WHControls.param(forGlobal: g))
+				GlobalRow(i: WHControls.param(forGlobal: g), box: box)
 			}
 		}
-		.padding(12)
+		.padding(SliderRowFit.padding)
 	}
 }
 
 struct GlobalRow: View {
 	@EnvironmentObject private var model: AppModel
 	let i: Int	// parameter index
+	let box: CGFloat?
 
 	var body: some View {
 		let _ = model.changes.params[i].n	// redraw for this row's changes only
 		let ci = WHControls.globalControl(i)
 		let value = model.engine.paramValue(i, property: .global)
-		HStack(spacing: 8) {
+		HStack(spacing: SliderRowFit.spacing) {
 			KeyBadge(target: WHMappingInfo.targetTag(i), prop: WHParamProperty.global.rawValue)
 			Text(WHControls.paramName(i))
 				.lineLimit(1)
 				.controlTip(ControlTips.global(i), target: WHMappingInfo.targetTag(i), prop: WHParamProperty.global.rawValue)
-				.frame(width: 96, alignment: .leading)
+				.frame(width: GlobalsPanel.name, alignment: .leading)
 			PositionSlider(
 				value: value,
 				control: ci,
@@ -1296,16 +1556,20 @@ struct GlobalRow: View {
 				denorm: { WHControls.globalValue(i, position: $0) },
 				commit: { model.setParam(i, .global, $0) },
 				defaultValue: model.engine.loadedParamValue(i, property: .global),
+				width: FormFit.sliderMin,
 				marker: .global(i))
-			NumberField(
-				value: value,
-				format: { paramText($0, ci) },
-				parse: { WHControls.parse($0, control: ci) },
-				commit: { model.setParam(i, .global, $0) },
-				step: spinStep(ci),
-				lo: ci.editMin,
-				hi: ci.editMax,
-				defaultValue: model.engine.loadedParamValue(i, property: .global))
+			if let box {
+				NumberField(
+					value: value,
+					format: { paramText($0, ci) },
+					parse: { WHControls.parse($0, control: ci) },
+					commit: { model.setParam(i, .global, $0) },
+					step: spinStep(ci),
+					lo: ci.editMin,
+					hi: ci.editMax,
+					defaultValue: model.engine.loadedParamValue(i, property: .global),
+					width: box)
+			}
 		}
 	}
 }

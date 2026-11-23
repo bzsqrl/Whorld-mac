@@ -11,13 +11,12 @@
 // Perform and the user's own, in the Window menu on Control-Command-1 to 9.
 // Each remembers how it was left, like separate workspaces: switching away
 // keeps the panels, divider positions and floating windows as they are,
-// with whether the Perform Bar and the oscillator columns show, and
-// switching back restores them. Whether the picture is detached, and where
+// with whether the Perform Bar shows, and switching back restores them. Whether the picture is detached, and where
 // the windows are, carry over, so a switch never takes the picture off a
 // projector. Window > Reset Layout puts the current one back to its
 // defaults: Edit's is the standard layout, Perform's a big picture with
-// Patches over Playlist on the left and simple Parameters over Master on the
-// right, and a saved one's is the arrangement it was saved with. Kept in the
+// Patches over Playlist on the left and a narrow Parameters (its columns
+// fitted to it, FormFit) over Master on the right, and a saved one's is the arrangement it was saved with. Kept in the
 // app's settings (Layouts_v1); .whlayout files are for import and export.
 
 import AppKit
@@ -33,9 +32,9 @@ struct NamedLayout: Codable, Identifiable, Equatable {
 	var file: LayoutFile?
 	/// a saved one's defaults: the arrangement it was saved with
 	var saved: LayoutFile?
-	/// View > Show Perform Bar, and Parameters' oscillator columns, as left
+	/// View > Show Perform Bar, as left (an older one's "oscillators", for
+	/// Parameters' columns, is ignored: they fit the pane now)
 	var performBar: Bool?
-	var oscillators: Bool?
 
 	var isBuiltIn: Bool { id == NamedLayouts.editID || id == NamedLayouts.performID }
 }
@@ -100,7 +99,7 @@ final class NamedLayouts: ObservableObject {
 	}
 
 	/// Perform: the picture large; Patches over the Playlist in a narrow
-	/// left column; Parameters (simple) over Master on the right; nothing
+	/// left column; Parameters (narrow) over Master on the right; nothing
 	/// along the bottom (the user's choice, 2026-11-22). The Key Map cheat
 	/// sheet stands in for the Key Map panel.
 	static let performDefault: LayoutFile = {
@@ -116,11 +115,11 @@ final class NamedLayouts: ObservableObject {
 		return f
 	}()
 
-	private func defaultViews(_ item: NamedLayout) -> (performBar: Bool?, oscillators: Bool?) {
+	private func defaultPerformBar(_ item: NamedLayout) -> Bool? {
 		switch item.id {
-		case Self.editID: (nil, true)
-		case Self.performID: (true, false)
-		default: (item.saved == nil ? nil : item.performBar, item.saved == nil ? nil : item.oscillators)
+		case Self.editID: nil
+		case Self.performID: true
+		default: item.saved == nil ? nil : item.performBar
 		}
 	}
 
@@ -132,7 +131,6 @@ final class NamedLayouts: ObservableObject {
 		let model = AppModel.shared
 		items[i].file = model.currentLayoutFile()
 		items[i].performBar = model.showStats
-		items[i].oscillators = ParamColumn.showsOscillators
 	}
 
 	/// Window > a layout: as it was left (or its defaults)
@@ -140,8 +138,7 @@ final class NamedLayouts: ObservableObject {
 		guard id != active, let target = items.first(where: { $0.id == id }) else { return }
 		captureCurrent()
 		active = id
-		let views = target.file == nil ? defaultViews(target) : (performBar: target.performBar, oscillators: target.oscillators)
-		apply(target.file ?? defaults(target), performBar: views.performBar, oscillators: views.oscillators)
+		apply(target.file ?? defaults(target), performBar: target.file == nil ? defaultPerformBar(target) : target.performBar)
 		save()
 	}
 
@@ -149,14 +146,13 @@ final class NamedLayouts: ObservableObject {
 	func resetCurrent() {
 		guard let i = items.firstIndex(where: { $0.id == active }) else { return }
 		items[i].file = nil
-		let views = defaultViews(items[i])
-		apply(defaults(items[i]), performBar: views.performBar, oscillators: views.oscillators)
+		apply(defaults(items[i]), performBar: defaultPerformBar(items[i]))
 		save()
 	}
 
 	/// Arranges the panels as `f` says; the picture stays detached or docked
 	/// as it is, and the windows where they are
-	private func apply(_ f: LayoutFile, performBar: Bool?, oscillators: Bool?) {
+	private func apply(_ f: LayoutFile, performBar: Bool?) {
 		let model = AppModel.shared
 		var f = f
 		f.layout.detached = model.layout.layout.detached
@@ -164,7 +160,6 @@ final class NamedLayouts: ObservableObject {
 		f.output = nil
 		model.applyLayout(f)
 		if let performBar, model.showStats != performBar { model.showStats = performBar }
-		if let oscillators { UserDefaults.standard.set(oscillators, forKey: ParamColumn.oscillatorsKey) }
 	}
 
 	// MARK: The user's own
@@ -189,7 +184,6 @@ final class NamedLayouts: ObservableObject {
 		}
 		item.saved = model.currentLayoutFile()
 		item.performBar = model.showStats
-		item.oscillators = ParamColumn.showsOscillators
 		items.append(item)
 		active = item.id
 		save()
@@ -207,7 +201,7 @@ final class NamedLayouts: ObservableObject {
 		item.saved = f
 		items.append(item)
 		active = item.id
-		apply(f, performBar: nil, oscillators: nil)
+		apply(f, performBar: nil)
 		save()
 	}
 

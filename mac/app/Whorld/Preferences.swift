@@ -37,7 +37,6 @@ enum Preferences {
 			"Playlist_bApplyLayout": true,
 			"General_bControlTips": true,
 			KeyBadge.defaultsKey: false,
-			ParamColumn.oscillatorsKey: true,
 			"Render_nMaxFrameRate": 0,
 			"Render_fScale": 1.0,
 			"Render_bSmoothUpscale": true,
