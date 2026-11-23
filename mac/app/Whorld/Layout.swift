@@ -444,7 +444,9 @@ struct Layout: Codable, Equatable {
 	/// The standard layout's split views (by autosave name): each pane's
 	/// share of the space, in order
 	static let standardSplits: [String: [Double]] = [
-		"Whorld.H.left|center": [0.4987, 0.5013],
+		// Parameters 40%: every column still fits, narrowed (FormFit), and the
+		// picture gets 60% (was half; the user's request, 2026-11-23)
+		"Whorld.H.left|center": [0.40, 0.60],
 		"Whorld.V.top|bottom": [0.5836, 0.4164],
 		"Whorld.bottom.row(column(patches,playlist),properties,master,globals)": [0.2502, 0.1352, 0.3360, 0.2786],
 		"Whorld.bottom.column(patches,playlist)": [0.5, 0.5],
