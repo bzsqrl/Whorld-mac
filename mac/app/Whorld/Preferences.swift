@@ -262,6 +262,7 @@ enum WhorldFolders {
 		var made = Set(d.stringArray(forKey: madeKey) ?? [])
 		if d.bool(forKey: madeKeyV1) { made.formUnion([Kind.patches.rawValue, Kind.playlists.rawValue]) }
 		let before = made
+		isFirstLaunch = before.isEmpty
 		for kind in Kind.all where !made.contains(kind.rawValue) {
 			do {
 				try FileManager.default.createDirectory(at: folder(kind), withIntermediateDirectories: true)
@@ -284,6 +285,14 @@ enum WhorldFolders {
 		let f = folder(kind)
 		return FileManager.default.fileExists(atPath: f.path, isDirectory: &isDir) && isDir.boolValue ? f : nil
 	}
+
+	/// Whorld had never made its folders before this launch: a new install
+	/// (set by makeOnce)
+	private(set) static var isFirstLaunch = false
+
+	/// the sample playlist the build makes from the sample patches
+	/// (generate_project.py), opened at the first launch
+	static let samplePlaylistName = "Whorld Samples.whl"
 
 	/// the sample files already copied, as "Patches/name.whp"
 	private static let samplesKey = "General_sInstalledSamples"

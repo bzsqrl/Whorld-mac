@@ -1272,6 +1272,20 @@ enum Session {
 	/// At launch, if Settings > General says to. (What was open is kept
 	/// either way, so turning the setting on reopens the last files.)
 	static func restore(_ model: AppModel) {
+		// a new install: the sample playlist, playing its first patch, so
+		// there's a patch to see and a playlist to step through (the user's
+		// request, 2026-11-23); not over a file opened at launch
+		if WhorldFolders.isFirstLaunch, !openedPlaylist, !openedPatch,
+			let dir = WhorldFolders.existing(.playlists) {
+			let url = dir.appendingPathComponent(WhorldFolders.samplePlaylistName)
+			if FileManager.default.fileExists(atPath: url.path) {
+				model.openPlaylist(url)
+				if model.playlistURL == url, !model.engine.playlistPatches.isEmpty {
+					model.playPatch(0)
+				}
+				return
+			}
+		}
 		guard Preferences.reopenLast else { return }
 		let d = UserDefaults.standard
 		var playlistOpen = false

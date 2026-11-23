@@ -47,6 +47,27 @@ for k in Patches Playlists; do
 		rsync -a --exclude '.*' "$SRCROOT/Samples/$k/" "$S/$k/"
 	fi
 done
+# The sample playlist, "Whorld Samples", made from the sample patches (the
+# top-level .whp files, by name), each named without a folder, so Whorld
+# finds it in Patches; CRLF as Windows writes it. One of that name in
+# Samples/Playlists is used instead. The first launch opens it and plays
+# its first patch (Session.restore).
+L="$S/Playlists/Whorld Samples.whl"
+if [ -d "$SRCROOT/Samples/Patches" ] && [ ! -e "$L" ]; then
+	names=$(cd "$SRCROOT/Samples/Patches" && ls | grep -i '\.whp$' | LC_ALL=C sort -f)
+	if [ -n "$names" ]; then
+		mkdir -p "$S/Playlists"
+		n=$(printf '%s\n' "$names" | wc -l | tr -d ' ')
+		{
+			printf '[Settings]\r\nFileID=WhorldPlay\r\nFileVersion=1\r\n[Patch]\r\nCount=%s\r\n' "$n"
+			i=0
+			printf '%s\n' "$names" | while IFS= read -r f; do
+				printf '[Patch\\%s]\r\nPath=%s\r\n' "$i" "$f"
+				i=$((i+1))
+			done
+		} > "$L"
+	fi
+fi
 '''
 # Builds Syphon.framework (the mac/third_party/Syphon-Framework submodule,
 # BSD license) for this build's architectures into the products folder,
