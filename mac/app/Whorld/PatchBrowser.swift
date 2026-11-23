@@ -61,7 +61,14 @@ final class PatchBrowserStore: ObservableObject {
 	/// whether the folder is the Whorld Patches folder, not one chosen
 	var isWhorldFolder: Bool { folder.standardizedFileURL == WhorldFolders.folder(.patches).standardizedFileURL }
 
-	func setFolder(_ url: URL?) {
+	/// Settings > General > Whorld folder changed: the new Patches folder,
+	/// unless a folder of its own is listed
+	func whorldFolderMoved() {
+		if Self.savedFolder() == nil { folder = WhorldFolders.folder(.patches) }
+		reload()
+	}
+
+		func setFolder(_ url: URL?) {
 		if let url {
 			UserDefaults.standard.set(url.path, forKey: Self.folderKey)
 			folder = url

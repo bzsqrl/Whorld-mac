@@ -200,18 +200,51 @@ enum WhorldFolders {
 	private static let madeKey = "General_sMadeFolders"
 	private static let madeKeyV1 = "General_bMadeFolders"
 
-	/// ~/Documents/Whorld; `General_sWhorldFolder` (no setting shows it) moves
-	/// it, for testing
+	/// where the Whorld folder is, if not Documents (Settings > General >
+	/// Whorld folder; the user's request, 2026-11-23)
+	static let rootKey = "General_sWhorldFolder"
+
+	/// ~/Documents/Whorld, or the folder chosen in Settings (`rootKey`)
 	static var root: URL {
-		if let p = Preferences.defaults.string(forKey: "General_sWhorldFolder"), !p.isEmpty {
+		if let p = Preferences.defaults.string(forKey: rootKey), !p.isEmpty {
 			return URL(fileURLWithPath: (p as NSString).expandingTildeInPath, isDirectory: true)
 		}
+		return defaultRoot
+	}
+
+	static var defaultRoot: URL {
 		let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
 			?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents")
 		return docs.appendingPathComponent("Whorld", isDirectory: true)
 	}
 
 	static func folder(_ kind: Kind) -> URL { root.appendingPathComponent(kind.rawValue, isDirectory: true) }
+
+	/// Settings > General > Whorld folder: another folder, or nil for
+	/// Documents › Whorld. Its Patches, Playlists and the rest are made in it
+	/// where missing; files already saved stay where they are. A dialog whose
+	/// last folder was in the old Whorld folder starts in the new one, and the
+	/// Patches panel follows unless it lists a folder of its own.
+	static func setRoot(_ url: URL?) {
+		let old = root.standardizedFileURL.path
+		if let url, url.standardizedFileURL.path != defaultRoot.standardizedFileURL.path {
+			Preferences.defaults.set(url.path, forKey: rootKey)
+		} else {
+			Preferences.defaults.removeObject(forKey: rootKey)
+		}
+		for kind in Kind.all {
+			if let last = Preferences.defaults.string(forKey: kind.lastKey),
+				(URL(fileURLWithPath: last).standardizedFileURL.path + "/").hasPrefix(old + "/") {
+				Preferences.defaults.removeObject(forKey: kind.lastKey)
+			}
+			do {
+				try FileManager.default.createDirectory(at: folder(kind), withIntermediateDirectories: true)
+			} catch {
+				NSLog("Whorld: can't make the \(kind.rawValue) folder in \(root.path): \(error.localizedDescription)")
+			}
+		}
+		PatchBrowserStore.shared.whorldFolderMoved()
+	}
 
 	/// the kind's folder, if it's there (deleted: nil)
 	static func existing(_ kind: Kind) -> URL? {
@@ -302,6 +335,7 @@ struct PreferencesView: View {
 	@AppStorage("Input_fWheelSense") private var wheelSense = 6.25
 	@AppStorage("Input_fSwipeSense") private var swipeSense = 1.0
 	@AppStorage("Export_sImageFolder") private var imageFolder = ""
+	@AppStorage(WhorldFolders.rootKey) private var whorldFolder = ""	// redraws when it changes
 	@AppStorage("Export_nImageWidth") private var imageWidth = 1920
 	@AppStorage("Export_nImageHeight") private var imageHeight = 1080
 	@AppStorage("Export_bUseViewSize") private var useViewSize = true
@@ -388,21 +422,31 @@ struct PreferencesView: View {
 				Toggle(isOn: $applyPlaylistLayouts) {
 					InfoLabel("Open playlists with their layout", info: "A playlist saved with its panel layout (Save Playlist As > Include the panel layout) arranges the panels and windows that way when it's opened. It changes the current layout (Window menu).")
 				}
-				LabeledContent("Whorld folder") {
+				LabeledContent {
 					HStack {
+						let _ = whorldFolder
 						Text((WhorldFolders.root.path as NSString).abbreviatingWithTildeInPath)
 							.lineLimit(1)
 							.truncationMode(.middle)
 							.foregroundStyle(.secondary)
+							.help(WhorldFolders.root.path)
+						Button("Choose…", action: chooseWhorldFolder)
 						Button("Show in Finder") {
 							NSWorkspace.shared.activateFileViewerSelecting([WhorldFolders.root])
 						}
 					}
+				} label: {
+					InfoLabel("Whorld folder", info: "Choosing another makes its Patches, Playlists, Snapshots, Movies, Exports and Layouts folders where they're missing. Files already saved stay where they are: move them in the Finder if you want them there.")
+				}
+				if !whorldFolder.isEmpty {
+					LabeledContent("") {
+						Button("Use Documents › Whorld") { WhorldFolders.setRoot(nil) }
+					}
 				}
 			} header: {
-				Text("Patches and playlists")
+				Text("Your files")
 			} footer: {
-				Text("Patches and playlists are saved in the Whorld folder's Patches and Playlists folders unless you choose another.").font(.caption).foregroundStyle(.secondary)
+				Text("The Whorld folder holds Patches, Playlists, Snapshots, Movies, Exports and Layouts, where Whorld saves each kind of file and its dialogs start. The Patches panel lists its Patches folder unless you choose another there.").font(.caption).foregroundStyle(.secondary)
 					.frame(maxWidth: .infinity, alignment: .leading)
 			}
 			Section {
@@ -640,6 +684,19 @@ struct PreferencesView: View {
 				Text("How a snapshot fits a window of another shape, and the size assumed for snapshots from older versions of Whorld, which don't record one.").font(.caption).foregroundStyle(.secondary)
 					.frame(maxWidth: .infinity, alignment: .leading)
 			}
+	}
+
+	private func chooseWhorldFolder() {
+		let panel = NSOpenPanel()
+		panel.canChooseDirectories = true
+		panel.canChooseFiles = false
+		panel.canCreateDirectories = true
+		panel.prompt = "Use This Folder"
+		panel.message = "Choose a new Whorld folder. Files already saved stay where they are."
+		panel.directoryURL = WhorldFolders.root.deletingLastPathComponent()
+		if panel.runModal() == .OK, let url = panel.url {
+			WhorldFolders.setRoot(url)
+		}
 	}
 
 	private func chooseFolder() {
