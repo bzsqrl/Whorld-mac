@@ -428,12 +428,15 @@ struct Layout: Codable, Equatable {
 	}
 
 	/// What a new install shows, and Window > Reset Layout: Parameters on the
-	/// left beside the picture, Playlist, Properties, Master and Globals along
-	/// the bottom, MIDI Mapping hidden (the user's arrangement, 2026-11-11).
-	/// The divider positions are in `standardSplits`.
+	/// left beside the picture, Patches above the Playlist, then Properties,
+	/// Master and Globals along the bottom, MIDI Mapping hidden (the user's
+	/// arrangement, 2026-11-11; Patches added 2026-11-23, so the empty
+	/// Playlist's hint names a panel that shows). The divider positions are
+	/// in `standardSplits`.
 	static let standard: Layout = {
 		var l = Layout(left: .panel(.params),
-			bottom: .split(.row, [.panel(.playlist), .panel(.properties), .panel(.master), .panel(.globals)]))
+			bottom: .split(.row, [.split(.column, [.panel(.patches), .panel(.playlist)]),
+				.panel(.properties), .panel(.master), .panel(.globals)]))
 		l.lastRegion = [.mapping: .left]
 		return l
 	}()
@@ -443,7 +446,8 @@ struct Layout: Codable, Equatable {
 	static let standardSplits: [String: [Double]] = [
 		"Whorld.H.left|center": [0.4987, 0.5013],
 		"Whorld.V.top|bottom": [0.5836, 0.4164],
-		"Whorld.bottom.row(playlist,properties,master,globals)": [0.2502, 0.1352, 0.3360, 0.2786],
+		"Whorld.bottom.row(column(patches,playlist),properties,master,globals)": [0.2502, 0.1352, 0.3360, 0.2786],
+		"Whorld.bottom.column(patches,playlist)": [0.5, 0.5],
 	]
 
 	func root(_ r: Region) -> DockNode? {
