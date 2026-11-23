@@ -217,7 +217,10 @@ struct PatchBrowserPanel: View {
 				Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([store.folder]) }
 				Button("Refresh") { store.reload() }
 			} label: {
+				// the icon alone: the panel's title already says Patches (the
+				// user's choice, 2026-11-23); the folder's name stays for VoiceOver
 				Label(store.folder.lastPathComponent, systemImage: "folder")
+					.labelStyle(.iconOnly)
 			}
 			.menuStyle(.borderlessButton)
 			.fixedSize()
