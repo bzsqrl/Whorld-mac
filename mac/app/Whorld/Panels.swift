@@ -203,6 +203,9 @@ struct NumberField: View {
 	/// also takes a fraction, such as 1/3 (Mac addition: the Modulation
 	/// window's lengths); `parse` then gets it as typed (see fraction)
 	var fractions = false
+	/// greyed, still editable: a value that does nothing now (Pulse Width
+	/// without the Pulse wave; the user's request, 2026-11-23)
+	var dimmed = false
 
 	/// a fraction as typed, "1/3" or "3/2", or nil
 	static func fraction(_ t: String) -> Double? {
@@ -249,7 +252,7 @@ struct NumberField: View {
 
 	var body: some View {
 		KeyTextField(value: value, format: format, parse: parse, commit: commit,
-			step: step, lo: lo, hi: hi, defaultValue: defaultValue, fractions: fractions)
+			step: step, lo: lo, hi: hi, defaultValue: defaultValue, fractions: fractions, dimmed: dimmed)
 			.frame(width: width, height: 22)
 	}
 }
@@ -354,6 +357,7 @@ struct KeyTextField: NSViewRepresentable {
 	let hi: Double?
 	let defaultValue: Double?
 	var fractions = false
+	var dimmed = false
 
 	/// Right-clicking (or Control-clicking) restores the default, whether or
 	/// not the box is being edited (then the field editor gets the click, and
@@ -589,6 +593,8 @@ struct KeyTextField: NSViewRepresentable {
 	func updateNSView(_ f: NSTextField, context: Context) {
 		let c = context.coordinator
 		c.parent = self
+		let color: NSColor = dimmed ? .tertiaryLabelColor : .controlTextColor
+		if f.textColor != color { f.textColor = color }
 		if let editor = f.currentEditor() as? NSTextView {
 			// focused: follow outside changes (MIDI, OSC, undo) unless something
 			// has been typed, keeping the text selected as focus leaves it
@@ -1165,7 +1171,7 @@ enum ParamColumn {
 	static let spacing: CGFloat = 8
 	static let padding: CGFloat = 10
 	static let name: CGFloat = 96
-	static let mark: CGFloat = 18
+	static let mark: CGFloat = 20	// WaveGlyph's width
 	static let titles = ["Value", "Waveform", "Amplitude", "Frequency", "Pulse Width"]
 	static let wave = 1	// Waveform's column
 	/// Waveform's menu shows its name down to this width, then its shape
@@ -1199,7 +1205,7 @@ struct ParamRow: View {
 		WHControls.paramControl(iParam, column: col)
 	}
 
-	private func field(_ prop: WHParamProperty, column: Int, width: CGFloat) -> some View {
+	private func field(_ prop: WHParamProperty, column: Int, width: CGFloat, dimmed: Bool = false) -> some View {
 		let ci = control(column)
 		let bounded = ci.editClamp.boolValue
 		return NumberField(
@@ -1211,7 +1217,8 @@ struct ParamRow: View {
 			lo: bounded ? ci.editMin : nil,
 			hi: bounded && ci.editMax < Double(Int32.max) ? ci.editMax : nil,	// not Frequency's INT_MAX
 			defaultValue: model.engine.loadedParamValue(iParam, property: prop),	// the patch as loaded or last saved
-			width: width)
+			width: width,
+			dimmed: dimmed)
 	}
 
 	var body: some View {
@@ -1245,7 +1252,10 @@ struct ParamRow: View {
 				field(.freq, column: 2, width: w)
 			}
 			if let w = fit.width(4) {
-				field(.PW, column: 3, width: w)
+				// only the Pulse wave uses it (WhorldDef.h PW), so it's greyed
+				// for the others, still editable (the user's request, 2026-11-23)
+				let pulse = Int(e.paramValue(iParam, property: .wave)) == WaveGlyph.pulse
+				field(.PW, column: 3, width: w, dimmed: !pulse)
 			}
 			OscillatorMark(iParam: iParam)
 		}
@@ -1295,6 +1305,7 @@ struct WaveformMenu: View {
 /// engine's order: Triangle, Sine, Ramp Up, Ramp Down, Square, Pulse,
 /// Random, Random Ramp)
 enum WaveGlyph {
+	static let pulse = 5
 	private static var cache: [Int: NSImage] = [:]
 
 	static func image(_ w: Int) -> NSImage {
@@ -1385,7 +1396,8 @@ struct OscillatorMark: View {
 		ZStack {
 			if amp != 0 && freq != 0 {
 				let wave = WHControls.waveformName(Int(e.paramValue(iParam, property: .wave)))
-				Text(Image(systemName: "alternatingcurrent"))
+				// the selected wave's shape (the user's request, 2026-11-23)
+				Text(Image(nsImage: WaveGlyph.image(Int(e.paramValue(iParam, property: .wave)))))
 					.foregroundStyle(Color.accentColor)
 					.help("Its oscillator moves it: \(wave), amplitude \(paramText(amp, WHControls.paramControl(iParam, column: 1))), frequency \(paramText(freq, WHControls.paramControl(iParam, column: 2))). Widen the panel to see the oscillator columns.")
 					.accessibilityLabel("Oscillator on")
