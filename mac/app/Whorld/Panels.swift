@@ -1283,6 +1283,7 @@ struct WaveformMenu: View {
 			}
 			.labelsHidden()
 			.frame(width: width)
+			.overlay(SecondaryClickReset { reset() })
 		} else {
 			Menu {
 				Picker("", selection: selection) {
@@ -1297,8 +1298,49 @@ struct WaveformMenu: View {
 			}
 			.help("Waveform: \(WHControls.waveformName(selection.wrappedValue))")
 			.frame(width: width)
+			.overlay(SecondaryClickReset { reset() })
 		}
 	}
+
+	/// a two-finger tap: the patch's waveform as loaded or last saved, as
+	/// the row's boxes and slider do (the user's request, 2026-11-23)
+	private func reset() {
+		let e = model.engine
+		let d = e.loadedParamValue(iParam, property: .wave)
+		if e.paramValue(iParam, property: .wave) != d { model.setParam(iParam, .wave, d) }
+	}
+}
+
+/// Over a SwiftUI control: a secondary click (a two-finger tap, a right
+/// click or a Control-click) calls `reset`, as on the number boxes and
+/// sliders; every other click goes through to the control beneath.
+struct SecondaryClickReset: NSViewRepresentable {
+	let reset: () -> Void
+
+	final class Catcher: NSView {
+		var reset: (() -> Void)?
+
+		private static func isSecondary(_ e: NSEvent?) -> Bool {
+			guard let e else { return false }
+			return e.type == .rightMouseDown || (e.type == .leftMouseDown && e.modifierFlags.contains(.control))
+		}
+		override func hitTest(_ point: NSPoint) -> NSView? {
+			Self.isSecondary(NSApp.currentEvent) ? super.hitTest(point) : nil
+		}
+		override func rightMouseDown(with event: NSEvent) { reset?() }
+		override func mouseDown(with event: NSEvent) {
+			if event.modifierFlags.contains(.control) { reset?() } else { super.mouseDown(with: event) }
+		}
+		override func menu(for event: NSEvent) -> NSMenu? { nil }
+	}
+
+	func makeNSView(context: Context) -> Catcher {
+		let v = Catcher()
+		v.reset = reset
+		return v
+	}
+
+	func updateNSView(_ v: Catcher, context: Context) { v.reset = reset }
 }
 
 /// The oscillator waveforms' shapes, small, for WaveformMenu (in the
