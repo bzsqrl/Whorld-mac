@@ -298,7 +298,11 @@ final class ModMap {
 	@ObservationIgnored private weak var engine: WHEngine?
 
 	private init() {
-		var f = File(rows: Self.standard)
+		// a new install starts with modulation off (the user's request,
+		// 2026-11-23): its starting rows ran on the internal tempo with no
+		// audio, moving the first patch on its own; the rows are there for
+		// the switch (Audio > Audio Modulation)
+		var f = File(bypass: true, rows: Self.standard)
 		if let data = UserDefaults.standard.data(forKey: Self.defaultsKey),
 			let saved = try? JSONDecoder().decode(File.self, from: data) {
 			f = saved
@@ -369,8 +373,7 @@ final class ModMap {
 	func restoreDefaults() {
 		rows = Self.standard
 		depth = 1
-		bypass = false
-		followTempo = false
+		followTempo = false	// the switch stays as it is
 		notice = nil
 	}
 
