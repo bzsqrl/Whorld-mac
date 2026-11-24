@@ -269,9 +269,10 @@ private struct StatsStripContent: View {
 			StripText(part: .readout)
 				.frame(minWidth: 0, idealWidth: StripText.width(.readout), maxWidth: StripText.width(.readout))
 			Divider().frame(height: 14)
-			// the patch's place in the playlist (12/86), its name in the
+			// the patch's place in the playlist (12 / 86), its name in the
 			// tooltip (shown elsewhere: the user's request, 2026-11-21); a
-			// click plays the next (2026-11-20)
+			// click on the left number plays the previous, on the right the
+			// next (2026-11-20, both ways 2026-11-23)
 			StripText(part: .patch)
 				.frame(width: StripText.width(.patch) + 8, height: 18)
 				.layoutPriority(2)
@@ -518,8 +519,8 @@ final class StripFeed {
 		guard place != patch.place || name != patch.name || count != patch.count else { return }
 		patch = (place, name, count)
 		patchCanStep = canStep
-		var tip = place.isEmpty ? name : "\(name): patch \(place.replacingOccurrences(of: "/", with: " of ")) in the playlist"
-		if canStep { tip += ". Click for the next patch (Image > Next Patch, ⌘↓)." }
+		var tip = place.isEmpty ? name : "\(name): patch \(place.replacingOccurrences(of: " / ", with: " of ")) in the playlist"
+		if canStep { tip += ". Click the left number for the previous patch (Image > Previous Patch, ⌘↑), the right for the next (Image > Next Patch, ⌘↓)." }
 		for w in views where w.view?.part == .patch { w.view?.toolTip = tip }
 		redraw(.patch)
 	}
@@ -743,7 +744,7 @@ private struct PlaylistTransport: View {
 	private func feedPatch() {
 		let n = model.playlistPatches.count
 		let i = model.playingPatch
-		StripFeed.shared.setPatch(place: i >= 0 && i < n ? "\(i + 1)/\(n)" : "", name: model.title, count: n)
+		StripFeed.shared.setPatch(place: i >= 0 && i < n ? "\(i + 1) / \(n)" : "", name: model.title, count: n)
 	}
 }
 
@@ -788,7 +789,7 @@ struct StripText: NSViewRepresentable {
 		let sample = switch part {
 		case .fps: "000 fps"
 		case .readout: "Ring Growth  -00.000"
-		case .patch: "000/000"
+		case .patch: "000 / 000"
 		case .syphon, .beat: ""
 		case .tempo: "000"
 		}
@@ -815,26 +816,44 @@ struct StripText: NSViewRepresentable {
 
 		private var hover = false { didSet { if hover != oldValue { needsDisplay = true } } }
 		private var pressed = false { didSet { if pressed != oldValue { needsDisplay = true } } }
+		/// the patch place's half under the mouse: -1 left (Previous
+		/// Patch), +1 right (Next Patch), split at the slash's middle
+		/// (the user's request, 2026-11-23)
+		private var side = 1 { didSet { if side != oldValue { needsDisplay = true } } }
+		private var splitX: CGFloat?
+		private func side(at event: NSEvent) -> Int {
+			convert(event.locationInWindow, from: nil).x < (splitX ?? bounds.midX) ? -1 : 1
+		}
 
 		override func updateTrackingAreas() {
 			super.updateTrackingAreas()
 			guard button else { return }
 			trackingAreas.forEach(removeTrackingArea)
-			addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
-				owner: self))
+			var options: NSTrackingArea.Options = [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect]
+			if part == .patch { options.insert(.mouseMoved) }
+			addTrackingArea(NSTrackingArea(rect: bounds, options: options, owner: self))
 		}
 
-		override func mouseEntered(with event: NSEvent) { hover = clickable }
+		override func mouseEntered(with event: NSEvent) {
+			if part == .patch { side = side(at: event) }
+			hover = clickable
+		}
+		override func mouseMoved(with event: NSEvent) {
+			guard part == .patch else { return super.mouseMoved(with: event) }
+			side = side(at: event)
+		}
 		override func mouseExited(with event: NSEvent) { hover = false }
 
 		override func mouseDown(with event: NSEvent) {
 			guard clickable else { return super.mouseDown(with: event) }
+			if part == .patch { side = side(at: event) }
 			pressed = true
 		}
 
 		override func mouseDragged(with event: NSEvent) {
 			guard button else { return super.mouseDragged(with: event) }
 			pressed = bounds.contains(convert(event.locationInWindow, from: nil))
+				&& (part != .patch || side(at: event) == side)
 		}
 
 		override func mouseUp(with event: NSEvent) {
@@ -844,7 +863,7 @@ struct StripText: NSViewRepresentable {
 			guard inside else { return }
 			switch part {
 			case .tempo: ModMap.markDownbeat()	// Audio > Reset to 1.1
-			case .patch: AppModel.shared.stepPatch(1)	// Image > Next Patch
+			case .patch: AppModel.shared.stepPatch(side)	// Image > Previous / Next Patch
 			default: StripFeed.shared.toggleStatsPopover(from: self)
 			}
 		}
@@ -883,18 +902,29 @@ struct StripText: NSViewRepresentable {
 			let text = NSMutableAttributedString()
 			switch part {
 			case .patch:
-				// the place alone (12/86; –/86 with none from the playlist);
+				// the place alone (12 / 86; – / 86 with none from the playlist);
 				// the name is in the tooltip
 				let n = feed.patch.count
-				let place = feed.patch.place.isEmpty ? (n > 0 ? "–/\(n)" : "–") : feed.patch.place
+				let place = feed.patch.place.isEmpty ? (n > 0 ? "– / \(n)" : "–") : feed.patch.place
 				text.append(NSAttributedString(string: place, attributes: attrs(n > 0 ? .labelColor : .secondaryLabelColor)))
-				// a button (Next Patch): lit on hover around the text, at a
-				// fixed width so Play after it never moves
+				// two buttons, Previous Patch left of the slash's middle and
+				// Next Patch right of it: the half under the mouse lit, around
+				// the text, at a fixed width so Play after it never moves
 				let tw = ceil(text.size().width)
+				let slash = (place as NSString).range(of: "/")
+				if slash.location != NSNotFound {
+					let before = text.attributedSubstring(from: NSRange(location: 0, length: slash.location)).size().width
+					let mid = text.attributedSubstring(from: slash).size().width / 2
+					splitX = 4 + before + mid
+				} else {
+					splitX = nil
+				}
 				if hover || pressed {
+					let right = min(tw + 8, bounds.width), split = splitX ?? right / 2
+					let lit = side < 0 ? NSRect(x: 0, y: 0, width: split, height: bounds.height)
+						: NSRect(x: split, y: 0, width: right - split, height: bounds.height)
 					NSColor.labelColor.withAlphaComponent(pressed ? 0.18 : 0.09).setFill()
-					NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: min(tw + 8, bounds.width), height: bounds.height),
-						xRadius: 4, yRadius: 4).fill()
+					NSBezierPath(roundedRect: lit, xRadius: 4, yRadius: 4).fill()
 				}
 				let h = ceil(font.ascender - font.descender + font.leading)
 				text.draw(with: NSRect(x: 4, y: floor((bounds.height - h) / 2), width: bounds.width - 8, height: h),
