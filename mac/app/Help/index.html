@@ -51,7 +51,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <h2 id="start">Getting started</h2>
 <ol>
 <li><b>Open a playlist.</b> Choose File &gt; Playlist &gt; Open Playlist (<kbd>⇧⌘O</kbd>). Whorld keeps playlists in Documents &gt; Whorld &gt; Playlists. Or browse patches one by one in View &gt; Patches.</li>
-<li><b>Play a patch.</b> Double-click one in the Playlist panel. <kbd>⌘↓</kbd> and <kbd>⌘↑</kbd> play the next and previous patch, from anywhere.</li>
+<li><b>Play a patch.</b> Double-click one in the Playlist panel. <kbd>⌘↓</kbd> and <kbd>⌘↑</kbd> play the next and previous patch (except in a number box you're editing, where they step its value).</li>
 <li><b>Swipe over the picture.</b> A two-finger swipe up or down (or the mouse wheel) zooms; with <kbd>⇧</kbd> it changes Damping.</li>
 <li><b>Hold a key and swipe.</b> Each letter moves one control: hold <kbd>Q</kbd> over the picture and swipe to change Ring Spacing, <kbd>W</kbd> for Line Width. Press <kbd>`</kbd> (left of 1) to see them all on a keyboard, and again to hide it. The Perform Bar names the control as soon as you press the key. View &gt; Key Map (<kbd>⌥⌘9</kbd>) lists them all.</li>
 <li><b>Go full screen.</b> <kbd>⌘F</kbd> fills the display the picture is on; <kbd>⇧⌘F</kbd> fills another display, such as a projector. <kbd>Esc</kbd> leaves.</li>
@@ -79,7 +79,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 
 <h3 id="playlist">Playlists</h3>
 <ul>
-<li>Double-click a patch, or press <kbd>⌘↓</kbd> / <kbd>⌘↑</kbd> (Image &gt; Next Patch and Previous Patch), to play it. These keys work wherever the pointer is, a number box included; after the last patch comes the first again, and with none playing they start at the first or the last.</li>
+<li>Double-click a patch, or press <kbd>⌘↓</kbd> / <kbd>⌘↑</kbd> (Image &gt; Next Patch and Previous Patch), to play it. These keys work wherever the pointer is, except while you're editing a number box: there they step its value by the finest step, as <kbd>⌘</kbd> does everywhere. After the last patch comes the first again, and with none playing they start at the first or the last.</li>
 <li>Each time a patch plays (double-click, keys, MIDI or OSC), the list scrolls it to about a third of the way down, its green triangle showing where you are. Scroll freely in between; the list moves only when a patch plays.</li>
 <li>Drag patches up or down to reorder them (a selected patch takes the rest of the selection with it). <b>+</b> and <b>&minus;</b> in the bottom bar insert and delete patches. In a narrow pane the bar leaves out the playlist's name, then the Full / Geom button.</li>
 <li>Playing a patch replaces the one showing without asking to save it, so you can move between patches freely; to keep changes, save first (<kbd>⌘S</kbd>). File &gt; New, File &gt; Open and Quit still ask.</li>

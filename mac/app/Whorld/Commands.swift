@@ -27,13 +27,20 @@ struct WhorldCommands: Commands {
 
 	/// Command-Down or Command-Up as a menu command (Next and Previous
 	/// Patch), except in a text area of several lines, where they keep
-	/// their usual meaning: to the end or the start. A number box (one
-	/// line, nearly always focused) gives them up: it steps with the
-	/// arrows, Shift-arrows and Shift-Command-arrows, not Command-arrows.
+	/// their usual meaning: to the end or the start, and in a focused number
+	/// box, which takes them as its finest step (the modifier ladder's
+	/// Command; the user's request, 2026-11-24: a box no longer stays
+	/// focused once you click elsewhere, ClickAway).
 	static func arrowOrStep(down: Bool, _ step: () -> Void) {
-		if let text = NSApp.keyWindow?.firstResponder as? NSTextView, text.isEditable, !text.isFieldEditor {
+		guard let text = NSApp.keyWindow?.firstResponder as? NSTextView, text.isEditable else {
+			step()
+			return
+		}
+		if !text.isFieldEditor {
 			text.doCommand(by: down ? #selector(NSResponder.moveToEndOfDocument(_:))
 				: #selector(NSResponder.moveToBeginningOfDocument(_:)))
+		} else if let box = text.delegate as? KeyTextField.Field, let swipe = box.onSwipeStep {
+			swipe(down ? -1 : 1, KeyStep.by(ModifierLadder.finest))
 		} else {
 			step()
 		}
@@ -203,7 +210,7 @@ struct WhorldCommands: Commands {
 			Divider()
 			// the playlist's next and previous patch, wrapping at the ends
 			// (were Command-Down and Command-Up over the picture only);
-			// they work in a number box too (arrowOrStep)
+			// a focused number box takes them instead (arrowOrStep)
 			Button("Next Patch") { Self.arrowOrStep(down: true) { model.stepPatch(1) } }
 				.keyboardShortcut(.downArrow, modifiers: .command)
 				.disabled(model.playlistPatches.isEmpty)
