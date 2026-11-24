@@ -315,8 +315,10 @@ private struct StatsStripContent: View {
 			// comes and goes without a SwiftUI layout
 			StripTempo(shown: StripFeed.shared.tempoShown)	// no room held while there's none
 				.layoutPriority(2)
-			Divider().frame(height: 14)
-			// "Syp" and the dot (the user's request, 2026-11-21), like Mod
+			Spacer(minLength: 0)
+			// "Syp" and the dot (the user's request, 2026-11-21), like Mod; at the
+			// right end with Detach and Full Screen, the picture's outputs
+			// together (the user's request, 2026-11-24)
 			Button { model.setSyphonEnabled(!model.syphonEnabled) } label: {
 				HStack(spacing: 5) {
 					Text("Syp").foregroundStyle(model.syphonEnabled ? .primary : .secondary)
@@ -328,7 +330,6 @@ private struct StatsStripContent: View {
 			.fixedSize()
 			.layoutPriority(2)
 			.help("Syphon output on or off (View > Syphon, which also sets its size). Faint off, hollow while no app is receiving, filled once one is.")
-			Spacer(minLength: 0)
 			// View > Detach (the user's request, 2026-11-20): the picture in a
 			// window of its own, for a projector; lit while detached, when
 			// the bar is on the swipe pad, and a click docks it again
