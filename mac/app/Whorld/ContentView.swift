@@ -520,7 +520,7 @@ final class StripFeed {
 		patch = (place, name, count)
 		patchCanStep = canStep
 		var tip = place.isEmpty ? name : "\(name): patch \(place.replacingOccurrences(of: " / ", with: " of ")) in the playlist"
-		if canStep { tip += ". Click the left number for the previous patch (Image > Previous Patch, ⌘↑), the right for the next (Image > Next Patch, ⌘↓)." }
+		if canStep { tip += ". Click the left number for the previous patch (Image > Previous Patch, ⌘↑), the right for the next (Image > Next Patch, ⌘↓); or, with the pointer here, press ← or →." }
 		for w in views where w.view?.part == .patch { w.view?.toolTip = tip }
 		redraw(.patch)
 	}
@@ -814,7 +814,13 @@ struct StripText: NSViewRepresentable {
 			return part == .beat || part == .syphon ? nil : super.hitTest(point)
 		}
 
-		private var hover = false { didSet { if hover != oldValue { needsDisplay = true } } }
+		private var hover = false {
+			didSet {
+				guard hover != oldValue else { return }
+				needsDisplay = true
+				if part == .patch { arrowKeys(hover) }
+			}
+		}
 		private var pressed = false { didSet { if pressed != oldValue { needsDisplay = true } } }
 		/// the patch place's half under the mouse: -1 left (Previous
 		/// Patch), +1 right (Next Patch), split at the slash's middle
@@ -832,6 +838,29 @@ struct StripText: NSViewRepresentable {
 			var options: NSTrackingArea.Options = [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect]
 			if part == .patch { options.insert(.mouseMoved) }
 			addTrackingArea(NSTrackingArea(rect: bounds, options: options, owner: self))
+		}
+
+		/// While the mouse is over the patch place, Left Arrow and Right
+		/// Arrow play the previous and next patch (the user's request,
+		/// 2026-11-23), before the focused control: the mouse says which.
+		private var arrowMonitor: Any?
+		private func arrowKeys(_ on: Bool) {
+			if let arrowMonitor { NSEvent.removeMonitor(arrowMonitor) }
+			arrowMonitor = nil
+			guard on else { return }
+			arrowMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
+				let code = e.keyCode, windowNumber = e.windowNumber
+				guard code == 123 || code == 124,	// Left Arrow, Right Arrow
+					e.modifierFlags.intersection([.shift, .command, .control, .option]).isEmpty
+				else { return e }
+				let taken = MainActor.assumeIsolated {
+					guard let self, self.hover, self.window?.windowNumber == windowNumber,
+						StripFeed.shared.patchCanStep else { return false }
+					AppModel.shared.stepPatch(code == 123 ? -1 : 1)
+					return true
+				}
+				return taken ? nil : e
+			}
 		}
 
 		override func mouseEntered(with event: NSEvent) {
@@ -883,6 +912,8 @@ struct StripText: NSViewRepresentable {
 				if part == .tempo { toolTip = StripFeed.shared.beat.tempo.isEmpty ? nil : Self.tempoTip }
 			} else {
 				StripFeed.shared.remove(self)
+				hover = false
+				pressed = false
 			}
 		}
 
