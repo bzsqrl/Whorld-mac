@@ -75,8 +75,8 @@ final class OutputKeys {
 		if !up, code == 49, modifiers == 0 || modifiers == NSEvent.ModifierFlags.shift.rawValue, Self.takesSpace() {
 			let m = AppModel.shared
 			if modifiers == 0 {
-				if !isRepeat, !(m.keyboardSpaceAction?() ?? false) {	// a focused Properties row takes it
-					m.engine.togglePause()
+				if !isRepeat {
+					m.togglePause()	// (the Properties' Pause chip redraws)
 				}
 			} else {
 				m.engine.singleStep()
@@ -88,7 +88,7 @@ final class OutputKeys {
 		// job of its own: editing text, or a list with focus (MIDI Mapping's
 		// Delete removes its selected rows). Held, it clears once.
 		if !up, code == 51, modifiers == 0, Self.takesDelete() {
-			if !isRepeat { AppModel.shared.engine.clear() }
+			if !isRepeat { AppModel.shared.clear() }
 			return true
 		}
 		// Command-Left and Command-Right: the previous and next snapshot
@@ -365,7 +365,7 @@ enum SecondKeys {
 		switch (code, modifiers) {
 		case (103, none): m.toggleFullScreen()	// F11, Windows' full screen
 		case (3, ctrlCmd): m.toggleFullScreen()	// Ctrl-Cmd-F, macOS's (Cmd-F in the menu)
-		case (117, cmd): e.clear()	// Cmd-Forward Delete, Windows' Ctrl+Delete (Delete in the menu)
+		case (117, cmd): m.clear()	// Cmd-Forward Delete, Windows' Ctrl+Delete (Delete in the menu)
 		case (97, none): m.toggleFill()	// F6 (Cmd-1)
 		case (98, none): m.toggleOutline()	// F7 (Cmd-2)
 		case (96, none): m.toggle(.mirror)	// F5 (Cmd-4)

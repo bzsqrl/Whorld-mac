@@ -128,6 +128,12 @@ final class AppModel: ObservableObject {
 	@Published var showStats: Bool = UserDefaults.standard.bool(forKey: "View_bShowStats") {
 		didSet { UserDefaults.standard.set(showStats, forKey: "View_bShowStats") }
 	}
+	/// View > Show Properties in Perform Bar (the user's choice, 2026-11-24):
+	/// the Properties' live chips as a row of the Perform Bar
+	/// (PropertiesStrip), with the bar; kept between runs and per layout
+	@Published var showPropsBar: Bool = UserDefaults.standard.bool(forKey: "View_bShowPropsBar") {
+		didSet { UserDefaults.standard.set(showPropsBar, forKey: "View_bShowPropsBar") }
+	}
 	/// Settings > Performance > Render quality (renderScale) and Upscaling (Mac addition): the
 	/// picture is drawn at this fraction of the display's pixels and scaled up
 	@Published var renderScale: Double = {
@@ -180,10 +186,6 @@ final class AppModel: ObservableObject {
 	static let renderScales: [(value: Double, name: String)] = [
 		(1, "100% (full resolution)"), (0.75, "75%"), (0.5, "50%"), (1.0 / 3, "33%"),
 	]
-	/// Set while a Properties row has focus: Space (the Pause shortcut,
-	/// which menus see before any view) goes to the row instead. Returns
-	/// false if it didn't take it (its window isn't the key window).
-	var keyboardSpaceAction: (() -> Bool)?
 	/// the workspace's panels and the output's place (Workspace.swift)
 	let layout = LayoutModel()
 	let outputWindow = OutputWindowController()	// (TitleBarClicks asks for its window)
@@ -667,6 +669,7 @@ final class AppModel: ObservableObject {
 		engine.rotateHue()
 		mainChanged()
 		showMain(.hue)
+		ActionFlash.shared.fire(.rotateHue)	// its chips flash
 	}
 
 	func setDrawMode(_ mode: UInt32) {
@@ -694,6 +697,13 @@ final class AppModel: ObservableObject {
 
 	func showRandomPhase() {
 		StripFeed.shared.setReadout("Random Phase")
+		ActionFlash.shared.fire(.randomPhase)	// its chips flash
+	}
+
+	/// Image > Clear (Delete), by hand: its chips flash
+	func clear() {
+		engine.clear()
+		ActionFlash.shared.fire(.clear)
 	}
 
 	func setOriginMotion(_ motion: WHOriginMotion) {
@@ -742,6 +752,12 @@ final class AppModel: ObservableObject {
 	static let drawModeFill: UInt32 = 0x01		// DM_FILL
 	static let drawModeOutline: UInt32 = 0x02	// DM_OUTLINE
 	static let drawModeXRay: UInt32 = 0x04		// DM_XRAY: XOR mode, V1's X-Ray (V2 ignores it)
+
+	/// Pause, from the keyboard or the Properties' chip: the chip redraws
+	func togglePause() {
+		engine.togglePause()
+		changes.main.bump()
+	}
 
 	func toggleFill() { setDrawMode(engine.drawMode ^ Self.drawModeFill) }
 	func toggleOutline() { setDrawMode(engine.drawMode ^ Self.drawModeOutline) }

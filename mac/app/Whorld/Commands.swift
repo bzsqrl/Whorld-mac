@@ -189,15 +189,7 @@ struct WhorldCommands: Commands {
 		CommandMenu("Image") {
 			// the live controls first (the user's menu audit, 2026-11-18):
 			// Pause, Step and Clear were in the Window menu, as on Windows
-			toggle("Pause", e.paused) {
-				// Space pressed while a Properties row has focus toggles the row
-				let ev = NSApp.currentEvent
-				if ev?.type == .keyDown, ev?.charactersIgnoringModifiers == " ",
-					let take = model.keyboardSpaceAction, take() {
-					return
-				}
-				e.togglePause()
-			}
+			toggle("Pause", e.paused) { e.togglePause() }
 				.keyboardShortcut(.space, modifiers: [])
 			Button("Step") { e.singleStep() }
 				.keyboardShortcut(.space, modifiers: .shift)
@@ -205,7 +197,7 @@ struct WhorldCommands: Commands {
 			// before): taken by OutputKeys first, except while text is being
 			// edited or a list has focus, where Delete keeps its usual job.
 			// Cmd-Forward Delete (Windows' Ctrl+Delete) works too.
-			Button("Clear") { e.clear() }
+			Button("Clear") { model.clear() }
 				.keyboardShortcut(.delete, modifiers: [])
 			Divider()
 			// the playlist's next and previous patch, wrapping at the ends
@@ -386,6 +378,10 @@ struct WhorldCommands: Commands {
 			// the stats strip became the Perform Bar (the user's request, 2026-11-20)
 			Toggle("Show Perform Bar", isOn: Binding(get: { model.showStats }, set: { model.showStats = $0 }))
 				.keyboardShortcut("b", modifiers: [.command, .shift])	// "Bar", beside Blackout's Command-B (2026-11-22: Option-Command-9 went to the panels, Patches joining them)
+			// the Properties' chips as a row of the bar (the user's choice,
+			// 2026-11-24); no shortcut
+			Toggle("Show Properties in Perform Bar", isOn: Binding(get: { model.showPropsBar }, set: { model.showPropsBar = $0 }))
+				.disabled(!model.showStats)
 			// the strip's Auto; beside Audio Modulation's Command-' (the
 			// user's request, 2026-11-19; out of Settings > Display)
 			Toggle("Automatic Quality", isOn: Binding(get: { model.autoQuality }, set: { model.autoQuality = $0 }))

@@ -67,6 +67,10 @@ struct OutputView: View {
 			if model.showStats && (pad || !model.layout.layout.detached) {
 				Divider()
 				StatsStrip()
+				if model.showPropsBar {	// View > Show Properties in Perform Bar
+					Divider()
+					PropertiesStrip()
+				}
 			}
 		}
 			.onDrop(of: panelDrop == nil ? [.fileURL] : [.fileURL, .whorldPanel],
@@ -229,7 +233,9 @@ struct StatsStrip: View {
 	}
 }
 
-private struct FirstClickHost: NSViewRepresentable {
+/// a SwiftUI bar in a hosting view of its own that takes the first click
+/// (the Perform Bar, its Properties row)
+struct FirstClickHost: NSViewRepresentable {
 	let content: AnyView
 
 	final class Host: NSHostingView<AnyView> {

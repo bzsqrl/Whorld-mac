@@ -35,6 +35,8 @@ struct NamedLayout: Codable, Identifiable, Equatable {
 	/// View > Show Perform Bar, as left (an older one's "oscillators", for
 	/// Parameters' columns, is ignored: they fit the pane now)
 	var performBar: Bool?
+	/// View > Show Properties in Perform Bar, as left
+	var propsBar: Bool?
 
 	var isBuiltIn: Bool { id == NamedLayouts.editID || id == NamedLayouts.performID }
 }
@@ -115,6 +117,16 @@ final class NamedLayouts: ObservableObject {
 		return f
 	}()
 
+	/// Perform plays the Properties from the bar (it has no Properties
+	/// panel); Edit has the panel
+	private func defaultPropsBar(_ item: NamedLayout) -> Bool? {
+		switch item.id {
+		case Self.editID: false
+		case Self.performID: true
+		default: item.saved == nil ? nil : item.propsBar
+		}
+	}
+
 	private func defaultPerformBar(_ item: NamedLayout) -> Bool? {
 		switch item.id {
 		case Self.editID: nil
@@ -131,6 +143,7 @@ final class NamedLayouts: ObservableObject {
 		let model = AppModel.shared
 		items[i].file = model.currentLayoutFile()
 		items[i].performBar = model.showStats
+		items[i].propsBar = model.showPropsBar
 	}
 
 	/// Window > a layout: as it was left (or its defaults)
@@ -138,7 +151,8 @@ final class NamedLayouts: ObservableObject {
 		guard id != active, let target = items.first(where: { $0.id == id }) else { return }
 		captureCurrent()
 		active = id
-		apply(target.file ?? defaults(target), performBar: target.file == nil ? defaultPerformBar(target) : target.performBar)
+		apply(target.file ?? defaults(target), performBar: target.file == nil ? defaultPerformBar(target) : target.performBar,
+			propsBar: target.file == nil ? defaultPropsBar(target) : target.propsBar)
 		save()
 	}
 
@@ -146,13 +160,13 @@ final class NamedLayouts: ObservableObject {
 	func resetCurrent() {
 		guard let i = items.firstIndex(where: { $0.id == active }) else { return }
 		items[i].file = nil
-		apply(defaults(items[i]), performBar: defaultPerformBar(items[i]))
+		apply(defaults(items[i]), performBar: defaultPerformBar(items[i]), propsBar: defaultPropsBar(items[i]))
 		save()
 	}
 
 	/// Arranges the panels as `f` says; the picture stays detached or docked
 	/// as it is, and the windows where they are
-	private func apply(_ f: LayoutFile, performBar: Bool?) {
+	private func apply(_ f: LayoutFile, performBar: Bool?, propsBar: Bool? = nil) {
 		let model = AppModel.shared
 		var f = f
 		f.layout.detached = model.layout.layout.detached
@@ -160,6 +174,7 @@ final class NamedLayouts: ObservableObject {
 		f.output = nil
 		model.applyLayout(f)
 		if let performBar, model.showStats != performBar { model.showStats = performBar }
+		if let propsBar, model.showPropsBar != propsBar { model.showPropsBar = propsBar }
 	}
 
 	// MARK: The user's own
@@ -184,6 +199,7 @@ final class NamedLayouts: ObservableObject {
 		}
 		item.saved = model.currentLayoutFile()
 		item.performBar = model.showStats
+		item.propsBar = model.showPropsBar
 		items.append(item)
 		active = item.id
 		save()

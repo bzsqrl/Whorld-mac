@@ -422,10 +422,16 @@ final class ModMap {
 		let tags = WHModRow.actionTags
 		for (i, tag) in tags.enumerated() where actions & (1 << UInt32(i)) != 0 {
 			switch tag {
-			case "RandomPhase": model.engine.randomPhase()
+			// Random Phase and Clear flash their Properties chips (as by hand),
+			// but don't take the readout, which modulation never does
+			case "RandomPhase":
+				model.engine.randomPhase()
+				ActionFlash.shared.fire(.randomPhase)
 			case "RandomOrigin": model.engine.randomOrigin()
 			case "RotateHue": model.rotateHue()
-			case "Clear": model.engine.clear()
+			case "Clear":
+				model.engine.clear()
+				ActionFlash.shared.fire(.clear)
 			case "NextPatch": model.stepPatch(1)
 			case "PrevPatch": model.stepPatch(-1)
 			case "NextSnapshot": if model.hasSnapshots { model.snapshotNext() }
