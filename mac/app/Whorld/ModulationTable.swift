@@ -222,7 +222,7 @@ struct ModTablesSection: View {
 				TableColumn("Threshold" + ColumnTips.mark) { $r in
 					stable(r) {
 						if !r.isOscillator && (r.curve == 3 || (r.isAction && !r.isTrigger)) {
-							RowNumber(value: $r.threshold, lo: 0, hi: 1, fine: 0.01, coarse: 0.1,
+							RowNumber(value: $r.threshold, lo: 0, hi: 1, fine: 0.01,
 								defaultValue: ModRowSetting().threshold, decimals: 2, width: 52)
 						} else {
 							Text("—").foregroundStyle(.secondary)
@@ -466,7 +466,7 @@ private struct LengthField: View {
 			commit: { v in setLength(v * unit) },
 			step: { v, d, k in
 				var x: Double
-				if k == .coarse || (d > 0 ? v < 1 : v <= 1) {
+				if k.scale > 1 || (d > 0 ? v < 1 : v <= 1) {	// Shift (coarse): halving or doubling
 					x = d > 0 ? v * 2 : v / 2
 					if d > 0 && v < 1 { x = min(x, 1) }	// halves up to one
 				} else {
@@ -640,7 +640,7 @@ private struct OffsetField: View {
 	let earlyAllowed: Bool
 
 	var body: some View {
-		RowNumber(value: $value, lo: earlyAllowed ? -300 : 0, hi: 300, fine: 1, coarse: 10, defaultValue: 0, width: 52)
+		RowNumber(value: $value, lo: earlyAllowed ? -300 : 0, hi: 300, fine: 1, defaultValue: 0, width: 52)
 			.help(earlyAllowed
 				? "Milliseconds before (negative) or after (positive) the beat or bar that the row fires, -300 to 300."
 				: "Milliseconds after the hit that the row fires, up to 300 (a hit can't be anticipated).")
@@ -653,21 +653,21 @@ private struct MsField: View {
 	let defaultValue: Double
 
 	var body: some View {
-		RowNumber(value: $value, lo: 0, hi: 5000, fine: 10, coarse: 100, defaultValue: defaultValue, width: 52)
+		RowNumber(value: $value, lo: 0, hi: 5000, fine: 10, defaultValue: defaultValue, width: 52)
 	}
 }
 
 /// A row's number box, as the panels' (NumberField): type a value, or step
 /// it with the arrow keys, a swipe up or down or the mouse wheel (`fine`
-/// steps, `coarse` with Shift, to either end with Command-Shift);
+/// is the normal step, scaled by the modifiers as everywhere: ModifierLadder;
+/// to either end with Command-Shift);
 /// right-click for `defaultValue`. Kept within lo to hi, on the fine step's
-/// grid when stepped (250 steps to 260, then with Shift to 360).
+/// grid when stepped (250 steps to 260, then with Shift to 290).
 private struct RowNumber: View {
 	@Binding var value: Double
 	let lo: Double
 	let hi: Double
 	let fine: Double
-	let coarse: Double
 	let defaultValue: Double
 	var decimals = 0
 	let width: CGFloat
@@ -680,9 +680,11 @@ private struct RowNumber: View {
 				let unit = pow(10, Double(decimals))
 				value = min(max(($0 * unit).rounded() / unit, lo), hi)
 			},
-			step: { v, d, k in
-				let x = v + Double(d) * (k == .coarse ? coarse : fine)
-				return min(max((x / fine).rounded() * fine, lo), hi)	// on the fine step's grid, as KeyStep
+			step: { v, d, k in	// `fine` is the normal step, scaled by the modifiers, to what's shown
+				let unit = pow(10, -Double(decimals))
+				var x = (k.apply(v, size: fine, direction: d) / unit).rounded() * unit
+				if x == v { x = v + Double(d) * unit }	// a step too small to show: the next shown value
+				return min(max(x, lo), hi)
 			},
 			lo: lo, hi: hi, defaultValue: defaultValue, width: width)
 	}

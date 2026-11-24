@@ -122,18 +122,21 @@ final class OutputKeys {
 			return true
 		}
 		if up {
-			if key == held {
+			if held != nil, key == held || code == heldCode {
 				held = nil
 				return true
 			}
 			return false
 		}
+		// the held key's repeats, whatever the modifiers: they now scale the
+		// swipe (ModifierLadder), and Command plus the repeat mustn't reach
+		// the menus (Command-W)
+		if held != nil, code == heldCode {	// by key code: Shift turns [ into {
+			return true	// key repeat
+		}
 		// not while the Key Map waits for a key (docked beside the picture,
 		// the pointer may be over it): the key is the new one, not a hold
 		guard modifiers == 0, KeyMap.shared.capturing == nil, KeyMap.shared.binding(for: key) != nil else { return false }
-		if key == held {
-			return true	// key repeat
-		}
 		guard Self.pointerOverOutput() else { return false }
 		held = key
 		heldCode = code

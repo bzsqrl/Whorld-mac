@@ -770,7 +770,9 @@ final class AppModel: ObservableObject {
 		}
 		if let target = outputKeys.heldTarget {
 			outputKeys.lastWheelWasKeyed = true
-			adjust(target, by: inverted ? -delta : delta)	// fingers or wheel up: more, whatever the scrolling direction
+			// finer or coarser with the modifiers, as on the panels (ModifierLadder)
+			let d = delta * ModifierLadder.factor(NSEvent.modifierFlags)
+			adjust(target, by: inverted ? -d : d)	// fingers or wheel up: more, whatever the scrolling direction
 			return
 		}
 		if !momentum {

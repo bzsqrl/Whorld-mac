@@ -1235,7 +1235,7 @@ struct AutoAdvanceControls: View {
 				format: { String(format: "%g", $0) },
 				parse: { Double($0.trimmingCharacters(in: .whitespaces)) ?? NumberField.fraction($0) ?? length },
 				commit: { model.setAutoAdvanceLength(Self.clamp($0, unit), unit: unit) },
-				step: { v, d, k in Self.clamp(v + Double(d) * (k == .coarse ? 10 : 1), unit) },
+				step: { v, d, k in Self.clamp((k.apply(v, size: 1, direction: d) * 10).rounded() / 10, unit) },	// one, scaled by the modifiers, to a tenth
 				lo: Self.range(unit).lowerBound,
 				hi: Self.range(unit).upperBound,
 				width: NumberField.width(characters: 4),

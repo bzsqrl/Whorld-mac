@@ -16,53 +16,73 @@ import SwiftUI
 
 // MARK: Components
 
-/// How far an arrow key moves a focused slider or edit box, from its
-/// modifiers: plain arrows a tenth of the control's own step (a slider
-/// position, or the edit box's stepper increment), Shift ten steps, and
-/// Command-Shift all the way to the end of the range.
-enum KeyStep {
-	case fine, coarse, end
+/// The modifier ladder (the user's request, 2026-11-24): each modifier
+/// means the same everywhere, on every slider and number box, with the
+/// arrow keys, a swipe and the mouse wheel alike. Command finest, Option
+/// fine, none normal, Shift coarse, as multiples of the control's normal
+/// step; Command-Shift with an arrow goes to the end of the range.
+enum ModifierLadder {
+	static let finestKey = "Input_fLadderFinest"
+	static let fineKey = "Input_fLadderFine"
+	static let coarseKey = "Input_fLadderCoarse"
+	static let defaults: (finest: Double, fine: Double, coarse: Double) = (0.1, 1.0 / 3, 3)
+
+	private static func read(_ key: String, _ fallback: Double) -> Double {
+		let v = UserDefaults.standard.double(forKey: key)
+		return v > 0 ? v : fallback
+	}
+	static var finest: Double { read(finestKey, defaults.finest) }
+	static var fine: Double { read(fineKey, defaults.fine) }
+	static var coarse: Double { read(coarseKey, defaults.coarse) }
+
+	/// the multiple for these modifiers (Command-Shift: coarse, for a swipe)
+	static func factor(_ flags: NSEvent.ModifierFlags) -> Double {
+		if case .by(let f) = KeyStep(flags) ?? .by(1) { return f }
+		return coarse
+	}
+}
+
+/// How far an arrow key, or one step of a swipe or the wheel, moves a slider
+/// or number box: a multiple of the control's normal step (1% of a
+/// slider's range, and its number box's the same; a box without a slider,
+/// its own increment), from the modifiers (ModifierLadder), or to the end.
+enum KeyStep: Equatable {
+	case by(Double)
+	case end
 
 	init?(_ flags: NSEvent.ModifierFlags) {
-		let f = flags.intersection([.shift, .command, .option, .control])
-		switch f {
-		case []: self = .fine
-		case [.shift]: self = .coarse
+		switch flags.intersection([.shift, .command, .option, .control]) {
+		case []: self = .by(1)
+		case [.command]: self = .by(ModifierLadder.finest)
+		case [.option]: self = .by(ModifierLadder.fine)
+		case [.shift]: self = .by(ModifierLadder.coarse)
 		case [.shift, .command]: self = .end
 		default: return nil
 		}
 	}
 
-	/// the step's size in the control's own steps (not for .end)
-	var scale: Double { self == .fine ? 0.1 : 10 }
+	/// the multiple of the normal step (1 for .end, which isn't a step)
+	var scale: Double {
+		if case .by(let f) = self { return f }
+		return 1
+	}
 
-	/// base moved `direction` steps of `size` (scaled), on a grid of tenths
-	/// of a step so repeated fine steps don't gather rounding error
+	/// base moved `direction` steps of `size` (scaled), on a grid of 300ths
+	/// of a step, so repeated thirds and tenths gather no rounding error
 	func apply(_ base: Double, size: Double, direction: Int) -> Double {
-		let tenth = size / 10
-		return ((base / tenth).rounded() + Double(direction) * scale * 10) * tenth
+		let grid = size / 300
+		return ((base / grid).rounded() + (Double(direction) * scale * 300).rounded()) * grid
 	}
 }
 
-/// How far a swipe or wheel over a slider or edit box goes, by the modifiers
-/// held (the user's request and calibration, 2026-11-20), finest to
-/// coarsest: Command, Option, none, Shift. An edit box takes its own fine
-/// or coarse step (KeyStep, as the arrow keys), Option and Shift ten times
-/// as many for the same travel. A slider moves at a rate of its width
-/// covering its range (a wheel click: 1% of it): 1, 3, 10 or 30 times.
-struct SwipeLevel {
-	let step: KeyStep	// an edit box's step
-	let rate: Double	// an edit box's steps per travel, as many as plain
-	let sliderRate: Double	// a slider's travel per swipe, as much as plain
-
-	init(_ flags: NSEvent.ModifierFlags) {
-		switch flags.intersection([.shift, .command, .option, .control]) {
-		case [.command]: (step, rate, sliderRate) = (.fine, 1, 1)
-		case [.option]: (step, rate, sliderRate) = (.fine, 10, 3)
-		case [.shift]: (step, rate, sliderRate) = (.coarse, 10, 30)
-		default: (step, rate, sliderRate) = (.coarse, 1, 10)
-		}
-	}
+/// Swipes and wheels in normal steps: a wheel click is ten, a swipe one per
+/// `pointsPerStep` (times Settings > Input > Trackpad sensitivity), then
+/// scaled by the modifiers. On a slider with its width at 200 points, a
+/// plain swipe across a tenth of it covers the whole range, as calibrated
+/// by the user (2026-11-20).
+enum SwipeSteps {
+	static let perWheelClick = 10.0
+	static let pointsPerStep = 0.2
 }
 
 /// Two-finger trackpad swipes and mouse wheels on sliders and edit boxes
@@ -284,10 +304,10 @@ func spinStep(_ ci: WHControlInfo) -> (Double, Int, KeyStep) -> Double {
 }
 
 /// A Master row's arrow keys, for its slider and edit box alike: steps in
-/// slider positions, but a fine step is never smaller than the last digit
-/// the edit box shows (for Hue Span, Canvas, Copies and Spread one
-/// position is one whole unit, so a tenth of one would change nothing you
-/// can see), and the result is rounded to that digit.
+/// slider positions (normal: 1% of the range), but a step is never smaller
+/// than the last digit the edit box shows (for Hue Span, Canvas, Copies and
+/// Spread one position is one whole unit, so a fraction of one would change
+/// nothing you can see), and the result is rounded to that digit.
 func masterStep(_ i: Int, _ ci: WHControlInfo, _ v: Double, _ d: Int, _ k: KeyStep) -> Double {
 	let p = WHControls.masterPosition(i, value: v)
 	let digits = ci.editPrecision >= 0 ? Double(ci.editPrecision) : nil
@@ -296,24 +316,31 @@ func masterStep(_ i: Int, _ ci: WHControlInfo, _ v: Double, _ d: Int, _ k: KeySt
 	// (Controls::FormatMaster)
 	let inverted = i == MasterProp.damping.rawValue
 	let unit = digits.map { inverted ? pow(10, -$0) / ci.editScale : pow(10, -$0) * ci.editScale }
-	var pos: Double
-	if k == .fine, let unit {
-		// the position of the next shown value that way (log sliders: it varies)
-		var next = 0.0
-		for candidate in [v + unit, v - unit] {
-			let q = WHControls.masterPosition(i, value: candidate)
-			if q.isFinite, (q - p) * Double(d) > 0, next == 0 || abs(q - p) < next {
-				next = abs(q - p)
-			}
-		}
-		pos = next > 0.1 ? p + Double(d) * next : k.apply(p, size: 1, direction: d)
-	} else {
-		pos = k.apply(p, size: 1, direction: d)
-	}
-	pos = min(max(pos, Double(ci.rangeMin)), Double(ci.rangeMax))
+	let lo = Double(ci.rangeMin), hi = Double(ci.rangeMax)
+	var pos = min(max(k.apply(p, size: max((hi - lo) / 100, 1), direction: d), lo), hi)
 	var x = WHControls.masterValue(i, position: pos)
-	if let unit { x = (x / unit).rounded() * unit }
+	if let unit {
+		x = (x / unit).rounded() * unit
+		if abs(x - v) < unit / 2 {	// too small to show: the next shown value that way
+			let next = v + Double(d) * unit
+			pos = WHControls.masterPosition(i, value: next)
+			if pos.isFinite, pos >= lo - 1e-9, pos <= hi + 1e-9 { x = next }
+		}
+	}
 	return x
+}
+
+/// A number box for a slider's control (a parameter's Value or Global):
+/// steps in the slider's positions, so it moves as its slider does
+/// (normal: 1% of the range), clamped to the slider
+func sliderStep(_ ci: WHControlInfo, norm: @escaping (Double) -> Double, denorm: @escaping (Double) -> Double) -> (Double, Int, KeyStep) -> Double {
+	{ v, d, k in
+		let lo = Double(ci.rangeMin), hi = Double(ci.rangeMax)
+		let pos = min(max(k.apply(norm(v), size: max((hi - lo) / 100, 1), direction: d), lo), hi)
+		var x = denorm(pos)
+		if abs(x) < 1e-10 { x = 0 }
+		return x
+	}
 }
 
 /// Only what a number can contain can be typed or pasted into an edit box:
@@ -379,20 +406,22 @@ struct KeyTextField: NSViewRepresentable {
 		}
 		var onSwipeStep: ((Int, KeyStep) -> Void)?	// steps up (+) or down (-)
 		private var swipeTravel = 0.0
-		/// finger travel per arrow-key step
-		static let pointsPerStep = 2.0
-
 		private var wheelClicks = 0.0
 
+		/// the modifiers' step, for a swipe or the wheel (Command-Shift: coarse)
+		private static func swipeStep(_ flags: NSEvent.ModifierFlags) -> KeyStep {
+			.by(ModifierLadder.factor(flags))
+		}
+
 		override func scrollWheel(with event: NSEvent) {
-			let level = SwipeLevel(event.modifierFlags)
-			if onSwipeStep != nil, let w = TrackpadSwipe.wheel(event, for: self) {	// a click a step (at the level's rate)
+			let k = Self.swipeStep(event.modifierFlags)
+			if onSwipeStep != nil, let w = TrackpadSwipe.wheel(event, for: self) {	// ten steps a click (SwipeSteps)
 				if w.first { wheelClicks = 0 }
-				wheelClicks += w.clicks * level.rate
-				let n = Int(wheelClicks + (wheelClicks < 0 ? -1e-9 : 1e-9))	// whole steps, toward zero (ten tenths make one)
+				wheelClicks += w.clicks * SwipeSteps.perWheelClick
+				let n = Int(wheelClicks + (wheelClicks < 0 ? -1e-9 : 1e-9))	// whole steps, toward zero
 				guard n != 0 else { return }
 				wheelClicks -= Double(n)
-				onSwipeStep?(n, level.step)
+				onSwipeStep?(n, k)
 				return
 			}
 			guard onSwipeStep != nil,
@@ -401,12 +430,12 @@ struct KeyTextField: NSViewRepresentable {
 				return
 			}
 			if t.first { swipeTravel = 0 }
-			swipeTravel += t.points * Preferences.swipeSense * level.rate	// Settings > Input > Trackpad sensitivity
-			let q = swipeTravel / Self.pointsPerStep
+			swipeTravel += t.points * Preferences.swipeSense	// Settings > Input > Trackpad sensitivity
+			let q = swipeTravel / SwipeSteps.pointsPerStep
 			let n = Int(q + (q < 0 ? -1e-9 : 1e-9))	// whole steps, toward zero
 			guard n != 0 else { return }
-			swipeTravel -= Double(n) * Self.pointsPerStep
-			onSwipeStep?(n, level.step)
+			swipeTravel -= Double(n) * SwipeSteps.pointsPerStep
+			onSwipeStep?(n, k)
 		}
 
 		override func rightMouseDown(with event: NSEvent) {
@@ -618,8 +647,8 @@ struct KeyTextField: NSViewRepresentable {
 /// A slider in positions, like a Win32 trackbar: it shows norm(value) and
 /// dragging sets denorm(Round(position)). Clicking it gives it focus (with
 /// the system focus ring); then the left and right arrows move it (see
-/// KeyStep: a tenth of a position, ten with Shift, to either end with
-/// Command-Shift). Right-clicking it restores `defaultValue`.
+/// KeyStep: 1% of the range, scaled by the modifiers, or to either end
+/// with Command-Shift). Right-clicking it restores `defaultValue`.
 struct PositionSlider: View {
 	let value: Double
 	let control: WHControlInfo
@@ -733,15 +762,19 @@ struct KeySlider: NSViewRepresentable {
 
 		override var acceptsFirstResponder: Bool { true }
 
-		// a sideways trackpad swipe moves the knob as if dragged: the
-		// slider's width of travel covers its range
+		/// the normal step, in positions: 1% of the range (at least one)
+		var normalStep: Double { max((maxValue - minValue) / 100, 1) }
+
+		// a sideways trackpad swipe or the wheel moves the knob in normal
+		// steps (SwipeSteps), scaled by the modifiers (ModifierLadder), as
+		// the slider's number box moves
 		private var wheelPositions = 0.0	// unrounded positions, during a wheel turn
 
 		override func scrollWheel(with event: NSEvent) {
-			let rate = SwipeLevel(event.modifierFlags).sliderRate
-			if let w = TrackpadSwipe.wheel(event, for: self) {	// a click is 1% of the range (at the level's rate)
+			let rate = ModifierLadder.factor(event.modifierFlags)
+			if let w = TrackpadSwipe.wheel(event, for: self) {	// ten normal steps a click
 				if w.first { wheelPositions = 0 }
-				wheelPositions += w.clicks * rate * max((maxValue - minValue) / 100, 1)
+				wheelPositions += w.clicks * SwipeSteps.perWheelClick * rate * normalStep
 				let n = (wheelPositions + (wheelPositions < 0 ? -1e-9 : 1e-9)).rounded(.towardZero)	// whole positions, as dragging
 				guard n != 0 else { return }
 				wheelPositions -= n
@@ -758,8 +791,8 @@ struct KeySlider: NSViewRepresentable {
 			}
 			if t.first { swipePosition = doubleValue }
 			guard t.points != 0 else { return }
-			let width = max(bounds.width, 40) / rate	// (SwipeLevel)
-			swipePosition = min(max(swipePosition + t.points * Preferences.swipeSense / width * (maxValue - minValue), minValue), maxValue)	// (Trackpad sensitivity)
+			let steps = t.points * Preferences.swipeSense / SwipeSteps.pointsPerStep	// (Trackpad sensitivity)
+			swipePosition = min(max(swipePosition + steps * rate * normalStep, minValue), maxValue)
 			let pos = swipePosition.rounded()	// whole positions, as dragging
 			if pos != doubleValue {
 				doubleValue = pos
@@ -794,7 +827,7 @@ struct KeySlider: NSViewRepresentable {
 				return
 			}
 			let pos = k == .end ? (up ? maxValue : minValue)
-				: min(max(k.apply(doubleValue, size: 1, direction: up ? 1 : -1), minValue), maxValue)
+				: min(max(k.apply(doubleValue, size: normalStep, direction: up ? 1 : -1), minValue), maxValue)
 			doubleValue = pos
 			onSet?(pos)
 		}
@@ -1283,7 +1316,11 @@ struct ParamRow: View {
 			format: { paramText($0, ci) },
 			parse: { WHControls.parse($0, control: ci) },
 			commit: { model.setParam(iParam, prop, $0) },
-			step: spinStep(ci),
+			// Value: as its slider moves; the oscillator columns, by their increment
+			step: column == 0 ? sliderStep(WHControls.paramControl(iParam, column: 0),
+					norm: { [iParam] in WHControls.paramPosition(iParam, value: $0) },
+					denorm: { [iParam] in WHControls.paramValue(iParam, position: $0) })
+				: spinStep(ci),
 			lo: bounded ? ci.editMin : nil,
 			hi: bounded && ci.editMax < Double(Int32.max) ? ci.editMax : nil,	// not Frequency's INT_MAX
 			defaultValue: model.engine.loadedParamValue(iParam, property: prop),	// the patch as loaded or last saved
@@ -1606,8 +1643,8 @@ struct HueRow: View {
 	var body: some View {
 		let _ = model.changes.main.n
 		let value = model.engine.hue
-		let step: (Double, Int, KeyStep) -> Double = { v, d, k in
-			min(max(k.apply(v, size: 10, direction: d), 0), 360)	// a degree, ten with Shift
+		let step: (Double, Int, KeyStep) -> Double = { v, d, k in	// 1% of 360 degrees, as the slider, to a tenth
+			(min(max(k.apply(v, size: 3.6, direction: d), 0), 360) * 10).rounded() / 10
 		}
 		HStack(spacing: SliderRowFit.spacing) {
 			KeyBadge(target: "Hue")
@@ -1688,7 +1725,8 @@ struct GlobalRow: View {
 					format: { paramText($0, ci) },
 					parse: { WHControls.parse($0, control: ci) },
 					commit: { model.setParam(i, .global, $0) },
-					step: spinStep(ci),
+					step: sliderStep(ci, norm: { WHControls.globalPosition(i, value: $0) },
+						denorm: { WHControls.globalValue(i, position: $0) }),	// as its slider moves
 					lo: ci.editMin,
 					hi: ci.editMax,
 					defaultValue: model.engine.loadedParamValue(i, property: .global),
