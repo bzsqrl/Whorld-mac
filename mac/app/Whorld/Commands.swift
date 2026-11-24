@@ -233,33 +233,48 @@ struct WhorldCommands: Commands {
 			toggle("Blackout", e.blackout) { model.setBlackout(!e.blackout) }
 				.keyboardShortcut("b")
 			Divider()
-			// Cmd-1 to Cmd-8 in order (the user's request, 2026-11-21):
-			// Reverse joins them on Cmd-5 (was Cmd-Delete, beside Clear's
-			// Delete), then Invert Color, Rotate Hue, Loop Hue. XOR took
-			// Cmd-8, and Loop Hue moved to Shift-Cmd-7 beside Rotate Hue
-			// (the user's request, 2026-11-24)
+			// Cmd-1 to Cmd-9, then Cmd-0, in the Properties' order (the
+			// user's request, 2026-11-24; before: Fill, Outline, Mirror,
+			// Convex, Reverse, Invert Color, Rotate Hue, XOR on 1 to 8, Loop
+			// Hue Shift-Cmd-7, Random Phase 9). The F-keys stay as they were.
 			toggle("Fill", e.fill) { model.toggleFill() }
 				.keyboardShortcut("1")	// and F6
 			toggle("Outline", e.outline) { model.toggleOutline() }
 				.keyboardShortcut("2")	// and F7
-			toggle("Mirror", e.mirror) { model.toggle(.mirror) }
-				.keyboardShortcut("3")	// and F5
-			toggle("Convex", e.convex) { model.toggle(.convex) }
-				.keyboardShortcut("4")	// Windows' Ctrl+Tab dropped (the user's request, 2026-11-21): on the Mac it moves keyboard focus
-			toggle("Reverse", e.reverse) { model.toggle(.reverse) }
-				.keyboardShortcut("5")	// Windows' Ctrl+Backspace
-			// not on Windows' Image menu (its Properties grid only); here the
-			// Properties panel mirrors this menu, so it's in both
-			toggle("Invert Color", e.invertColor) { model.toggle(.invertColor) }
-				.keyboardShortcut("6")	// and F4, V1's
-			Button("Rotate Hue") { model.rotateHue() }	// V1's (Mac addition)
-				.keyboardShortcut("7")	// and F3
-			toggle("Loop Hue", e.loopHue) { model.toggle(.loopHue) }
-				.keyboardShortcut("7", modifiers: [.command, .shift])	// and F2
 			// Whorld V1's X-Ray, the draw mode's XOR bit, which V2 keeps but
 			// ignores (the user's request, 2026-11-23)
 			toggle("XOR", e.xray) { model.toggleXRay() }
-				.keyboardShortcut("8")	// and F8, V1's X-Ray key
+				.keyboardShortcut("3")	// and F8, V1's X-Ray key
+			toggle("Mirror", e.mirror) { model.toggle(.mirror) }
+				.keyboardShortcut("4")	// and F5
+			toggle("Convex", e.convex) { model.toggle(.convex) }
+				.keyboardShortcut("5")	// Windows' Ctrl+Tab dropped (the user's request, 2026-11-21): on the Mac it moves keyboard focus
+			toggle("Reverse", e.reverse) { model.toggle(.reverse) }
+				.keyboardShortcut("6")	// Windows' Ctrl+Backspace
+			// not on Windows' Image menu (its Properties grid only); here the
+			// Properties panel mirrors this menu, so it's in both
+			toggle("Invert Color", e.invertColor) { model.toggle(.invertColor) }
+				.keyboardShortcut("7")	// and F4, V1's
+			Button("Rotate Hue") { model.rotateHue() }	// V1's (Mac addition)
+				.keyboardShortcut("8")	// and F3
+			toggle("Loop Hue", e.loopHue) { model.toggle(.loopHue) }
+				.keyboardShortcut("9")	// and F2
+			Button("Random Phase") { model.randomPhase() }
+				.keyboardShortcut("0")	// and F9
+			Divider()
+			// the origin on Minus and Equals, Shift for the second of each
+			// pair (the user's request, 2026-11-24; before: Center Cmd-0,
+			// Drag Cmd-Minus, Random Cmd-Equals, Park Option-Cmd-0)
+			Button("Origin Center") { model.originCenter() }
+				.keyboardShortcut("-")
+			// Mac addition (the user's request, 2026-11-20): the origin stays
+			// where it is. Drag and Random, toggled off, park it too.
+			Button("Origin Park") { model.setOriginMotion(.park) }
+				.keyboardShortcut("-", modifiers: [.command, .shift])
+			toggle("Origin Drag", e.originMotion == .drag) { model.toggleOriginDrag() }
+				.keyboardShortcut("=")	// Windows' Ctrl+D, Cmd-D, dropped (the user's request, 2026-11-21)
+			toggle("Origin Random", e.originMotion == .random) { model.toggleOriginRandom() }
+				.keyboardShortcut("=", modifiers: [.command, .shift])	// Windows' Ctrl+R, Cmd-R, dropped (2026-11-21)
 			Divider()
 			toggle("Zoom Center", e.zoomCenter) { model.toggle(.zoomCenter) }
 				// Windows' Shift+W until the user's menu audit (2026-11-18):
@@ -271,21 +286,6 @@ struct WhorldCommands: Commands {
 			// user's request (2026-11-21) so its shortcut can be found.
 			toggle("Antialiasing", e.antialiasing) { model.toggle(.antialiasing) }
 				.keyboardShortcut("a", modifiers: [.command, .option])
-			Divider()
-			Button("Origin Center") { model.originCenter() }
-				.keyboardShortcut("0")
-			// Cmd-0, Cmd-Minus, Cmd-Equals: the origin keys side by side
-			toggle("Origin Drag", e.originMotion == .drag) { model.toggleOriginDrag() }
-				.keyboardShortcut("-")	// Windows' Ctrl+D, Cmd-D, dropped (the user's request, 2026-11-21)
-			toggle("Origin Random", e.originMotion == .random) { model.toggleOriginRandom() }
-				.keyboardShortcut("=")	// Windows' Ctrl+R, Cmd-R, dropped (2026-11-21)
-			// Mac addition (the user's request, 2026-11-20): the origin stays
-			// where it is. Drag and Random, toggled off, park it too.
-			Button("Origin Park") { model.setOriginMotion(.park) }
-				.keyboardShortcut("0", modifiers: [.command, .option])
-			Divider()
-			Button("Random Phase") { model.randomPhase() }
-				.keyboardShortcut("9")	// and F9
 		}
 
 		// Audio response in a menu of its own, apart from the picture (the

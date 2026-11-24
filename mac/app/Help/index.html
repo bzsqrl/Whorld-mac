@@ -204,13 +204,13 @@ A step too small for a number box to show moves it to the next value it shows. S
 <p>These three color controls from Whorld 1 work again on the Mac (Windows Whorld V2 keeps them in patches but doesn't use them). All three are saved with the patch and can be MIDI mapping targets or set by OSC.</p>
 <ul>
 <li><b>Hue</b> (Master panel, 0 to 360 degrees) shifts the color of new rings; existing rings keep theirs, so a change sweeps outward as they're replaced. With Loop Hue on, it shifts the range of colors being looped through.</li>
-<li><b>Image &gt; Rotate Hue</b> (<kbd>⌘7</kbd> or <kbd>F3</kbd>, or its button in the Properties panel) turns the colors of the rings already showing by 90 degrees and adds 90 to Hue, so new rings follow; four in a row come back to where you started. Undo puts Hue back, but not the colors already turned.</li>
-<li><b>Image &gt; Invert Color</b> (<kbd>⌘6</kbd> or <kbd>F4</kbd>, or Properties) shows all rings as a photographic negative: hue and lightness both flip, so while it's on, raising Lightness darkens the rings. The background isn't affected.</li>
+<li><b>Image &gt; Rotate Hue</b> (<kbd>⌘8</kbd> or <kbd>F3</kbd>, or its button in the Properties panel) turns the colors of the rings already showing by 90 degrees and adds 90 to Hue, so new rings follow; four in a row come back to where you started. Undo puts Hue back, but not the colors already turned.</li>
+<li><b>Image &gt; Invert Color</b> (<kbd>⌘7</kbd> or <kbd>F4</kbd>, or Properties) shows all rings as a photographic negative: hue and lightness both flip, so while it's on, raising Lightness darkens the rings. The background isn't affected.</li>
 </ul>
 <p>Normally a patch's colors carry on from where the previous patch left them, as on Windows, so the same patch can look different each time. To have each patch start from its own Hue, choose Settings &gt; Picture &gt; Patch colors &gt; Start from the patch.</p>
 
 <h3 id="xor">XOR</h3>
-<p><b>Image &gt; XOR</b> (<kbd>⌘8</kbd> or <kbd>F8</kbd>, Whorld 1's key, or Properties) brings back Whorld 1's X-Ray: rings are drawn by XORing their colors with what's already there, bit by bit, instead of painting over it. Where rings cross or overlap, colors flip into new ones, and the same color drawn twice cancels back to what was under it. On a black background a ring on its own looks as usual, so it shows most with lines, Outline, Copies, stars and pinwheels, wherever rings overlap.</p>
+<p><b>Image &gt; XOR</b> (<kbd>⌘3</kbd> or <kbd>F8</kbd>, Whorld 1's key, or Properties) brings back Whorld 1's X-Ray: rings are drawn by XORing their colors with what's already there, bit by bit, instead of painting over it. Where rings cross or overlap, colors flip into new ones, and the same color drawn twice cancels back to what was under it. On a black background a ring on its own looks as usual, so it shows most with lines, Outline, Copies, stars and pinwheels, wherever rings overlap.</p>
 <ul>
 <li>Like Fill and Outline, it affects new rings and is saved with the patch. Windows Whorld V2 keeps the setting in patches but ignores it, so a handful of older patches (fish eye, horn worm, lw pinwheel fab color, mercedes bent) now look as they did in Whorld 1, and differently from Windows V2.</li>
 <li>XOR rings are never antialiased, as in Whorld 1: XOR has no meaning for a partly covered pixel. Their edges are stepped, and where two rings nearly touch, a hairline between them can flash for a frame as they move. That's how XOR looks, not a fault.</li>
@@ -441,21 +441,21 @@ A step too small for a number box to show moves it to the next value it shows. S
 <tr><td>Open patch</td><td>Ctrl+O</td><td>⌘O</td></tr>
 <tr><td>Fill</td><td>F6</td><td>⌘1, or F6</td></tr>
 <tr><td>Outline</td><td>F7</td><td>⌘2, or F7</td></tr>
-<tr><td>Mirror</td><td>F5</td><td>⌘3, or F5</td></tr>
-<tr><td>Convex</td><td>Ctrl+Tab</td><td>⌘4</td></tr>
-<tr><td>Reverse</td><td>Ctrl+Backspace</td><td>⌘5</td></tr>
-<tr><td>Invert Color (Mac, as in Whorld 1)</td><td>&mdash;</td><td>⌘6, or F4</td></tr>
-<tr><td>Rotate Hue (Mac, as in Whorld 1)</td><td>&mdash;</td><td>⌘7, or F3</td></tr>
-<tr><td>Loop Hue</td><td>F2</td><td>⇧⌘7, or F2</td></tr>
-<tr><td>XOR (Mac, Whorld 1's X-Ray)</td><td>&mdash;</td><td>⌘8, or F8</td></tr>
+<tr><td>XOR (Mac, Whorld 1's X-Ray)</td><td>&mdash;</td><td>⌘3, or F8</td></tr>
+<tr><td>Mirror</td><td>F5</td><td>⌘4, or F5</td></tr>
+<tr><td>Convex</td><td>Ctrl+Tab</td><td>⌘5</td></tr>
+<tr><td>Reverse</td><td>Ctrl+Backspace</td><td>⌘6</td></tr>
+<tr><td>Invert Color (Mac, as in Whorld 1)</td><td>&mdash;</td><td>⌘7, or F4</td></tr>
+<tr><td>Rotate Hue (Mac, as in Whorld 1)</td><td>&mdash;</td><td>⌘8, or F3</td></tr>
+<tr><td>Loop Hue</td><td>F2</td><td>⌘9, or F2</td></tr>
+<tr><td>Random Phase</td><td>F9</td><td>⌘0, or F9</td></tr>
 <tr><td>Zoom Center</td><td>Shift+W</td><td>⌥⌘Z</td></tr>
 <tr><td>Geometry Only, on or off (Mac, Whorld 1's patch mode)</td><td>&mdash;</td><td>⌥⌘G</td></tr>
 <tr><td>Antialiasing (Image &gt; Antialiasing, or the Properties panel)</td><td>Ctrl+Alt+A</td><td>⌥⌘A</td></tr>
-<tr><td>Origin Center</td><td>Ctrl+0</td><td>⌘0</td></tr>
-<tr><td>Origin Drag, on or off (off parks the origin)</td><td>Ctrl+D</td><td>⌘− (minus)</td></tr>
-<tr><td>Origin Random, on or off (off parks the origin)</td><td>Ctrl+R</td><td>⌘=</td></tr>
-<tr><td>Origin Park (Mac)</td><td>&mdash;</td><td>⌥⌘0</td></tr>
-<tr><td>Random Phase</td><td>F9</td><td>⌘9, or F9</td></tr>
+<tr><td>Origin Center</td><td>Ctrl+0</td><td>⌘− (minus)</td></tr>
+<tr><td>Origin Park (Mac)</td><td>&mdash;</td><td>⇧⌘−</td></tr>
+<tr><td>Origin Drag, on or off (off parks the origin)</td><td>Ctrl+D</td><td>⌘=</td></tr>
+<tr><td>Origin Random, on or off (off parks the origin)</td><td>Ctrl+R</td><td>⇧⌘=</td></tr>
 <tr><td>Audio Modulation on or off (Mac)</td><td>&mdash;</td><td>⌘'</td></tr>
 <tr><td>Automatic Quality on or off (Mac)</td><td>&mdash;</td><td>⌘;</td></tr>
 <tr><td>Reset to 1.1 (Mac)</td><td>&mdash;</td><td>⌘\</td></tr>
