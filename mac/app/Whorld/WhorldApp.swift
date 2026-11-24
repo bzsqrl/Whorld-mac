@@ -364,6 +364,8 @@ final class AppModel: ObservableObject {
 			changes.menus.bump()
 		case 8:	// the Auto Advance target: 0 stop, 1 start, 2 the other way
 			setAutoAdvance(value == 2 ? !engine.autoAdvancing : value != 0)
+		case 10:	// the Random Phase target (the engine has done it): the readout
+			showRandomPhase()
 		case 9:	// the Blackout target: 0 back, 1 to black, 2 the other way
 			setBlackout(value == 2 ? !engine.blackout : value != 0)
 		case 5:	// a parameter, from a mapping
@@ -675,7 +677,23 @@ final class AppModel: ObservableObject {
 		}
 		engine.setDrawMode(mode)
 		mainChanged()
-		showMain(.drawMode)
+		if old ^ mode == Self.drawModeXRay {	// XOR alone: "XOR  On", as the other toggles (the user's request, 2026-11-24)
+			StripFeed.shared.setReadout("XOR  " + (mode & Self.drawModeXRay != 0 ? "On" : "Off"))
+		} else {
+			showMain(.drawMode)
+		}
+	}
+
+	/// Image > Random Phase (F9), by hand, MIDI or OSC, shown in the
+	/// Perform Bar's readout (the user's request, 2026-11-24); modulation
+	/// calls the engine directly, so it doesn't show, as with the controls
+	func randomPhase() {
+		engine.randomPhase()
+		showRandomPhase()
+	}
+
+	func showRandomPhase() {
+		StripFeed.shared.setReadout("Random Phase")
 	}
 
 	func setOriginMotion(_ motion: WHOriginMotion) {

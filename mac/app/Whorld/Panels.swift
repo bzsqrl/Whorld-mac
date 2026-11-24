@@ -1701,7 +1701,7 @@ struct PropertiesPanel: View {
 			}
 			divider
 			row(.randomPhase) {
-				Button("Random Phase") { e.randomPhase() }
+				Button("Random Phase") { model.randomPhase() }
 			}
 		}
 		.controlSize(.small)
@@ -1802,7 +1802,7 @@ struct PropertiesPanel: View {
 			let all = OriginChoice.allCases
 			let i = all.firstIndex(of: originChoice(model.engine)) ?? 0
 			setOrigin(all[(i + 1) % all.count])
-		case .randomPhase: model.engine.randomPhase()
+		case .randomPhase: model.randomPhase()
 		}
 	}
 

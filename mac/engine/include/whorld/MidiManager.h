@@ -45,6 +45,7 @@ public:
 			PATCH_MODE,			// Mac addition: iVal 1 Geometry, 0 Full (V1's MIDI PatchMode)
 			AUTO_ADVANCE,		// Mac addition: iVal 1 start, 0 stop the playlist's auto-advance
 			BLACKOUT,			// Mac addition: iVal 1 fade to black, 0 back
+			RANDOM_PHASE,		// Mac addition: a notice; the render thread has the command
 		};
 		Type	type;
 		int		iParam = 0;

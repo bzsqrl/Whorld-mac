@@ -1778,6 +1778,10 @@ static NSString *SourceName(MIDIEndpointRef src)
 		if (_modulationOscHandler)
 			_modulationOscHandler(post.iVal, post.fVal);
 		return;
+	case Post::RANDOM_PHASE:	// Mac addition: done on the render thread; the app's readout
+		if (_midiHandler)
+			_midiHandler(10, 0);
+		return;
 	case Post::BLACKOUT:	// Mac addition: the app's
 		if (_midiHandler)
 			_midiHandler(9, (uint32_t)post.iVal);

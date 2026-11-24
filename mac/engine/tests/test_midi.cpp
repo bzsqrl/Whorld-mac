@@ -614,4 +614,19 @@ TEST(LearnModeAndFiltering) {
 	CHECK_EQ(sink.posts[0].nMsg, MakeMidiMsg(CONTROL, 4, 21, 9));
 }
 
+TEST(RandomPhaseTargetTellsTheApp) {
+	// Mac addition: the render thread gets the command, and the app a
+	// notice, for the Perform Bar's readout
+	RecordingSink	sink;
+	MidiManager	mgr(sink);
+	MappingArray	maps;
+	maps.push_back(MakeMapping(MIDI_CVM_NOTE_ON, 0, 43, MB::TARGET_RandomPhase));
+	mgr.m_midiMaps.SetArray(maps);
+	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 43, 100));
+	CHECK_EQ(sink.cmds.size(), size_t(1));
+	CHECK_EQ(sink.cmds[0].m_nCmd, uint32_t(WhorldBase::RC_RANDOM_PHASE));
+	CHECK_EQ(sink.posts.size(), size_t(1));
+	CHECK_EQ(sink.posts[0].type, MidiManager::Post::RANDOM_PHASE);
+}
+
 int main() { return RunAllTests(); }

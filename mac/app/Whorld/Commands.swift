@@ -277,7 +277,7 @@ struct WhorldCommands: Commands {
 			Button("Origin Park") { model.setOriginMotion(.park) }
 				.keyboardShortcut("0", modifiers: [.command, .option])
 			Divider()
-			Button("Random Phase") { e.randomPhase() }
+			Button("Random Phase") { model.randomPhase() }
 				.keyboardShortcut("9")	// and F9
 		}
 

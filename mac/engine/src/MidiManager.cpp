@@ -154,6 +154,11 @@ void MidiManager::PushMiscTarget(int iMiscTarget, double fNormVal)
 		break;
 	case MT_RandomPhase:
 		PushCmd(RC_RANDOM_PHASE);
+		{	// Mac addition: the main thread shows it in the Perform Bar
+			Post	post;
+			post.type = Post::RANDOM_PHASE;
+			m_sink.PostToMain(post);
+		}
 		break;
 	case MT_RandomOrigin:
 		PushCmd(RC_RANDOM_ORIGIN);
