@@ -623,11 +623,12 @@ extension AppModel {
 // MARK: Views
 
 /// An image or frame size, the same wherever one is chosen (Settings >
-/// Export and the export dialogs; the user's request, 2026-11-24): a menu
+/// Export and the export dialogs; the user's requests, 2026-11-24): a menu
 /// of the special sizes (the view, the movie), common sizes, and Custom,
-/// with the width and height beside it on one line: greyed, showing the
-/// size chosen, except for Custom, where they're typed. Nothing appears or
-/// disappears as the choice changes.
+/// with the width and height beside it on one line. They always show the
+/// size chosen, greyed unless Custom, and can always be clicked: typing a
+/// size that differs makes it Custom, or the common size it matches; a size
+/// left as it was keeps the choice. Nothing appears or disappears.
 struct FrameSizePicker: View {
 	let title: String
 	/// the special sizes' titles and sizes, before the common ones
@@ -636,8 +637,10 @@ struct FrameSizePicker: View {
 	@Binding var special: Int?
 	@Binding var width: Int
 	@Binding var height: Int
-	/// Custom chosen though the size is a common one: stays Custom
+	/// Custom chosen from the menu though the size is a common one: stays
+	/// Custom until the size is typed
 	@State private var custom = false
+	@FocusState private var focused: Int?	// 0 the width, 1 the height
 
 	static let presets: [(String, Int, Int)] = [
 		("720p", 1280, 720), ("1080p", 1920, 1080), ("1440p", 2560, 1440), ("4K", 3840, 2160),
@@ -651,6 +654,14 @@ struct FrameSizePicker: View {
 		return .custom
 	}
 
+	/// the size shown: a special size as it is now, or the width and height
+	private var shownSize: (Int, Int) {
+		if let s = special, s < specials.count {
+			return (Int(specials[s].size.width), Int(specials[s].size.height))
+		}
+		return (width, height)
+	}
+
 	private func pick(_ c: Choice) {
 		switch c {
 		case .special(let s):
@@ -660,10 +671,21 @@ struct FrameSizePicker: View {
 			custom = false
 			special = nil
 			(width, height) = (Self.presets[j].1, Self.presets[j].2)
-		case .custom:
+		case .custom:	// from the size shown, ready to type
+			(width, height) = shownSize
 			custom = true
 			special = nil
 		}
+	}
+
+	/// a typed width or height: unchanged keeps the choice; otherwise the
+	/// size becomes the width and height, Custom or the common size it is
+	private func typed(_ value: Int, isWidth: Bool) {
+		let (w, h) = shownSize
+		guard value != (isWidth ? w : h), value > 0 else { return }
+		(width, height) = isWidth ? (value, h) : (w, value)
+		special = nil
+		custom = false	// the menu follows the size (a common one, or Custom)
 	}
 
 	/// the menu's width, fixed, so the fields beside it never move
@@ -685,21 +707,17 @@ struct FrameSizePicker: View {
 				}
 				.labelsHidden()
 				.frame(width: Self.menuWidth)
-				let shown = choice
 				// width × height, close about the ×: the width right-aligned,
-				// the height left-aligned
+				// the height left-aligned; greyed unless Custom or being typed in
+				let dim = choice != .custom && focused == nil
 				HStack(spacing: 4) {
-					if case .special(let s) = shown {	// the special size, as it is now
-						sizeField(.constant(Int(specials[s].size.width)), .trailing)
-						Text("×")
-						sizeField(.constant(Int(specials[s].size.height)), .leading)
-					} else {
-						sizeField($width, .trailing)
-						Text("×")
-						sizeField($height, .leading)
-					}
+					sizeField(Binding(get: { shownSize.0 }, set: { typed($0, isWidth: true) }), .trailing)
+						.focused($focused, equals: 0)
+					Text("×")
+					sizeField(Binding(get: { shownSize.1 }, set: { typed($0, isWidth: false) }), .leading)
+						.focused($focused, equals: 1)
 				}
-				.disabled(shown != .custom)
+				.foregroundStyle(dim ? .secondary : .primary)
 			}
 		}
 	}
