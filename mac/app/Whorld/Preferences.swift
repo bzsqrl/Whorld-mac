@@ -361,6 +361,7 @@ struct PreferencesView: View {
 	@AppStorage("Playlist_bApplyLayout") private var applyPlaylistLayouts = true
 	@AppStorage("General_bControlTips") private var controlTips = true
 	@AppStorage(KeyBadge.defaultsKey) private var keyBadges = false
+	@AppStorage(ModMarkers.oscDefaultsKey) private var oscMarkers = true
 	@AppStorage("Render_nMaxFrameRate") private var maxFrameRate = 0
 	@AppStorage("Rings_bFadeEased") private var ringFadeEased = true
 	@AppStorage("Rings_bHueFromPatch") private var hueFromPatch = false
@@ -464,6 +465,9 @@ struct PreferencesView: View {
 				}
 				Toggle(isOn: $keyBadges) {
 					InfoLabel("Show Key Map keys in panels", info: "Each control in Parameters, Master and Globals that has a key in the Key Map (View > Key Map) shows it before its name: hold that key over the picture and swipe to change the control. They follow the Key Map as you change it.")
+				}
+				Toggle(isOn: $oscMarkers) {
+					InfoLabel("Show oscillators on sliders", info: "A parameter whose oscillator is moving (Amplitude and Frequency not 0) shows its swing as a faint band along its Value slider, and a faint second knob where the oscillator has it now. With audio modulation on too, the band follows the modulated value and the knob shows both together. An oscillator faster than 2 cycles a second shows the band alone.")
 				}
 			} header: {
 				Text("Panels")

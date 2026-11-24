@@ -665,11 +665,19 @@ struct KeySlider: NSViewRepresentable {
 			}
 		}
 		var markerTarget: ModMarkers.Target?
+		/// An oscillator's swing, in slider units (may run past either end),
+		/// or nil: a faint band along the track (Mac addition; ModMarkers)
+		var band: ClosedRange<Double>? {
+			didSet {
+				if band != oldValue { needsDisplay = true }
+			}
+		}
 		/// its height, worked out once: asking AppKit on every layout is slow
 		/// enough to matter while a swipe redraws a table of them
 		lazy var fitHeight: CGFloat = controlSize == .small ? 18 : intrinsicContentSize.height
 
 		override func draw(_ dirtyRect: NSRect) {
+			drawBand()	// behind the bar and the knob
 			super.draw(dirtyRect)
 			guard let p = markerPosition, maxValue > minValue, let cell = cell as? NSSliderCell else { return }
 			// from the knob as drawn, moved along its travel (the bar, less a
@@ -690,6 +698,32 @@ struct KeySlider: NSViewRepresentable {
 			ring.lineWidth = 1.5
 			accent.withAlphaComponent(0.8).setStroke()
 			ring.stroke()
+		}
+
+		/// The oscillator's band: wider than the bar, so it shows above and
+		/// below it; an end past the slider's is square, as if cut off
+		private func drawBand() {
+			guard let b = band, maxValue > minValue, let cell = cell as? NSSliderCell else { return }
+			let bar = cell.barRect(flipped: isFlipped)
+			let knob = cell.knobRect(flipped: isFlipped)
+			let travel = max(bar.width - knob.width, 0)
+			// along the knob's center's travel, as the marker
+			func x(_ p: Double) -> CGFloat {
+				knob.midX + CGFloat((min(max(p, minValue), maxValue) - doubleValue) / (maxValue - minValue)) * travel
+			}
+			let cutLeft = b.lowerBound < minValue, cutRight = b.upperBound > maxValue
+			// an end cut off runs on to the bar's end, past the knob's travel
+			let x0 = cutLeft ? bar.minX : x(b.lowerBound), x1 = cutRight ? bar.maxX : x(b.upperBound)
+			let h = min(max(bar.height + 6, 8), bounds.height)
+			let r = NSRect(x: x0, y: bar.midY - h / 2, width: max(x1 - x0, 1), height: h)
+			let radius = min(h, r.width) / 2
+			let path = NSBezierPath(roundedRect: r, xRadius: radius, yRadius: radius)
+			// square where it's cut off (one path, filled once: no darker corners)
+			if cutLeft { path.appendRect(NSRect(x: r.minX, y: r.minY, width: radius, height: h)) }
+			if cutRight { path.appendRect(NSRect(x: r.maxX - radius, y: r.minY, width: radius, height: h)) }
+			path.windingRule = .nonZero
+			NSColor.controlAccentColor.withAlphaComponent(0.22).setFill()
+			path.fill()
 		}
 
 		var onSet: ((Double) -> Void)?
@@ -834,6 +868,7 @@ final class ModMarkers {
 		if target == nil {
 			sliders.remove(s)
 			s.markerPosition = nil
+			s.band = nil
 			return
 		}
 		sliders.add(s)
@@ -846,21 +881,55 @@ final class ModMarkers {
 		}
 	}
 
+	/// Settings > General > Show oscillators on sliders (on by default)
+	static let oscDefaultsKey = "General_bOscMarkers"
+	/// faster than this (Hz), a marker updated 30 times a second can't
+	/// follow the oscillator: the band shows alone
+	static let fastOscillator = 2.0
+
 	private func tick() {
 		let e = AppModel.shared.engine
-		guard let state = e.modulationState() else {
+		let state = e.sliderState()
+		let showOsc = UserDefaults.standard.object(forKey: Self.oscDefaultsKey) as? Bool ?? true
+		guard state.modulating || showOsc else {
 			if shown {
-				for s in sliders.allObjects { s.markerPosition = nil }
+				for s in sliders.allObjects {
+					s.markerPosition = nil
+					s.band = nil
+				}
 				shown = false
 			}
 			return
 		}
 		shown = true
-		let targeted = Self.targetedControls()
+		let targeted = state.modulating ? Self.targetedControls() : []
 		for s in sliders.allObjects {
 			guard let target = s.markerTarget, s.window != nil else { continue }
-			s.markerPosition = targeted.contains(target) ? position(target, state, e) : nil
+			let modulated = targeted.contains(target)
+			if case .param(let i) = target, showOsc, let osc = oscillator(i, state, e) {
+				s.band = osc.band
+				s.markerPosition = osc.marker
+			} else {
+				s.band = nil
+				s.markerPosition = modulated ? position(target, state, e) : nil
+			}
 		}
+	}
+
+	/// A parameter's oscillator on its Val slider (the user's request,
+	/// 2026-11-24), nil unless it's moving (Amplitude and Frequency not 0): the band is its swing
+	/// about the value (modulated, if it is), and the marker where it has
+	/// the value this frame: Val + modulation + output x Amplitude, as the
+	/// engine draws it; none for a fast oscillator
+	private func oscillator(_ i: Int, _ state: WHModState, _ e: WHEngine) -> (band: ClosedRange<Double>, marker: Double?)? {
+		let amp = e.paramValue(i, property: .amp) + state.ampOffsets[i].doubleValue
+		guard amp != 0, state.oscFreqs[i].doubleValue != 0 else { return nil }	// moving, as OscillatorMark's wave
+		let center = e.paramValue(i, property: .val) + state.paramOffsets[i].doubleValue
+		let a = WHControls.paramPosition(i, value: center - abs(amp))
+		let b = WHControls.paramPosition(i, value: center + abs(amp))
+		let fast = abs(state.oscFreqs[i].doubleValue) > Self.fastOscillator
+		let now = center + state.oscOutputs[i].doubleValue * amp
+		return (min(a, b)...max(a, b), fast ? nil : WHControls.paramPosition(i, value: now))
 	}
 
 	/// The controls the modulation rows that are on move (not actions)

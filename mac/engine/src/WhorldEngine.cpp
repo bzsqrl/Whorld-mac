@@ -566,7 +566,8 @@ void WhorldEngine::TimerHook()
 	static const int RG = PARAM_RingGrowth;
 	const PARAM_ROW&	rowRG = m_aParam.row[RG];
 	m_aOsc[RG].SetClock(afPrevClock[RG] + 1);
-	double	fGrowth = rowRG.fVal + m_aOsc[RG].GetVal() * (rowRG.fAmp + m_aAmpMod[RG]);	// Mac: Amp modulated
+	m_aOscOut[RG] = m_aOsc[RG].GetVal();	// Mac: kept for the panels
+	double	fGrowth = rowRG.fVal + m_aOscOut[RG] * (rowRG.fAmp + m_aAmpMod[RG]);	// Mac: Amp modulated
 	if (m_aParamMod[RG])	// Mac: modulated
 		fGrowth += m_aParamMod[RG];
 	m_fNewGrowth = fGrowth * fSpeed;
@@ -599,7 +600,8 @@ void WhorldEngine::TimerHook()
 		m_aOsc[iParam].SetClock(afPrevClock[iParam] + 1);
 		if (cur.fFreq != m_aPrevParam.row[iParam].fFreq && !m_abOscLocked[iParam])	// Mac: unless locked
 			m_aOsc[iParam].SetFreq(cur.fFreq);
-		m_params.a[iParam] = cur.fVal + m_aOsc[iParam].GetVal() * (cur.fAmp + m_aAmpMod[iParam]);	// Mac: Amp modulated
+		m_aOscOut[iParam] = m_aOsc[iParam].GetVal();	// Mac: kept for the panels
+		m_params.a[iParam] = cur.fVal + m_aOscOut[iParam] * (cur.fAmp + m_aAmpMod[iParam]);	// Mac: Amp modulated
 		if (m_aParamMod[iParam])	// Mac: modulated
 			m_params.a[iParam] += m_aParamMod[iParam];
 	}

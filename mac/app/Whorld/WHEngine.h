@@ -167,9 +167,14 @@ typedef struct {
 + (BOOL)isModulatableTarget:(NSInteger)target prop:(NSInteger)prop;
 @end
 
-/// What audio modulation does to the controls this frame (WHEngine modulationState)
+/// What audio modulation and the oscillators do to the controls this frame
+/// (WHEngine sliderState)
 @interface WHModState : NSObject
+@property (nonatomic) BOOL modulating;	// some modulation row moves a control (the offsets are all 0 otherwise)
 @property (nonatomic, copy) NSArray<NSNumber *> *paramOffsets;	// per parameter, the Val column
+@property (nonatomic, copy) NSArray<NSNumber *> *ampOffsets;	// per parameter, added to Amplitude (value units)
+@property (nonatomic, copy) NSArray<NSNumber *> *oscOutputs;	// per parameter, the oscillator's output, -1 to 1
+@property (nonatomic, copy) NSArray<NSNumber *> *oscFreqs;	// per parameter, the oscillator's frequency in Hz
 @property (nonatomic, copy) NSArray<NSNumber *> *globalOffsets;	// per parameter, the Global column
 @property (nonatomic, copy) NSArray<NSNumber *> *masterValues;	// per master property, effective
 @property (nonatomic) double hueOffset;	// degrees
@@ -462,10 +467,10 @@ typedef struct {
 // size by autoScaleFactor; autoQualityStatus says where it stands ("" at
 // the settings), for the frame rate line.
 @property (atomic) BOOL autoQuality;
-// Audio modulation as the last frame applied it, for the panels' markers
-// (Mac addition): nil while no row moves a control. Offsets in value units,
-// clamped to the sliders; masterValues are the effective values.
-- (nullable WHModState *)modulationState;
+// Audio modulation and the oscillators as the last frame applied them, for
+// the panels' markers and oscillator bands (Mac addition). Offsets in value
+// units, clamped to the sliders; masterValues are the effective values.
+- (WHModState *)sliderState;
 @property (atomic) double userRenderScale;
 @property (atomic, readonly) double autoScaleFactor;
 @property (nonatomic, readonly) NSString *autoQualityStatus;

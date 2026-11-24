@@ -556,6 +556,9 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 	double	_modGlobal[whorld::WhorldBase::PARAM_COUNT];
 	double	_modMaster[whorld::WhorldBase::MASTER_COUNT];
 	double	_modHue;
+	double	_modAmp[whorld::WhorldBase::PARAM_COUNT];
+	double	_oscOut[whorld::WhorldBase::PARAM_COUNT];	// the oscillators, for the panels' bands
+	double	_oscFreq[whorld::WhorldBase::PARAM_COUNT];
 	std::atomic<double>	_aqScale;	// times the view's pixel size
 }
 
@@ -2356,10 +2359,17 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 		bool	bModShown = _engine->IsModulationActive();
 		double	aModParam[whorld::WhorldBase::PARAM_COUNT], aModGlobal[whorld::WhorldBase::PARAM_COUNT];
 		double	aModMaster[whorld::WhorldBase::MASTER_COUNT], fModHue = 0;
+		double	aModAmp[whorld::WhorldBase::PARAM_COUNT], aOscOut[whorld::WhorldBase::PARAM_COUNT];
+		double	aOscFreq[whorld::WhorldBase::PARAM_COUNT];
+		for (int i = 0; i < whorld::WhorldBase::PARAM_COUNT; i++) {	// for the panels' oscillator bands
+			aOscOut[i] = _engine->GetOscillatorOutput(i);
+			aOscFreq[i] = _engine->GetOscillatorFreq(i);
+		}
 		if (bModShown) {	// for the panels' markers
 			for (int i = 0; i < whorld::WhorldBase::PARAM_COUNT; i++) {
 				aModParam[i] = _engine->GetParamModulation(i);
 				aModGlobal[i] = _engine->GetGlobalModulation(i);
+				aModAmp[i] = _engine->GetAmpModulation(i);
 			}
 			for (int i = 0; i < whorld::WhorldBase::MASTER_COUNT; i++)
 				aModMaster[i] = _engine->GetEffectiveMaster().a[i];
@@ -2383,8 +2393,11 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 				std::copy(std::begin(aModParam), std::end(aModParam), _modParam);
 				std::copy(std::begin(aModGlobal), std::end(aModGlobal), _modGlobal);
 				std::copy(std::begin(aModMaster), std::end(aModMaster), _modMaster);
+				std::copy(std::begin(aModAmp), std::end(aModAmp), _modAmp);
 				_modHue = fModHue;
 			}
+			std::copy(std::begin(aOscOut), std::end(aOscOut), _oscOut);
+			std::copy(std::begin(aOscFreq), std::end(aOscFreq), _oscFreq);
 			_liveMovie = movieState;
 			_liveTarget = whorld::SizeF{float(w / scale), float(h / scale)};
 			_statRenderSum += ms;
@@ -2719,24 +2732,34 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 
 #pragma mark - Modulation markers
 
-- (WHModState *)modulationState
+- (WHModState *)sliderState
 {
 	NSMutableArray<NSNumber *>	*param = [NSMutableArray array], *global = [NSMutableArray array];
-	NSMutableArray<NSNumber *>	*master = [NSMutableArray array];
-	double	fHue;
+	NSMutableArray<NSNumber *>	*master = [NSMutableArray array], *amp = [NSMutableArray array];
+	NSMutableArray<NSNumber *>	*oscOut = [NSMutableArray array], *oscFreq = [NSMutableArray array];
+	double	fHue = 0;
+	bool	bMod;
 	{
 		std::lock_guard<std::mutex>	lock(_mutex);
-		if (!_modShown)
-			return nil;
+		bMod = _modShown;
 		for (int i = 0; i < whorld::WhorldBase::PARAM_COUNT; i++) {
-			[param addObject:@(_modParam[i])];
-			[global addObject:@(_modGlobal[i])];
+			[param addObject:@(bMod ? _modParam[i] : 0)];
+			[global addObject:@(bMod ? _modGlobal[i] : 0)];
+			[amp addObject:@(bMod ? _modAmp[i] : 0)];
+			[oscOut addObject:@(_oscOut[i])];
+			[oscFreq addObject:@(_oscFreq[i])];
 		}
-		for (int i = 0; i < whorld::WhorldBase::MASTER_COUNT; i++)
-			[master addObject:@(_modMaster[i])];
-		fHue = _modHue;
+		if (bMod) {
+			for (int i = 0; i < whorld::WhorldBase::MASTER_COUNT; i++)
+				[master addObject:@(_modMaster[i])];
+			fHue = _modHue;
+		}
 	}
 	WHModState	*state = [[WHModState alloc] init];
+	state.modulating = bMod;
+	state.ampOffsets = amp;
+	state.oscOutputs = oscOut;
+	state.oscFreqs = oscFreq;
 	state.paramOffsets = param;
 	state.globalOffsets = global;
 	state.masterValues = master;

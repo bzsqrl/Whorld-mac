@@ -284,6 +284,24 @@ TEST(PatchSetsOscillatorWaveformAndPulseWidth) {
 	CHECK_NEAR(eng->GetParamValues().fLineWidth, 1 + 1, 1e-12);	// square, first half of its cycle
 }
 
+TEST(OscillatorOutputIsKeptForThePanels) {
+	// Mac addition: the panels' oscillator markers read each oscillator's
+	// output and frequency; the value drawn is Val + output x Amp
+	auto	eng = MakeEngine();
+	Patch	p = DefaultPatch();
+	auto&	row = p.GetParamRow(Patch::PARAM_LineWidth);
+	row.iWave = Patch::WAVEFORM_SINE;
+	row.fAmp = 2;
+	row.fFreq = 0.5;
+	eng->OnSetPatch(p);
+	RunFrames(*eng, 3);
+	double	out = eng->GetOscillatorOutput(Patch::PARAM_LineWidth);
+	CHECK_NEAR(out, std::sin(2 * kPi * 0.5 * 3 / 60), 1e-12);
+	CHECK_NEAR(eng->GetParamValues().fLineWidth, row.fVal + out * 2, 1e-12);
+	CHECK_NEAR(eng->GetOscillatorFreq(Patch::PARAM_LineWidth), 0.5, 1e-12);
+	CHECK_EQ(eng->GetOscillatorOutput(Patch::PARAM_PolySides), 0.0);	// frequency 0: its phase stays at 0
+}
+
 // Ring fade (Mac port): alpha of each ring's stroke, newest first.
 static std::vector<float> RingAlphas(WhorldEngine& eng)
 {

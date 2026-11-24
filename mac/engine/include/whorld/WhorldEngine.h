@@ -124,6 +124,11 @@ public:
 	double	GetAmpModulation(int iParam) const { return m_aAmpMod[iParam]; }
 	double	GetHueModulation() const { return m_fHueMod; }
 	bool	IsModulationActive() const { return m_mod.bActive; }
+	// Mac addition, for the panels' oscillator bands and markers: each
+	// oscillator's output (-1 to 1) as the last frame ended, and its
+	// frequency in Hz (a locked oscillator's follows the beat)
+	double	GetOscillatorOutput(int iParam) const { return m_aOscOut[iParam]; }
+	double	GetOscillatorFreq(int iParam) const { return m_aOsc[iParam].GetFreq(); }
 
 // Commands (ported from CWhorldThread::OnRenderCommand and handlers)
 	void	OnRenderCommand(const RenderCmd& cmd);
@@ -250,6 +255,7 @@ protected:
 	double	m_aParamMod[PARAM_COUNT];	// Val offsets, in value units (clamped)
 	double	m_aGlobalMod[PARAM_COUNT];	// Global offsets, in value units (clamped)
 	double	m_aAmpMod[PARAM_COUNT];		// Amplitude offsets, in value units (not clamped: amplitude has no range)
+	double	m_aOscOut[PARAM_COUNT] = {};	// Mac addition: each oscillator's output (-1 to 1) as the frame ended, for the panels
 	double	m_fHueMod;		// degrees added to the patch's Hue
 	DPoint	m_ptOriginMod;	// DIPs added to the origin target
 	double	m_fZoomMod;		// zoom target factor
