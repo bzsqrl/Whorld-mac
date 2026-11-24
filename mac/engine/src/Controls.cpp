@@ -45,7 +45,7 @@ const SLIDER_INFO kMasterSlider[WhorldBase::MASTER_COUNT] = {
 	{0,		100,	30,		100,	100,	0,		1,		0},	// Rings
 	{0,		250,	0,		1,		100,	0,		1,		2},	// Tempo
 	{0,		360,	0,		1,		30,		0,		1,		0},	// Hue Loop
-	{100,	300,	0,		100,	140,	0,		.01f,	0},	// Canvas
+	{100,	1000,	0,		100,	140,	0,		.01f,	0},	// Canvas (Mac: to 1000, the user's request, 2026-11-23; Windows 300)
 	{1,		20,		0,		1,		0,		0,		1,		0},	// Copies
 	{0,		600,	0,		1,		100,	0,		1,		0},	// Spread
 	{0,		200,	0,		1,		0,		0,		1,		0},	// Fade (Mac port): rings, 0 = off

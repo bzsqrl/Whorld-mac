@@ -82,7 +82,7 @@ TEST(MasterLogSliders) {
 	// Tempo and Copies are linear
 	CHECK_NEAR(Controls::MasterDenorm(WB::MASTER_Tempo, 120), 120, 1e-12);
 	CHECK_NEAR(Controls::MasterNorm(WB::MASTER_Copies, 7), 7, 1e-12);
-	// Canvas: position is value * 100, range 100..300
+	// Canvas: position is value * 100, range 100..1000 (Windows: 300)
 	CHECK_NEAR(Controls::MasterNorm(WB::MASTER_CanvasScale, 1.4), 140, 1e-9);
 }
 
@@ -123,7 +123,7 @@ TEST(MasterEditBoxes) {
 	// edit ranges from the slider range when not listed
 	ControlInfo	canvas = Controls::MasterInfo(WB::MASTER_CanvasScale);
 	CHECK_NEAR(canvas.fEditMin, 1, 1e-6);
-	CHECK_NEAR(canvas.fEditMax, 3, 1e-6);
+	CHECK_NEAR(canvas.fEditMax, 10, 1e-6);	// Mac: 1000 (Windows 300)
 	CHECK_EQ(Controls::FormatMaster(WB::MASTER_CanvasScale, 1.4), std::string("140"));
 	CHECK_EQ(Controls::FormatMaster(WB::MASTER_Tempo, 100), std::string("100.00"));
 }

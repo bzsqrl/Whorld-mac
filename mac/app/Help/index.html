@@ -205,6 +205,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <ul>
 <li>That holds however small Canvas is: rings fade out before the canvas removes them. A ring that runs off the canvas early (a spiky shape) stays until it has faded out, so the fade stays in order of age.</li>
 <li>The edge of the picture doesn't end the rings: when the oldest rings are off screen (a large Canvas and a high Rings), the fade happens off screen too, and the rings you see are untouched.</li>
+<li>Canvas sets how far rings grow before they're removed: the canvas is the window's size times Canvas, around the rings' center, and shrinks and grows with Zoom. Whorld for Mac lets it go to 1000 (Windows Whorld stops at 300), so a patch whose rings the canvas removes early, such as glassFlower, can keep many more; more rings draw more. A patch saved above 300 still opens in Windows Whorld.</li>
 <li>Fade goes from 0 (off, as in Windows Whorld) to 200, is saved with the patch, and can be a MIDI mapping target. Patches with Fade above 0 still open in Windows Whorld, which ignores it.</li>
 <li>Settings &gt; Picture &gt; Ring fade curve chooses Eased (the default), which starts and ends gently, or Linear.</li>
 <li>The fade applies to the picture, snapshots, movies and exports; snapshots and movies don't record the Rings setting, so their own ring count stands in for it.</li>
