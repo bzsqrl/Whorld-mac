@@ -1502,6 +1502,7 @@ struct WaveformMenu: View {
 			} label: {
 				Image(nsImage: WaveGlyph.image(selection.wrappedValue))
 			}
+			.menuStyle(.borderlessButton)	// a small grey chevron, not the accent box (the design audit, 2026-11-24)
 			.help("Waveform: \(WHControls.waveformName(selection.wrappedValue))")
 			.frame(width: width)
 			.overlay(SecondaryClickReset { reset() })

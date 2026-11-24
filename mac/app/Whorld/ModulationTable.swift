@@ -392,6 +392,7 @@ private struct TargetMenu: View {
 		} label: {
 			Text(ModMap.name(current))
 		}
+		.menuStyle(.borderlessButton)	// a small grey chevron, not the accent box, as the LFO's menu (the design audit, 2026-11-24)
 	}
 
 	private func item(_ label: String, _ c: ModMap.TargetChoice) -> some View {
@@ -565,6 +566,7 @@ private struct SourceMenu: View {
 		} label: {
 			Text(label(tags))
 		}
+		.menuStyle(.borderlessButton)	// a small grey chevron, not the accent box, as the LFO's menu (the design audit, 2026-11-24)
 	}
 
 	private func label(_ tags: [String]) -> String {
