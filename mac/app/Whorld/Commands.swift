@@ -113,17 +113,17 @@ struct WhorldCommands: Commands {
 				Button("Load Snapshot…") { model.loadSnapshots() }
 					.keyboardShortcut("l")
 				Divider()
+				// no keys (the user's shortcut review, 2026-11-24): Windows'
+				// Home, Page Up, Page Down and End, unmodified, took the lists'
+				// own scrolling keys, and most Mac laptops lack them; Command-
+				// Left and Right step the snapshots over the picture (OutputKeys)
 				Button("First") { model.snapshotFirst() }
-					.keyboardShortcut(.home, modifiers: [])
 					.disabled(!model.hasSnapshots)
 				Button("Previous") { model.snapshotPrev() }
-					.keyboardShortcut(.pageUp, modifiers: [])
 					.disabled(!model.hasSnapshots)
 				Button("Next") { model.snapshotNext() }
-					.keyboardShortcut(.pageDown, modifiers: [])
 					.disabled(!model.hasSnapshots)
 				Button("Last") { model.snapshotLast() }
-					.keyboardShortcut(.end, modifiers: [])
 					.disabled(!model.hasSnapshots)
 				Divider()
 				Button("Info…") { model.snapshotInfo() }
@@ -140,6 +140,7 @@ struct WhorldCommands: Commands {
 					.keyboardShortcut("r")	// R for Record, free since Origin Random left it (2026-11-21); the user's request, 2026-11-22, in place of a Perform Bar button
 					.disabled(ms.io == .reading)
 				Button(ms.io == .reading ? "Stop Playing" : "Play Movie…") { model.togglePlayMovie() }
+					.keyboardShortcut("r", modifiers: [.command, .shift])	// beside Record's Command-R (the user's shortcut review, 2026-11-24)
 					.disabled(ms.io == .writing)
 				Button("Rewind") { model.rewindMovie() }
 					.keyboardShortcut(.home, modifiers: .command)
@@ -379,8 +380,9 @@ struct WhorldCommands: Commands {
 			Toggle("Show Perform Bar", isOn: Binding(get: { model.showStats }, set: { model.showStats = $0 }))
 				.keyboardShortcut("b", modifiers: [.command, .shift])	// "Bar", beside Blackout's Command-B (2026-11-22: Option-Command-9 went to the panels, Patches joining them)
 			// the Properties' chips as a row of the bar (the user's choice,
-			// 2026-11-24); no shortcut
+			// 2026-11-24)
 			Toggle("Show Properties in Perform Bar", isOn: Binding(get: { model.showPropsBar }, set: { model.showPropsBar = $0 }))
+				.keyboardShortcut("b", modifiers: [.command, .option, .shift])	// beside the bar's Shift-Command-B (the user's shortcut review, 2026-11-24)
 				.disabled(!model.showStats)
 			// the strip's Auto; beside Audio Modulation's Command-' (the
 			// user's request, 2026-11-19; out of Settings > Display)
@@ -390,6 +392,7 @@ struct WhorldCommands: Commands {
 			// stats strip too; the user's request, 2026-11-19)
 			Menu("Syphon") {
 				Toggle("Syphon Output", isOn: Binding(get: { model.syphonEnabled }, set: { model.setSyphonEnabled($0) }))
+					.keyboardShortcut("y", modifiers: [.command, .shift])	// "sYphon" (the user's shortcut review, 2026-11-24)
 				Divider()
 				Toggle("Match the Output", isOn: Binding(get: { model.syphonSize == nil }, set: { _ in model.setSyphonSize(nil) }))
 				ForEach(AppModel.syphonPresets.indices, id: \.self) { i in

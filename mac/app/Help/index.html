@@ -327,7 +327,7 @@ A step too small for a number box to show moves it to the next value it shows. S
 </ul>
 
 <h3 id="snapshots">Snapshots</h3>
-<p>A snapshot (<code>.whs</code>) keeps the picture exactly as it is, every ring. File &gt; Snapshots &gt; Take Snapshot (<kbd>⌘T</kbd>) saves one, in Documents &gt; Whorld &gt; Snapshots; Load Snapshot (<kbd>⌘L</kbd>) loads one or several. With snapshots loaded, Home, Page Up, Page Down and End show the first, previous, next and last (fn‑← fn‑↑ fn‑↓ fn‑→ on laptops); in full screen or with the pointer over the picture, <kbd>⌘←</kbd> and <kbd>⌘→</kbd> do too. File &gt; Export &gt; All Snapshots exports each as an image.</p>
+<p>A snapshot (<code>.whs</code>) keeps the picture exactly as it is, every ring. File &gt; Snapshots &gt; Take Snapshot (<kbd>⌘T</kbd>) saves one, in Documents &gt; Whorld &gt; Snapshots; Load Snapshot (<kbd>⌘L</kbd>) loads one or several. With snapshots loaded, <kbd>⌘←</kbd> and <kbd>⌘→</kbd> show the previous and next, in full screen or with the pointer over the picture; File &gt; Snapshots also has First and Last. File &gt; Export &gt; All Snapshots exports each as an image.</p>
 
 <h3 id="movies">Movies, images and video</h3>
 <ul>
@@ -375,7 +375,7 @@ A step too small for a number box to show moves it to the next value it shows. S
 <h3 id="syphon">Syphon</h3>
 <p>Syphon output sends Whorld's picture to other apps on the same Mac, such as Resolume, MadMapper, OBS and TouchDesigner, where it's listed as Whorld.</p>
 <ul>
-<li>Turn it on with View &gt; Syphon &gt; Syphon Output, or by clicking Syp in the Perform Bar, whose dot shows whether an app is receiving: hollow while none is, filled once one is. It's off until you turn it on.</li>
+<li>Turn it on with View &gt; Syphon &gt; Syphon Output (<kbd>⇧⌘Y</kbd>), or by clicking Syp in the Perform Bar, whose dot shows whether an app is receiving: hollow while none is, filled once one is. It's off until you turn it on.</li>
 <li>Transparency comes through: where a patch's Bk Alpha or Alpha is below 1, the receiving app can layer Whorld over other material.</li>
 <li>By default Syphon carries the frames Whorld shows, at their size (the window's, or the display's in full screen, times the Render quality). View &gt; Syphon can send a fixed size instead: 1280 × 720, 1920 × 1080, 3840 × 2160, or Custom Size&hellip;; Match the Output goes back. A fixed size is drawn a second time at that size, the picture scaled to fit with more of the pattern on the longer side, and only while an app is receiving it.</li>
 </ul>
@@ -422,14 +422,15 @@ A step too small for a number box to show moves it to the next value it shows. S
 <tr><td>Take Snapshot</td><td>Ctrl+T</td><td>⌘T</td></tr>
 <tr><td>Load Snapshot</td><td>Ctrl+L</td><td>⌘L</td></tr>
 <tr><td>Export image</td><td>Ctrl+E</td><td>⌘E</td></tr>
-<tr><td>First / Previous / Next / Last snapshot</td><td>Home / Page Up / Page Down / End</td><td>same (fn‑← / fn‑↑ / fn‑↓ / fn‑→ on laptops); also ⌘← / ⌘→ for previous / next, in full screen or with the pointer over the picture</td></tr>
+<tr><td>Previous / next snapshot (over the picture)</td><td>Page Up / Page Down</td><td>⌘← / ⌘→ (File &gt; Snapshots lists First, Previous, Next and Last, without keys, so the lists keep their scrolling keys)</td></tr>
 <tr><td>Record movie (and stop)</td><td>Ctrl+M</td><td>⌘R</td></tr>
 <tr><td>Play movie</td><td>Ctrl+Shift+M</td><td>none (File &gt; Movie)</td></tr>
 <tr><td>Patches panel (Mac)</td><td>&mdash;</td><td>⌥⌘6</td></tr>
 <tr><td>Modulation panel (Mac)</td><td>&mdash;</td><td>⌥⌘7</td></tr>
 <tr><td>Key Map panel (Mac)</td><td>&mdash;</td><td>⌥⌘9</td></tr>
+<tr><td>Play Movie (Mac; Record Movie is ⌘R)</td><td>&mdash;</td><td>⇧⌘R</td></tr>
 <tr><td>Rewind movie</td><td>Ctrl+Home</td><td>⌘Home (fn‑⌘‑← on laptops)</td></tr>
-<tr><td>MIDI Mapping panel</td><td>Shift+I</td><td>⌥⌘8</td></tr>
+<tr><td>MIDI Mapping panel (with macOS Accessibility Zoom's keyboard shortcuts turned on, ⌥⌘8 zooms the screen instead: use View &gt; MIDI Mapping)</td><td>Shift+I</td><td>⌥⌘8</td></tr>
 <tr><td>MIDI Learn</td><td>Shift+L</td><td>none (the MIDI Mapping panel's Learn switch)</td></tr>
 <tr><td>New Playlist</td><td>Ctrl+Shift+N</td><td>⇧⌘N</td></tr>
 <tr><td>Open Playlist</td><td>Ctrl+Shift+O</td><td>⇧⌘O</td></tr>
@@ -470,6 +471,8 @@ A step too small for a number box to show moves it to the next value it shows. S
 <tr><td>Detach</td><td>Ctrl+F12</td><td>⌘D</td></tr>
 <tr><td>Detach to another display</td><td>&mdash;</td><td>⇧⌘D (View &gt; Detach to Other Display), with more than one display; while detached, the next display</td></tr>
 <tr><td>Show Perform Bar</td><td>—</td><td>⇧⌘B</td></tr>
+<tr><td>Show Properties in Perform Bar (Mac)</td><td>—</td><td>⌥⇧⌘B</td></tr>
+<tr><td>Syphon output on or off (Mac)</td><td>—</td><td>⇧⌘Y</td></tr>
 <tr><td>Layouts: Edit, Perform, your own</td><td>—</td><td>⌃⌘1, ⌃⌘2, ⌃⌘3&hellip; (Window menu)</td></tr>
 </table>
 <p class="note">Panels use <kbd>⌥⌘</kbd> and a digit, not Windows' Shift+letter, which would fire while typing a capital letter in a text field.</p>
