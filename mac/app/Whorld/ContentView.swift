@@ -719,8 +719,15 @@ private struct GeometryToggle: View {
 		let _ = model.changes.playlist.n
 		let geometry = model.engine.geometryMode
 		Button { model.setGeometryMode(!geometry) } label: {
-			Text(geometry ? "Geom" : "Full")
+			// both words laid out, one shown: as wide as the wider, so the
+			// bar doesn't shift when the mode changes (the user's request,
+			// 2026-11-24)
+			ZStack {
+				Text("Full").opacity(geometry ? 0 : 1)
+				Text("Geom").opacity(geometry ? 1 : 0)
+			}
 		}
+		.accessibilityLabel(geometry ? "Geom" : "Full")	// not both words
 		.buttonStyle(StripToggleStyle())
 		.fixedSize()
 		.help(geometry
