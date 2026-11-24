@@ -118,10 +118,11 @@ final class NamedLayouts: ObservableObject {
 	}()
 
 	/// Perform plays the Properties from the bar (it has no Properties
-	/// panel); Edit has the panel
+	/// panel); Edit shows them there too, beside its panel (the user's
+	/// request, 2026-11-24)
 	private func defaultPropsBar(_ item: NamedLayout) -> Bool? {
 		switch item.id {
-		case Self.editID: false
+		case Self.editID: true
 		case Self.performID: true
 		default: item.saved == nil ? nil : item.propsBar
 		}
@@ -129,7 +130,7 @@ final class NamedLayouts: ObservableObject {
 
 	private func defaultPerformBar(_ item: NamedLayout) -> Bool? {
 		switch item.id {
-		case Self.editID: nil
+		case Self.editID: true	// with its Properties row (the user's request, 2026-11-24; was left as it was)
 		case Self.performID: true
 		default: item.saved == nil ? nil : item.performBar
 		}

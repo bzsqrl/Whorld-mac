@@ -125,13 +125,15 @@ final class AppModel: ObservableObject {
 	@Published var title = "Untitled"
 	/// View > Show Perform Bar (was Show Stats): the strip below the
 	/// picture (ContentView.swift), kept between runs
-	@Published var showStats: Bool = UserDefaults.standard.bool(forKey: "View_bShowStats") {
+	/// On at first (the default layout shows it, with its Properties row:
+	/// the user's request, 2026-11-24)
+	@Published var showStats: Bool = UserDefaults.standard.object(forKey: "View_bShowStats") as? Bool ?? true {
 		didSet { UserDefaults.standard.set(showStats, forKey: "View_bShowStats") }
 	}
 	/// View > Show Properties in Perform Bar (the user's choice, 2026-11-24):
 	/// the Properties' live chips as a row of the Perform Bar
 	/// (PropertiesStrip), with the bar; kept between runs and per layout
-	@Published var showPropsBar: Bool = UserDefaults.standard.bool(forKey: "View_bShowPropsBar") {
+	@Published var showPropsBar: Bool = UserDefaults.standard.object(forKey: "View_bShowPropsBar") as? Bool ?? true {
 		didSet { UserDefaults.standard.set(showPropsBar, forKey: "View_bShowPropsBar") }
 	}
 	/// Settings > Performance > Render quality (renderScale) and Upscaling (Mac addition): the
