@@ -622,6 +622,19 @@ extension AppModel {
 
 // MARK: Views
 
+/// A table's column choices (which show, their widths and order), kept in
+/// the settings under `key`: right-click a table's header to choose
+enum StoredColumns {
+	static func load<Row>(_ key: String) -> TableColumnCustomization<Row>? {
+		guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
+		return try? JSONDecoder().decode(TableColumnCustomization<Row>.self, from: data)
+	}
+
+	static func save<Row>(_ c: TableColumnCustomization<Row>, _ key: String) {
+		if let data = try? JSONEncoder().encode(c) { UserDefaults.standard.set(data, forKey: key) }
+	}
+}
+
 /// An image or frame size, the same wherever one is chosen (Settings >
 /// Export and the export dialogs; the user's requests, 2026-11-24): a menu
 /// of the special sizes (the view, the movie), common sizes, and Custom,
@@ -1071,11 +1084,17 @@ struct PlaylistPanel: View {
 		}
 	}
 
+	/// which columns show (right-click the header), kept in the settings;
+	/// Folder hidden at first (the user's choice, 2026-11-24: it repeated
+	/// itself for most playlists; a name's tooltip has its path)
+	@State private var columns = TableColumnCustomization<Row>()
+	private static let columnsKey = "Playlist_columns"
+
 	var body: some View {
 		let _ = model.changes.playlist.n
 		let rows = model.playlistPatches.enumerated().map { Row(id: $0.offset, path: $0.element) }
 		VStack(spacing: 0) {
-			Table(of: Row.self, selection: $model.playlistSelection) {
+			Table(of: Row.self, selection: $model.playlistSelection, columnCustomization: $columns) {
 				TableColumn("Patch") { row in
 					HStack(spacing: 4) {
 						Image(systemName: "play.fill")
@@ -1088,6 +1107,8 @@ struct PlaylistPanel: View {
 					}
 				}
 				.width(min: 120, ideal: 180)
+				.customizationID("patch")
+				.disabledCustomizationBehavior(.visibility)	// always shown
 				TableColumn("Author") { row in
 					Text(model.patchAuthor(row.path))
 						.foregroundStyle(.secondary)
@@ -1095,9 +1116,12 @@ struct PlaylistPanel: View {
 						.truncationMode(.tail)
 				}
 				.width(min: 60, ideal: 110)
+				.customizationID("author")
 				TableColumn("Folder") { row in
 					Text(row.folder).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
 				}
+				.customizationID("folder")
+				.defaultVisibility(.hidden)
 			} rows: {
 				// drag rows to reorder (the user's choice, 2026-11-20, for the
 				// Move Up and Move Down buttons): a selected row takes the
@@ -1111,6 +1135,8 @@ struct PlaylistPanel: View {
 					dropRows(providers, at: offset)
 				}
 			}
+			.onAppear { columns = StoredColumns.load(Self.columnsKey) ?? columns }
+			.onChange(of: columns) { _, c in StoredColumns.save(c, Self.columnsKey) }
 			.contextMenu(forSelectionType: Int.self) { sel in
 				Button("Play") { playSelected() }
 				Button("Delete") { model.deletePatches() }

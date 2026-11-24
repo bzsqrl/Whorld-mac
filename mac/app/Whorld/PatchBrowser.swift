@@ -141,18 +141,22 @@ struct PatchBrowserPanel: View {
 		}
 	}
 
+	/// which columns show (right-click the header), kept in the settings;
+	/// Folder hidden at first
+	@State private var columns = TableColumnCustomization<PatchBrowserStore.Item>()
+	private static let columnsKey = "Patches_columns"
+
 	var body: some View {
 		let shown = shown
 		// a Table, as the Playlist's: a SwiftUI List with draggable rows
 		// doesn't select on a click (macOS); subfolders are a column
-		let hasFolders = store.items.contains { !$0.group.isEmpty }
 		VStack(spacing: 0) {
 			header
 			Divider()
 			if store.items.isEmpty {
 				empty
 			} else {
-				Table(of: PatchBrowserStore.Item.self, selection: $selection) {
+				Table(of: PatchBrowserStore.Item.self, selection: $selection, columnCustomization: $columns) {
 					TableColumn("Patch") { item in
 						HStack(spacing: 4) {
 							Image(systemName: "play.fill")
@@ -163,10 +167,15 @@ struct PatchBrowserPanel: View {
 						.help(item.url.path)
 					}
 					.width(min: 120, ideal: 200)
+					.customizationID("patch")
+					.disabledCustomizationBehavior(.visibility)	// always shown
 					TableColumn("Folder") { item in
-						Text(item.group).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
+						Text(item.group)
+							.foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
 					}
-					.width(min: hasFolders ? 50 : 0, ideal: hasFolders ? 90 : 0, max: hasFolders ? .infinity : 0)
+					.width(min: 50, ideal: 90)
+					.customizationID("folder")
+					.defaultVisibility(.hidden)	// as the Playlist's (the user's choice, 2026-11-24)
 				} rows: {
 					ForEach(shown) { item in
 						TableRow(item).itemProvider {
@@ -175,6 +184,8 @@ struct PatchBrowserPanel: View {
 						}
 					}
 				}
+				.onAppear { columns = StoredColumns.load(Self.columnsKey) ?? columns }
+				.onChange(of: columns) { _, c in StoredColumns.save(c, Self.columnsKey) }
 				.contextMenu(forSelectionType: URL.self) { urls in
 					menu(for: urls)
 				} primaryAction: { urls in
