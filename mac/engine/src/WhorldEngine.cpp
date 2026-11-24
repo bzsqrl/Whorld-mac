@@ -911,7 +911,11 @@ bool WhorldEngine::Draw(IRenderer& renderer)
 		if (m_bFadeTrace)
 			m_aFadeTrace.push_back({&ring, fFade});
 		iRingDrawn++;
+		// Mac: never thinner than 1 pixel, whatever the oscillator,
+		// modulation or an old patch's value (the user's request, 2026-11-24)
 		double	fLineWidth = ring.fLineWidth + m_globRing.fLineWidth;
+		if (m_bLineWidthFloor)
+			fLineWidth = std::max(fLineWidth, 1.0);
 		DPoint	ptOrg(ring.ptOrigin);
 		if (m_bSnapshotMode) {	// if we're displaying a snapshot
 			ptOrg *= fSnapshotScale;	// apply snapshot scaling to ring's origin

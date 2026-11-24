@@ -314,6 +314,34 @@ static std::vector<float> RingAlphas(WhorldEngine& eng)
 	return a;
 }
 
+TEST(LinesAreNeverThinnerThanOnePixel) {
+	// Mac (the user's request, 2026-11-24): an oscillator swinging Line
+	// Width below 1, or a negative global, can't blank the picture; with the
+	// floor off (the Windows image tests) they're drawn as Windows draws them
+	for (bool bFloor : {true, false}) {
+		auto	eng = MakeEngine();
+		eng->SetLineWidthFloor(bFloor);
+		Patch	p = DefaultPatch();
+		auto&	row = p.GetParamRow(Patch::PARAM_LineWidth);
+		row.fVal = 1;
+		row.iWave = Patch::WAVEFORM_SINE;
+		row.fAmp = 3;
+		row.fFreq = 1;
+		eng->OnSetPatch(p);
+		RunFrames(*eng, 120);
+		RecordingRenderer	rec;
+		RunFrames(*eng, 1, &rec);
+		float	fMin = 1e9f;
+		for (const auto& c : rec.calls)
+			if (c.type == RC::STROKE_PATH)
+				fMin = std::min(fMin, c.fWidth);
+		if (bFloor)
+			CHECK_EQ(fMin, 1.0f);
+		else
+			CHECK(fMin < 0);
+	}
+}
+
 TEST(RingFadeFadesTheOldestRings) {
 	// default patch: a ring every 5 frames, lines; limit 10 rings, Fade 4
 	auto	eng = MakeEngine();

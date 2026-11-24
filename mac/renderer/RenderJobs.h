@@ -26,6 +26,7 @@ struct SnapshotExportOptions {
 	SizeF	szView = {0, 0};		// view size in DIPs; 0 = same as image
 	bool	bLetterbox = true;		// snapshot letterbox option
 	bool	bDeferred = false;		// CGBitmapRenderer deferred mode
+	bool	bLineWidthFloor = true;	// Mac: lines at least 1 pixel (false: as Windows, for its images)
 };
 
 // Sets up an engine to export a snapshot as Windows "Snapshot > Export All"

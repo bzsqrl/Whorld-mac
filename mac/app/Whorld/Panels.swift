@@ -980,7 +980,7 @@ enum ControlTips {
 	static let params = [
 		"How fast rings grow, in pixels per frame; it also sets how often new rings are born. Negative values make rings grow inward from the edges.",
 		"The gap between rings, in pixels. Wider spacing means fewer rings, which helps with wide lines or Fill.",
-		"The width of each ring's line, in pixels.",
+		"The width of each ring's line, in pixels, from 1. Lines are never drawn thinner than 1 pixel, whatever the oscillator, modulation or Global does, so the picture can't go blank.",
 		"The number of sides each ring has, from 3 (a triangle) to 50 (nearly a circle).",
 		"How much each ring turns per frame, in degrees; positive is counterclockwise.",
 		"Stretches rings sideways (positive) or upright (negative): 1 doubles the width, 2 quadruples it.",

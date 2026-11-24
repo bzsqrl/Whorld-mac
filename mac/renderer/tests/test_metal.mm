@@ -283,6 +283,7 @@ TEST(MetalGoldenSnapshots) {
 		if (!pSnap)
 			continue;
 		SnapshotExportOptions	opts;
+		opts.bLineWidthFloor = false;	// as Windows draws it
 		WhorldEngine	eng;
 		IntSize	sz = PrepareSnapshotExport(eng, *pSnap, opts);
 		MetalRenderer	mr(sz.cx, sz.cy, 1, 0);
@@ -359,6 +360,7 @@ TEST(MetalMatchesWindowsScreenshots) {
 		if (shot.nWidth <= 0)
 			continue;
 		WhorldEngine	eng;	// CWhorldDraw::SetSnapshot, in a full-screen view
+		eng.SetLineWidthFloor(false);	// as Windows draws it
 		eng.OnResize(SizeF{float(shot.nWidth), float(shot.nHeight)});
 		eng.OnDisplaySnapshot(*pSnap);
 		SetMainBool(eng, WhorldBase::MAIN_Antialiasing, bAA);

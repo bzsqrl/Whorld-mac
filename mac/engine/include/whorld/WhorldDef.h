@@ -52,7 +52,7 @@
 //			name			minval	maxval	steps	scale	initval
 PARAMDEF(	RingGrowth,		0,		10,		1000,	1,		1		)	// pixels of ring growth per tick
 PARAMDEF(	RingSpacing,	1,		51,		1000,	1,		5		)	// gap between rings, in pixels
-PARAMDEF(	LineWidth,		0,		50,		1000,	1,		1		)	// line width, in pixels
+PARAMDEF(	LineWidth,		1,		50,		1000,	1,		1		)	// line width, in pixels; Mac: from 1 (Windows: 0), so it can't blank the picture (the user's request, 2026-11-24)
 PARAMDEF(	PolySides,		3,		51,		48,		1,		5		)	// ring's number of sides, rounded to int
 PARAMDEF(	RotateSpeed,	DTR(-5),DTR(5),	1000,	DTR(1),	0		)	// ring rotation per tick, in radians
 PARAMDEF(	AspectRatio,	-3,		3,		1000,	1,		0		)	// 1 = double width, -1 = double height

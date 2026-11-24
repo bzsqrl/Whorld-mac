@@ -129,6 +129,10 @@ public:
 	// frequency in Hz (a locked oscillator's follows the beat)
 	double	GetOscillatorOutput(int iParam) const { return m_aOscOut[iParam]; }
 	double	GetOscillatorFreq(int iParam) const { return m_aOsc[iParam].GetFreq(); }
+	// Mac addition: lines are never drawn thinner than 1 pixel (the user's
+	// request, 2026-11-24); off draws them as Windows does, for the tests
+	// that compare with its images
+	void	SetLineWidthFloor(bool bEnable) { m_bLineWidthFloor = bEnable; }
 
 // Commands (ported from CWhorldThread::OnRenderCommand and handlers)
 	void	OnRenderCommand(const RenderCmd& cmd);
@@ -260,6 +264,7 @@ protected:
 	DPoint	m_ptOriginMod;	// DIPs added to the origin target
 	double	m_fZoomMod;		// zoom target factor
 	bool	m_bModWasActive;	// last frame had modulation (so its end is applied)
+	bool	m_bLineWidthFloor = true;	// Mac: lines at least 1 pixel wide (SetLineWidthFloor)
 	bool	m_abOscLocked[PARAM_COUNT];	// the oscillator is locked to the beat (LockOscillators)
 
 // Helpers

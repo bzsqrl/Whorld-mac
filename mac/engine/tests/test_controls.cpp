@@ -63,13 +63,25 @@ TEST(SpinButtons) {
 }
 
 TEST(GlobalSliderIsSymmetric) {
-	// Line Width: 0..50; its global runs -50..50 with the default in the middle
+	// Ring Spacing: 1..51; its global runs -51..51
+	// with the default in the middle
+	const auto&	info = WB::GetParamInfo(WB::PARAM_RingSpacing);
+	ControlInfo	ci = Controls::GlobalInfo(WB::PARAM_RingSpacing);
+	CHECK_EQ(ci.nDefaultPos, info.nSteps / 2);
+	CHECK_EQ(ci.fEditMin, -info.fMaxVal);
+	CHECK_NEAR(Controls::GlobalNorm(WB::PARAM_RingSpacing, 0), info.nSteps / 2, 1e-9);
+	CHECK_NEAR(Controls::GlobalDenorm(WB::PARAM_RingSpacing, info.nSteps), info.fMaxVal, 1e-9);
+	CHECK_NEAR(Controls::GlobalDenorm(WB::PARAM_RingSpacing, 0), -info.fMaxVal, 1e-9);
+}
+
+TEST(LineWidthFromOne) {
+	// Mac (the user's request, 2026-11-24): Line Width from 1 (Windows: 0);
+	// its global still runs -50..50, so it can thin thick lines
+	CHECK_EQ(WB::GetParamInfo(WB::PARAM_LineWidth).fMinVal, 1.0);
 	ControlInfo	ci = Controls::GlobalInfo(WB::PARAM_LineWidth);
 	CHECK_EQ(ci.nDefaultPos, 500);
 	CHECK_EQ(ci.fEditMin, -50.0);
 	CHECK_NEAR(Controls::GlobalNorm(WB::PARAM_LineWidth, 0), 500, 1e-9);
-	CHECK_NEAR(Controls::GlobalDenorm(WB::PARAM_LineWidth, 1000), 50, 1e-9);
-	CHECK_NEAR(Controls::GlobalDenorm(WB::PARAM_LineWidth, 0), -50, 1e-9);
 }
 
 TEST(MasterLogSliders) {

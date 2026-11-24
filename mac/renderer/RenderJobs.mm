@@ -20,6 +20,7 @@ IntSize PrepareSnapshotExport(WhorldEngine& eng, const Snapshot& snapshot,
 		szView = SizeF{float(opts.szImage.cx), float(opts.szImage.cy)};
 	eng.OnResize(szView);
 	eng.SetSnapshotLetterbox(opts.bLetterbox);
+	eng.SetLineWidthFloor(opts.bLineWidthFloor);
 	eng.OnDisplaySnapshot(snapshot);	// CMainFrame::OnSnapshotExportAll: LoadSnapshot
 	return eng.GetCaptureSize(opts.nFlags, opts.szImage);	// then CaptureBitmap
 }

@@ -53,6 +53,7 @@ static void CompareGoldens(bool bDeferred)
 			continue;
 		SnapshotExportOptions	opts;
 		opts.bDeferred = bDeferred;
+		opts.bLineWidthFloor = false;	// as Windows draws it
 		auto	pRenderer = RenderSnapshotExport(*pSnap, opts);
 		CHECK(pRenderer != nullptr);
 		if (!pRenderer)
@@ -122,6 +123,7 @@ static void CompareScreenshots(bool bDeferred)
 		if (!pSnap || shot.nWidth <= 0)
 			continue;
 		WhorldEngine	eng;	// CWhorldDraw::SetSnapshot, in a full-screen view
+		eng.SetLineWidthFloor(false);	// as Windows draws it
 		eng.OnResize(SizeF{float(shot.nWidth), float(shot.nHeight)});
 		eng.OnDisplaySnapshot(*pSnap);
 		WhorldEngine::VARIANT_PROP	prop{};
