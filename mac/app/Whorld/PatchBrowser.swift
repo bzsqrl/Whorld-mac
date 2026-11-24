@@ -169,8 +169,19 @@ struct PatchBrowserPanel: View {
 					.width(min: 120, ideal: 200)
 					.customizationID("patch")
 					.disabledCustomizationBehavior(.visibility)	// always shown
+					// as the Playlist's (the user's request, 2026-11-24)
+					TableColumn("Author") { item in
+						Text(model.patchAuthor(item.url.path))
+							.foregroundStyle(.secondary)
+							.lineLimit(1)
+							.truncationMode(.tail)
+					}
+					.width(min: 60, ideal: 110)
+					.customizationID("author")
+					// its subfolder, or the listed folder's name for one in it
+					// (it was empty there, and squeezed away with no subfolders)
 					TableColumn("Folder") { item in
-						Text(item.group)
+						Text(item.group.isEmpty ? store.folder.lastPathComponent : item.group)
 							.foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
 					}
 					.width(min: 50, ideal: 90)
