@@ -714,8 +714,31 @@ struct KeySlider: NSViewRepresentable {
 			}
 		}
 		var markerTarget: ModMarkers.Target?
+		/// the marker is an oscillator's (teal, as its band) rather than
+		/// modulation's alone (the accent color)
+		var markerIsOscillator = false {
+			didSet {
+				if markerIsOscillator != oldValue { needsDisplay = true }
+			}
+		}
+		/// the oscillators' color: the band, its ticks and their marker (the
+		/// user's choice, 2026-11-24), apart from the accent color macOS
+		/// fills the track with
+		static let oscillatorColor = NSColor.systemTeal
+		/// draws the oscillator's band between the track and the knob
+		override class var cellClass: AnyClass? {
+			get { BandCell.self }
+			set {}
+		}
+
+		final class BandCell: NSSliderCell {
+			override func drawBar(inside rect: NSRect, flipped: Bool) {
+				super.drawBar(inside: rect, flipped: flipped)
+				(controlView as? Slider)?.drawBand(bar: rect)
+			}
+		}
 		/// An oscillator's swing, in slider units (may run past either end),
-		/// or nil: a faint band along the track (Mac addition; ModMarkers)
+		/// or nil: a teal span of the track (Mac addition; ModMarkers)
 		var band: ClosedRange<Double>? {
 			didSet {
 				if band != oldValue { needsDisplay = true }
@@ -726,7 +749,6 @@ struct KeySlider: NSViewRepresentable {
 		lazy var fitHeight: CGFloat = controlSize == .small ? 18 : intrinsicContentSize.height
 
 		override func draw(_ dirtyRect: NSRect) {
-			drawBand()	// behind the bar and the knob
 			super.draw(dirtyRect)
 			guard let p = markerPosition, maxValue > minValue, let cell = cell as? NSSliderCell else { return }
 			// from the knob as drawn, moved along its travel (the bar, less a
@@ -740,7 +762,7 @@ struct KeySlider: NSViewRepresentable {
 			let d = knob.width
 			let top = isFlipped ? knob.minY : knob.maxY - d
 			let r = NSRect(x: knob.minX + dx, y: top, width: d, height: d).insetBy(dx: 1, dy: 1)
-			let accent = NSColor.controlAccentColor
+			let accent = markerIsOscillator ? Self.oscillatorColor : NSColor.controlAccentColor
 			accent.withAlphaComponent(0.25).setFill()
 			NSBezierPath(ovalIn: r).fill()
 			let ring = NSBezierPath(ovalIn: r)
@@ -749,11 +771,13 @@ struct KeySlider: NSViewRepresentable {
 			ring.stroke()
 		}
 
-		/// The oscillator's band: wider than the bar, so it shows above and
-		/// below it; an end past the slider's is square, as if cut off
-		private func drawBand() {
+		/// The oscillator's band, drawn by the cell over the track and under
+		/// the knob (the user's choice, 2026-11-24; a faint band behind the
+		/// track before; end ticks tried and dropped): the track tinted teal
+		/// across the swing. An end past the slider's runs to the track's
+		/// end, square, as if cut off.
+		fileprivate func drawBand(bar: NSRect) {
 			guard let b = band, maxValue > minValue, let cell = cell as? NSSliderCell else { return }
-			let bar = cell.barRect(flipped: isFlipped)
 			let knob = cell.knobRect(flipped: isFlipped)
 			let travel = max(bar.width - knob.width, 0)
 			// along the knob's center's travel, as the marker
@@ -761,17 +785,17 @@ struct KeySlider: NSViewRepresentable {
 				knob.midX + CGFloat((min(max(p, minValue), maxValue) - doubleValue) / (maxValue - minValue)) * travel
 			}
 			let cutLeft = b.lowerBound < minValue, cutRight = b.upperBound > maxValue
-			// an end cut off runs on to the bar's end, past the knob's travel
 			let x0 = cutLeft ? bar.minX : x(b.lowerBound), x1 = cutRight ? bar.maxX : x(b.upperBound)
-			let h = min(max(bar.height + 6, 8), bounds.height)
+			let color = Self.oscillatorColor
+			// the track's span, as thick as the track
+			let h = max(bar.height, 3)
 			let r = NSRect(x: x0, y: bar.midY - h / 2, width: max(x1 - x0, 1), height: h)
 			let radius = min(h, r.width) / 2
 			let path = NSBezierPath(roundedRect: r, xRadius: radius, yRadius: radius)
-			// square where it's cut off (one path, filled once: no darker corners)
 			if cutLeft { path.appendRect(NSRect(x: r.minX, y: r.minY, width: radius, height: h)) }
 			if cutRight { path.appendRect(NSRect(x: r.maxX - radius, y: r.minY, width: radius, height: h)) }
 			path.windingRule = .nonZero
-			NSColor.controlAccentColor.withAlphaComponent(0.22).setFill()
+			color.withAlphaComponent(0.85).setFill()
 			path.fill()
 		}
 
@@ -962,9 +986,11 @@ final class ModMarkers {
 			if case .param(let i) = target, showOsc, let osc = oscillator(i, state, e) {
 				s.band = osc.band
 				s.markerPosition = osc.marker
+				s.markerIsOscillator = true
 			} else {
 				s.band = nil
 				s.markerPosition = modulated ? position(target, state, e) : nil
+				s.markerIsOscillator = false
 			}
 		}
 	}
@@ -982,7 +1008,9 @@ final class ModMarkers {
 		let b = WHControls.paramPosition(i, value: center + abs(amp))
 		let fast = abs(state.oscFreqs[i].doubleValue) > Self.fastOscillator
 		let now = center + state.oscOutputs[i].doubleValue * amp
-		return (min(a, b)...max(a, b), fast ? nil : WHControls.paramPosition(i, value: now))
+		// fast: a still marker on the knob, so the slider still shows it's
+		// moved (the user's request, 2026-11-24; it had none)
+		return (min(a, b)...max(a, b), WHControls.paramPosition(i, value: fast ? e.paramValue(i, property: .val) : now))
 	}
 
 	/// The controls the modulation rows that are on move (not actions)

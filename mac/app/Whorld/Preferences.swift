@@ -490,7 +490,7 @@ struct PreferencesView: View {
 					InfoLabel("Show Key Map keys in panels", info: "Each control in Parameters, Master and Globals that has a key in the Key Map (View > Key Map) shows it before its name: hold that key over the picture and swipe to change the control. They follow the Key Map as you change it.")
 				}
 				Toggle(isOn: $oscMarkers) {
-					InfoLabel("Show oscillators on sliders", info: "A parameter whose oscillator is moving (Amplitude and Frequency not 0) shows its swing as a faint band along its Value slider, and a faint second knob where the oscillator has it now. With audio modulation on too, the band follows the modulated value and the knob shows both together. An oscillator faster than 2 cycles a second shows the band alone.")
+					InfoLabel("Show oscillators on sliders", info: "A parameter whose oscillator is moving (Amplitude and Frequency not 0) shows its swing in teal along its Value slider's track, and a teal second knob where the oscillator has it now. With audio modulation on too, the band follows the modulated value and the knob shows both together. An oscillator faster than 2 cycles a second is too quick to follow: its second knob sits still on the slider's own.")
 				}
 			} header: {
 				Text("Panels")
