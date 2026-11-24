@@ -687,11 +687,14 @@ struct PositionSlider: View {
 
 	var body: some View {
 		let lo = Double(control.rangeMin), hi = Double(control.rangeMax)
+		// a range around 0 fills from 0 (the Globals, Skew Angle, the curves)
+		let vlo = denorm(lo), vhi = denorm(hi)
 		KeySlider(position: min(max(norm(value), lo), hi), range: lo...hi,
 			set: { commit(denorm($0)) },
 			reset: { commit(defaultValue) },
 			step: step.map { f in { d, k in commit(f(value, d, k)) } },
-			marker: marker)
+			marker: marker,
+			origin: min(vlo, vhi) < 0 && max(vlo, vhi) > 0 ? norm(0) : nil)
 			.frame(minWidth: width, maxWidth: .infinity, minHeight: 18, maxHeight: 18)
 	}
 }
@@ -703,6 +706,9 @@ struct KeySlider: NSViewRepresentable {
 	let reset: () -> Void
 	var step: ((Int, KeyStep) -> Void)? = nil	// replaces the plain-position step
 	var marker: ModMarkers.Target? = nil	// audio modulation's marker (ModMarkers)
+	/// where the fill starts, in slider units: nil the left end; a range
+	/// around a neutral middle fills from there (Slider.drawFill)
+	var origin: Double? = nil
 	var controlSize: NSControl.ControlSize = .small	// the panels' size; the Modulation window's are regular
 
 	final class Slider: NSSlider {
@@ -732,10 +738,54 @@ struct KeySlider: NSViewRepresentable {
 		}
 
 		final class BandCell: NSSliderCell {
+			/// the track drawn here, not by AppKit: its fill would be the
+			/// accent color, from the left end only (a clear trackFillColor
+			/// paints it black)
 			override func drawBar(inside rect: NSRect, flipped: Bool) {
-				super.drawBar(inside: rect, flipped: flipped)
-				(controlView as? Slider)?.drawBand(bar: rect)
+				guard let s = controlView as? Slider else {
+					super.drawBar(inside: rect, flipped: flipped)
+					return
+				}
+				s.drawTrack(bar: rect)
+				s.drawFill(bar: rect)
+				s.drawBand(bar: rect)
 			}
+		}
+
+		/// where the fill starts, in slider units (nil: the left end)
+		var originPosition: Double? {
+			didSet {
+				if originPosition != oldValue { needsDisplay = true }
+			}
+		}
+
+		/// The fill: the accent color at two thirds strength, so what's on
+		/// (in full accent) still stands out (the design audit, 2026-11-24:
+		/// grey was tried and found drab), from the left end to the knob, or
+		/// from a neutral middle (originPosition) either way, so a Global at
+		/// 0 shows no fill, not half
+		/// the track, as AppKit draws it, without its fill
+		fileprivate func drawTrack(bar: NSRect) {
+			let h = max(bar.height, 3)
+			let r = NSRect(x: bar.minX, y: bar.midY - h / 2, width: bar.width, height: h)
+			NSColor.labelColor.withAlphaComponent(isEnabled ? 0.14 : 0.07).setFill()
+			NSBezierPath(roundedRect: r, xRadius: h / 2, yRadius: h / 2).fill()
+		}
+
+		fileprivate func drawFill(bar: NSRect) {
+			guard maxValue > minValue, let cell = cell as? NSSliderCell else { return }
+			let knob = cell.knobRect(flipped: isFlipped)
+			let travel = max(bar.width - knob.width, 0)
+			func x(_ p: Double) -> CGFloat {
+				knob.midX + CGFloat((min(max(p, minValue), maxValue) - doubleValue) / (maxValue - minValue)) * travel
+			}
+			let from = originPosition.map { x($0) } ?? bar.minX
+			let a = min(from, knob.midX), b = max(from, knob.midX)
+			guard b - a > 0.5 else { return }
+			let h = max(bar.height, 3)
+			let r = NSRect(x: a, y: bar.midY - h / 2, width: b - a, height: h)
+			NSColor.controlAccentColor.withAlphaComponent(0.65).setFill()
+			NSBezierPath(roundedRect: r, xRadius: h / 2, yRadius: h / 2).fill()
 		}
 		/// An oscillator's swing, in slider units (may run past either end),
 		/// or nil: a teal span of the track (Mac addition; ModMarkers)
@@ -882,7 +932,7 @@ struct KeySlider: NSViewRepresentable {
 	}
 
 	func makeNSView(context: Context) -> Slider {
-		let s = Slider()
+		let s = Slider()	// its track and fill are the cell's (BandCell)
 		s.controlSize = controlSize
 		s.isContinuous = true
 		s.target = s
@@ -894,6 +944,7 @@ struct KeySlider: NSViewRepresentable {
 	}
 
 	func updateNSView(_ s: Slider, context: Context) {
+		s.originPosition = origin
 		s.onSet = set
 		s.onReset = reset
 		s.onStep = step
@@ -1595,7 +1646,7 @@ struct OscillatorMark: View {
 				let wave = WHControls.waveformName(Int(e.paramValue(iParam, property: .wave)))
 				// the selected wave's shape (the user's request, 2026-11-23)
 				Text(Image(nsImage: WaveGlyph.image(Int(e.paramValue(iParam, property: .wave)))))
-					.foregroundStyle(Color.accentColor)
+					.foregroundStyle(Color(nsColor: KeySlider.Slider.oscillatorColor))	// teal, as the band and its knob (the design audit, 2026-11-24)
 					.help("Its oscillator moves it: \(wave), amplitude \(paramText(amp, WHControls.paramControl(iParam, column: 1))), frequency \(paramText(freq, WHControls.paramControl(iParam, column: 2))). Widen the panel to see the oscillator columns.")
 					.accessibilityLabel("Oscillator on")
 			}
