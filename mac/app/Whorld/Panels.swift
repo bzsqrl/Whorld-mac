@@ -1742,6 +1742,7 @@ struct PropertiesPanel: View {
 			.focused($focus, equals: r)
 			.focusEffectDisabled()
 			.simultaneousGesture(TapGesture().onEnded {
+				ClickAway.claimed = true	// the row took focus: the click wasn't away from it
 				armed = true
 				focus = r
 				DispatchQueue.main.async { focus = r }	// again, once it's focusable

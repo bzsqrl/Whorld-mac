@@ -1078,6 +1078,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		NumberBoxSelect.install()
 		PanelKeys.install()
 		TitleBarClicks.install()
+		ClickAway.install()
 		// second shortcuts for menu commands (a menu item has only one)
 		secondKeysMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
 			let code = event.keyCode

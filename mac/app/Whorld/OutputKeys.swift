@@ -236,6 +236,85 @@ enum NumberBoxSelect {
 	}
 }
 
+/// A click on something that isn't a control (a panel's background, a
+/// label, the picture) takes the focus away from the control that had it,
+/// leaving none (the user's request, 2026-11-24); AppKit leaves it where it
+/// was. Checked when the button comes up, once the click has been handled:
+/// a click that gave something focus (another box, a slider, a Properties
+/// row), or landed in the focused control or on any AppKit control (a
+/// button or stepper beside a box), leaves the focus alone.
+@MainActor
+enum ClickAway {
+	private static var monitor: Any?
+	private static var pending: (window: NSWindow, before: NSResponder, point: NSPoint, onControl: Bool)?
+	/// set by SwiftUI views that take focus with a tap gesture (the
+	/// Properties rows), which the responder chain doesn't show
+	static var claimed = false
+
+	static func install() {
+		guard monitor == nil else { return }
+		monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { e in
+			MainActor.assumeIsolated {
+				if e.type == .leftMouseDown { down(e) } else { up() }
+			}
+			return e
+		}
+	}
+
+	private static func down(_ e: NSEvent) {
+		pending = nil
+		claimed = false
+		guard let w = e.window, let before = w.firstResponder, before !== w,
+			let content = w.contentView?.superview else { return }
+		let p = e.locationInWindow
+		pending = (w, before, p, isControl(content.hitTest(content.convert(p, from: nil))))
+	}
+
+	private static func up() {
+		guard let c = pending else { return }
+		pending = nil
+		// after SwiftUI's tap gestures, which end on this mouse-up
+		DispatchQueue.main.async {
+			MainActor.assumeIsolated {
+				guard !claimed, !c.onControl, c.window.firstResponder === c.before else { return }
+				if let v = focusedView(c.before), !isSwiftUI(v),
+					v.convert(v.bounds, to: nil).contains(c.point) { return }	// in the focused control
+				c.window.makeFirstResponder(nil)
+			}
+		}
+	}
+
+	/// the view that shows the focus: a text field for its field editor
+	private static func focusedView(_ r: NSResponder) -> NSView? {
+		if let t = r as? NSTextView, t.isFieldEditor { return t.delegate as? NSView ?? t }
+		return r as? NSView
+	}
+
+	/// SwiftUI's own views (a hosting view and what's inside it), which
+	/// take clicks for gestures as well as controls
+	private static func isSwiftUI(_ v: NSView) -> Bool {
+		let name = NSStringFromClass(type(of: v))
+		return name.contains("SwiftUI") || name.contains("Hosting")
+	}
+
+	/// an AppKit control, text, table or other view that takes focus, at
+	/// the click or around it (not a plain label)
+	private static func isControl(_ hit: NSView?) -> Bool {
+		var v = hit
+		while let view = v {
+			if let field = view as? NSTextField, !field.isEditable, !field.isSelectable {
+				// a label: not a control
+			} else if view is NSControl || view is NSText || view is NSTableView || view is NSScroller {
+				return true
+			} else if !isSwiftUI(view), view.acceptsFirstResponder {
+				return true
+			}
+			v = view.superview
+		}
+		return false
+	}
+}
+
 /// The View menu is Whorld's own, after Audio (WhorldCommands, the user's
 /// choice, 2026-11-18); SwiftUI keeps the standard one after Edit even with
 /// its groups emptied (it holds a separator), so that one is taken out of
