@@ -247,6 +247,9 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut("7")	// and F3
 			toggle("Loop Hue", e.loopHue) { model.toggle(.loopHue) }
 				.keyboardShortcut("8")	// and F2
+			// Whorld V1's X-Ray, the draw mode's XOR bit, which V2 keeps but
+			// ignores (the user's request, 2026-11-23); no shortcut yet
+			toggle("XOR", e.xray) { model.toggleXRay() }
 			Divider()
 			toggle("Zoom Center", e.zoomCenter) { model.toggle(.zoomCenter) }
 				// Windows' Shift+W until the user's menu audit (2026-11-18):

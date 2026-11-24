@@ -200,6 +200,15 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 </ul>
 <p>Normally a patch's colors carry on from where the previous patch left them, as on Windows, so the same patch can look different each time. To have each patch start from its own Hue, choose Settings &gt; Picture &gt; Patch colors &gt; Start from the patch.</p>
 
+<h3 id="xor">XOR</h3>
+<p><b>Image &gt; XOR</b> (or Properties) brings back Whorld 1's X-Ray: rings are drawn by XORing their colors with what's already there, bit by bit, instead of painting over it. Where rings cross or overlap, colors flip into new ones, and the same color drawn twice cancels back to what was under it. On a black background a ring on its own looks as usual, so it shows most with lines, Outline, Copies, stars and pinwheels, wherever rings overlap.</p>
+<ul>
+<li>Like Fill and Outline, it affects new rings and is saved with the patch. Windows Whorld V2 keeps the setting in patches but ignores it, so a handful of older patches (fish eye, horn worm, lw pinwheel fab color, mercedes bent) now look as they did in Whorld 1, and differently from Windows V2.</li>
+<li>XOR rings are never antialiased, as in Whorld 1: XOR has no meaning for a partly covered pixel. Their edges are stepped, and where two rings nearly touch, a hairline between them can flash for a frame as they move. That's how XOR looks, not a fault.</li>
+<li>A ring's Alpha lets less of the XOR through. XOR draws on Macs with Apple silicon; on Intel Macs, XOR rings are drawn normally for now.</li>
+<li>On heavy patches with many overlapping rings, XOR can about double the drawing time.</li>
+</ul>
+
 <h3 id="fade">Fading rings</h3>
 <p>Normally, once there are as many rings as Master &gt; Rings allows, the oldest ring vanishes as each new one appears, and rings that grow past the canvas (Master &gt; Canvas, around the rings' center) vanish. <b>Master &gt; Fade</b> makes them fade out instead: at 20, the oldest 20 rings fade by age, from their own transparency to nothing, the oldest faintest, ending where the rings would vanish. Younger rings aren't touched.</p>
 <ul>

@@ -277,6 +277,7 @@ typedef struct {
 // Image menu (CWhorldDoc::OnImage*)
 @property (nonatomic, readonly) BOOL fill;
 @property (nonatomic, readonly) BOOL outline;
+@property (nonatomic, readonly) BOOL xray;	// DM_XRAY: XOR mode (Whorld V1's X-Ray)
 @property (nonatomic, readonly) BOOL mirror;
 @property (nonatomic, readonly) BOOL reverse;
 @property (nonatomic, readonly) BOOL convex;

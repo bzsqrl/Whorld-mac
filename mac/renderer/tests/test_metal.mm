@@ -116,6 +116,27 @@ private:
 	IRenderer&	m_b;
 };
 
+// Draws as the one it wraps, but without XOR mode: Windows Whorld V2
+// ignores the X-Ray bit, so frames compared with its images (fish eye's
+// rings have it) draw those rings normally
+class NoXorRenderer : public IRenderer {
+public:
+	explicit NoXorRenderer(IRenderer& r) : m_r(r) {}
+	void	SetAntialiasing(bool b) override { m_r.SetAntialiasing(b); }
+	void	Clear(const ColorF& c) override { m_r.Clear(c); }
+	void	BeginPath() override { m_r.BeginPath(); }
+	void	AddFigure(const PointF* p, int n, bool bCurved, bool bClosed) override { m_r.AddFigure(p, n, bCurved, bClosed); }
+	void	EndPath() override { m_r.EndPath(); }
+	void	FillPath(const ColorF& c) override { m_r.FillPath(c); }
+	void	StrokePath(const ColorF& c, float w) override { m_r.StrokePath(c, w); }
+	void	FillRect(const RectF& r, const ColorF& c) override { m_r.FillRect(r, c); }
+	bool	BeginQuadMirror() override { return m_r.BeginQuadMirror(); }
+	bool	EndQuadMirror() override { return m_r.EndQuadMirror(); }
+
+private:
+	IRenderer&	m_r;
+};
+
 // draws nothing, so the engine runs between the compared frames cheaply
 class NullRenderer : public IRenderer {
 public:
@@ -269,7 +290,8 @@ TEST(MetalGoldenSnapshots) {
 		if (!mr.IsValid())
 			continue;
 		mr.BeginFrame();
-		eng.DrawCapture(mr, opts.nFlags, opts.szImage);
+		NoXorRenderer	noXor(mr);	// as Windows V2 draws it
+		eng.DrawCapture(noXor, opts.nFlags, opts.szImage);
 		mr.EndFrame();
 		mr.WaitUntilDone();
 		ImageRGBA	gold, mine = MetalImage(mr);
@@ -477,6 +499,77 @@ TEST(MetalMatchesCoreGraphicsMirrored) {
 
 TEST(MetalMatchesCoreGraphicsMirroredAliased) {
 	ComparePatches(MIRRORED_ALIASED, kAliasedMaxMeanAbs, kAliasedMaxFracOver);
+}
+
+TEST(MetalXorMode) {
+	// XOR mode (V1's X-Ray, the user's request, 2026-11-23): a shape XORs
+	// the pixels under it, 8 bits a channel; the same shape again gives
+	// them back exactly. Aliased and antialiased (inside the shape).
+	if (!MetalAvailable())
+		return;
+	for (bool bAA : {false, true}) {
+		MetalRenderer	mr(64, 64, 1, 0);
+		CHECK(mr.IsValid());
+		if (!mr.IsValid())
+			return;
+		const ColorF	bk = {0x30 / 255.f, 0x60 / 255.f, 0x90 / 255.f, 1};
+		const ColorF	clr = {0xF0 / 255.f, 0x0F / 255.f, 0x55 / 255.f, 1};
+		const PointF	sq[5] = {{8, 8}, {40, 8}, {40, 40}, {8, 40}, {8, 8}};
+		auto	Draw = [&](int nTimes) {
+			mr.BeginFrame();
+			mr.SetAntialiasing(bAA);
+			mr.Clear(bk);
+			mr.SetXorMode(true);
+			for (int i = 0; i < nTimes; i++) {
+				mr.BeginPath();
+				mr.AddFigure(sq, 4, false, true);
+				mr.EndPath();
+				mr.FillPath(clr);
+			}
+			mr.SetXorMode(false);
+			mr.EndFrame();
+			mr.WaitUntilDone();
+			return MetalImage(mr);
+		};
+		ImageRGBA	once = Draw(1), twice = Draw(2);
+		const uint8_t	*p1 = &once.aPixel[(20 * once.nWidth + 20) * 4], *p2 = &twice.aPixel[(20 * twice.nWidth + 20) * 4];
+		std::printf("  %s: once %02X %02X %02X, twice %02X %02X %02X\n", bAA ? "antialiased" : "aliased",
+			p1[0], p1[1], p1[2], p2[0], p2[1], p2[2]);
+		CHECK_EQ(int(p1[0]), 0x30 ^ 0xF0);
+		CHECK_EQ(int(p1[1]), 0x60 ^ 0x0F);
+		CHECK_EQ(int(p1[2]), 0x90 ^ 0x55);
+		CHECK_EQ(int(p2[0]), 0x30);
+		CHECK_EQ(int(p2[1]), 0x60);
+		CHECK_EQ(int(p2[2]), 0x90);
+		const uint8_t	*q = &twice.aPixel[(50 * twice.nWidth + 50) * 4];	// outside: the background
+		CHECK_EQ(int(q[0]), 0x30);
+		// two shapes sharing an edge between pixel centers, as neighboring
+		// rings do: drawn aliased in XOR mode even in an antialiased frame,
+		// so every pixel along it is XORed once, with no seam
+		const PointF	left[5] = {{8, 8}, {24.4f, 8}, {24.4f, 40}, {8, 40}, {8, 8}};
+		const PointF	right[5] = {{24.4f, 8}, {40, 8}, {40, 40}, {24.4f, 40}, {24.4f, 8}};
+		mr.BeginFrame();
+		mr.SetAntialiasing(bAA);
+		mr.Clear(bk);
+		mr.SetXorMode(true);
+		for (const PointF* fig : {left, right}) {
+			mr.BeginPath();
+			mr.AddFigure(fig, 4, false, true);
+			mr.EndPath();
+			mr.FillPath(clr);
+		}
+		mr.SetXorMode(false);
+		mr.EndFrame();
+		mr.WaitUntilDone();
+		ImageRGBA	seam = MetalImage(mr);
+		bool	bClean = true;
+		for (int x = 20; x < 30; x++) {
+			const uint8_t	*s = &seam.aPixel[(20 * seam.nWidth + x) * 4];
+			bClean = bClean && s[0] == (0x30 ^ 0xF0) && s[1] == (0x60 ^ 0x0F) && s[2] == (0x90 ^ 0x55);
+		}
+		std::printf("  %s: shared edge %s\n", bAA ? "antialiased" : "aliased", bClean ? "seamless" : "SEAM");
+		CHECK(bClean);
+	}
 }
 
 int main() { return RunAllTests(); }

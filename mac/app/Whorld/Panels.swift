@@ -956,6 +956,7 @@ enum ControlTips {
 	static let hue = "Shifts the color of new rings, in degrees (and the looped range, with Loop Hue). Rotate Hue (F3) also turns existing rings."
 	static let fill = "Fills the space between rings with color instead of drawing lines. Affects new rings."
 	static let outline = "Outlines filled rings in the background color, for a faceted look. Affects new rings."
+	static let xor = "Draws rings by XORing their colors with what's under them, as Whorld V1's X-Ray did: where rings cross, colors flip and cancel. Windows Whorld V2 ignores it. Affects new rings."
 	static let mirror = "Mirrors the top-left quarter of the picture into the other three, like a kaleidoscope."
 	static let reverse = "Reverses ring growth: expanding rings start contracting, and contracting rings expand."
 	static let convex = "Draws the smallest rings last, so filled rings look like a worm rather than a tunnel."
@@ -1644,7 +1645,7 @@ struct PropertiesPanel: View {
 	private enum OriginChoice: Hashable, CaseIterable { case center, drag, random, park }
 
 	private enum Row: Hashable, CaseIterable {
-		case fill, outline, mirror, convex, reverse, invertColor, loopHue, zoomCenter, antialiasing
+		case fill, outline, mirror, convex, reverse, invertColor, loopHue, xor, zoomCenter, antialiasing
 		case origin, randomPhase
 	}
 
@@ -1672,6 +1673,7 @@ struct PropertiesPanel: View {
 			check(.reverse, WHControls.mainName(MainProp.reverse.rawValue), model.isOn(.reverse))
 			check(.invertColor, WHControls.mainName(MainProp.invertColor.rawValue), model.isOn(.invertColor))
 			check(.loopHue, WHControls.mainName(MainProp.loopHue.rawValue), model.isOn(.loopHue))
+			check(.xor, "XOR", e.xray)
 			divider
 			check(.zoomCenter, WHControls.mainName(MainProp.zoomCenter.rawValue), model.isOn(.zoomCenter))
 			check(.antialiasing, WHControls.mainName(MainProp.antialiasing.rawValue), model.isOn(.antialiasing))
@@ -1763,6 +1765,7 @@ struct PropertiesPanel: View {
 		switch r {
 		case .fill: ControlTips.fill
 		case .outline: ControlTips.outline
+		case .xor: ControlTips.xor
 		case .mirror: ControlTips.mirror
 		case .reverse: ControlTips.reverse
 		case .convex: ControlTips.convex
@@ -1787,6 +1790,7 @@ struct PropertiesPanel: View {
 		switch r {
 		case .fill: model.toggleFill()
 		case .outline: model.toggleOutline()
+		case .xor: model.toggleXRay()
 		case .mirror: model.toggle(.mirror)
 		case .reverse: model.toggle(.reverse)
 		case .convex: model.toggle(.convex)

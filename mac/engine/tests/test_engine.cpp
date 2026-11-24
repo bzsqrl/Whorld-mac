@@ -981,6 +981,46 @@ TEST(HueFromPatchSettingResetsRunningHue) {
 	}
 }
 
+TEST(XRayRingsDrawInXorMode) {
+	// The draw mode's X-Ray bit (V1's XOR pen; V2 keeps it but ignores it):
+	// its rings draw in XOR mode, the rest normally (the user's request,
+	// 2026-11-23). lw pinwheel fab color has it; the default patch doesn't.
+	fs::path	file = fs::path(WHORLD_TESTDATA_DIR) / "patches" / "lw pinwheel fab color_cvx.whp";
+	if (!fs::exists(file)) {
+		std::printf("  (no sample patches; skipped)\n");
+		return;
+	}
+	for (bool bXRay : {true, false}) {
+		auto	eng = MakeEngine();
+		if (bXRay) {
+			Patch	p;
+			CHECK(p.Read(file.string()));
+			CHECK((p.m_main.nDrawMode & WhorldBase::DM_XRAY) != 0);
+			eng->OnSetPatch(p);
+		}
+		RunFrames(*eng, 100);
+		RecordingRenderer	r;
+		eng->Draw(r);
+		int	nOn = 0, nOff = 0;
+		bool	bOn = false, bDrewInXor = false;
+		for (const auto& c : r.calls) {
+			if (c.type == RecordedCall::XOR) {
+				(c.bFlag ? nOn : nOff)++;
+				bOn = c.bFlag;
+			}
+			if (bOn && (c.type == RecordedCall::FILL_PATH || c.type == RecordedCall::STROKE_PATH))
+				bDrewInXor = true;
+		}
+		if (bXRay) {
+			CHECK(nOn == 1 && nOff == 1);	// on for its rings, off after them
+			CHECK(bDrewInXor);
+			CHECK(!bOn);
+		} else {
+			CHECK_EQ(nOn + nOff, 0);
+		}
+	}
+}
+
 TEST(RingFadeIsByAge) {
 	// A user's report (2026-11-23): in glassFlower and others, Fade seemed
 	// to fade more rings than it said. Fade fades the oldest Fade rings

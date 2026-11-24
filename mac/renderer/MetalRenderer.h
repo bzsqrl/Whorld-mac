@@ -110,6 +110,7 @@ public:
 
 // IRenderer
 	void	SetAntialiasing(bool bEnable) override;
+	void	SetXorMode(bool bEnable) override;	// coverage mode only (Apple GPUs); else drawn normally
 	void	Clear(const ColorF& clr) override;
 	void	BeginPath() override;
 	void	AddFigure(const PointF* pStart, int nSegments, bool bCurved, bool bFilled) override;
@@ -151,6 +152,7 @@ private:
 		size_t	iQuad = 0;	// first quad point in the frame's buffer
 		std::vector<gpu::Vec2>	spans;	// coverage-mode fills: pixel spans, two points each
 		size_t	iSpan = 0;	// first span point in the frame's buffer
+		bool	bXor = false;	// fills and strokes: XOR mode (SetXorMode)
 	};
 	std::vector<PointF>	m_aPt;
 	std::vector<Figure>	m_aFig;
@@ -161,6 +163,7 @@ private:
 	bool	m_bAntialias = true;
 	bool	m_bAntialiasSet = false;	// first SetAntialiasing of the frame seen
 	bool	m_bMirrorPending = false;
+	bool	m_bXor = false;		// SetXorMode, for the ops that follow
 	int		m_nAblate = 0;		// WHORLD_MTL_ABLATE (profiling)
 	std::function<void(bool, double)>	m_fnDone;	// this frame's completion callback
 	void	Commit(void *cmd, size_t nDraws);	// id<MTLCommandBuffer>

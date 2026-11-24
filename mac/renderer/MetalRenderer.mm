@@ -528,12 +528,26 @@ fragment FBOut fsMaskOrQuad(TOut in [[stage_in]], uint2 m [[color(1)]],
 	return o;
 }
 
+// p[0]: the premultiplied color; p[1].x: XOR mode (Whorld V1's X-Ray,
+// GDI's R2_XORPEN): the pixel's color XORed with the path's, 8 bits a
+// channel (the target is BGRA8Unorm), mixed in by alpha times coverage, so
+// at full alpha and coverage the same path twice gives the pixel back.
 fragment FBOut fsCover(TOut in [[stage_in]], float4 dst [[color(0)]], uint2 m [[color(1)]],
-	constant float4 &clr [[buffer(0)]])
+	constant float4 *p [[buffer(0)]])
 {
 	float cov = float(popcount(m.x) + popcount(m.y)) / 64;
+	float4 clr = p[0];
 	FBOut o;
-	o.color = clr * cov + dst * (1 - clr.a * cov);	// premultiplied source-over
+	if (p[1].x != 0) {
+		float k = clr.a * cov;
+		float3 s = clr.a > 0 ? clr.rgb / clr.a : float3(0);
+		float3 d = dst.a > 0 ? dst.rgb / dst.a : float3(0);
+		uint3 x = uint3(round(saturate(s) * 255)) ^ uint3(round(saturate(d) * 255));
+		float a = dst.a + k * (1 - dst.a);
+		o.color = float4(mix(d, float3(x) / 255, k) * a, a);
+	} else {
+		o.color = clr * cov + dst * (1 - clr.a * cov);	// premultiplied source-over
+	}
 	o.mask = uint2(0);
 	return o;
 }
@@ -883,6 +897,7 @@ void MetalRenderer::BeginFrame()
 	m_aOp.clear();
 	m_iPathFig = 0;
 	m_bAntialiasSet = false;
+	m_bXor = false;
 	m_bMirrorPending = false;
 	m_bInFrame = true;
 }
@@ -896,6 +911,11 @@ void MetalRenderer::SetAntialiasing(bool bEnable)
 		m_bAntialias = bEnable;
 		m_bAntialiasSet = true;
 	}
+}
+
+void MetalRenderer::SetXorMode(bool bEnable)
+{
+	m_bXor = bEnable;
 }
 
 void MetalRenderer::Clear(const ColorF& clr)
@@ -929,6 +949,7 @@ void MetalRenderer::FillPath(const ColorF& clr)
 	Op	op;
 	op.type = Op::FILL;
 	op.clr = clr;
+	op.bXor = m_bXor;
 	op.iFig = m_iPathFig;
 	op.nFig = m_aFig.size() - m_iPathFig;
 	m_aOp.push_back(std::move(op));
@@ -944,10 +965,11 @@ void MetalRenderer::StrokePath(const ColorF& clr, float fWidth)
 	Op	op;
 	op.type = Op::STROKE;
 	op.clr = clr;
+	op.bXor = m_bXor;
 	// Antialiased strokes thinner than a pixel are drawn one pixel wide,
 	// fainter in proportion: what Direct2D does, judging by the "fish eye"
 	// golden image (mean difference 1.8 without this rule, 0.75 with it).
-	if (!m_nSamples && m_bAntialias && fWidth * m_fScale < 1) {
+	if (!m_nSamples && m_bAntialias && !m_bXor && fWidth * m_fScale < 1) {
 		op.clr.a *= float(fWidth * m_fScale);
 		fWidth = float(1 / m_fScale);
 	}
@@ -1330,8 +1352,7 @@ void MetalRenderer::EncodeCoverage()
 	const float	size[2] = {float(m_nWidth), float(m_nHeight)};
 	const MTLScissorRect	rQuad = {0, 0, NSUInteger((m_nWidth + 1) / 2), NSUInteger((m_nHeight + 1) / 2)};
 	const Impl::Pipelines&	pp = im.GetPipes(1);
-	const bool	bAliased = !m_bAntialias;	// pixel centers only: see covAliased
-	const Impl::CovPipelines&	cv = bAliased ? im.covAliased : im.cov;
+	const bool	bFrameAliased = !m_bAntialias;	// pixel centers only: see covAliased
 	size_t	nDraws = 0;
 	m_stats.prof = Stats::Profile{};
 	if (m_bProfile) {
@@ -1370,7 +1391,15 @@ void MetalRenderer::EncodeCoverage()
 			[enc setFragmentBuffer:im.counts offset:0 atIndex:2];
 		for (size_t i = iOp; i < iEnd; i++) {
 			const Op&	op = m_aOp[i];
-			const float	clr[4] = {op.clr.r * op.clr.a, op.clr.g * op.clr.a, op.clr.b * op.clr.a, op.clr.a};
+			// XOR mode is drawn aliased, as Whorld V1 drew it (GDI): XOR has
+			// no meaning for a partly covered pixel, and two rings sharing an
+			// edge, each XORing its share, left a dark seam along every edge
+			// (the user's choice, 2026-11-23)
+			const bool	bAliased = bFrameAliased || op.bXor;
+			const Impl::CovPipelines&	cv = bAliased ? im.covAliased : im.cov;
+			// the color, premultiplied, then fsCover's XOR flag
+			const float	clr[8] = {op.clr.r * op.clr.a, op.clr.g * op.clr.a, op.clr.b * op.clr.a, op.clr.a,
+				op.bXor ? 1.f : 0.f, 0, 0, 0};
 			switch (op.type) {
 			case Op::MIRROR_BEGIN:
 				[enc setScissorRect:rQuad];

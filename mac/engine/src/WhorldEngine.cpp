@@ -780,6 +780,7 @@ bool WhorldEngine::Draw(IRenderer& renderer)
 	auto	GetNextRing = [&]() -> RING& { return bConvex ? *itRev++ : *itFwd++; };
 	ColorF	clrPrev = {0, 0, 0, 0};	// uninitialized in the original if no rings
 	bool	bPrevSkipFill = false;
+	bool	bXor = false;	// Mac port: XOR mode set in the renderer (V1's X-Ray)
 	if (bConvex) {
 		if (!m_aRing.empty()) {
 			const RING&	ringTail = m_aRing.back();
@@ -1000,6 +1001,13 @@ bool WhorldEngine::Draw(IRenderer& renderer)
 			if (ring.bDelete && bCanvasFade && fFade > 0)
 				ring.bDelete = false;
 		}
+		// Mac port: the ring's X-Ray bit, which V2 keeps in the draw mode but
+		// ignores, draws it in XOR mode as V1 did (WhorldView.cpp, SetROP2
+		// R2_XORPEN for DM_XRAY; the user's request, 2026-11-23)
+		if (((ring.nDrawMode & DM_XRAY) != 0) != bXor) {
+			bXor = !bXor;
+			renderer.SetXorMode(bXor);
+		}
 		if (ring.nDrawMode & DM_FILL) {	// if ring is filled
 			if (!ring.bSkipFill && !bPrevSkipFill) {	// if not skipping ring
 				if (!bConvex || nPrevPoints) {	// if concave or previous ring is valid
@@ -1035,6 +1043,8 @@ bool WhorldEngine::Draw(IRenderer& renderer)
 		bPrevSkipFill = ring.bSkipFill;
 		bPrevCurved = bCurved;
 	}
+	if (bXor)	// Mac port: the rest blends normally
+		renderer.SetXorMode(false);
 	if (m_main.bMirror) {	// if mirroring
 		renderer.EndQuadMirror();	// copy top left quadrant to the other three
 	}

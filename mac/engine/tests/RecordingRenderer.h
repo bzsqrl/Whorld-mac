@@ -25,7 +25,7 @@ struct RecordedFigure {
 
 struct RecordedCall {
 	enum Type { ANTIALIAS, CLEAR, BEGIN_PATH, ADD_FIGURE, END_PATH, FILL_PATH, STROKE_PATH,
-		FILL_RECT, BEGIN_MIRROR, END_MIRROR };
+		FILL_RECT, BEGIN_MIRROR, END_MIRROR, XOR };
 	Type	type;
 	whorld::ColorF	clr{0, 0, 0, 0};
 	float	fWidth = 0;
@@ -56,6 +56,7 @@ public:
 	}
 
 	void	SetAntialiasing(bool bEnable) override { Push(RecordedCall::ANTIALIAS).bFlag = bEnable; }
+	void	SetXorMode(bool bEnable) override { Push(RecordedCall::XOR).bFlag = bEnable; }
 	void	Clear(const whorld::ColorF& clr) override { Push(RecordedCall::CLEAR).clr = clr; }
 	void	BeginPath() override { Push(RecordedCall::BEGIN_PATH); }
 	void	AddFigure(const whorld::PointF* pStart, int nSegments, bool bCurved, bool bFilled) override

@@ -1166,6 +1166,7 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 
 - (BOOL)fill { return (_doc.m_main.nDrawMode & WhorldBase::DM_FILL) != 0; }
 - (BOOL)outline { return (_doc.m_main.nDrawMode & WhorldBase::DM_OUTLINE) != 0; }
+- (BOOL)xray { return (_doc.m_main.nDrawMode & WhorldBase::DM_XRAY) != 0; }
 - (BOOL)mirror { return _doc.m_main.bMirror; }
 - (BOOL)reverse { return _doc.m_main.bReverse; }
 - (BOOL)convex { return _doc.m_main.bConvex; }

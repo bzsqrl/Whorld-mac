@@ -591,6 +591,7 @@ final class AppModel: ObservableObject {
 		case .drawMode:
 			let m = engine.drawMode
 			let parts = (m & Self.drawModeFill != 0 ? ["Fill"] : []) + (m & Self.drawModeOutline != 0 ? ["Outline"] : [])
+				+ (m & Self.drawModeXRay != 0 ? ["XOR"] : [])
 			shown = parts.isEmpty ? "Lines" : parts.joined(separator: " + ")
 		case .orgMotion:
 			switch engine.originMotion {
@@ -722,9 +723,11 @@ final class AppModel: ObservableObject {
 
 	static let drawModeFill: UInt32 = 0x01		// DM_FILL
 	static let drawModeOutline: UInt32 = 0x02	// DM_OUTLINE
+	static let drawModeXRay: UInt32 = 0x04		// DM_XRAY: XOR mode, V1's X-Ray (V2 ignores it)
 
 	func toggleFill() { setDrawMode(engine.drawMode ^ Self.drawModeFill) }
 	func toggleOutline() { setDrawMode(engine.drawMode ^ Self.drawModeOutline) }
+	func toggleXRay() { setDrawMode(engine.drawMode ^ Self.drawModeXRay) }
 
 	// CWhorldDoc::OnImageOriginCenter
 	func originCenter() {

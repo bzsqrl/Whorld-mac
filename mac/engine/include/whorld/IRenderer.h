@@ -37,6 +37,14 @@ public:
 	// false = D2D1_ANTIALIAS_MODE_ALIASED. Applies to fills and strokes.
 	virtual void	SetAntialiasing(bool bEnable) = 0;
 
+	// XOR mode (Mac port, from Whorld V1's X-Ray: WhorldView.cpp,
+	// SetROP2(dc, R2_XORPEN)): while on, fills and strokes replace each
+	// pixel's color with that color XORed bit by bit with theirs (8 bits a
+	// channel), mixed in by their alpha and coverage, instead of blending
+	// over it. Direct2D has no XOR, so V2 dropped it. A renderer that can't
+	// draws normally (the default).
+	virtual void	SetXorMode(bool bEnable) { (void)bEnable; }
+
 	// ID2D1RenderTarget::Clear: replace every pixel inside the current clip
 	// (including alpha) with the color, without blending.
 	virtual void	Clear(const ColorF& clr) = 0;
