@@ -1753,7 +1753,7 @@ struct PropertiesPanel: View {
 
 	private enum Row: Hashable, CaseIterable {
 		case fill, outline, mirror, convex, reverse, invertColor, loopHue, xor, zoomCenter, antialiasing
-		case origin, randomPhase
+		case origin, rotateHue, randomPhase
 	}
 
 	@FocusState private var focus: Row?
@@ -1807,6 +1807,11 @@ struct PropertiesPanel: View {
 				}
 			}
 			divider
+			// the Image menu's actions, in its order (Rotate Hue: the
+			// user's request, 2026-11-24)
+			row(.rotateHue) {
+				Button("Rotate Hue") { model.rotateHue() }
+			}
 			row(.randomPhase) {
 				Button("Random Phase") { model.randomPhase() }
 			}
@@ -1882,7 +1887,7 @@ struct PropertiesPanel: View {
 		case .antialiasing: ControlTips.antialiasing
 		case .invertColor: ControlTips.invertColor
 		case .origin: ControlTips.originMotion
-		case .randomPhase: ""
+		case .rotateHue, .randomPhase: ""
 		}
 	}
 
@@ -1910,6 +1915,7 @@ struct PropertiesPanel: View {
 			let all = OriginChoice.allCases
 			let i = all.firstIndex(of: originChoice(model.engine)) ?? 0
 			setOrigin(all[(i + 1) % all.count])
+		case .rotateHue: model.rotateHue()
 		case .randomPhase: model.randomPhase()
 		}
 	}
