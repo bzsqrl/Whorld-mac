@@ -339,12 +339,13 @@ TEST(RingFadeFadesTheOldestRings) {
 		CHECK_NEAR(e[i], f * f * (3 - 2 * f), 1e-6);
 	}
 	// unlimited rings (the Rings maximum) still inside the view: the faded
-	// rings come back, slowly (a quarter of the way a second; 2026-11-20)
+	// rings come back at once (2026-11-23; slowly, they looked as if Fade
+	// faded more rings than it said)
 	eng->OnSetMasterProp(Patch::MASTER_Rings, Patch::MAX_RINGS);
 	auto	back = RingAlphas(*eng);
 	CHECK(back.size() >= 10);
-	if (back.size() >= 10 && next.size() == 10)
-		CHECK_NEAR(back.back() - next.back(), 0.25 / 60, 1e-4);	// one step back, not all the way
+	if (back.size() >= 10)
+		CHECK_EQ(back.back(), 1.0f);
 	// and a fresh engine without a limit: nothing fades
 	auto	engU = MakeEngine();
 	engU->OnSetMasterProp(Patch::MASTER_Rings, Patch::MAX_RINGS);
@@ -357,41 +358,133 @@ TEST(RingFadeFadesTheOldestRings) {
 	CHECK(none);
 }
 
-TEST(RingFadeAtTheViewEdge) {
-	// Rings that leave the view before the Rings limit (unlimited here) fade
-	// out as they reach its edge: a small view, so rings pass its corners
-	auto	eng = MakeEngine(200, 150);
-	eng->OnSetMasterProp(Patch::MASTER_Fade, 4);
-	RunFrames(*eng, 400);
-	std::vector<float>	prev;
-	double	fPrevFront = 0;
-	int		nFaded = 0, nGone = 0;
-	for (int f = 0; f < 60; f++) {
-		auto	a = RingAlphas(*eng);	// newest first; draws a frame
-		CHECK(!a.empty());
-		if (a.empty())
-			return;
-		CHECK_EQ(a.front(), 1.0f);	// the newest, well inside: opaque
-		for (size_t i = 1; i < a.size(); i++)
-			CHECK(a[i] <= a[i - 1] + 1e-6f);	// fainter outward
-		for (float x : a) {
-			nFaded += x > 0 && x < 1;
-			nGone += x == 0;
-		}
-		// each ring, followed from the last frame (a ring added shifts them
-		// by one): fainter or the same, by a small step, never brighter
-		if (!prev.empty()) {
-			size_t	nShift = eng->GetRings().front().fRadius < fPrevFront ? 1 : 0;
-			for (size_t i = 0; i < prev.size() && i + nShift < a.size(); i++) {
-				CHECK(a[i + nShift] <= prev[i] + 1e-6f);
-				CHECK(prev[i] - a[i + nShift] < 0.15f);
-			}
-		}
-		prev = a;
-		fPrevFront = eng->GetRings().front().fRadius;
+TEST(RingFadeLeavesTheViewAlone) {
+	// The user's report (2026-11-23): glassFlower at Rings 1000, Canvas 300
+	// (its largest) and Fade 200 disappeared, where Fade should fade only
+	// the 200 oldest rings. The view's edge isn't an end: only the Rings
+	// limit and the canvas are, so the rings on screen keep their strength.
+	fs::path	file = fs::path(WHORLD_TESTDATA_DIR) / "patches" / "glassFlower.whp";
+	if (!fs::exists(file)) {
+		std::printf("  (no sample patches; skipped)\n");
+		return;
 	}
-	CHECK(nFaded > 0);	// fading rings at the edge
-	CHECK(nGone > 0);	// and rings past it, drawn fully faded until the canvas removes them
+	auto	eng = MakeEngine(1512, 800);
+	eng->SetRingFadeTrace(true);
+	Patch	p;
+	CHECK(p.Read(file.string()));
+	p.SetMasterProp(Patch::MASTER_Rings, 1000);
+	p.SetMasterProp(Patch::MASTER_CanvasScale, 300);
+	p.SetMasterProp(Patch::MASTER_Fade, 200);
+	eng->OnSetPatch(p);
+	RecordingRenderer	r;
+	for (int f = 0; f < 20000; f++) {	// till rings are far off screen
+		r.Reset();
+		eng->Draw(r);
+	}
+	std::map<const void*, float>	fade;
+	for (const auto& t : eng->GetRingFadeTrace())
+		fade[t.pRing] = t.fFade;
+	int	nRings = static_cast<int>(eng->GetRings().size()), iAge = 0, nFaded = 0, nAll = 0;
+	for (const auto& ring : eng->GetRings()) {	// newest first
+		nAll += fade[&ring] < 1;
+		if (iAge < nRings - 201)
+			nFaded += fade[&ring] < 1;
+		iAge++;
+	}
+	std::printf("  %d rings, %d faded; among all but the oldest 201: %d\n", nRings, nAll, nFaded);
+	CHECK(nRings > 300);	// far past the view's edge
+	CHECK(nAll <= 201);
+	CHECK_EQ(nFaded, 0);
+}
+
+TEST(RingFadeOneLooksLikeFadeOff) {
+	// The user's report (2026-11-23): glassFlower at Canvas 1000, Fade 0 to
+	// 1: many rings disappeared. Fade 1 shows the rings Fade 0 does, but for
+	// the oldest fading out instead of blinking out. Rings shown (alpha
+	// above 0), averaged over 10 s, before and after.
+	fs::path	file = fs::path(WHORLD_TESTDATA_DIR) / "patches" / "glassFlower.whp";
+	if (!fs::exists(file)) {
+		std::printf("  (no sample patches; skipped)\n");
+		return;
+	}
+	auto	eng = MakeEngine(1512, 800);
+	eng->SetRingFadeTrace(true);
+	Patch	p;
+	CHECK(p.Read(file.string()));
+	p.SetMasterProp(Patch::MASTER_CanvasScale, 10);
+	eng->OnSetPatch(p);
+	RecordingRenderer	r;
+	auto	Run = [&](int nFrames, int& nMostPart) {
+		double	fShown = 0;
+		for (int f = 0; f < nFrames; f++) {
+			r.Reset();
+			eng->Draw(r);
+			int	nPart = 0;
+			for (const auto& t : eng->GetRingFadeTrace()) {
+				fShown += t.fFade > 0;
+				nPart += t.fFade > 0 && t.fFade < 1;
+			}
+			nMostPart = std::max(nMostPart, nPart);
+		}
+		return fShown / nFrames;
+	};
+	int		nPart0 = 0, nPart1 = 0;
+	Run(6000, nPart0);	// till the canvas removes rings
+	double	fOff = Run(600, nPart0);
+	eng->OnSetMasterProp(Patch::MASTER_Fade, 1);
+	double	fOne = Run(600, nPart1);
+	std::printf("  rings shown: Fade 0 %.1f, Fade 1 %.1f; part faded at once at Fade 1: %d\n", fOff, fOne, nPart1);
+	CHECK(fOff > 60);
+	CHECK(fOne > fOff - 1.5);	// the oldest, fading out
+	CHECK(nPart1 <= 2);
+}
+
+TEST(RingFadeMovesSmoothlyWithFade) {
+	// The user's report (2026-11-23): while the Fade slider moved, every
+	// ring came back to full strength, and faded again when it stopped.
+	// Fade swept 10 to 30 and back, a step every other frame: each ring,
+	// followed from frame to frame, changes only a little.
+	fs::path	file = fs::path(WHORLD_TESTDATA_DIR) / "patches" / "glassFlower.whp";
+	if (!fs::exists(file)) {
+		std::printf("  (no sample patches; skipped)\n");
+		return;
+	}
+	auto	eng = MakeEngine(1512, 800);
+	eng->SetRingFadeTrace(true);
+	Patch	p;
+	CHECK(p.Read(file.string()));
+	p.SetMasterProp(Patch::MASTER_CanvasScale, 10);
+	p.SetMasterProp(Patch::MASTER_Fade, 10);
+	eng->OnSetPatch(p);
+	RecordingRenderer	r;
+	for (int f = 0; f < 6000; f++) {	// till the canvas removes rings
+		r.Reset();
+		eng->Draw(r);
+	}
+	std::map<const void*, std::pair<float, double>>	prev;
+	float	fWorst = 0;
+	int		nFadedMid = 0;
+	for (int f = 0; f < 160; f++) {
+		int	nFade = f < 80 ? 10 + f / 4 : 30 - (f - 80) / 4;
+		eng->OnSetMasterProp(Patch::MASTER_Fade, nFade);
+		r.Reset();
+		eng->Draw(r);
+		std::map<const void*, std::pair<float, double>>	cur;
+		int	nFaded = 0;
+		for (const auto& t : eng->GetRingFadeTrace()) {
+			cur[t.pRing] = {t.fFade, t.pRing->fRadius};
+			nFaded += t.fFade < 1;
+			auto	it = prev.find(t.pRing);
+			if (it != prev.end() && std::fabs(t.pRing->fRadius - it->second.second) < 50)	// the same ring
+				fWorst = std::max(fWorst, std::fabs(t.fFade - it->second.first));
+		}
+		if (f == 79)
+			nFadedMid = nFaded;
+		prev.swap(cur);
+	}
+	std::printf("  largest change in a ring's alpha a frame: %.3f; rings faded at Fade 29: %d\n", fWorst, nFadedMid);
+	CHECK(fWorst < 0.1f);
+	CHECK(nFadedMid >= 20);	// still faded while it moves
 }
 
 TEST(RingFadeBeforeTheCanvasRemovesThem) {
@@ -885,5 +978,54 @@ TEST(HueFromPatchSettingResetsRunningHue) {
 			CHECK(nAt30 > 0);	// new rings start at the patch's Hue
 		else
 			CHECK_EQ(nAt30, 0);	// carried on: the old running hue plus 30
+	}
+}
+
+TEST(RingFadeIsByAge) {
+	// A user's report (2026-11-23): in glassFlower and others, Fade seemed
+	// to fade more rings than it said. Fade fades the oldest Fade rings
+	// shown, from full to nothing, and no younger ring. Spiky rings meet the
+	// view's edge and leave the canvas at scattered ages, so fading each by
+	// its own distance spread the fade over many younger rings. Each patch
+	// run long enough for its rings to reach their end.
+	fs::path	dir = fs::path(WHORLD_TESTDATA_DIR) / "patches";
+	if (!fs::exists(dir)) {
+		std::printf("  (no sample patches; skipped)\n");
+		return;
+	}
+	for (const char* name : {"glassFlower.whp", "louvers_cvx.whp", "horn worm_cvx.whp"}) {
+		for (int nFade : {5, 20}) {
+			auto	eng = MakeEngine(1512, 800);
+			eng->SetRingFadeTrace(true);
+			Patch	p;
+			CHECK(p.Read((dir / name).string()));
+			p.SetMasterProp(Patch::MASTER_Fade, nFade);
+			eng->OnSetPatch(p);
+			RecordingRenderer	r;
+			int		nMostFaded = 0;
+			bool	bInOrder = true;
+			for (int f = 0; f < 6000; f++) {
+				r.Reset();
+				eng->Draw(r);
+				if (f < 1000 || f % 50)
+					continue;
+				std::map<const void*, float>	fade;
+				for (const auto& t : eng->GetRingFadeTrace())
+					fade[t.pRing] = t.fFade;
+				int		nFaded = 0;
+				float	fPrev = 1;
+				for (const auto& ring : eng->GetRings()) {	// newest first
+					float	x = fade[&ring];
+					nFaded += x > 0 && x < 0.999f;	// part faded (older ones, out, wait for the canvas)
+					bInOrder = bInOrder && x <= fPrev + 1e-5f;	// never brighter than a younger ring
+					fPrev = x;
+				}
+				nMostFaded = std::max(nMostFaded, nFaded);
+			}
+			std::printf("  %s, Fade %d: at most %d rings faded\n", name, nFade, nMostFaded);
+			CHECK(bInOrder);
+			CHECK(nMostFaded > 0);
+			CHECK(nMostFaded <= nFade + 1);	// a ring part of the way to the next
+		}
 	}
 }

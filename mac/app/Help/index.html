@@ -201,13 +201,14 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <p>Normally a patch's colors carry on from where the previous patch left them, as on Windows, so the same patch can look different each time. To have each patch start from its own Hue, choose Settings &gt; Picture &gt; Patch colors &gt; Start from the patch.</p>
 
 <h3 id="fade">Fading rings</h3>
-<p>Normally, once there are as many rings as Master &gt; Rings allows, the oldest ring vanishes as each new one appears, and rings that grow past the edge of the picture, or past the canvas (Master &gt; Canvas, around the rings' center), simply leave or vanish. <b>Master &gt; Fade</b> makes them fade out instead: at 20, each ring fades from its own transparency to nothing over its last 20 rings before it would vanish or leave the picture, whichever comes first.</p>
+<p>Normally, once there are as many rings as Master &gt; Rings allows, the oldest ring vanishes as each new one appears, and rings that grow past the canvas (Master &gt; Canvas, around the rings' center) vanish. <b>Master &gt; Fade</b> makes them fade out instead: at 20, the oldest 20 rings fade by age, from their own transparency to nothing, the oldest faintest, ending where the rings would vanish. Younger rings aren't touched.</p>
 <ul>
-<li>That holds however small Canvas is: rings fade out before the canvas removes them. A ring counts as gone once all of it is outside the picture, so with the rings' center off to one side they fade toward the farthest corner.</li>
+<li>That holds however small Canvas is: rings fade out before the canvas removes them. A ring that runs off the canvas early (a spiky shape) stays until it has faded out, so the fade stays in order of age.</li>
+<li>The edge of the picture doesn't end the rings: when the oldest rings are off screen (a large Canvas and a high Rings), the fade happens off screen too, and the rings you see are untouched.</li>
 <li>Fade goes from 0 (off, as in Windows Whorld) to 200, is saved with the patch, and can be a MIDI mapping target. Patches with Fade above 0 still open in Windows Whorld, which ignores it.</li>
 <li>Settings &gt; Picture &gt; Ring fade curve chooses Eased (the default), which starts and ends gently, or Linear.</li>
 <li>The fade applies to the picture, snapshots, movies and exports; snapshots and movies don't record the Rings setting, so their own ring count stands in for it.</li>
-<li>With Rings at its maximum (unlimited), rings fade only at the edge of the picture. Rings that shrink toward the center (negative Ring Growth) fade only before the Rings limit.</li>
+<li>With Rings at its maximum (unlimited), rings fade only before the canvas removes them. Rings that shrink toward the center (negative Ring Growth) fade only before the Rings limit.</li>
 </ul>
 
 <!-- ============================================================ -->

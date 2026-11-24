@@ -205,6 +205,11 @@ protected:
 	int		m_nMaxRings;	// maximum number of rings
 	bool	m_bRingFadeEased;	// ring fade along an S-curve instead of a line
 	bool	m_bFadeTrace = false;	// see SetRingFadeTrace
+	int		m_nFadeRingsShown = -1;	// Fade and the Rings limit as last drawn
+	int		m_nFadeLimitShown = -1;
+	double	m_fFadeEndAge = -1;	// the ring fade's end at the canvas, in age, as last drawn (-1: not known; HUGE_VAL: no ring off yet)
+	uint64_t	m_nFadeEndRingsAdded = 0;	// m_nRingsAdded then
+	uint64_t	m_nRingsAdded = 0;	// rings ever added
 	std::vector<RingFadeTrace>	m_aFadeTrace;
 	bool	m_bHueFromPatch;	// see SetHueFromPatch
 	bool	m_bIsPaused;	// if true, we're paused
@@ -275,14 +280,9 @@ protected:
 	void	DrawOutline(IRenderer& renderer, const RING& ring, float fLineWidth, float fFade = 1) const;
 	ColorF	RingBrush(const ColorF& clr, float fFade) const;	// Mac: ring fade and Invert Color
 	float	RingFadeFactor(double fRingsLeft, int nFadeRings) const;
-	// Ring fade at the view's edge (Mac port): how far, in DIPs, the ring is
-	// past its end: its outline beyond the farthest corner of rView from its
-	// center, or its vertices off the canvas (Draw then deletes it),
-	// whichever is further; positive once it's past. A ring certainly more
-	// than fInside short of it returns early, with an upper bound.
-	double	RingEdgeMargin(const RING& ring, double fZoom, double fSnapshotScale,
-		DPoint ptWndCenter, const RectF& rView, double fInside = HUGE_VAL) const;
-	double	RingFadeSpacing(double fZoom) const;
+	// Ring fade at the canvas (Mac port): how far, in DIPs, the ring's
+	// vertices are off the canvas (Draw then deletes it); positive once off
+	double	RingCanvasMargin(const RING& ring, double fZoom, double fSnapshotScale, DPoint ptWndCenter) const;
 	std::unique_ptr<Snapshot>	GetSnapshot() const;
 	void	SetSnapshot(const Snapshot& snapshot);
 	void	EnterSnapshotMode();
