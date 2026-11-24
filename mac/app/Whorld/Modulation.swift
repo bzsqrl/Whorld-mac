@@ -159,6 +159,13 @@ private struct ModTopBar: View {
 			Toggle("Modulation", isOn: Binding(get: { !map.bypass }, set: { map.bypass = !$0 }))
 				.toggleStyle(.switch)
 				.help("All rows on or off; off, the patches play as they are. Audio > Audio Modulation (⌘'), or Mod in the Perform Bar, OSC /w/mod/on.")
+			// its state in words, where you're looking (the design audit,
+			// 2026-11-24: off, the rows below looked as live as on)
+			(map.bypass
+				? Text("Off").fontWeight(.semibold) + Text(": the rows don't move anything (⌘')").foregroundColor(.secondary)
+				: Text("On").fontWeight(.semibold))
+				.lineLimit(1)
+				.fixedSize()
 			Text("Depth")
 				.padding(.leading, 8)
 			StepSlider(value: map.depth, range: 0...1, step: 0.01, defaultValue: 1) { map.depth = $0 }

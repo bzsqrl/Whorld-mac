@@ -91,17 +91,22 @@ struct ModTablesSection: View {
 	/// Amount: swiping an Amount slider changes the rows many times a
 	/// second, and redrawing every row's menus each time made it lag.
 	/// (Keyed by place too, since a cell's binding reaches its row by place.)
-	private func stable<C: View>(_ r: ModRowSetting, @ViewBuilder _ content: @escaping () -> C) -> some View {
+	/// A row switched off is dimmed, all but its On box (the design audit,
+	/// 2026-11-24: it looked exactly like one that acts).
+	private func stable<C: View>(_ r: ModRowSetting, dims: Bool = true, @ViewBuilder _ content: @escaping () -> C) -> some View {
 		var key = r
 		key.amount = 0
-		return SameRow(index: map.rows.firstIndex(where: { $0.id == r.id }) ?? -1, row: key, content: content)
+		return SameRow(index: map.rows.firstIndex(where: { $0.id == r.id }) ?? -1, row: key, dims: dims, content: content)
 			.equatable()
 	}
+
+	/// how a row's cells are dimmed while the row is off
+	static func rowOpacity(_ r: ModRowSetting) -> Double { r.on ? 1 : 0.45 }
 
 	private var rowsTable: some View {
 			Table($map.rows, selection: $selection) {
 				TableColumn("On" + ColumnTips.mark) { $r in
-					stable(r) {
+					stable(r, dims: false) {
 						Toggle("", isOn: $r.on).labelsHidden()
 					}
 				}
@@ -135,6 +140,7 @@ struct ModTablesSection: View {
 				.width(min: 100, ideal: 250)	// a Beat LFO row: the source, length, unit, shape and phase
 				TableColumn("Live" + ColumnTips.mark) { $r in
 					RowLevel(index: map.rows.firstIndex(where: { $0.id == r.id }) ?? -1)
+						.opacity(Self.rowOpacity(r))
 				}
 				.width(60)
 				TableColumn("Target" + ColumnTips.mark) { $r in
@@ -146,8 +152,10 @@ struct ModTablesSection: View {
 				TableColumn("Amount" + ColumnTips.mark) { $r in
 					if r.isAction {
 						Text("fires").foregroundStyle(.secondary)
+							.opacity(Self.rowOpacity(r))
 					} else if r.isOscillator {	// what the lock keeps
 						PatchOscillator(iParam: WHMappingInfo.target(forTag: r.target))
+							.opacity(Self.rowOpacity(r))
 					} else {
 						HStack(spacing: 4) {
 							StepSlider(value: r.amount, range: -1...1, step: 0.01, defaultValue: ModRowSetting().amount) { r.amount = $0 }
@@ -155,6 +163,7 @@ struct ModTablesSection: View {
 								.monospacedDigit()
 								.frame(width: 44, alignment: .trailing)
 						}
+						.opacity(Self.rowOpacity(r))
 					}
 				}
 				.width(min: 140, ideal: 150)
@@ -232,6 +241,9 @@ struct ModTablesSection: View {
 				.width(92)
 			}
 			.background(ColumnTips())
+			// Modulation off: the rows act on nothing, so they're dimmed (still
+			// editable; the design audit, 2026-11-24)
+			.opacity(map.bypass ? 0.5 : 1)
 			.frame(minHeight: Self.oneRowHeight)	// the window can shrink to one row (the user's request, 2026-11-18)
 	}
 
@@ -244,11 +256,12 @@ struct ModTablesSection: View {
 private struct SameRow<Content: View>: View, Equatable {
 	let index: Int
 	let row: ModRowSetting
+	var dims = true	// dimmed while its row is off
 	@ViewBuilder let content: () -> Content
 
-	static func == (a: Self, b: Self) -> Bool { a.index == b.index && a.row == b.row }
+	static func == (a: Self, b: Self) -> Bool { a.index == b.index && a.row == b.row && a.dims == b.dims }
 
-	var body: some View { content() }
+	var body: some View { content().opacity(dims ? ModTablesSection.rowOpacity(row) : 1) }
 }
 
 /// A row's live level: the only view that observes the levels
