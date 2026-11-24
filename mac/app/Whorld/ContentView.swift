@@ -292,6 +292,7 @@ private struct StatsStripContent: View {
 			// request, 2026-11-20)
 			AutoQualityToggle(feed: StripFeed.shared.autoTag)
 				.layoutPriority(2)
+			Text("·").foregroundStyle(.tertiary).padding(.horizontal, -5)	// Auto is Res's: read as one (the design audit, 2026-11-24)
 			ResolutionMenu(feed: StripFeed.shared.autoTag)
 				.layoutPriority(2)
 			Divider().frame(height: 14)
@@ -530,6 +531,7 @@ final class StripFeed {
 		if canStep { tip += ". Click the left number for the previous patch (Image > Previous Patch, ⌘↑), the right for the next (Image > Next Patch, ⌘↓); or, with the pointer here, press ← or →." }
 		for w in views where w.view?.part == .patch { w.view?.toolTip = tip }
 		redraw(.patch)
+		if !readoutFresh { redraw(.readout) }	// it shows the patch's name
 	}
 
 	func setSyphon(_ state: Int) {
@@ -545,7 +547,9 @@ final class StripFeed {
 	}
 
 	/// the readout's tooltip: what it is, and the control's whole name
-	private(set) var readoutTip = "The last control you change, in a panel or menu, by MIDI or OSC, or by swiping over the picture, shows here with its value. Modulation doesn't show."
+	private(set) var readoutTip = StripFeed.idleTip
+	/// the readout's tooltip while it shows the patch's name
+	static let idleTip = "The patch playing. A control you change, in a panel or menu, by MIDI or OSC, or by swiping over the picture, shows here with its value for 5 seconds. Modulation doesn't show."
 
 	/// `full`: the control's whole name, for the tooltip, where the readout
 	/// shortens it (Ring Growth Amp for Ring Growth Amplitude)
@@ -560,14 +564,19 @@ final class StripFeed {
 			redraw(.readout)
 		}
 		dimWork?.cancel()
+		// after 5 seconds, back to the patch's name, dimmed (the user's
+		// choice, 2026-11-24; the change dimmed and stayed before)
 		let work = DispatchWorkItem { [weak self] in
 			MainActor.assumeIsolated {
-				self?.readoutFresh = false
-				self?.redraw(.readout)
+				guard let self else { return }
+				self.readoutFresh = false
+				self.readoutTip = Self.idleTip
+				for w in self.views where w.view?.part == .readout { w.view?.toolTip = Self.idleTip }
+				self.redraw(.readout)
 			}
 		}
 		dimWork = work
-		DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: work)
+		DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: work)
 	}
 }
 
@@ -968,8 +977,9 @@ struct StripText: NSViewRepresentable {
 				text.draw(with: NSRect(x: 4, y: floor((bounds.height - h) / 2), width: bounds.width - 8, height: h),
 					options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
 				return
-			case .readout:
-				text.append(NSAttributedString(string: feed.readout,
+			case .readout:	// the change just made, bright; otherwise the patch playing, dimmed
+				let s = feed.readoutFresh || feed.patch.name.isEmpty ? feed.readout : feed.patch.name
+				text.append(NSAttributedString(string: s,
 					attributes: attrs(feed.readoutFresh ? .labelColor : .secondaryLabelColor)))
 			case .tempo, .fps:	// lit on hover, as StripToggleStyle; the text inset as its label
 				let s = part == .fps ? feed.fps : feed.beat.tempo
