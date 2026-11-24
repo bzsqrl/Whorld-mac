@@ -155,7 +155,7 @@ final class OutputKeys {
 			let w = NSApp.keyWindow, w.attachedSheet == nil, !w.isSheet else { return false }
 		switch w.firstResponder {
 		case let text as NSTextView:
-			return text.isFieldEditor && text.delegate is KeyTextField.Field
+			return text.isFieldEditor && (text.delegate as AnyObject?) is KeyTextField.Field	// via AnyObject: Swift takes the cast from the delegate protocol to fail
 		case is NSTableView, is NSSlider:
 			return true
 		case is NSButton, is NSSegmentedControl, is NSTextField:

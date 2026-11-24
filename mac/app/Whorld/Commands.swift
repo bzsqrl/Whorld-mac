@@ -39,7 +39,7 @@ struct WhorldCommands: Commands {
 		if !text.isFieldEditor {
 			text.doCommand(by: down ? #selector(NSResponder.moveToEndOfDocument(_:))
 				: #selector(NSResponder.moveToBeginningOfDocument(_:)))
-		} else if let box = text.delegate as? KeyTextField.Field, let swipe = box.onSwipeStep {
+		} else if let box = (text.delegate as AnyObject?) as? KeyTextField.Field, let swipe = box.onSwipeStep {	// via AnyObject: Swift takes the cast from the delegate protocol to fail
 			swipe(down ? -1 : 1, KeyStep(.command) ?? .by(ModifierLadder.finest))	// an arrow key's ⌘ step
 		} else {
 			step()
