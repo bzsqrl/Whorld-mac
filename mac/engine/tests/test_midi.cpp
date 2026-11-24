@@ -629,4 +629,19 @@ TEST(RandomPhaseTargetTellsTheApp) {
 	CHECK_EQ(sink.posts[0].type, MidiManager::Post::RANDOM_PHASE);
 }
 
+TEST(ClearTargetTellsTheApp) {
+	// Mac addition: the render thread clears, and the app gets a notice, so
+	// the Properties' Clear flashes
+	RecordingSink	sink;
+	MidiManager	mgr(sink);
+	MappingArray	maps;
+	maps.push_back(MakeMapping(MIDI_CVM_NOTE_ON, 0, 44, MB::TARGET_Clear));
+	mgr.m_midiMaps.SetArray(maps);
+	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 44, 100));
+	CHECK_EQ(sink.cmds.size(), size_t(1));
+	CHECK_EQ(sink.cmds[0].m_nCmd, uint32_t(WhorldBase::RC_SET_EMPTY));
+	CHECK_EQ(sink.posts.size(), size_t(1));
+	CHECK_EQ(sink.posts[0].type, MidiManager::Post::CLEAR);
+}
+
 int main() { return RunAllTests(); }

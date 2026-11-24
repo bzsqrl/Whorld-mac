@@ -368,6 +368,10 @@ final class AppModel: ObservableObject {
 			setAutoAdvance(value == 2 ? !engine.autoAdvancing : value != 0)
 		case 10:	// the Random Phase target (the engine has done it): the readout
 			showRandomPhase()
+		case 11:	// the Rotate Hue target, done: its chips flash
+			ActionFlash.shared.fire(.rotateHue)
+		case 12:	// the Clear target, done: its chips flash
+			ActionFlash.shared.fire(.clear)
 		case 9:	// the Blackout target: 0 back, 1 to black, 2 the other way
 			setBlackout(value == 2 ? !engine.blackout : value != 0)
 		case 5:	// a parameter, from a mapping

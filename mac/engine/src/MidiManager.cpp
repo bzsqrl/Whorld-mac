@@ -165,6 +165,11 @@ void MidiManager::PushMiscTarget(int iMiscTarget, double fNormVal)
 		break;
 	case MT_Clear:
 		PushCmd(RC_SET_EMPTY);
+		{	// Mac addition: the main thread flashes the Properties' Clear
+			Post	post;
+			post.type = Post::CLEAR;
+			m_sink.PostToMain(post);
+		}
 		break;
 	case MT_Pause:
 		{	// let main thread handle pause as its pause state is canonical

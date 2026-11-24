@@ -1776,7 +1776,13 @@ static NSString *SourceName(MIDIEndpointRef src)
 		return;
 	case Post::ROTATE_HUE:	// Mac addition
 		[self rotateHue];
+		if (_midiHandler)	// the Properties' Rotate Hue flashes
+			_midiHandler(11, 0);
 		break;
+	case Post::CLEAR:	// Mac addition: done on the render thread; the Properties' Clear flashes
+		if (_midiHandler)
+			_midiHandler(12, 0);
+		return;
 	case Post::MODULATION:	// Mac addition: the app's, as OSC's /w/mod/... (ModMap.osc)
 		if (_modulationOscHandler)
 			_modulationOscHandler(post.iVal, post.fVal);
