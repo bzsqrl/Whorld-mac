@@ -729,15 +729,10 @@ struct PreferencesView: View {
 						Button("Choose…", action: chooseFolder)
 					}
 				}
-				LabeledContent("Image size") {
-					HStack {
-						Toggle("Same as the view", isOn: $useViewSize)
-							.toggleStyle(.checkbox)
-						if !useViewSize {
-							SizeFields(width: $imageWidth, height: $imageHeight)
-						}
-					}
-				}
+				let view = model.engine.viewSize
+				FrameSizePicker(title: "Image size", specials: [("Same as the view", view)],
+					special: Binding(get: { useViewSize ? 0 : nil }, set: { useViewSize = $0 == 0 }),
+					width: $imageWidth, height: $imageHeight)
 				Picker("Scale to fit", selection: $scaleToFit) {
 					Text("None").tag(0)
 					Text("Width").tag(1)
@@ -865,20 +860,6 @@ private struct IntField: View {
 			.labelsHidden()
 			.multilineTextAlignment(.trailing)
 			.frame(width: width)
-	}
-}
-
-/// Width × height in pixels
-private struct SizeFields: View {
-	@Binding var width: Int
-	@Binding var height: Int
-
-	var body: some View {
-		HStack(spacing: 4) {
-			IntField(value: $width, width: 52)
-			Text("×")
-			IntField(value: $height, width: 52)
-		}
 	}
 }
 

@@ -128,7 +128,7 @@ extension AppModel {
 		let host = NSHostingView(rootView: AccessoryState(opts, onChange: { opts = $0 }) {
 			ExportOptionsView(options: $0, viewSize: viewSize)
 		})
-		host.frame = NSRect(x: 0, y: 0, width: 340, height: 150)
+		host.frame = NSRect(x: 0, y: 0, width: 440, height: 130)
 		let a = NSAlert()
 		a.messageText = "Export Options"
 		a.accessoryView = host
@@ -347,7 +347,7 @@ extension AppModel {
 		let host = NSHostingView(rootView: AccessoryState(opts, onChange: { opts = $0 }) {
 			MovieExportOptionsView(options: $0, viewSize: viewSize)
 		})
-		host.frame = NSRect(x: 0, y: 0, width: 360, height: 210)
+		host.frame = NSRect(x: 0, y: 0, width: 440, height: 190)
 		let a = NSAlert()
 		a.messageText = "Export Movie"
 		a.accessoryView = host
@@ -397,7 +397,7 @@ extension AppModel {
 		let host = NSHostingView(rootView: AccessoryState(opts, onChange: { opts = $0 }) {
 			MovieExportOptionsView(options: $0, viewSize: viewSize)
 		})
-		host.frame = NSRect(x: 0, y: 0, width: 380, height: 240)
+		host.frame = NSRect(x: 0, y: 0, width: 440, height: 220)
 		let a = NSAlert()
 		a.messageText = "Export Video"
 		a.informativeText = String(format: "Frames are encoded at the movie's rate, %g fps.", ms.frameRate)
@@ -430,7 +430,7 @@ extension AppModel {
 		let host = NSHostingView(rootView: AccessoryState(opts, onChange: { opts = $0 }) {
 			AudioVideoExportView(options: $0, viewSize: viewSize)
 		})
-		host.frame = NSRect(x: 0, y: 0, width: 440, height: 300)
+		host.frame = NSRect(x: 0, y: 0, width: 440, height: 280)
 		let a = NSAlert()
 		a.messageText = "Export Audio-Reactive Video"
 		a.informativeText = "\(audio.lastPathComponent) moves the patch through the rows in Window > Modulation, as the music would live, and becomes the video's sound."
@@ -622,19 +622,105 @@ extension AppModel {
 
 // MARK: Views
 
+/// An image or frame size, the same wherever one is chosen (Settings >
+/// Export and the export dialogs; the user's request, 2026-11-24): a menu
+/// of the special sizes (the view, the movie), common sizes, and Custom,
+/// with the width and height beside it on one line: greyed, showing the
+/// size chosen, except for Custom, where they're typed. Nothing appears or
+/// disappears as the choice changes.
+struct FrameSizePicker: View {
+	let title: String
+	/// the special sizes' titles and sizes, before the common ones
+	let specials: [(title: String, size: CGSize)]
+	/// which special size is chosen, or nil for a width and height
+	@Binding var special: Int?
+	@Binding var width: Int
+	@Binding var height: Int
+	/// Custom chosen though the size is a common one: stays Custom
+	@State private var custom = false
+
+	static let presets: [(String, Int, Int)] = [
+		("720p", 1280, 720), ("1080p", 1920, 1080), ("1440p", 2560, 1440), ("4K", 3840, 2160),
+		("Square", 1080, 1080), ("Vertical", 1080, 1920)]	// names only: the fields beside show the size
+
+	enum Choice: Hashable { case special(Int), preset(Int), custom }
+
+	private var choice: Choice {
+		if let s = special, s < specials.count { return .special(s) }
+		if !custom, let j = Self.presets.firstIndex(where: { $0.1 == width && $0.2 == height }) { return .preset(j) }
+		return .custom
+	}
+
+	private func pick(_ c: Choice) {
+		switch c {
+		case .special(let s):
+			custom = false
+			special = s
+		case .preset(let j):
+			custom = false
+			special = nil
+			(width, height) = (Self.presets[j].1, Self.presets[j].2)
+		case .custom:
+			custom = true
+			special = nil
+		}
+	}
+
+	/// the menu's width, fixed, so the fields beside it never move
+	static let menuWidth: CGFloat = 170
+
+	var body: some View {
+		LabeledContent(title) {
+			HStack(spacing: 8) {
+				Picker(title, selection: Binding(get: { choice }, set: { pick($0) })) {
+					ForEach(specials.indices, id: \.self) { i in
+						Text(specials[i].title).tag(Choice.special(i))
+					}
+					if !specials.isEmpty { Divider() }
+					ForEach(Self.presets.indices, id: \.self) { j in
+						Text(Self.presets[j].0).tag(Choice.preset(j))
+					}
+					Divider()
+					Text("Custom").tag(Choice.custom)
+				}
+				.labelsHidden()
+				.frame(width: Self.menuWidth)
+				let shown = choice
+				// width × height, close about the ×: the width right-aligned,
+				// the height left-aligned
+				HStack(spacing: 4) {
+					if case .special(let s) = shown {	// the special size, as it is now
+						sizeField(.constant(Int(specials[s].size.width)), .trailing)
+						Text("×")
+						sizeField(.constant(Int(specials[s].size.height)), .leading)
+					} else {
+						sizeField($width, .trailing)
+						Text("×")
+						sizeField($height, .leading)
+					}
+				}
+				.disabled(shown != .custom)
+			}
+		}
+	}
+
+	private func sizeField(_ value: Binding<Int>, _ alignment: TextAlignment) -> some View {
+		TextField("", value: value, format: .number.grouping(.never))
+			.labelsHidden()
+			.multilineTextAlignment(alignment)
+			.frame(width: 46)
+	}
+}
+
 struct ExportOptionsView: View {
 	@Binding var options: ExportOptions
 	let viewSize: CGSize
 
 	var body: some View {
 		Form {
-			Toggle("Use view size (\(Int(viewSize.width)) × \(Int(viewSize.height)))", isOn: $options.useViewSize)
-			HStack {
-				TextField("Width", value: $options.width, format: .number.grouping(.never))
-				Text("×")
-				TextField("Height", value: $options.height, format: .number.grouping(.never))
-			}
-			.disabled(options.useViewSize)
+			FrameSizePicker(title: "Image size", specials: [("Same as the view", viewSize)],
+				special: Binding(get: { options.useViewSize ? 0 : nil }, set: { options.useViewSize = $0 == 0 }),
+				width: $options.width, height: $options.height)
 			Picker("Scale to fit", selection: $options.scaleToFit) {
 				Text("None").tag(0)
 				Text("Width").tag(1)
@@ -667,7 +753,7 @@ struct AccessoryState<Value, Content: View>: View {
 
 /// Audio-reactive video export options, kept between exports
 struct AudioVideoExportOptions: Codable {
-	var preset = 1			// 0 view, 1 1280×720, 2 1920×1080, 3 3840×2160, 4 custom
+	var preset = 1			// 0 the view; otherwise width and height (FrameSizePicker; was 1 to 3 its sizes, 4 custom)
 	var width = 1920
 	var height = 1080
 	var frameRate = 60
@@ -703,8 +789,6 @@ struct AudioVideoExportOptions: Codable {
 		downbeat = (try? c.decodeIfPresent(Double.self, forKey: .downbeat)) ?? d.downbeat
 	}
 
-	static let presets: [(String, Int, Int)] = [("View", 0, 0), ("1280 × 720", 1280, 720), ("1920 × 1080", 1920, 1080),
-		("3840 × 2160", 3840, 2160), ("Custom", 0, 0)]
 	private static let key = "AudioVideo_Options"
 
 	static func load() -> AudioVideoExportOptions {
@@ -730,18 +814,9 @@ struct AudioVideoExportView: View {
 
 	var body: some View {
 		Form {
-			Picker("Frame size", selection: Binding(get: { options.preset }, set: { setPreset($0) })) {
-				ForEach(0..<AudioVideoExportOptions.presets.count, id: \.self) { i in
-					Text(i == 0 ? "View (\(Int(viewSize.width)) × \(Int(viewSize.height)))" : AudioVideoExportOptions.presets[i].0).tag(i)
-				}
-			}
-			if options.preset == 4 {
-				HStack {
-					TextField("Width", value: $options.width, format: .number.grouping(.never))
-					Text("×")
-					TextField("Height", value: $options.height, format: .number.grouping(.never))
-				}
-			}
+			FrameSizePicker(title: "Frame size", specials: [("Same as the view", viewPixels)],
+				special: Binding(get: { options.preset == 0 ? 0 : nil }, set: { setPreset($0 == 0 ? 0 : 1) }),
+				width: $options.width, height: $options.height)
 			Picker("Frame rate", selection: $options.frameRate) {
 				ForEach([24, 25, 30, 50, 60], id: \.self) { Text("\($0) fps").tag($0) }
 			}
@@ -777,15 +852,18 @@ struct AudioVideoExportView: View {
 		.padding(4)
 	}
 
+	/// the view, in pixels, even (a video's frame size)
+	private var viewPixels: CGSize {
+		let scale = NSScreen.main?.backingScaleFactor ?? 2
+		return CGSize(width: Int(viewSize.width * scale) & ~1, height: Int(viewSize.height * scale) & ~1)
+	}
+
+	/// 0: the view's size, kept in width and height; otherwise width and height as set
 	private func setPreset(_ i: Int) {
 		options.preset = i
-		if i == 0 {	// the view, in pixels, even
-			let scale = NSScreen.main?.backingScaleFactor ?? 2
-			options.width = Int(viewSize.width * scale) & ~1
-			options.height = Int(viewSize.height * scale) & ~1
-		} else if i < 4 {
-			options.width = AudioVideoExportOptions.presets[i].1
-			options.height = AudioVideoExportOptions.presets[i].2
+		if i == 0 {
+			options.width = Int(viewPixels.width)
+			options.height = Int(viewPixels.height)
 		}
 	}
 }
@@ -847,18 +925,11 @@ struct MovieExportOptionsView: View {
 
 	var body: some View {
 		Form {
-			Picker("Frame size", selection: $options.frameSize) {
-				Text("Movie (\(Int(options.movieSize.width)) × \(Int(options.movieSize.height)))").tag(MovieExportOptions.FrameSize.movie)
-				Text("View (\(Int(viewSize.width)) × \(Int(viewSize.height)))").tag(MovieExportOptions.FrameSize.view)
-				Text("Custom").tag(MovieExportOptions.FrameSize.custom)
-			}
-			if options.frameSize == .custom {
-				HStack {
-					TextField("Width", value: $options.width, format: .number.grouping(.never))
-					Text("×")
-					TextField("Height", value: $options.height, format: .number.grouping(.never))
-				}
-			}
+			FrameSizePicker(title: "Frame size",
+				specials: [("Same as the movie", options.movieSize), ("Same as the view", viewSize)],
+				special: Binding(get: { options.frameSize == .movie ? 0 : options.frameSize == .view ? 1 : nil },
+					set: { options.frameSize = $0 == 0 ? .movie : $0 == 1 ? .view : .custom }),
+				width: $options.width, height: $options.height)
 			Picker("Scale to fit", selection: $options.scaleToFit) {
 				Text("None").tag(0)
 				Text("Width").tag(1)
