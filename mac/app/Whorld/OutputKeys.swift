@@ -287,10 +287,11 @@ enum SecondKeys {
 		case (97, none): m.toggleFill()	// F6 (Cmd-1)
 		case (98, none): m.toggleOutline()	// F7 (Cmd-2)
 		case (96, none): m.toggle(.mirror)	// F5 (Cmd-3)
-		case (120, none): m.toggle(.loopHue)	// F2 (Cmd-8)
+		case (120, none): m.toggle(.loopHue)	// F2 (Shift-Cmd-7)
 		case (99, none): m.rotateHue()	// F3 (Cmd-7)
 		case (118, none): m.toggle(.invertColor)	// F4 (Cmd-6)
 		case (101, none): e.randomPhase()	// F9 (Cmd-9)
+		case (100, none): m.toggleXRay()	// F8 (Cmd-8), Whorld V1's X-Ray key
 		default: return false
 		}
 		return true

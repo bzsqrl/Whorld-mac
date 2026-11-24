@@ -201,7 +201,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <p>Normally a patch's colors carry on from where the previous patch left them, as on Windows, so the same patch can look different each time. To have each patch start from its own Hue, choose Settings &gt; Picture &gt; Patch colors &gt; Start from the patch.</p>
 
 <h3 id="xor">XOR</h3>
-<p><b>Image &gt; XOR</b> (or Properties) brings back Whorld 1's X-Ray: rings are drawn by XORing their colors with what's already there, bit by bit, instead of painting over it. Where rings cross or overlap, colors flip into new ones, and the same color drawn twice cancels back to what was under it. On a black background a ring on its own looks as usual, so it shows most with lines, Outline, Copies, stars and pinwheels, wherever rings overlap.</p>
+<p><b>Image &gt; XOR</b> (<kbd>⌘8</kbd> or <kbd>F8</kbd>, Whorld 1's key, or Properties) brings back Whorld 1's X-Ray: rings are drawn by XORing their colors with what's already there, bit by bit, instead of painting over it. Where rings cross or overlap, colors flip into new ones, and the same color drawn twice cancels back to what was under it. On a black background a ring on its own looks as usual, so it shows most with lines, Outline, Copies, stars and pinwheels, wherever rings overlap.</p>
 <ul>
 <li>Like Fill and Outline, it affects new rings and is saved with the patch. Windows Whorld V2 keeps the setting in patches but ignores it, so a handful of older patches (fish eye, horn worm, lw pinwheel fab color, mercedes bent) now look as they did in Whorld 1, and differently from Windows V2.</li>
 <li>XOR rings are never antialiased, as in Whorld 1: XOR has no meaning for a partly covered pixel. Their edges are stepped, and where two rings nearly touch, a hairline between them can flash for a frame as they move. That's how XOR looks, not a fault.</li>
@@ -435,7 +435,8 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <tr><td>Reverse</td><td>Ctrl+Backspace</td><td>⌘5</td></tr>
 <tr><td>Invert Color (Mac, as in Whorld 1)</td><td>&mdash;</td><td>⌘6, or F4</td></tr>
 <tr><td>Rotate Hue (Mac, as in Whorld 1)</td><td>&mdash;</td><td>⌘7, or F3</td></tr>
-<tr><td>Loop Hue</td><td>F2</td><td>⌘8, or F2</td></tr>
+<tr><td>Loop Hue</td><td>F2</td><td>⇧⌘7, or F2</td></tr>
+<tr><td>XOR (Mac, Whorld 1's X-Ray)</td><td>&mdash;</td><td>⌘8, or F8</td></tr>
 <tr><td>Zoom Center</td><td>Shift+W</td><td>⌥⌘Z</td></tr>
 <tr><td>Geometry Only, on or off (Mac, Whorld 1's patch mode)</td><td>&mdash;</td><td>⌥⌘G</td></tr>
 <tr><td>Antialiasing (Image &gt; Antialiasing, or the Properties panel)</td><td>Ctrl+Alt+A</td><td>⌥⌘A</td></tr>

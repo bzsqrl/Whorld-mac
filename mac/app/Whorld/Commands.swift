@@ -228,7 +228,9 @@ struct WhorldCommands: Commands {
 			Divider()
 			// Cmd-1 to Cmd-8 in order (the user's request, 2026-11-21):
 			// Reverse joins them on Cmd-5 (was Cmd-Delete, beside Clear's
-			// Delete), then Invert Color, Rotate Hue, Loop Hue
+			// Delete), then Invert Color, Rotate Hue, Loop Hue. XOR took
+			// Cmd-8, and Loop Hue moved to Shift-Cmd-7 beside Rotate Hue
+			// (the user's request, 2026-11-24)
 			toggle("Fill", e.fill) { model.toggleFill() }
 				.keyboardShortcut("1")	// and F6
 			toggle("Outline", e.outline) { model.toggleOutline() }
@@ -246,10 +248,11 @@ struct WhorldCommands: Commands {
 			Button("Rotate Hue") { model.rotateHue() }	// V1's (Mac addition)
 				.keyboardShortcut("7")	// and F3
 			toggle("Loop Hue", e.loopHue) { model.toggle(.loopHue) }
-				.keyboardShortcut("8")	// and F2
+				.keyboardShortcut("7", modifiers: [.command, .shift])	// and F2
 			// Whorld V1's X-Ray, the draw mode's XOR bit, which V2 keeps but
-			// ignores (the user's request, 2026-11-23); no shortcut yet
+			// ignores (the user's request, 2026-11-23)
 			toggle("XOR", e.xray) { model.toggleXRay() }
+				.keyboardShortcut("8")	// and F8, V1's X-Ray key
 			Divider()
 			toggle("Zoom Center", e.zoomCenter) { model.toggle(.zoomCenter) }
 				// Windows' Shift+W until the user's menu audit (2026-11-18):
