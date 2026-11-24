@@ -1370,6 +1370,10 @@ struct AutoAdvanceButton: NSViewRepresentable {
 			var image = NSImage(systemSymbolName: running ? "stop.fill" : "play.fill",
 				accessibilityDescription: running ? "Stop" : "Play")
 			if strip { image = image?.withSymbolConfiguration(.init(scale: .small)) }
+			// Stop in the accent color in the Playlist panel too, as on the
+			// Perform Bar (the user's request, 2026-11-24): a bordered
+			// button ignores contentTintColor, so the symbol carries it
+			if running { image = image?.withSymbolConfiguration(.init(paletteColors: [.controlAccentColor])) }
 			self.image = image
 			contentTintColor = running ? .controlAccentColor : strip && isEnabled ? .labelColor : nil
 			if running, timer == nil {
