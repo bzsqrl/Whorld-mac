@@ -17,6 +17,7 @@ enum Preferences {
 	static let defaults = UserDefaults.standard
 
 	static func register() {
+		rebaseSwipeSense()
 		defaults.register(defaults: [
 			"Input_fWheelSense": defaultWheelSense,
 			"Input_fSwipeSense": 1.0,
@@ -73,6 +74,9 @@ enum Preferences {
 		return defaults.double(forKey: "Input_fWheelSense")
 	}
 	static let defaultWheelSense = 6.25
+	/// a mouse wheel over a slider or number box, as Wheel sensitivity says
+	/// (1 at its default), with the modifiers as everywhere (ModifierLadder)
+	static var panelWheelScale: Double { wheelSense / defaultWheelSense }
 
 	/// Trackpad sensitivity (Mac addition, the user's request, 2026-11-19):
 	/// how far every two-finger swipe moves a value, over the picture, on a
@@ -83,9 +87,24 @@ enum Preferences {
 		return (v > 0 ? v : 1) * swipeBase
 	}
 	/// what ×1 is, of a swipe's first rate (finger travel 1:1 on a slider,
-	/// a number box's step every 2 points): half, for finer adjustments
-	/// (the user's request, 2026-11-19); the setting scales from here
-	static let swipeBase = 0.5
+	/// a number box's step every 2 points): an eighth, for finer adjustments
+	/// (the user's requests: half, 2026-11-19; a quarter of that, 2026-11-24,
+	/// where the setting's ×0.25 had been ×1); the setting scales from here
+	static let swipeBase = 0.125
+
+	/// Trackpad sensitivity moved down two octaves on 2026-11-24 (swipeBase
+	/// 0.5 to 0.125): a value set before is multiplied by 4 once, up to the
+	/// new top, so swipes feel as they did
+	private static var rebased = false
+	private static func rebaseSwipeSense() {
+		guard !rebased else { return }
+		rebased = true
+		let key = "Input_fSwipeSense", done = "Input_bSwipeSenseRebased"
+		guard !defaults.bool(forKey: done) else { return }
+		let set = Bundle.main.bundleIdentifier.flatMap { defaults.persistentDomain(forName: $0)?[key] as? Double }
+		if let v = set, v > 0 { defaults.set(min(v * 4, 4), forKey: key) }
+		defaults.set(true, forKey: done)
+	}
 
 	/// Live view frame rate limit, or 0 for the display's refresh rate (new in the Mac port)
 	static var maxFrameRate: Int {
@@ -644,7 +663,7 @@ struct PreferencesView: View {
 							.frame(width: 44, alignment: .trailing)
 					}
 				} label: {
-					InfoLabel("Trackpad sensitivity", info: "How far a two-finger swipe moves a value: over the picture (zoom, Damping, or a held key's control), on a slider, and in a number box. ×1 is the usual; ×2 goes twice as far for the same swipe, ×0.5 half as far.")
+					InfoLabel("Trackpad sensitivity", info: "How far a two-finger swipe moves a value: over the picture (zoom, Damping, or a held key's control), on a slider, and in a number box. ×1 is the usual; ×2 goes twice as far for the same swipe, ×0.5 half as far. The modifiers (Modifier steps) scale it further on sliders, number boxes and a held key's control.")
 				}
 				LabeledContent {
 					HStack {
@@ -654,7 +673,7 @@ struct PreferencesView: View {
 							.frame(width: 36, alignment: .trailing)
 					}
 				} label: {
-					InfoLabel("Wheel sensitivity", info: "How far each click of a mouse wheel moves a control over the picture (zoom, Damping with Shift, or a held key's control). Trackpad swipes have their own setting below.")
+					InfoLabel("Wheel sensitivity", info: "How far each click of a mouse wheel moves a value: over the picture (zoom, Damping with Shift, or a held key's control), on a slider, and in a number box. The modifiers (Modifier steps) scale it further on sliders, number boxes and a held key's control. Trackpad swipes have their own setting above.")
 				}
 			} header: {
 				Text("Trackpad and mouse")

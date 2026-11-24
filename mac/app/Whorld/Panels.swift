@@ -437,7 +437,7 @@ struct KeyTextField: NSViewRepresentable {
 			let k = Self.swipeStep(event.modifierFlags)
 			if onSwipeStep != nil, let w = TrackpadSwipe.wheel(event, for: self) {	// ten steps a click (SwipeSteps)
 				if w.first { wheelClicks = 0 }
-				wheelClicks += w.clicks * SwipeSteps.perWheelClick
+				wheelClicks += w.clicks * SwipeSteps.perWheelClick * Preferences.panelWheelScale	// (Wheel sensitivity)
 				let n = Int(wheelClicks + (wheelClicks < 0 ? -1e-9 : 1e-9))	// whole steps, toward zero
 				guard n != 0 else { return }
 				wheelClicks -= Double(n)
@@ -794,7 +794,7 @@ struct KeySlider: NSViewRepresentable {
 			let rate = ModifierLadder.factor(event.modifierFlags)
 			if let w = TrackpadSwipe.wheel(event, for: self) {	// ten normal steps a click
 				if w.first { wheelPositions = 0 }
-				wheelPositions += w.clicks * SwipeSteps.perWheelClick * rate * normalStep
+				wheelPositions += w.clicks * SwipeSteps.perWheelClick * Preferences.panelWheelScale * rate * normalStep	// (Wheel sensitivity)
 				let n = (wheelPositions + (wheelPositions < 0 ? -1e-9 : 1e-9)).rounded(.towardZero)	// whole positions, as dragging
 				guard n != 0 else { return }
 				wheelPositions -= n
