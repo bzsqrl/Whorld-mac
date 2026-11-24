@@ -7,3 +7,6 @@ DerivedData/
 /build-*/
 .cache/
 __pycache__/
+
+# design-audit screenshots: personal folders and device names
+/screenshots/
