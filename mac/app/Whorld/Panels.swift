@@ -21,11 +21,21 @@ import SwiftUI
 /// arrow keys, a swipe and the mouse wheel alike. Command finest, Option
 /// fine, none normal, Shift coarse, as multiples of the control's normal
 /// step; Command-Shift with an arrow goes to the end of the range.
+/// Settings > Input > Modifier steps sets the multiples, from the choices
+/// below (so they stay in order), and how big an arrow key's normal step is.
 enum ModifierLadder {
 	static let finestKey = "Input_fLadderFinest"
 	static let fineKey = "Input_fLadderFine"
 	static let coarseKey = "Input_fLadderCoarse"
-	static let defaults: (finest: Double, fine: Double, coarse: Double) = (0.1, 1.0 / 3, 3)
+	static let normalKey = "Input_fLadderNormal"
+	static let defaults: (finest: Double, fine: Double, coarse: Double, normal: Double) = (0.1, 1.0 / 3, 3, 1)
+	/// the choices in Settings (value, title)
+	static let finestChoices: [(Double, String)] = [(0.01, "1/100"), (1.0 / 30, "1/30"), (0.1, "1/10"), (0.2, "1/5")]
+	static let fineChoices: [(Double, String)] = [(0.2, "1/5"), (0.25, "1/4"), (1.0 / 3, "1/3"), (0.5, "1/2")]
+	static let coarseChoices: [(Double, String)] = [(2, "2"), (3, "3"), (5, "5"), (10, "10")]
+	/// an arrow key's normal step, as a multiple of 1% of a slider's range
+	/// (or a box's increment)
+	static let normalChoices: [(Double, String)] = [(0.5, "0.5%"), (1, "1%"), (2, "2%")]
 
 	private static func read(_ key: String, _ fallback: Double) -> Double {
 		let v = UserDefaults.standard.double(forKey: key)
@@ -34,11 +44,18 @@ enum ModifierLadder {
 	static var finest: Double { read(finestKey, defaults.finest) }
 	static var fine: Double { read(fineKey, defaults.fine) }
 	static var coarse: Double { read(coarseKey, defaults.coarse) }
+	static var normal: Double { read(normalKey, defaults.normal) }
 
-	/// the multiple for these modifiers (Command-Shift: coarse, for a swipe)
+	/// a swipe's or the wheel's multiple for these modifiers (Command-Shift:
+	/// coarse). Not the arrows' normal step: swipes and the wheel have their
+	/// own speed (Trackpad sensitivity).
 	static func factor(_ flags: NSEvent.ModifierFlags) -> Double {
-		if case .by(let f) = KeyStep(flags) ?? .by(1) { return f }
-		return coarse
+		switch flags.intersection([.shift, .command, .option, .control]) {
+		case [.command]: return finest
+		case [.option]: return fine
+		case [.shift], [.shift, .command]: return coarse
+		default: return 1
+		}
 	}
 }
 
@@ -46,16 +63,18 @@ enum ModifierLadder {
 /// or number box: a multiple of the control's normal step (1% of a
 /// slider's range, and its number box's the same; a box without a slider,
 /// its own increment), from the modifiers (ModifierLadder), or to the end.
+/// `init(flags)` is an arrow key's, with the normal step's setting.
 enum KeyStep: Equatable {
 	case by(Double)
 	case end
 
 	init?(_ flags: NSEvent.ModifierFlags) {
+		let n = ModifierLadder.normal
 		switch flags.intersection([.shift, .command, .option, .control]) {
-		case []: self = .by(1)
-		case [.command]: self = .by(ModifierLadder.finest)
-		case [.option]: self = .by(ModifierLadder.fine)
-		case [.shift]: self = .by(ModifierLadder.coarse)
+		case []: self = .by(n)
+		case [.command]: self = .by(n * ModifierLadder.finest)
+		case [.option]: self = .by(n * ModifierLadder.fine)
+		case [.shift]: self = .by(n * ModifierLadder.coarse)
 		case [.shift, .command]: self = .end
 		default: return nil
 		}
@@ -67,11 +86,12 @@ enum KeyStep: Equatable {
 		return 1
 	}
 
-	/// base moved `direction` steps of `size` (scaled), on a grid of 300ths
-	/// of a step, so repeated thirds and tenths gather no rounding error
+	/// base moved `direction` steps of `size` (scaled), on a grid of 1200ths
+	/// of a step, so repeated steps of every ladder choice (thirds, quarters,
+	/// tenths, hundredths, and halves of them) gather no rounding error
 	func apply(_ base: Double, size: Double, direction: Int) -> Double {
-		let grid = size / 300
-		return ((base / grid).rounded() + (Double(direction) * scale * 300).rounded()) * grid
+		let grid = size / 1200
+		return ((base / grid).rounded() + (Double(direction) * scale * 1200).rounded()) * grid
 	}
 }
 

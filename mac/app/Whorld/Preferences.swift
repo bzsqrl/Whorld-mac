@@ -343,6 +343,10 @@ struct PreferencesView: View {
 	@EnvironmentObject private var model: AppModel
 	@AppStorage("Input_fWheelSense") private var wheelSense = 6.25
 	@AppStorage("Input_fSwipeSense") private var swipeSense = 1.0
+	@AppStorage(ModifierLadder.finestKey) private var ladderFinest = ModifierLadder.defaults.finest
+	@AppStorage(ModifierLadder.fineKey) private var ladderFine = ModifierLadder.defaults.fine
+	@AppStorage(ModifierLadder.coarseKey) private var ladderCoarse = ModifierLadder.defaults.coarse
+	@AppStorage(ModifierLadder.normalKey) private var ladderNormal = ModifierLadder.defaults.normal
 	@AppStorage("Export_sImageFolder") private var imageFolder = ""
 	@AppStorage(WhorldFolders.rootKey) private var whorldFolder = ""	// redraws when it changes
 	@AppStorage("Export_nImageWidth") private var imageWidth = 1920
@@ -565,6 +569,69 @@ struct PreferencesView: View {
 			}
 	}
 
+	/// Settings > Input > Modifier steps (the user's request, 2026-11-24):
+	/// the modifier ladder's multiples, from fixed choices so finest < fine
+	/// < normal < coarse always holds, and an arrow key's normal step
+	@ViewBuilder private var modifierSteps: some View {
+		Section {
+			ladderPicker("⌘  Finest", $ladderFinest, ModifierLadder.finestChoices,
+				info: "Command with an arrow key, a swipe or the mouse wheel: this much of the normal step.")
+			ladderPicker("⌥  Fine", $ladderFine, ModifierLadder.fineChoices,
+				info: "Option with an arrow key, a swipe or the mouse wheel: this much of the normal step.")
+			ladderPicker("⇧  Coarse", $ladderCoarse, ModifierLadder.coarseChoices, prefix: "×",
+				info: "Shift with an arrow key, a swipe or the mouse wheel: this many normal steps.")
+			ladderPicker("Arrow key step", $ladderNormal, ModifierLadder.normalChoices,
+				info: "How far a plain arrow key moves a slider or number box: a share of the slider's range (a number box without a slider, such as Amplitude, its own increment times as much). The modifiers scale it. Swipes and the wheel keep their speed: Trackpad sensitivity sets it.")
+			LabeledContent("Line Width, one arrow press") {
+				Text(ladderExample)
+					.monospacedDigit()
+					.foregroundStyle(.secondary)
+			}
+			HStack {
+				Spacer()
+				Button("Restore Defaults") {
+					ladderFinest = ModifierLadder.defaults.finest
+					ladderFine = ModifierLadder.defaults.fine
+					ladderCoarse = ModifierLadder.defaults.coarse
+					ladderNormal = ModifierLadder.defaults.normal
+				}
+				.disabled(ladderFinest == ModifierLadder.defaults.finest && ladderFine == ModifierLadder.defaults.fine
+					&& ladderCoarse == ModifierLadder.defaults.coarse && ladderNormal == ModifierLadder.defaults.normal)
+			}
+		} header: {
+			Text("Modifier steps")
+		} footer: {
+			Text("The same on every slider and number box, and for swipes with a Key Map key held over the picture. ⇧⌘ with an arrow goes to either end.").font(.caption).foregroundStyle(.secondary)
+				.frame(maxWidth: .infinity, alignment: .leading)
+		}
+	}
+
+	private func ladderPicker(_ title: String, _ value: Binding<Double>, _ choices: [(Double, String)],
+		prefix: String = "", info: String) -> some View {
+		Picker(selection: value) {
+			ForEach(choices, id: \.0) { c in
+				Text(prefix + c.1).tag(c.0)
+			}
+			// a value set some other way: shown, so the menu isn't blank
+			if !choices.contains(where: { $0.0 == value.wrappedValue }) {
+				Text(prefix + String(format: "%g", value.wrappedValue)).tag(value.wrappedValue)
+			}
+		} label: {
+			InfoLabel(title, info: info)
+		}
+	}
+
+	/// What each modifier does to Line Width with an arrow key: its Value
+	/// slider's positions in value units
+	private var ladderExample: String {
+		let i = 2	// PARAM_LineWidth (WhorldDef.h)
+		let ci = WHControls.paramControl(i, column: 0)
+		let perPosition = WHControls.paramValue(i, position: 1) - WHControls.paramValue(i, position: 0)
+		let normal = Double(ci.rangeMax - ci.rangeMin) / 100 * ladderNormal * perPosition
+		func f(_ x: Double) -> String { String(format: x < 0.1 ? "%.3g" : "%.2f", x) }
+		return "⌘ \(f(normal * ladderFinest))  ·  ⌥ \(f(normal * ladderFine))  ·  \(f(normal))  ·  ⇧ \(f(normal * ladderCoarse))"
+	}
+
 	@ViewBuilder private var inputTab: some View {
 			Section {
 				LabeledContent {
@@ -595,6 +662,7 @@ struct PreferencesView: View {
 				Text("Swiping over the picture, the swipe pad, sliders and number boxes.").font(.caption).foregroundStyle(.secondary)
 					.frame(maxWidth: .infinity, alignment: .leading)
 			}
+			modifierSteps
 			Section {
 				let _ = model.changes.midi.n
 				Picker("MIDI input", selection: $midiInput) {
