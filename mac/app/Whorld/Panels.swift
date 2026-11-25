@@ -304,6 +304,23 @@ struct NumberField: View {
 /// did before, as Windows does (%g; the user's clarification, 2026-11-20).
 /// In the control's edit units, as FormatValue: value / editScale (Rotate
 /// Speed and Skew Angle are radians, shown in degrees).
+/// A number shown without trailing zeros: 100.00 as 100, 95.50 as 95.5
+/// (the design audit, 2026-11-24: Master showed 100, 100.00, 95.00 and 0.0
+/// side by side). The precision kept is the format's; typing is unchanged.
+func trimmedZeros(_ s: String) -> String {
+	guard s.contains("."), !s.lowercased().contains("e") else { return s }
+	var t = s
+	while t.hasSuffix("0") { t.removeLast() }
+	if t.hasSuffix(".") { t.removeLast() }
+	return t == "-0" ? "0" : t
+}
+
+/// a Master control's value as shown (Windows' format, without trailing zeros)
+func masterText(_ i: Int, _ v: Double) -> String { trimmedZeros(WHControls.formatMaster(i, value: v)) }
+
+/// Hue in degrees, to a tenth, without trailing zeros
+func hueText(_ v: Double) -> String { trimmedZeros(String(format: "%.1f", v)) }
+
 func paramText(_ v: Double, _ ci: WHControlInfo) -> String {
 	let g = WHControls.format(v, control: ci)	// Windows' %g
 	if g.contains("e") { return g }	// very large or small
@@ -1720,7 +1737,7 @@ struct MasterRow: View {
 			if let box {
 				NumberField(
 					value: value,
-					format: { WHControls.formatMaster(i, value: $0) },
+					format: { masterText(i, $0) },
 					parse: { WHControls.parseMaster(i, text: $0) },
 					commit: { model.setMaster(i, $0) },
 					step: { masterStep(i, ci, $0, $1, $2) },	// no stepper: as the slider
@@ -1761,7 +1778,7 @@ struct HueRow: View {
 			if let box {
 				NumberField(
 					value: value,
-					format: { String(format: "%.1f", $0) },
+					format: { hueText($0) },
 					parse: { min(max(Double($0.trimmingCharacters(in: .whitespaces)) ?? value, 0), 360) },
 					commit: { model.setHue($0) },
 					step: step,

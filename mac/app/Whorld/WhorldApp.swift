@@ -589,7 +589,7 @@ final class AppModel: ObservableObject {
 
 	func showMaster(_ iProp: Int) {
 		StripFeed.shared.setReadout(WHControls.masterName(iProp) + "  "
-			+ WHControls.formatMaster(iProp, value: engine.masterValue(iProp)))
+			+ masterText(iProp, engine.masterValue(iProp)))
 	}
 
 	func showMain(_ prop: MainProp) {
@@ -610,7 +610,7 @@ final class AppModel: ObservableObject {
 			default: shown = "Park"
 			}
 		case .hue:
-			shown = String(format: "%.1f°", engine.hue)
+			shown = hueText(engine.hue) + "°"
 		default:
 			shown = isOn(prop) ? "On" : "Off"
 		}
@@ -845,12 +845,12 @@ final class AppModel: ObservableObject {
 					setMaster(i, value)
 				}
 			}
-			shown = WHControls.formatMaster(i, value: engine.masterValue(i))
+			shown = masterText(i, engine.masterValue(i))
 		} else {
 			switch b.target {
 			case "Hue":	// degrees, 0 to 360
 				if apply { setHue(min(max(engine.hue + d * 360, 0), 360)) }
-				shown = String(format: "%.1f°", engine.hue)
+				shown = hueText(engine.hue) + "°"
 			case "OriginX", "OriginY":	// normalized, 0 to 1
 				var p = engine.liveOrigin
 				if b.target == "OriginX" {
