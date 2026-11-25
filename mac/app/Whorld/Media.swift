@@ -881,7 +881,7 @@ struct AudioVideoExportView: View {
 			Picker("Frame rate", selection: $options.frameRate) {
 				ForEach([24, 25, 30, 50, 60], id: \.self) { Text("\($0) fps").tag($0) }
 			}
-			.help("Whorld moves one step a frame, as on a display of that rate: 60 looks like a 60 Hz display.")
+			.hoverTip("Whorld moves one step a frame, as on a display of that rate: 60 looks like a 60 Hz display.")
 			Picker("Format", selection: $options.codec) {
 				Text("H.264").tag(0)
 				Text("HEVC").tag(1)
@@ -896,7 +896,7 @@ struct AudioVideoExportView: View {
 				}
 			}
 			Toggle("Run the patch first", isOn: $options.runFirst)
-				.help("Off: the video starts with the patch's first frame, reacting to the music at once. On: the patch runs this long before the video starts, so the picture is already full of rings.")
+				.hoverTip("Off: the video starts with the patch's first frame, reacting to the music at once. On: the patch runs this long before the video starts, so the picture is already full of rings.")
 			if options.runFirst {
 				TextField("For (s)", value: $options.preroll, format: .number)
 			}
@@ -905,7 +905,7 @@ struct AudioVideoExportView: View {
 				TextField("Tempo (BPM)", value: $options.tempo, format: .number)
 			}
 			Toggle("Mark the downbeat", isOn: $options.markDownbeat)
-				.help("Where \"the one\" is, for Bar ... 32-Bar and the oscillators on the beat, as Mark Downbeat would.")
+				.hoverTip("Where \"the one\" is, for Bar ... 32-Bar and the oscillators on the beat, as Mark Downbeat would.")
 			if options.markDownbeat {
 				TextField(options.setTempo ? "A downbeat at (s)" : "Near a downbeat at (s)", value: $options.downbeat, format: .number)
 			}
@@ -1133,7 +1133,7 @@ struct PlaylistPanel: View {
 						let missing = model.resolvePatchPath(row.path) == nil
 						Text(row.name)
 							.foregroundStyle(missing ? .secondary : .primary)
-							.help(missing ? "Can't be found: \(row.path). Right-click to locate it." : row.path)
+							.hoverTip(missing ? "Can't be found: \(row.path). Right-click to locate it." : row.path)
 					}
 				}
 				.width(min: 120, ideal: 180)
@@ -1224,9 +1224,9 @@ struct PlaylistPanel: View {
 	private func bottomBar(title: Bool, mode: Bool) -> some View {
 		HStack {
 			Button { model.insertPatches() } label: { Image(systemName: "plus") }
-				.help("Insert patches")
+				.hoverTip("Insert patches")
 			Button { model.deletePatches() } label: { Image(systemName: "minus") }
-				.help("Delete the selected patches")
+				.hoverTip("Remove the selected patches from the playlist (Delete); the files stay")
 				.disabled(model.playlistSelection.isEmpty)
 			AutoAdvanceControls()
 				.padding(.leading, 6)
@@ -1386,7 +1386,7 @@ struct AutoAdvanceControls: View {
 				hi: Self.range(unit).upperBound,
 				width: NumberField.width(characters: 4),
 				fractions: true)
-				.help("How long each patch plays before the next, in \(unit == .seconds ? "seconds" : unit == .beats ? "beats" : "bars (4 beats)").")
+				.hoverTip("How long each patch plays before the next, in \(unit == .seconds ? "seconds" : unit == .beats ? "beats" : "bars (4 beats)").")
 			Picker("", selection: Binding(
 				get: { unit },
 				set: { u in model.setAutoAdvanceLength(Self.clamp(length, u), unit: u) })) {
@@ -1394,7 +1394,7 @@ struct AutoAdvanceControls: View {
 			}
 			.labelsHidden()
 			.fixedSize()
-			.help("Count in seconds, or in beats or bars of the music's beat (with an audio input, or Ableton Link). Without a beat it counts at the last tempo heard, or 120 BPM.")
+			.hoverTip("Count in seconds, or in beats or bars of the music's beat (with an audio input, or Ableton Link). Without a beat it counts at the last tempo heard, or 120 BPM.")
 		}
 	}
 
@@ -1550,7 +1550,8 @@ struct AutoAdvanceButton: NSViewRepresentable {
 				? "Stop playing through the playlist. Each patch plays \(unit.describe(length)), then the next; after the last, the first again.\(how)"
 				: "Play through the playlist: \(unit.describe(length)) each, then the next, round and round. A patch played by hand starts its count afresh."
 			let tipped = onLength == nil ? tip : tip + " Right-click for another length."
-			if toolTip != tipped { toolTip = tipped }
+			let shownTip = HoverTips.gate(tipped)	// Show tips on hover
+			if toolTip != shownTip { toolTip = shownTip }
 			if abs(p - progress) > 0.002 || follow != following {
 				progress = p
 				following = follow

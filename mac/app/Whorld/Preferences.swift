@@ -388,8 +388,6 @@ struct PreferencesView: View {
 	@AppStorage("General_bCheckUpdates") private var checkUpdates = true
 	@AppStorage("General_sAuthorName") private var authorName = ""
 	@AppStorage("Playlist_bApplyLayout") private var applyPlaylistLayouts = true
-	@AppStorage("General_bControlTips") private var controlTips = true
-	@AppStorage(KeyBadge.defaultsKey) private var keyBadges = false
 	@AppStorage(ModMarkers.oscDefaultsKey) private var oscMarkers = true
 	@AppStorage("Render_nMaxFrameRate") private var maxFrameRate = 0
 	@AppStorage("Rings_bFadeEased") private var ringFadeEased = true
@@ -468,7 +466,7 @@ struct PreferencesView: View {
 							.lineLimit(1)
 							.truncationMode(.middle)
 							.foregroundStyle(.secondary)
-							.help(WhorldFolders.root.path)
+							.hoverTip(WhorldFolders.root.path)
 						Button("Choose…", action: chooseWhorldFolder)
 						Button("Show in Finder") {
 							NSWorkspace.shared.activateFileViewerSelecting([WhorldFolders.root])
@@ -489,19 +487,13 @@ struct PreferencesView: View {
 					.frame(maxWidth: .infinity, alignment: .leading)
 			}
 			Section {
-				Toggle(isOn: $controlTips) {
-					InfoLabel("Show tips on control names", info: "Hovering over a control's name in Parameters, Master, Globals or Properties shows a short explanation of what it does, after its Key Map key, if it has one: (S) for Speed.")
-				}
-				Toggle(isOn: $keyBadges) {
-					InfoLabel("Show Key Map keys in panels", info: "Each control in Parameters, Master and Globals that has a key in the Key Map (View > Key Map) shows it before its name: hold that key over the picture and swipe to change the control. They follow the Key Map as you change it.")
-				}
 				Toggle(isOn: $oscMarkers) {
 					InfoLabel("Show oscillators on sliders", info: "A parameter whose oscillator is moving (Amplitude and Frequency not 0) shows its swing in teal along its Value slider's track, and a teal second knob where the oscillator has it now. With audio modulation on too, the band follows the modulated value and the knob shows both together. An oscillator faster than 2 cycles a second is too quick to follow: its second knob sits still on the slider's own.")
 				}
 			} header: {
 				Text("Panels")
 			} footer: {
-				Text("Help in Parameters, Master, Globals and Properties.").font(.caption).foregroundStyle(.secondary)
+				Text("What the panels show.").font(.caption).foregroundStyle(.secondary)
 					.frame(maxWidth: .infinity, alignment: .leading)
 			}
 	}

@@ -517,7 +517,7 @@ struct KeyTextField: NSViewRepresentable {
 			// (before the first layout, the box is assumed to hold eight characters)
 			let room = field.bounds.width > 0 ? field.bounds.width - 22 : 8 * 7.2
 			let fits = shown == full && (shown as NSString).size(withAttributes: [.font: NumberField.font]).width <= room
-			field.toolTip = fits ? nil : full
+			field.toolTip = fits ? nil : HoverTips.gate(full)
 		}
 
 		/// the box was resized: its text again, rounded to the new width
@@ -1122,7 +1122,7 @@ final class ModMarkers {
 // MARK: Control tips
 
 /// Hover help on the controls' names (Mac addition; Settings > General >
-/// Show tips on control names). Condensed from Whorld's help: the
+/// Show tips on hover, HoverTips). Condensed from Whorld's help: the
 /// Parameters, Master Controls and Effects pages.
 enum ControlTips {
 	/// in parameter order (WhorldDef.h PARAMDEF)
@@ -1187,16 +1187,25 @@ enum ControlTips {
 
 /// A control name's tip, while Settings > General > Show tips on control
 /// names is on: on the name only, not its slider, box or checkbox.
+/// View > Show Tips on Hover (Settings > General's until 2026-11-25; was Show tips on control
+/// names; the user's request, 2026-11-24): every tooltip that isn't behind
+/// an ⓘ (those open on a click, whatever this says). SwiftUI's go through
+/// `hoverTip`; AppKit views' through `HoverTips.gate`, refreshed on a change.
+enum HoverTips {
+	static let key = "General_bControlTips"	// the old setting's name, kept
+	static var on: Bool { UserDefaults.standard.object(forKey: key) as? Bool ?? true }
+	/// an AppKit view's tooltip: nil while tips are off
+	static func gate(_ s: String?) -> String? { on ? s : nil }
+	/// posted when the setting changes, for AppKit views to set their tips again
+	static let changed = Notification.Name("WhorldHoverTipsChanged")
+}
+
 private struct ControlTip: ViewModifier {
 	let text: String
-	@AppStorage("General_bControlTips") private var on = true
+	@AppStorage(HoverTips.key) private var on = true
 
 	func body(content: Content) -> some View {
-		if on {
-			content.help(text)
-		} else {
-			content
-		}
+		content.help(on ? text : "")	// "" shows nothing; the view stays the same view
 	}
 }
 
@@ -1250,6 +1259,8 @@ struct KeyBadge: View {
 
 extension View {
 	func controlTip(_ text: String) -> some View { modifier(ControlTip(text: text)) }
+	/// a tooltip, shown while View > Show Tips on Hover is on (HoverTips)
+	func hoverTip(_ text: String) -> some View { modifier(ControlTip(text: text)) }
 	/// the tip, after the Key Map key that moves `target` (`prop`: a
 	/// parameter's column; 0 for any other control)
 	func controlTip(_ text: String, target: String, prop: Int = 0) -> some View {
@@ -1531,7 +1542,7 @@ struct WaveformMenu: View {
 				Image(nsImage: WaveGlyph.image(selection.wrappedValue))
 			}
 			.menuStyle(.borderlessButton)	// a small grey chevron, not the accent box (the design audit, 2026-11-24)
-			.help("Waveform: \(WHControls.waveformName(selection.wrappedValue))")
+			.hoverTip("Waveform: \(WHControls.waveformName(selection.wrappedValue))")
 			.frame(width: width)
 			.overlay(SecondaryClickReset { reset() })
 		}
@@ -1676,7 +1687,7 @@ struct OscillatorMark: View {
 				// the selected wave's shape (the user's request, 2026-11-23)
 				Text(Image(nsImage: WaveGlyph.image(Int(e.paramValue(iParam, property: .wave)))))
 					.foregroundStyle(Color(nsColor: KeySlider.Slider.oscillatorColor))	// teal, as the band and its knob (the design audit, 2026-11-24)
-					.help("Its oscillator moves it: \(wave), amplitude \(paramText(amp, WHControls.paramControl(iParam, column: 1))), frequency \(paramText(freq, WHControls.paramControl(iParam, column: 2))). Widen the panel to see the oscillator columns.")
+					.hoverTip("Its oscillator moves it: \(wave), amplitude \(paramText(amp, WHControls.paramControl(iParam, column: 1))), frequency \(paramText(freq, WHControls.paramControl(iParam, column: 2))). Widen the panel to see the oscillator columns.")
 					.accessibilityLabel("Oscillator on")
 			}
 		}
@@ -1870,8 +1881,8 @@ struct GlobalRow: View {
 
 // MARK: Info icons
 
-/// An explanation behind an ⓘ, everywhere (panel titles, Settings, the
-/// Modulation table, under it since 2026-11-24; the user's request, 2026-11-19): a
+/// An explanation behind an ⓘ (panel titles, while tips on hover are on;
+/// Settings; the user's request, 2026-11-19), or a panel's ⋯ > About: a
 /// click on the icon shows it, and it stays until the pointer is away from
 /// it and the icon; hovering shows nothing. Where the pointer is is checked
 /// a few times a second (a quick move away can miss a hover change).
@@ -1885,7 +1896,10 @@ final class InfoPopover: NSObject, NSPopoverDelegate {
 	private var timer: Timer?
 
 	/// Shows the text by a rect of a view, or closes it if it's showing there.
-	func toggle(_ text: String, from view: NSView, rect: NSRect) {
+	/// `followPointer` false (opened from a menu, the pointer elsewhere; the
+	/// user's report, 2026-11-25: About… closed at once): it stays until a
+	/// click elsewhere or Esc.
+	func toggle(_ text: String, from view: NSView, rect: NSRect, followPointer: Bool = true) {
 		let same = popover != nil && anchor === view && anchorRect == rect
 		close()
 		guard !same else { return }
@@ -1901,6 +1915,7 @@ final class InfoPopover: NSObject, NSPopoverDelegate {
 		popover = p
 		anchor = view
 		anchorRect = rect
+		guard followPointer else { return }
 		var away = 0
 		timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
 			MainActor.assumeIsolated {
@@ -1942,9 +1957,17 @@ final class InfoPopover: NSObject, NSPopoverDelegate {
 struct InfoButton: View {
 	let text: String
 	var small = false	// a panel title's (caption size)
+	/// shown only while View > Show Tips on Hover is on (a panel title's:
+	/// the ⓘs show whether tips are on; the user's idea, 2026-11-25)
+	var withTips = false
 	@State private var anchor = ViewAnchor()
+	@AppStorage(HoverTips.key) private var tipsOn = true
 
 	var body: some View {
+		if !withTips || tipsOn { button }
+	}
+
+	private var button: some View {
 		Button {
 			if let v = anchor.view { InfoPopover.shared.toggle(text, from: v, rect: v.bounds) }
 		} label: {

@@ -738,7 +738,7 @@ private struct BlackoutButton: View {
 		}
 		.buttonStyle(StripToggleStyle())
 		.fixedSize()
-		.help((on ? "Blackout: the picture is faded out. Click to fade it back (Image > Blackout, ⌘B)."
+		.hoverTip((on ? "Blackout: the picture is faded out. Click to fade it back (Image > Blackout, ⌘B)."
 			: "Blackout: fade the picture to black over a second (Image > Blackout, ⌘B).")
 			+ " Black on screen and in Syphon, not in exports; Whorld keeps running underneath, so the picture returns where it would have been.")
 	}
@@ -767,7 +767,7 @@ private struct DetachButton: View {
 		}
 		.buttonStyle(StripToggleStyle())
 		.fixedSize()
-		.help(on ? "The picture is detached, in its own window. Click to put it back in the Whorld window (View > Detach, ⌘D); Option-click to move it to the next display (⇧⌘D)."
+		.hoverTip(on ? "The picture is detached, in its own window. Click to put it back in the Whorld window (View > Detach, ⌘D); Option-click to move it to the next display (⇧⌘D)."
 			: "Detach the picture into a window of its own, to move to a projector or second display (View > Detach, ⌘D); Option-click to detach it onto another display (⇧⌘D)")
 	}
 }
@@ -793,7 +793,7 @@ private struct AutoQualityToggle: View {
 		}
 		.buttonStyle(StripToggleStyle())
 		.fixedSize()
-		.help(lowered ? "Automatic quality has lowered: \(feed.detail). Click to turn it off (View > Automatic Quality, ⌘;)."
+		.hoverTip(lowered ? "Automatic quality has lowered: \(feed.detail). Click to turn it off (View > Automatic Quality, ⌘;)."
 			: on ? "Automatic quality is on, and hasn't needed to lower anything. Click to turn it off (⌘;)."
 			: "Automatic quality is off. Click to turn it on: when the picture can't keep up, Whorld lowers curve quality, then resolution (⌘;).")
 	}
@@ -818,7 +818,7 @@ private struct ResolutionMenu: View {
 		.menuStyle(.borderlessButton)
 		.foregroundStyle(lowered ? Color.orange : Color.primary)
 		.fixedSize()
-		.help(lowered ? "Resolution: set to \(set)%, drawn at \(feed.percent)% by Automatic quality"
+		.hoverTip(lowered ? "Resolution: set to \(set)%, drawn at \(feed.percent)% by Automatic quality"
 			: "Resolution (Render quality): fewer pixels, scaled up, for heavy patches (Settings > Performance)")
 	}
 }
@@ -936,6 +936,25 @@ struct StripText: NSViewRepresentable {
 
 	final class View: NSView {
 		var part: Part = .fps
+		/// its tip as set, shown only while Show tips on hover is on (HoverTips)
+		private var tipAsSet: String?
+		private var tipsObserver: NSObjectProtocol?
+		override var toolTip: String? {
+			get { super.toolTip }
+			set {
+				tipAsSet = newValue
+				super.toolTip = HoverTips.gate(newValue)
+				if tipsObserver == nil {
+					tipsObserver = NotificationCenter.default.addObserver(forName: HoverTips.changed, object: nil, queue: .main) { [weak self] _ in
+						MainActor.assumeIsolated { self?.applyTip() }
+					}
+				}
+			}
+		}
+		private func applyTip() { super.toolTip = HoverTips.gate(tipAsSet) }
+		deinit {
+			if let tipsObserver { NotificationCenter.default.removeObserver(tipsObserver) }
+		}
 		/// the frame rate and the tempo are buttons (the tempo while it shows)
 		private var clickable: Bool {
 			part == .fps || (part == .tempo && !StripFeed.shared.beat.tempo.isEmpty)

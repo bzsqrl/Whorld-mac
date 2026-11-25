@@ -75,7 +75,7 @@ extension AppModel {
 		// the panel layout goes in the playlist if this is checked (remembered)
 		let include = NSButton(checkboxWithTitle: "Include the panel layout", target: nil, action: nil)
 		include.state = Preferences.playlistSavesLayout ? .on : .off
-		include.toolTip = "Saves the panels' arrangement with the playlist, to restore when it's opened (Whorld for Mac only; Windows Whorld ignores it)."
+		include.toolTip = HoverTips.gate("Saves the panels' arrangement with the playlist, to restore when it's opened (Whorld for Mac only; Windows Whorld ignores it).")
 		let row = NSStackView(views: [include])
 		row.edgeInsets = NSEdgeInsets(top: 10, left: 20, bottom: 10, right: 20)
 		panel.accessoryView = row

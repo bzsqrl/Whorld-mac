@@ -143,6 +143,22 @@ struct DockedPanel: View {
 		return nil
 	}
 
+	private func title(_ s: String) -> some View {
+		Text(s)
+			.font(.caption.weight(.semibold))
+			.lineLimit(1)
+			.overlay(PanelDragSource(id: id, layout: layout, help: ""))
+	}
+
+	/// an explanation from the ⋯ menu, under the header: once the menu has
+	/// closed (its closing would close it), and staying put (the pointer is
+	/// on the menu, not the header)
+	private func showAbout(_ text: String) {
+		DispatchQueue.main.async {
+			if let v = headerAnchor.view { InfoPopover.shared.toggle(text, from: v, rect: v.bounds, followPointer: false) }
+		}
+	}
+
 	private var chrome: some View {
 		VStack(spacing: 0) {
 			HStack(spacing: 6) {
@@ -157,13 +173,22 @@ struct DockedPanel: View {
 						.overlay(PanelDragSource(id: id, layout: layout, help: ""))
 				} else {
 					HStack(spacing: 0) {	// the title and the space after it: drag to move
-						Text(id.title)
-							.font(.caption.weight(.semibold))
-							.overlay(PanelDragSource(id: id, layout: layout, help: ""))
-						// what the panel controls: click for it (the user's
-						// request, 2026-11-19; it was the title's hover tip)
-						PanelInfoButton(id: id)
-							.padding(.leading, 4)
+						// narrowing, the ⓘ goes first, then the short name;
+						// only then does it truncate (the design audit,
+						// 2026-11-24: "Pr…" while the ⓘ kept its room)
+						ViewThatFits(in: .horizontal) {
+							HStack(spacing: 0) {
+								title(id.title)
+								// what the panel controls: click for it (the user's
+								// request, 2026-11-19; it was the title's hover tip)
+								PanelInfoButton(id: id)
+									.padding(.leading, 4)
+							}
+							title(id.title)
+							title(id.shortTitle)
+							title(id.shortTitle).frame(minWidth: 0).truncationMode(.tail)
+						}
+						.layoutPriority(1)
 						Color.clear
 							.frame(maxWidth: .infinity, maxHeight: .infinity)
 							.overlay(PanelDragSource(id: id, layout: layout, help: ""))
@@ -189,6 +214,17 @@ struct DockedPanel: View {
 					}
 					Button("Float in a Window") { layout.float(id) }
 					Divider()
+					// the ⓘ's explanation, here too: a narrow header drops the ⓘ
+					Button("About \(id.title)…") {
+						showAbout(id.summary)
+					}
+					// the Modulation table's columns (its ⓘ under the table is
+					// gone; the user's request, 2026-11-25)
+					if id == .modulation {
+						Button("About the Columns…") {
+							showAbout(ModColumns.about)
+						}
+					}
 					Button("Hide") { layout.hide(id) }
 				} label: {
 					Image(systemName: "ellipsis.circle")
@@ -196,12 +232,12 @@ struct DockedPanel: View {
 				.menuStyle(.borderlessButton)
 				.menuIndicator(.hidden)
 				.fixedSize()
-				.help("\(id.title): move, float or hide")
+				.hoverTip("\(id.title): move, float or hide")
 				Button { layout.hide(id) } label: {
 					Image(systemName: "xmark").font(.caption2)
 				}
 				.buttonStyle(.borderless)
-				.help("Hide \(id.title)")
+				.hoverTip("Hide \(id.title)")
 			}
 			.padding(.horizontal, 8)
 			.frame(height: Self.headerHeight)
@@ -356,7 +392,7 @@ struct FloatingPanel: View {
 			.toolbar {
 				ToolbarItem {
 					Button("Dock") { model.layout.dock(id) }
-						.help("Dock \(id.title) in the Whorld window")
+						.hoverTip("Dock \(id.title) in the Whorld window")
 				}
 			}
 			.background(FloatingWindowHelper(id: id, layout: model.layout))
@@ -401,6 +437,7 @@ struct PanelDragSource: NSViewRepresentable {
 	let layout: LayoutModel
 	let help: String
 	var onClick: (() -> Void)? = nil
+	@AppStorage(HoverTips.key) private var tipsOn = true	// Show tips on hover: updated when it changes
 
 	final class Source: NSView, NSDraggingSource {
 		var id: PanelID = .params
@@ -485,7 +522,7 @@ struct PanelDragSource: NSViewRepresentable {
 		v.id = id
 		v.layout = layout
 		v.onClick = onClick
-		v.toolTip = help.isEmpty ? nil : help
+		v.toolTip = help.isEmpty || !tipsOn ? nil : help
 	}
 }
 
@@ -495,7 +532,7 @@ struct PanelInfoButton: View {
 	let id: PanelID
 
 	var body: some View {
-		InfoButton(text: id.summary, small: true)
+		InfoButton(text: id.summary, small: true, withTips: true)	// with View > Show Tips on Hover
 			.accessibilityLabel("About \(id.title)")
 	}
 }

@@ -170,7 +170,7 @@ private struct ModTopBar: View {
 				.padding(.leading, 8)
 			StepSlider(value: map.depth, range: 0...1, step: 0.01, defaultValue: 1) { map.depth = $0 }
 				.frame(width: 160)
-				.help("Scales every row at once. OSC /w/mod/depth.")
+				.hoverTip("Scales every row at once. OSC /w/mod/depth.")
 			Text(String(format: "%.0f%%", map.depth * 100))
 				.monospacedDigit()
 				.frame(width: 40, alignment: .trailing)
@@ -178,11 +178,11 @@ private struct ModTopBar: View {
 
 	@ViewBuilder private var files: some View {
 			Button("Restore Defaults") { map.restoreDefaults() }
-				.help("The starting rows: bass widens the lines, a kick pulses the zoom.")
+				.hoverTip("The starting rows: bass widens the lines, a kick pulses the zoom.")
 			Button("Import…") { map.importFile() }
-				.help("Replace the rows with a saved file's.")
+				.hoverTip("Replace the rows with a saved file's.")
 			Button("Export…") { map.export() }
-				.help("Save the rows, depth and on/off in a file.")
+				.hoverTip("Save the rows, depth and on/off in a file.")
 	}
 }
 
@@ -302,7 +302,7 @@ private struct AudioInputSection: View {
 						.monospacedDigit()
 						.frame(width: 64, alignment: .trailing)
 					Toggle("Auto-level", isOn: $autoLevel)
-						.help("Follows the music's recent peak, so quiet and loud material both use the whole range.")
+						.hoverTip("Follows the music's recent peak, so quiet and loud material both use the whole range.")
 				}
 			}
 			GridRow {
@@ -317,7 +317,7 @@ private struct AudioInputSection: View {
 						.font(.caption)
 						.foregroundStyle(.secondary)
 				}
-				.help("How far below the top a sound can be and still move the meters and rows. Mastered music sits in the top 15 to 20 dB, so a smaller range makes it move more.")
+				.hoverTip("How far below the top a sound can be and still move the meters and rows. Mastered music sits in the top 15 to 20 dB, so a smaller range makes it move more.")
 			}
 			GridRow {
 				Text("Hit sensitivity")
@@ -338,14 +338,14 @@ private struct AudioInputSection: View {
 						.controlSize(.small)
 					Toggle("Start/Stop sync", isOn: $linkSync)
 						.disabled(!linkEnabled)
-						.help("Beats only while the Link session plays (Ableton Live's transport, for one).")
+						.hoverTip("Beats only while the Link session plays (Ableton Live's transport, for one).")
 					Text(linkStatus)
 						.font(.caption)
 						.foregroundStyle(.secondary)
 						.lineLimit(2)
 						.frame(width: 200, alignment: .leading)	// beside the meter: it wraps
 				}
-				.help("Keeps time with Ableton Live and other Link apps on this Mac or the network: while the session has other apps, its tempo, beats and bars drive Beat and the bars, in place of the beat Whorld hears in the music.")
+				.hoverTip("Keeps time with Ableton Live and other Link apps on this Mac or the network: while the session has other apps, its tempo, beats and bars drive Beat and the bars, in place of the beat Whorld hears in the music.")
 			}
 			// Tempo Follows the Beat is in the Audio menu (it was a row here
 			// too until 2026-11-19, the user's request)
@@ -360,7 +360,7 @@ private struct AudioInputSection: View {
 			.frame(width: stacked ? nil : 1, height: stacked ? 1 : nil)
 		VStack(alignment: .leading, spacing: 10) {
 			Text("Hearing")
-				.help("What Whorld hears, live: the level and bands, the hits (lights and hits a second), and the beat. The beat tracker learns the tempo from the hits and keeps a steady beat through kicks it can't hear (a busy mix, a breakdown).")
+				.hoverTip("What Whorld hears, live: the level and bands, the hits (lights and hits a second), and the beat. The beat tracker learns the tempo from the hits and keeps a steady beat through kicks it can't hear (a busy mix, a breakdown).")
 			AudioMeter()
 			beatButtons
 		}
@@ -441,14 +441,14 @@ extension AudioInputSection {
 			Button("Reset to 1.1") { ModMap.markDownbeat() }
 				.controlSize(.small)
 				.fixedSize()	// the text gives way, not the button
-				.help("Press on the \"one\" (a drop, the start of a phrase): the beat nearest the press becomes beat 1 of bar 1, a little early or late alike. Audio > Reset to 1.1 (⌘\\), OSC /w/mod/downbeat.")
+				.hoverTip("Press on the \"one\" (a drop, the start of a phrase): the beat nearest the press becomes beat 1 of bar 1, a little early or late alike. Audio > Reset to 1.1 (⌘\\), OSC /w/mod/downbeat.")
 			Button { Self.step(-1, mods(), link) } label: { Text("\u{2212}").frame(minWidth: 10) }	// text, not a symbol: docked, the symbols sometimes didn't draw
 				.controlSize(.small)
-				.help(link ? "The count a bar back (Ableton Link sets the beat within the bar). Audio > Bar Back (⇧⌘[), OSC /w/mod/barback."
+				.hoverTip(link ? "The count a bar back (Ableton Link sets the beat within the bar). Audio > Bar Back (⇧⌘[), OSC /w/mod/barback."
 					: "The count a beat back, so the music's \"one\" comes a beat later in it; with ⇧, a bar back; with ⌥, half a beat back (for a beat Whorld found on the off-beats). Nothing fires, and waves ease to their new place. Audio > Beat Back (⌘[), Bar Back (⇧⌘[), Half Beat Back (⌥⌘[).")
 			Button { Self.step(1, mods(), link) } label: { Text("+").frame(minWidth: 10) }
 				.controlSize(.small)
-				.help(link ? "The count a bar on (Ableton Link sets the beat within the bar). Audio > Bar Forward (⇧⌘]), OSC /w/mod/barfwd."
+				.hoverTip(link ? "The count a bar on (Ableton Link sets the beat within the bar). Audio > Bar Forward (⇧⌘]), OSC /w/mod/barfwd."
 					: "The count a beat on; with ⇧, a bar on; with ⌥, half a beat on. Nothing fires, and waves ease to their new place. Audio > Beat Forward (⌘]), Bar Forward (⇧⌘]), Half Beat Forward (⌥⌘]).")
 		}
 	}

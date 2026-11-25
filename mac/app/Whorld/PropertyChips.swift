@@ -390,7 +390,7 @@ struct PropChip: View {
 			DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { flashing = false }
 		}
 		.focusable(false)
-		.help("\(item.name) (\(item.key))\(item.isAction ? "" : on ? ": on" : ": off"). \(item.tip)")
+		.hoverTip("\(item.name) (\(item.key))\(item.isAction ? "" : on ? ": on" : ": off"). \(item.tip)")
 		.accessibilityLabel(item.name)
 		.accessibilityValue(item.isAction ? "" : on ? "on" : "off")
 	}
@@ -422,7 +422,7 @@ struct OriginSwitch: View {
 			}
 			.buttonStyle(.plain)
 			.focusable(false)
-			.help(c.help)
+			.hoverTip(c.help)
 			.accessibilityLabel("Origin " + c.name)
 			.accessibilityAddTraits(c == now ? .isSelected : [])
 		}

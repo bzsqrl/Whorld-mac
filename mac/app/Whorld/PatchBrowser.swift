@@ -164,7 +164,7 @@ struct PatchBrowserPanel: View {
 								.opacity(item.url.standardizedFileURL == model.playingFile?.standardizedFileURL ? 1 : 0)
 							Text(item.name).lineLimit(1).truncationMode(.middle)
 						}
-						.help(item.url.path)
+						.hoverTip(item.url.path)
 					}
 					.width(min: 120, ideal: 200)
 					.customizationID("patch")
@@ -254,14 +254,14 @@ struct PatchBrowserPanel: View {
 			}
 			.menuStyle(.borderlessButton)
 			.fixedSize()
-			.help("Listing \(store.folder.path) and its subfolders. Choose another folder here.")
+			.hoverTip("Listing \(store.folder.path) and its subfolders. Choose another folder here.")
 			TextField("Search", text: $search)
 				.textFieldStyle(.roundedBorder)
 				.controlSize(.small)
 			Text("\(store.items.count)")
 				.font(.caption).foregroundStyle(.secondary)
 				.monospacedDigit()
-				.help("Patches in this folder and its subfolders")
+				.hoverTip("Patches in this folder and its subfolders")
 		}
 		.padding(.horizontal, 8)
 		.padding(.vertical, 5)

@@ -267,12 +267,12 @@ struct KeyMapView: View {
 						map.bindings.append(b)
 						selection = [b.id]
 					} label: { Image(systemName: "plus") }
-						.help("Add a key")
+						.hoverTip("Add a key")
 					Button {
 						map.bindings.removeAll { selection.contains($0.id) }
 						selection = []
 					} label: { Image(systemName: "minus") }
-						.help("Remove the selected keys")
+						.hoverTip("Remove the selected keys")
 						.disabled(selection.isEmpty)
 					Spacer()
 				}

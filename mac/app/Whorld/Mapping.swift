@@ -97,15 +97,15 @@ struct MappingPanel: View {
 			Divider()
 			HStack {
 				Button { model.insertMapping() } label: { Image(systemName: "plus") }
-					.help("Insert a mapping")
+					.hoverTip("Insert a mapping")
 				Button { model.deleteMappings() } label: { Image(systemName: "minus") }
-					.help("Delete the selected mappings")
+					.hoverTip("Delete the selected mappings")
 					.disabled(model.mappingSelection.isEmpty)
 					.keyboardShortcut(.delete, modifiers: [])
 				Divider().frame(height: 16)
 				Toggle("Learn", isOn: Binding(get: { model.midiLearn }, set: { model.midiLearn = $0 }))
 					.toggleStyle(.button)
-					.help("Select mappings, then move a control on your MIDI device")
+					.hoverTip("Select mappings, then move a control on your MIDI device")
 				if model.midiLearn {
 					Text(model.mappingSelection.isEmpty ? "Select the mappings to learn" : "Move a MIDI control…")
 						.font(.caption)

@@ -57,11 +57,10 @@ struct ModTablesSection: View {
 			Divider()
 			HStack(spacing: 12) {
 				Button { add() } label: { Image(systemName: "plus") }
-					.help("Add a row (a copy of the selected one, if any)")
+					.hoverTip("Add a row (a copy of the selected one, if any)")
 				Button { remove() } label: { Image(systemName: "minus") }
-					.help("Remove the selected rows")
+					.hoverTip("Remove the selected rows")
 					.disabled(selection.isEmpty)
-				InfoButton(text: ColumnTips.all)	// the columns, explained (each header's tip too)
 				if let notice = map.notice {
 					Text(notice).font(.caption).foregroundStyle(.orange)
 				}
@@ -268,7 +267,13 @@ private struct RowLevel: View {
 /// Tooltips on the routing table's column headers (SwiftUI's TableColumn
 /// takes only a text title): the table underneath is an NSTableView, whose
 /// columns have header tooltips; each title ends with an info mark.
+/// The columns explained, for the Modulation panel's ⋯ > About the Columns
+enum ModColumns {
+	@MainActor static var about: String { ColumnTips.all }
+}
+
 private struct ColumnTips: NSViewRepresentable {
+	@AppStorage(HoverTips.key) private var tipsOn = true	// Show tips on hover: updated when it changes
 	static let tips: [(title: String, tip: String)] = [
 		("On", "Turn the row on or off."),
 		("Source", "What moves the target: a level, a band, a hit, the beat, or the Beat LFO (a wave locked to the beat: length, shape and phase in the menu beside it)."),
@@ -293,7 +298,7 @@ private struct ColumnTips: NSViewRepresentable {
 		DispatchQueue.main.async {	// once the table is in the window
 			guard let root = view.window?.contentView, let table = Self.table(in: root) else { return }
 			for column in table.tableColumns {
-				let tip = Self.tips.first { $0.title == column.title }?.tip
+				let tip = tipsOn ? Self.tips.first { $0.title == column.title }?.tip : nil
 				if column.headerToolTip != tip { column.headerToolTip = tip }
 			}
 		}
@@ -413,7 +418,7 @@ private struct LfoMenu: View {
 		}
 		.menuStyle(.borderlessButton)
 		.fixedSize()
-		.help("The Beat LFO: \(lengthName), \(shapeName), phase \(String(format: "%.0f°", row.lfoPhaseDeg)). One cycle every so many beats, from the one (Reset to 1.1); Ableton Link's beat, or the beat Whorld hears.")
+		.hoverTip("The Beat LFO: \(lengthName), \(shapeName), phase \(String(format: "%.0f°", row.lfoPhaseDeg)). One cycle every so many beats, from the one (Reset to 1.1); Ableton Link's beat, or the beat Whorld hears.")
 	}
 
 	private var lengthName: String { row.lengthName.lowercased() }
@@ -448,7 +453,7 @@ private struct LengthField: View {
 				return min(max(x, lo), hi)
 			},
 			lo: lo, hi: hi, defaultValue: 1, width: 46, fractions: true)
-			.help("The cycle's length, in \(row.lfoInBars ? "bars" : "beats"): any number, or a fraction such as 1/3 (triplets). ↑ ↓ or a swipe step it.")
+			.hoverTip("The cycle's length, in \(row.lfoInBars ? "bars" : "beats"): any number, or a fraction such as 1/3 (triplets). ↑ ↓ or a swipe step it.")
 	}
 
 	private func setLength(_ beats: Double) {
@@ -494,7 +499,7 @@ private struct PhaseMenu: View {
 		}
 		.menuStyle(.borderlessButton)
 		.fixedSize()
-		.help(row.isPulse
+		.hoverTip(row.isPulse
 			? "The phase: how far into each cycle the pulse comes, from the one (Reset to 1.1). 0° on the one; with 4 bars, 90° is bar 2, 180° bar 3, 270° bar 4."
 			: "The phase: where in the oscillator's cycle the one (Reset to 1.1) falls. With a triangle or sine, 0° puts the one halfway up, 90° at the top, 180° halfway down, 270° at the bottom.")
 	}
@@ -579,7 +584,7 @@ private struct PatchOscillator: View {
 			if amp == 0 {	// short, for the Amount column; the reason in the tip
 				Text("\(wave), amplitude 0")
 					.foregroundStyle(.orange)
-					.help("This parameter's amplitude is 0 in the patch, so its oscillator doesn't move, locked to the beat or not.")
+					.hoverTip("This parameter's amplitude is 0 in the patch, so its oscillator doesn't move, locked to the beat or not.")
 			} else {
 				Text("\(wave), amplitude \(String(format: "%.3g", amp))")
 					.foregroundStyle(.secondary)
@@ -610,7 +615,7 @@ private struct OffsetField: View {
 
 	var body: some View {
 		RowNumber(value: $value, lo: earlyAllowed ? -300 : 0, hi: 300, fine: 1, defaultValue: 0, width: 52)
-			.help(earlyAllowed
+			.hoverTip(earlyAllowed
 				? "Milliseconds before (negative) or after (positive) the beat or bar that the row fires, -300 to 300."
 				: "Milliseconds after the hit that the row fires, up to 300 (a hit can't be anticipated).")
 	}
