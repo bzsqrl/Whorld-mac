@@ -513,12 +513,101 @@ final class AppModel: ObservableObject {
 
 	/// Registers an undo step unless it coalesces with the previous one:
 	/// consecutive edits of the same thing are one step, as on Windows.
-	func recordUndo(key: String, title: String, restore: @escaping () -> Void) {
+	/// What the list edits (the playlist's patches, the Patches panel's
+	/// removals) are registered on, apart from the patch's edits: playing
+	/// or opening a patch clears the patch's undo (as Windows does), not
+	/// theirs (the user's report, 2026-11-25: a click in the Patches panel
+	/// plays the patch, and lost the removals' undo)
+	final class ListUndo {}
+	let listUndo = ListUndo()
+
+	/// Undo for a setting kept as a whole (the Key Map, the Modulation rows;
+	/// the user's request, 2026-11-25): each change that `note()` sees is
+	/// recorded against the state before it, as a list edit (kept when a
+	/// patch plays). Changes to the same thing within a second of each other
+	/// (a slider's drag, typing) are one step. `batch` makes several changes
+	/// one titled step; `quietly` changes that aren't steps on their own
+	/// (a Key Map row made for a key badge, until the key lands).
+	@MainActor
+	final class SnapshotUndo<State: Equatable> {
+		private var last: State?
+		private var batching = 0, quiet = 0
+		private var gesture = 0, lastTime = Date.distantPast
+		private let read: () -> State
+		private let write: (State) -> Void
+		private let describe: (State, State) -> (key: String, title: String)
+
+		init(read: @escaping () -> State, write: @escaping (State) -> Void,
+			describe: @escaping (State, State) -> (key: String, title: String)) {
+			self.read = read
+			self.write = write
+			self.describe = describe
+		}
+
+		/// the state as it starts (before any change is noted)
+		func start() { last = read() }
+
+		func note() {
+			guard batching == 0, quiet == 0, let old = last else { return }
+			let now = read()
+			guard now != old else { return }
+			last = now
+			let (key, title) = describe(old, now)
+			let t = Date()
+			if t.timeIntervalSince(lastTime) > 1 { gesture += 1 }
+			lastTime = t
+			record(old, key: key + " \(gesture)", title: title)
+		}
+
+		func batch(_ title: String, _ body: () -> Void) {
+			batching += 1
+			body()
+			batching -= 1
+			guard let old = last else { return }
+			let now = read()
+			guard now != old else { return }
+			last = now
+			record(old, key: "\(title) \(UUID())", title: title)
+		}
+
+		func quietly(_ body: () -> Void) {
+			quiet += 1
+			body()
+			quiet -= 1
+		}
+
+		/// a change that's no step (remote control, live): taken as the
+		/// state from now on
+		func unrecorded(_ body: () -> Void) {
+			batching += 1
+			body()
+			batching -= 1
+			if last != nil { last = read() }
+		}
+
+		private func record(_ old: State, key: String, title: String) {
+			AppModel.shared.recordUndo(key: key, title: title, list: true) { [weak self] in
+				guard let self else { return }
+				let undone = self.read()
+				self.batching += 1
+				self.write(old)
+				self.batching -= 1
+				self.last = old
+				self.record(undone, key: "\(title) \(UUID())", title: title)	// the redo
+			}
+		}
+	}
+
+	func recordUndo(key: String, title: String, list: Bool = false, restore: @escaping () -> Void) {
 		let replaying = undoManager.isUndoing || undoManager.isRedoing
 		if !replaying && key == coalesceKey && undoManager.canUndo {
 			return
 		}
-		undoManager.registerUndo(withTarget: self) { _ in restore() }
+		if list {
+			undoManager.registerUndo(withTarget: listUndo) { _ in restore() }
+		} else {
+			undoManager.registerUndo(withTarget: self) { _ in restore() }
+		}
 		undoManager.setActionName(title)
 		coalesceKey = replaying ? nil : key
 	}
@@ -535,8 +624,14 @@ final class AppModel: ObservableObject {
 		changed()
 	}
 
-	func resetUndo() {
-		undoManager.removeAllActions()
+	/// a patch played, opened or new: its edits' undo is let go, the
+	/// lists' kept (ListUndo); `lists` too: a playlist new or opened
+	func resetUndo(lists: Bool = false) {
+		if lists {
+			undoManager.removeAllActions()
+		} else {
+			undoManager.removeAllActions(withTarget: self)
+		}
 		coalesceKey = nil
 	}
 
@@ -693,13 +788,26 @@ final class AppModel: ObservableObject {
 	func setDrawMode(_ mode: UInt32) {
 		let old = engine.drawMode
 		guard old != mode else { return }
-		recordUndo(key: "main \(MainProp.drawMode.rawValue)", title: WHControls.mainName(MainProp.drawMode.rawValue)) { [weak self] in
+		// titled by the switch ("Undo Fill"), never "Draw Mode" (the user's request, 2026-11-25)
+		let one: [UInt32: String] = [Self.drawModeFill: "Fill", Self.drawModeOutline: "Outline", Self.drawModeXRay: "XRay"]
+		recordUndo(key: "main \(MainProp.drawMode.rawValue)", title: one[old ^ mode] ?? "Fill and Outline") { [weak self] in
 			self?.setDrawMode(old)
 		}
 		engine.setDrawMode(mode)
 		mainChanged()
-		if old ^ mode == Self.drawModeXRay {	// XOR alone: "XOR  On", as the other toggles (the user's request, 2026-11-24)
-			StripFeed.shared.setReadout("XOR  " + (mode & Self.drawModeXRay != 0 ? "On" : "Off"))
+		showDrawMode(from: old)
+	}
+
+	/// The readout for a draw mode change: one switch flipped says just that
+	/// ("Fill  On", "Outline  Off", "XRay  On", as the other switches; the
+	/// user's requests, 2026-11-24 and 25); several at once (undo, a patch)
+	/// the draw mode ("Draw Mode  Fill + Outline")
+	func showDrawMode(from old: UInt32?) {
+		let new = engine.drawMode
+		knownDrawMode = new
+		let names: [(UInt32, String)] = [(Self.drawModeFill, "Fill"), (Self.drawModeOutline, "Outline"), (Self.drawModeXRay, "XRay")]
+		if let old, let (bit, name) = names.first(where: { $0.0 == old ^ new }) {
+			StripFeed.shared.setReadout(name + "  " + (new & bit != 0 ? "On" : "Off"))
 		} else {
 			showMain(.drawMode)
 		}

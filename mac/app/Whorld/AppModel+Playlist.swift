@@ -24,7 +24,7 @@ extension AppModel {
 		playlistTitle = "Untitled Playlist"
 		playlistModified = false
 		mappingSelection = []
-		resetUndo()
+		resetUndo(lists: true)	// a new playlist: its edits' undo too
 		changed()
 	}
 
@@ -50,7 +50,7 @@ extension AppModel {
 			playlistTitle = url.deletingPathExtension().lastPathComponent
 			playlistModified = false
 			mappingSelection = []
-			resetUndo()
+			resetUndo(lists: true)	// a new playlist: its edits' undo too
 			NSDocumentController.shared.noteNewRecentDocumentURL(url)
 		} catch {
 			NSAlert(error: error).runModal()
@@ -223,10 +223,22 @@ extension AppModel {
 		changes.menus.bump()
 	}
 
+	private static var lastLengthEdit = Date.distantPast, lengthEdits = 0
+
 	/// How long each patch plays: seconds, beats or bars (AutoAdvanceUnit),
 	/// saved with the playlist
 	func setAutoAdvanceLength(_ length: Double, unit: AutoAdvanceUnit) {
 		guard length != engine.autoAdvanceLength || unit.rawValue != engine.autoAdvanceUnit else { return }
+		// undoable with the playlist's edits (the user's request, 2026-11-25);
+		// a run of changes (typing, the stepper) is one step
+		let oldLength = engine.autoAdvanceLength
+		let oldUnit = AutoAdvanceUnit(rawValue: engine.autoAdvanceUnit) ?? .seconds
+		let now = Date()
+		if now.timeIntervalSince(Self.lastLengthEdit) > 1 { Self.lengthEdits += 1 }
+		Self.lastLengthEdit = now
+		recordUndo(key: "auto advance length \(Self.lengthEdits)", title: "Auto Advance Length", list: true) { [weak self] in
+			self?.setAutoAdvanceLength(oldLength, unit: oldUnit)
+		}
 		engine.autoAdvanceUnit = unit.rawValue
 		engine.autoAdvanceLength = length
 		playlistModified = true
@@ -253,6 +265,10 @@ extension AppModel {
 	/// doesn't leave a playlist to save.
 	func setGeometryMode(_ on: Bool) {
 		guard on != engine.geometryMode else { return }
+		// undoable with the playlist's edits (the user's request, 2026-11-25)
+		recordUndo(key: "geometry \(UUID())", title: on ? "Geometry Only" : "Full Patches", list: true) { [weak self] in
+			self?.setGeometryMode(!on)
+		}
 		engine.geometryMode = on
 		playlistModified = true
 		changes.playlist.bump()

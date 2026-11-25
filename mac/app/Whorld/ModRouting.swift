@@ -297,6 +297,46 @@ final class ModMap {
 	var notice: String?
 	@ObservationIgnored private weak var engine: WHEngine?
 
+	/// Edit > Undo for the rows, Depth and Tempo follows the beat (the
+	/// user's request, 2026-11-25); not the on/off switch, a live control
+	struct UndoState: Equatable {
+		var rows: [ModRowSetting]
+		var depth: Double
+		var followTempo: Bool
+	}
+	@ObservationIgnored private lazy var undo = AppModel.SnapshotUndo<UndoState>(
+		read: { [unowned self] in UndoState(rows: self.rows, depth: self.depth, followTempo: self.followTempo) },
+		write: { [unowned self] s in
+			self.rows = s.rows
+			self.depth = s.depth
+			self.followTempo = s.followTempo
+		},
+		describe: { old, new in Self.describe(old, new) })
+
+	/// what changed, to name the undo step and to tell one edit from the next
+	private static func describe(_ old: UndoState, _ new: UndoState) -> (key: String, title: String) {
+		if old.rows == new.rows {
+			return old.depth != new.depth ? ("mod depth", "Modulation Depth") : ("mod tempo", "Tempo Follows the Beat")
+		}
+		let a = old.rows, b = new.rows
+		if a.map(\.id) == b.map(\.id), let i = a.indices.first(where: { a[$0] != b[$0] }),
+			!a.indices.contains(where: { $0 != i && a[$0] != b[$0] }) {
+			// the row, and which of its fields: a slider's drag is one step
+			let e = JSONEncoder()
+			e.outputFormatting = .sortedKeys
+			func fields(_ r: ModRowSetting) -> [String: String] {
+				guard let d = try? e.encode(r), let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return [:] }
+				return o.mapValues { "\($0)" }
+			}
+			let fa = fields(a[i]), fb = fields(b[i])
+			let changed = Set(fa.keys).union(fb.keys).filter { fa[$0] != fb[$0] }.sorted()
+			return ("mod \(a[i].id) \(changed)", changed == ["on"] ? "Modulation Row On" : "Modulation Row")
+		}
+		if b.count > a.count { return ("mod add", "Add Modulation Row") }
+		if b.count < a.count { return ("mod remove", a.count - b.count == 1 ? "Remove Modulation Row" : "Remove Modulation Rows") }
+		return ("mod move", "Move Modulation Row")
+	}
+
 	private init() {
 		// a new install starts with modulation off (the user's request,
 		// 2026-11-23): its starting rows ran on the internal tempo with no
@@ -314,6 +354,7 @@ final class ModMap {
 		if !f.syncs.isEmpty, let data = try? JSONEncoder().encode(file) {	// saved as rows from now on
 			UserDefaults.standard.set(data, forKey: Self.defaultsKey)
 		}
+		undo.start()
 	}
 
 	/// Starting rows (the user's choice, 2026-11-20: beat-based and subtle,
@@ -356,6 +397,7 @@ final class ModMap {
 	}
 
 	private func changed() {
+		undo.note()
 		if let data = try? JSONEncoder().encode(file) {
 			UserDefaults.standard.set(data, forKey: Self.defaultsKey)
 		}
@@ -371,9 +413,11 @@ final class ModMap {
 	}
 
 	func restoreDefaults() {
-		rows = Self.standard
-		depth = 1
-		followTempo = false	// the switch stays as it is
+		undo.batch("Restore Modulation Defaults") {
+			rows = Self.standard
+			depth = 1
+			followTempo = false	// the switch stays as it is
+		}
 		notice = nil
 	}
 
@@ -408,10 +452,12 @@ final class ModMap {
 		let all = f.allRows
 		let known = all.filter { $0.isKnown }
 		let skipped = all.count - known.count
-		rows = known
-		depth = min(max(f.depth, 0), 1)
+		undo.batch("Import Modulation") {
+			rows = known
+			depth = min(max(f.depth, 0), 1)
+			followTempo = f.followTempo
+		}
 		bypass = f.bypass
-		followTempo = f.followTempo
 		notice = skipped > 0 ? "\(skipped) row\(skipped == 1 ? "" : "s") skipped: from a newer Whorld, with a source, control or parameter this one doesn't have." : nil
 	}
 
@@ -457,7 +503,7 @@ final class ModMap {
 		} else if kind == 0 {
 			bypass = value < 0 ? !bypass : value == 0
 		} else {
-			depth = min(max(value, 0), 1)
+			undo.unrecorded { depth = min(max(value, 0), 1) }	// remote control (MIDI, OSC): no undo step
 		}
 	}
 

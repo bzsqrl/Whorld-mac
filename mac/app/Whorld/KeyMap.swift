@@ -51,7 +51,30 @@ final class KeyMap: ObservableObject {
 	private static let defaultsKey = "KeyMap_v1"
 
 	@Published var bindings: [KeyBinding] {
-		didSet { save() }
+		didSet {
+			save()
+			undo.note()
+		}
+	}
+	/// Edit > Undo for the map's changes (the user's request, 2026-11-25)
+	private lazy var undo = AppModel.SnapshotUndo<[KeyBinding]>(
+		read: { [unowned self] in self.bindings },
+		write: { [unowned self] in self.bindings = $0 },
+		describe: { old, new in Self.describe(old, new) })
+
+	/// what changed, to name the undo step and to tell one edit from the next
+	private static func describe(_ old: [KeyBinding], _ new: [KeyBinding]) -> (key: String, title: String) {
+		if old.map(\.id) == new.map(\.id),
+			let i = old.indices.first(where: { old[$0] != new[$0] }),
+			!old.indices.contains(where: { $0 != i && old[$0] != new[$0] }) {
+			let a = old[i], b = new[i]
+			if a.key != b.key { return ("km key \(a.id)", b.key.isEmpty ? "Remove Key" : "Change Key") }
+			if a.speed != b.speed { return ("km speed \(a.id)", "Key Speed") }
+			return ("km control \(a.id)", "Key Control")
+		}
+		if new.count > old.count { return ("km add", "Add Key") }
+		if new.count < old.count { return ("km remove", "Remove Keys") }
+		return ("km", "Key Map")
 	}
 	/// the last conflict resolved, for the window to say
 	@Published var notice: String?
@@ -66,6 +89,7 @@ final class KeyMap: ObservableObject {
 		} else {
 			bindings = Self.standard
 		}
+		undo.start()
 	}
 
 	private func save() {
@@ -83,17 +107,40 @@ final class KeyMap: ObservableObject {
 	/// Gives a row a key; a row that had the key loses it (and says so)
 	func assign(_ key: String, to id: KeyBinding.ID) {
 		notice = nil
-		for i in bindings.indices where bindings[i].key == key && bindings[i].id != id {
-			notice = "\(key.uppercased()) moved here from \(bindings[i].displayName), which now has no key."
-			bindings[i].key = ""
-		}
-		if let i = bindings.firstIndex(where: { $0.id == id }) {
-			bindings[i].key = key
+		undo.batch("Assign Key \(key.uppercased())") {	// one step, the key moved included
+			for i in bindings.indices where bindings[i].key == key && bindings[i].id != id {
+				notice = "\(key.uppercased()) moved here from \(bindings[i].displayName), which now has no key."
+				bindings[i].key = ""
+			}
+			if let i = bindings.firstIndex(where: { $0.id == id }) {
+				bindings[i].key = key
+			}
 		}
 	}
 
+	/// The row for a control (a parameter's column, or 0), made with no
+	/// key if there's none, for a key badge to capture into
+	func row(target: String, prop: Int) -> (id: KeyBinding.ID, made: Bool) {
+		if let b = bindings.first(where: { $0.target == target && $0.prop == prop }) { return (b.id, false) }
+		var b = KeyBinding("", target)
+		b.prop = prop
+		undo.quietly { bindings.append(b) }	// a step only with its key (assign), else dropped again
+		return (b.id, true)
+	}
+
+	/// A row without its key (Delete while capturing, or Remove Key)
+	func clearKey(_ id: KeyBinding.ID) {
+		notice = nil
+		if let i = bindings.firstIndex(where: { $0.id == id }) { bindings[i].key = "" }
+	}
+
+	/// a row made for a capture that ended without a key: gone again
+	func dropIfEmpty(_ id: KeyBinding.ID) {
+		undo.quietly { bindings.removeAll { $0.id == id && $0.key.isEmpty } }
+	}
+
 	func restoreDefaults() {
-		bindings = Self.standard
+		undo.batch("Restore Key Map Defaults") { bindings = Self.standard }
 		notice = nil
 	}
 
@@ -222,7 +269,7 @@ final class KeyMap: ObservableObject {
 			a.runModal()
 			return
 		}
-		bindings = map
+		undo.batch("Import Key Map") { bindings = map }
 		notice = nil
 	}
 }

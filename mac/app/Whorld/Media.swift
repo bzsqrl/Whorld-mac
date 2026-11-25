@@ -476,10 +476,17 @@ extension AppModel {
 
 	var playlistPatches: [String] { engine.playlistPatches }
 
+	/// Undoable, every edit its own step (the user's request, 2026-11-25:
+	/// two drags or deletes in a row coalesced, so one undo took back
+	/// both), and undo puts back the selection and the playing patch too
 	func setPlaylistPatches(_ paths: [String], title: String) {
 		let old = playlistPatches
-		recordUndo(key: "playlist " + title + " \(paths.count)", title: title) { [weak self] in
-			self?.setPlaylistPatches(old, title: title)
+		let oldSelection = playlistSelection, oldPlaying = playingPatch
+		recordUndo(key: "playlist \(UUID())", title: title, list: true) { [weak self] in
+			guard let self else { return }
+			self.setPlaylistPatches(old, title: title)
+			self.playlistSelection = oldSelection
+			self.playingPatch = oldPlaying
 		}
 		engine.setPlaylistPatches(paths)
 		playlistModified = true
@@ -497,7 +504,7 @@ extension AppModel {
 		var paths = playlistPatches
 		let at = min((playlistSelection.max() ?? paths.count - 1) + 1, paths.count)
 		paths.insert(contentsOf: panel.urls.map { $0.path }, at: at)
-		setPlaylistPatches(paths, title: "Insert")
+		setPlaylistPatches(paths, title: "Insert Patches")
 		playlistSelection = Set(at..<(at + panel.urls.count))
 	}
 
@@ -510,7 +517,6 @@ extension AppModel {
 		let p = playingPatch
 		playingPatch = p < 0 || playlistSelection.contains(p) ? -1 : p - playlistSelection.filter { $0 < p }.count
 		playlistSelection = []
-		playingPatch = -1
 	}
 
 	// CPlaylistBar::Move
@@ -520,7 +526,7 @@ extension AppModel {
 		order.move(fromOffsets: source, toOffset: destination)	// playing one and the selection follow)
 		guard order != Array(paths.indices) else { return }
 		paths.move(fromOffsets: source, toOffset: destination)
-		setPlaylistPatches(paths, title: "Move")
+		setPlaylistPatches(paths, title: source.count == 1 ? "Move Patch" : "Move Patches")
 		if playingPatch >= 0, let i = order.firstIndex(of: playingPatch) {
 			playingPatch = i
 		}
