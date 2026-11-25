@@ -422,8 +422,14 @@ struct Layout: Codable, Equatable {
 	var lastFloating: [PanelID] = []
 	/// the exact place it goes back to, in its last region (2026-11-20)
 	var lastPlace: [PanelID: DockPlace] = [:]
+	/// Left or Right the window's whole height, the bottom beside it rather
+	/// than under it (the user's request, 2026-11-25); neither at first
+	var fullHeight: Set<Region> = []
 
-	enum CodingKeys: String, CodingKey { case left, right, bottom, floating, detached, lastRegion, lastFloating, lastPlace }
+	enum CodingKeys: String, CodingKey { case left, right, bottom, floating, detached, lastRegion, lastFloating, lastPlace, fullHeight }
+
+	/// a side that's full height and has panels
+	func isFullHeight(_ r: Region) -> Bool { r != .bottom && fullHeight.contains(r) && root(r) != nil }
 
 	/// Fields missing (a layout from before one was added) read as their
 	/// defaults; see also LayoutFile.sanitized, for panels this Whorld lacks.
@@ -437,6 +443,7 @@ struct Layout: Codable, Equatable {
 		lastRegion = try c.decodeIfPresent([PanelID: Region].self, forKey: .lastRegion) ?? [:]
 		lastFloating = try c.decodeIfPresent([PanelID].self, forKey: .lastFloating) ?? []
 		lastPlace = (try? c.decodeIfPresent([PanelID: DockPlace].self, forKey: .lastPlace)) ?? [:]	// (only a convenience)
+		fullHeight = (try? c.decodeIfPresent(Set<Region>.self, forKey: .fullHeight)) ?? []	// added 2026-11-25
 	}
 
 	/// What a new install shows, and Window > Reset Layout: Parameters on the
@@ -450,6 +457,7 @@ struct Layout: Codable, Equatable {
 			bottom: .split(.row, [.split(.column, [.panel(.patches), .panel(.playlist)]),
 				.panel(.properties), .panel(.master), .panel(.globals)]))
 		l.lastRegion = [.mapping: .left]
+		l.fullHeight = [.left, .right]	// the sides the whole height, the bottom beside them (the user's choice, 2026-11-25)
 		return l
 	}()
 
@@ -459,6 +467,7 @@ struct Layout: Codable, Equatable {
 		// Parameters 40%: every column still fits, narrowed (FormFit), and the
 		// picture gets 60% (was half; the user's request, 2026-11-23)
 		"Whorld.H.left|center": [0.40, 0.60],
+		"Whorld.O.left|middle": [0.40, 0.60],	// Left full height (since 2026-11-25), as wide
 		"Whorld.V.top|bottom": [0.5836, 0.4164],
 		"Whorld.bottom.row(column(patches,playlist),properties,master,globals)": [0.2502, 0.1352, 0.3360, 0.2786],
 		"Whorld.bottom.column(patches,playlist)": [0.5, 0.5],
@@ -731,12 +740,14 @@ final class LayoutModel: ObservableObject {
 	/// the span a highlight shows on a region now, from either kind of drag
 	func spanShown(on r: Region) -> DockEdge? {
 		if case .span(let sr, let e)? = windowDragHover, sr == r { return e }
+		if case .fullHeight(let side)? = windowDragHover, r == .bottom { return side == .left ? .leading : .trailing }
 		if let h = titleDragSpan, h.region == r { return h.edge }
 		return nil
 	}
 	func showSpan(_ t: DragTarget?, owner: String) {
 		var new: SpanHover? = nil
 		if case .span(let r, let e)? = t { new = SpanHover(owner: owner, region: r, edge: e) }
+		if case .fullHeight(let side)? = t { new = SpanHover(owner: owner, region: .bottom, edge: side == .left ? .leading : .trailing) }
 		if new != nil || titleDragSpan?.owner == owner, titleDragSpan != new { titleDragSpan = new }
 	}
 
@@ -748,10 +759,19 @@ final class LayoutModel: ObservableObject {
 	/// under the title bar, which takes tabs), when the region has more than
 	/// the one pane.
 	func span(onPane pane: PanelID, at p: CGPoint, size: CGSize) -> DragTarget? {
-		guard let r = layout.region(of: pane), let root = layout.root(r), !root.isPane,
+		guard let r = layout.region(of: pane), let root = layout.root(r), !root.isPane || r == .bottom,
 			let v = paneViews[pane]?.view, let main = v.window,
 			let pf = frame(paneViews[pane], in: main), let rf = frame(regionViews[r], in: main) else { return nil }
 		let b = Self.spanBand, h = DockedPanel.headerHeight
+		// beside the bottom, by the window's own edge: that side, the whole
+		// height (the user's request, 2026-11-25; the bottom's own span along
+		// that side gives way, its first or last pane's edge does the same)
+		if r == .bottom, let content = main.contentView {
+			let cw = content.bounds.width
+			if pf.minX < 2, p.x < b, p.y >= h { return .fullHeight(.left) }
+			if pf.maxX > cw - 2, p.x > size.width - b, p.y >= h { return .fullHeight(.right) }
+		}
+		guard !root.isPane else { return nil }	// spans need more than the one pane
 		if abs(pf.maxY - rf.maxY) < 2, p.y >= h, p.y < h + b { return .span(r, .top) }
 		if abs(pf.minY - rf.minY) < 2, p.y > size.height - b { return .span(r, .bottom) }
 		if abs(pf.minX - rf.minX) < 2, p.x < b, p.y >= h { return .span(r, .leading) }
@@ -783,7 +803,19 @@ final class LayoutModel: ObservableObject {
 		case .pane(let other, .edge(let e)): move(id, to: e, of: other)
 		case .region(let r): move(id, to: r)
 		case .span(let r, let e): span(id, along: e, of: r)
+		case .fullHeight(let side):	// into that side, at its foot, and the side the whole height
+			span(id, along: .bottom, of: side)
+			setFullHeight(side, true)
 		}
+	}
+
+	/// Left or Right the window's whole height, or back above the bottom
+	/// (a panel's ⋯ menu, or a drop by the window's edge beside the bottom)
+	func setFullHeight(_ r: Region, _ on: Bool) {
+		guard r != .bottom, layout.fullHeight.contains(r) != on else { return }
+		var l = layout
+		if on { l.fullHeight.insert(r) } else { l.fullHeight.remove(r) }
+		layout = l
 	}
 
 	/// Docks the panel along one side of a whole region: below all the

@@ -33,8 +33,15 @@ struct WorkspaceView: View {
 
 	var body: some View {
 		let l = layout.layout
+		// Left or Right full height (the user's request, 2026-11-25): beside
+		// the picture and the bottom both, in a split around them; else
+		// beside the picture, above the bottom, as before (the same split
+		// views, so their saved sizes stay)
+		// (only with a bottom: without one a side is the whole height anyway,
+		// in the same split views as before)
+		let tallLeft = l.bottom != nil && l.isFullHeight(.left), tallRight = l.bottom != nil && l.isFullHeight(.right)
 		// detached, the output's place stays, as the swipe pad (OutputView)
-		let top = (l.left == nil ? [] : ["left"]) + ["center"] + (l.right == nil ? [] : ["right"])
+		let top = (l.left == nil || tallLeft ? [] : ["left"]) + ["center"] + (l.right == nil || tallRight ? [] : ["right"])
 		let rows = (top.isEmpty ? [] : ["top"]) + (l.bottom == nil ? [] : ["bottom"])
 		Group {
 			if rows.isEmpty {
@@ -44,12 +51,19 @@ struct WorkspaceView: View {
 						.foregroundStyle(.secondary)
 				}
 				.frame(maxWidth: .infinity, maxHeight: .infinity)
-			} else {
-				SplitView(vertical: false, items: rows, autosave: "Whorld.V." + rows.joined(separator: "|"),
-					initialSize: { $0 == "bottom" && rows.count > 1 ? 300 : nil },
-					flexible: "top", arrangeGeneration: layout.arrangeGeneration) { id in
-					id == "top" ? AnyView(topRow(top)) : AnyView(region(.bottom))
+			} else if tallLeft || tallRight {
+				let outer = (tallLeft ? ["left"] : []) + ["middle"] + (tallRight ? ["right"] : [])
+				SplitView(vertical: true, items: outer, autosave: "Whorld.O." + outer.joined(separator: "|"),
+					initialSize: { $0 == "left" ? 360 : $0 == "right" ? 440 : nil },
+					flexible: "middle", arrangeGeneration: layout.arrangeGeneration) { id in
+					switch id {
+					case "left": AnyView(region(.left))
+					case "right": AnyView(region(.right))
+					default: AnyView(rowsView(rows, top: top))
+					}
 				}
+			} else {
+				rowsView(rows, top: top)
 			}
 		}
 		.frame(minWidth: 480, minHeight: 320)
@@ -59,6 +73,15 @@ struct WorkspaceView: View {
 			for id in layout.layout.floating {
 				openWindow(id: id.rawValue)
 			}
+		}
+	}
+
+	/// the picture's row (with any side not full height) over the bottom
+	private func rowsView(_ rows: [String], top: [String]) -> some View {
+		SplitView(vertical: false, items: rows, autosave: "Whorld.V." + rows.joined(separator: "|"),
+			initialSize: { $0 == "bottom" && rows.count > 1 ? 300 : nil },
+			flexible: "top", arrangeGeneration: layout.arrangeGeneration) { id in
+			id == "top" ? AnyView(topRow(top)) : AnyView(region(.bottom))
 		}
 	}
 

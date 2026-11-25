@@ -102,6 +102,7 @@ enum DragTarget: Equatable {
 	case pane(PanelID, DropSpot)
 	case region(Region)
 	case span(Region, DockEdge)
+	case fullHeight(Region)	// into Left or Right, which becomes the window's whole height
 }
 
 /// A span shown while a title bar is dragged (the drop delegate whose it
@@ -211,6 +212,13 @@ struct DockedPanel: View {
 							.disabled(r == region && tabs.count == 1)
 					}
 					Button("Float in a Window") { layout.float(id) }
+					// the side the window's whole height (the user's request, 2026-11-25)
+					if region != .bottom {
+						Divider()
+						Toggle("\(region.title) Full Height", isOn: Binding(
+							get: { layout.layout.fullHeight.contains(region) },
+							set: { layout.setFullHeight(region, $0) }))
+					}
 					Divider()
 					// the ⓘ's explanation, here too: a narrow header drops the ⓘ
 					Button("About \(id.title)…") {
