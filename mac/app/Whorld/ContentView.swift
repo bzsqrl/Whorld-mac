@@ -730,9 +730,9 @@ private struct GeometryToggle: View {
 		.accessibilityLabel(geometry ? "Geom" : "Full")	// not both words
 		.buttonStyle(StripToggleStyle())
 		.fixedSize()
-		.help(geometry
-			? "Geometry mode: playing a patch changes only its shape and motion, keeping colors, Hue, Master, Properties and Global values. Click for Full mode (Image > Geometry Only, ⌥⌘G)."
-			: "Full mode: playing a patch changes everything. Click for Geometry mode, where only its shape and motion change (Image > Geometry Only, ⌥⌘G).")
+		.hoverTip(geometry
+			? "Geometry mode: playing a patch changes only its shape and motion, keeping colors, Hue, Master, Properties and Global values. Click for Full mode (Image > Geometry Only, ⌘G)."
+			: "Full mode: playing a patch changes everything. Click for Geometry mode, where only its shape and motion change (Image > Geometry Only, ⌘G).")
 	}
 }
 

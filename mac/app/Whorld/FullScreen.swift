@@ -146,9 +146,19 @@ final class FullScreenController {
 		if let layer = previousLayer {
 			engine.attach(layer)	// back to the main window's view
 		}
-		mainWindow?.makeKeyAndOrderFront(nil)
+		let main = mainWindow
+		let before = main?.firstResponder
+		main?.makeKeyAndOrderFront(nil)
 		w.orderOut(nil)
 		w.contentView = nil
+		// becoming key again, the window would focus its first number box
+		// (Ring Growth's), for no reason: nothing is (the user's report,
+		// 2026-11-24; as when the window first appears)
+		DispatchQueue.main.async {
+			if let main, main.firstResponder is NSTextView, main.firstResponder !== before {
+				main.makeFirstResponder(nil)
+			}
+		}
 	}
 }
 

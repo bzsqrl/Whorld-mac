@@ -220,7 +220,7 @@ struct WhorldCommands: Commands {
 			// submenu on Shift-F and Shift-G, letters the key map uses (the
 			// user's menu audit, 2026-11-18)
 			toggle("Geometry Only", e.geometryMode) { model.setGeometryMode(!e.geometryMode) }
-				.keyboardShortcut("g", modifiers: [.command, .option])
+				.keyboardShortcut("g")	// was Option-Command-G (the user's request, 2026-11-24; Whorld has no Find to need Find Next's ⌘G)
 			// the picture faded to black and back (the Perform Bar; the
 			// user's request, 2026-11-20)
 			toggle("Blackout", e.blackout) { model.setBlackout(!e.blackout) }

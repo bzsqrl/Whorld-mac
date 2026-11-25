@@ -1245,9 +1245,9 @@ struct PlaylistPanel: View {
 				Button(geometry ? "Geom" : "Full") { model.setGeometryMode(!geometry) }
 					.controlSize(.small)
 					.fixedSize()
-					.help(geometry
-						? "Geometry mode: playing a patch changes only its shape and motion, keeping colors, Hue, Master, Properties and Global values. Click for Full mode, where everything changes. Saved with the playlist (Image > Geometry Only, ⌥⌘G)."
-						: "Full mode: playing a patch changes everything. Click for Geometry mode, where only its shape and motion change, keeping colors, Hue, Master, Properties and Global values. Saved with the playlist (Image > Geometry Only, ⌥⌘G).")
+					.hoverTip(geometry
+						? "Geometry mode: playing a patch changes only its shape and motion, keeping colors, Hue, Master, Properties and Global values. Click for Full mode, where everything changes. Saved with the playlist (Image > Geometry Only, ⌘G)."
+						: "Full mode: playing a patch changes everything. Click for Geometry mode, where only its shape and motion change, keeping colors, Hue, Master, Properties and Global values. Saved with the playlist (Image > Geometry Only, ⌘G).")
 			}
 		}
 		.padding(8)
