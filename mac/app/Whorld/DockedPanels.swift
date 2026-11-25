@@ -67,6 +67,7 @@ struct FormScroller: View {
 			ScrollView(width >= id.formMinWidth ? .vertical : [.horizontal, .vertical]) {
 				PanelBody(id: id)
 					.environment(\.formWidth, max(width, id.formMinWidth))
+					.environment(\.formHeight, g.size.height)
 					.frame(width: max(width, id.formMinWidth), alignment: .topLeading)
 					.frame(minHeight: g.size.height, alignment: .top)
 			}
@@ -120,6 +121,8 @@ struct DockedPanel: View {
 	let region: Region
 	@ObservedObject var layout: LayoutModel
 	@State private var spot: DropSpot? = nil	// where a panel dropped now would go
+	@State private var hovered = false	// the pointer is over it: its header tinted faintly
+	@State private var headerAnchor = ViewAnchor()	// for About's popover from the ⋯ menu
 
 	static let headerHeight: CGFloat = 24
 
@@ -202,7 +205,14 @@ struct DockedPanel: View {
 			}
 			.padding(.horizontal, 8)
 			.frame(height: Self.headerHeight)
+			.hoverTip(id.title)	// the whole name, where it's shortened
+			// a tone of its own, so each panel reads as a block where panels
+			// meet, and a faint accent while the pointer is over the panel:
+			// the one the ⌥⌘ arrows move (the design audit, 2026-11-24)
+			.background(Color.accentColor.opacity(hovered ? 0.1 : 0))
+			.background(Color.primary.opacity(0.055))
 			.background(.bar)
+			.background(ViewAnchor.Probe(anchor: headerAnchor))
 			.overlay {	// a flash: moved with the keys, or as far as it goes
 				Color.accentColor.opacity(layout.flashing == id ? 0.45 : 0)
 					.allowsHitTesting(false)
@@ -215,6 +225,7 @@ struct DockedPanel: View {
 		}
 		.background(Color(nsColor: .windowBackgroundColor))	// opaque over the split view
 		.overlay { dropHighlight }
+		.onHover { hovered = $0 }	// the header's faint tint
 	}
 
 	/// The stacked panels' tabs: click one to show it, drag one to move it.

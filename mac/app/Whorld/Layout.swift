@@ -44,6 +44,18 @@ enum PanelID: String, CaseIterable, Codable, Identifiable {
 		}
 	}
 
+	/// the title where a docked panel is narrow (the design audit, 2026-11-24)
+	var shortTitle: String {
+		switch self {
+		case .params: "Params"
+		case .properties: "Props"
+		case .mapping: "MIDI"
+		case .modulation: "Mod"
+		case .keymap: "Keys"
+		default: title
+		}
+	}
+
 	/// What the panel controls, in brief: behind the ⓘ by its title (the user's
 	/// request, 2026-11-18; it was how to move it, now the grip's tip)
 	var summary: String {

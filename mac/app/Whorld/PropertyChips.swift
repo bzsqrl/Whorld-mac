@@ -461,7 +461,7 @@ struct PropertiesPanel: View {
 			case .drawing: "Drawing"
 			case .shape: "Shape"
 			case .color: "Color"
-			case .once: "Once"
+			case .once: "Actions"	// was Once (the user's choice, 2026-11-24: Pause stays on)
 			case .origin: "Origin"
 			case .quality: "Quality"
 			}
@@ -481,41 +481,80 @@ struct PropertiesPanel: View {
 		var height: CGFloat { self == .quality ? 20 : 24 }
 	}
 
+	@Environment(\.formHeight) private var paneHeight
+
+	/// The groups a line, as few lines as the pane's height needs (the
+	/// user's request, 2026-11-25: wide and short, fewer, longer rows): one
+	/// group a line (6 lines), 2 (3 lines), 3 (2) or all 6 (1)
+	private static let perLine = [1, 2, 3, 6]
+
+	/// about how tall n groups a line are, padding included: a line is a
+	/// group's name and its chips
+	private static func height(perLine n: Int) -> CGFloat {
+		let lines = CGFloat((Group.allCases.count + n - 1) / n)
+		return lines * 40 + (lines - 1) * 9 + 16
+	}
+
 	var body: some View {
+		// the fewest groups a line whose lines fit the pane's height (all
+		// six in one line if none do); a line too wide for the width tries
+		// fewer groups, taller, the pane scrolling
+		let fits = Self.perLine.first { Self.height(perLine: $0) <= paneHeight } ?? 6
+		let tries = Self.perLine.filter { $0 <= fits }.reversed()
 		ViewThatFits(in: .horizontal) {
-			// 1: the group names beside their chips
-			Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 6) {
-				ForEach(Group.allCases, id: \.self) { g in
-					GridRow {
-						groupName(g)
-						row(g, .iconAndName)
-					}
+			ForEach(Array(tries), id: \.self) { n in
+				if n > 1 {
+					// icons and names, short names, then icons, n groups a line
+					arrangement(.iconAndName, perLine: n)
+					arrangement(.shortName, perLine: n)
+					arrangement(.icon, perLine: n)
 				}
 			}
-			// 2: the names above, icons and names across
-			stacked { row($0, .iconAndName) }
-			// 3: short names across, no icons
-			stacked { row($0, .shortName) }
-			// 4: icons across
-			stacked { row($0, .icon) }
-			// 5: short names down
-			stacked { column($0, .shortName) }
-			// 6: icons down, the narrowest
-			stacked { column($0, .icon) }
+			// one group a line, as before: across, then down for a narrow pane
+			// 1: icons and names across
+			arrangement(.iconAndName, down: false)
+			// 2: short names across, no icons
+			arrangement(.shortName, down: false)
+			// 3: icons across
+			arrangement(.icon, down: false)
+			// 4: short names down
+			arrangement(.shortName, down: true)
+			// 5: icons down, the narrowest
+			arrangement(.icon, down: true)
 		}
 		.padding(8)
 		.frame(maxWidth: .infinity, alignment: .topLeading)
 	}
 
-	/// each group's name above its chips
-	private func stacked<Content: View>(@ViewBuilder _ chips: @escaping (Group) -> Content) -> some View {
+	/// each group's name above its chips, a row (or a column) of its own
+	/// (the four groups of three were one grid of columns for a while; the
+	/// user preferred each row spaced on its own, 2026-11-24)
+	private func arrangement(_ label: ChipLabel, down: Bool) -> some View {
 		VStack(alignment: .leading, spacing: 9) {
 			ForEach(Group.allCases, id: \.self) { g in
-				VStack(alignment: .leading, spacing: 4) {
-					groupName(g)
-					chips(g)
-				}
+				group(g, label, down: down)
 			}
+		}
+	}
+
+	/// n groups a line, side by side, each its name over its chips
+	private func arrangement(_ label: ChipLabel, perLine n: Int) -> some View {
+		let all = Group.allCases
+		let lines = stride(from: 0, to: all.count, by: n).map { Array(all[$0..<min($0 + n, all.count)]) }
+		return VStack(alignment: .leading, spacing: 9) {
+			ForEach(lines.indices, id: \.self) { i in
+				HStack(alignment: .top, spacing: 18) {
+					ForEach(lines[i], id: \.self) { g in group(g, label, down: false) }
+				}
+				.fixedSize()
+			}
+		}
+	}
+
+	private func group(_ g: Group, _ label: ChipLabel, down: Bool) -> some View {
+		VStack(alignment: .leading, spacing: 4) {
+			groupName(g)
+			if down { column(g, label) } else { row(g, label) }
 		}
 	}
 

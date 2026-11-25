@@ -1321,6 +1321,17 @@ extension EnvironmentValues {
 		get { self[FormWidthKey.self] }
 		set { self[FormWidthKey.self] = newValue }
 	}
+	/// the height its pane has (FormScroller): the Properties panel lays its
+	/// groups across in fewer lines in a short pane (the user's request,
+	/// 2026-11-25)
+	var formHeight: CGFloat {
+		get { self[FormHeightKey.self] }
+		set { self[FormHeightKey.self] = newValue }
+	}
+}
+
+struct FormHeightKey: EnvironmentKey {
+	static let defaultValue: CGFloat = 10_000	// outside a FormScroller: room for everything
 }
 
 // MARK: Parameters
@@ -1697,7 +1708,9 @@ struct MasterPanel: View {
 	var body: some View {
 		let _ = badges
 		let box = SliderRowFit.fit(formWidth, name: Self.name).width(0)
-		VStack(alignment: .leading, spacing: 6) {	// rows of fixed columns around a stretching slider
+		// spacing 4, as Parameters and Globals: their rows line up side by
+		// side (the design audit, 2026-11-24: Master's were 2 points taller)
+		VStack(alignment: .leading, spacing: 4) {	// rows of fixed columns around a stretching slider
 			ForEach(0..<WHControls.masterCount, id: \.self) { i in
 				MasterRow(i: i, box: box)
 				if i == MasterProp.hueSpan.rawValue {
