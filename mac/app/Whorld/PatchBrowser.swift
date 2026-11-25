@@ -39,6 +39,35 @@ final class PatchBrowserStore: ObservableObject {
 	@Published private(set) var items: [Item] = []
 	@Published private(set) var folder: URL
 	@Published private(set) var truncated = false
+	/// patches taken off the list (Delete, or Remove from List; the user's
+	/// request, 2026-11-25): the files stay, and they come back with
+	/// Refresh, another folder, or the next launch
+	private var removed = Set<URL>()
+
+	/// undoable (Edit > Undo Remove from List; the user's request,
+	/// 2026-11-25), and redoable
+	func remove(_ urls: Set<URL>) {
+		let urls = Set(urls.map(\.standardizedFileURL))
+		removed.formUnion(urls)
+		items.removeAll { removed.contains($0.url.standardizedFileURL) }
+		AppModel.shared.recordUndo(key: "patches remove \(UUID())", title: "Remove from List", list: true) {
+			PatchBrowserStore.shared.putBack(urls)
+		}
+	}
+
+	private func putBack(_ urls: Set<URL>) {
+		removed.subtract(urls)
+		reload()
+		AppModel.shared.recordUndo(key: "patches remove \(UUID())", title: "Remove from List", list: true) {
+			PatchBrowserStore.shared.remove(urls)
+		}
+	}
+
+	/// the folder listed again, removed patches included
+	func refresh() {
+		removed = []
+		reload()
+	}
 
 	private var activeObserver: Any?
 

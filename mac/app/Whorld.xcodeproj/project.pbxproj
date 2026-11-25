@@ -33,6 +33,8 @@
 		81A7C1E2EAA988A3BD457722 /* ModRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1157B0E37F859F40E90454FE /* ModRouting.swift */; };
 		8DD65BA976C762DFF8637B31 /* ModulationTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A88952BBB15DFF280A2D8D3 /* ModulationTable.swift */; };
 		AD33BB6F8F6CE372AFDF7A53 /* PropertyChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B41B83EB95AC4402B966D9F /* PropertyChips.swift */; };
+		E988495BED956FD2927E8F74 /* InfoOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03AF78EF380D0E13E5567D92 /* InfoOverlay.swift */; };
+		882DF7F180586C559C704502 /* AppModel+Cue.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB07CD46CF2A788CBF926408 /* AppModel+Cue.swift */; };
 		DDE83BE642A6C2E166A02FE8 /* WHOscServer.mm in Sources */ = {isa = PBXBuildFile; fileRef = B79F32EE812D66FF9DAB8B80 /* WHOscServer.mm */; };
 		96F024843412E664FD58F31C /* WHSyphon.mm in Sources */ = {isa = PBXBuildFile; fileRef = CE5309039327473BFF495142 /* WHSyphon.mm */; };
 		94DBBBAB7A0DADA1EE62337A /* WHAudioInput.mm in Sources */ = {isa = PBXBuildFile; fileRef = FB590ED2524E4D21EFC0FDEF /* WHAudioInput.mm */; };
@@ -99,6 +101,8 @@
 		1157B0E37F859F40E90454FE /* ModRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ModRouting.swift"; sourceTree = "<group>"; };
 		2A88952BBB15DFF280A2D8D3 /* ModulationTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ModulationTable.swift"; sourceTree = "<group>"; };
 		5B41B83EB95AC4402B966D9F /* PropertyChips.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PropertyChips.swift"; sourceTree = "<group>"; };
+		03AF78EF380D0E13E5567D92 /* InfoOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "InfoOverlay.swift"; sourceTree = "<group>"; };
+		CB07CD46CF2A788CBF926408 /* AppModel+Cue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+Cue.swift"; sourceTree = "<group>"; };
 		F85FF2ED078A1C77D49A3452 /* WHOscServer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "WHOscServer.h"; sourceTree = "<group>"; };
 		B79F32EE812D66FF9DAB8B80 /* WHOscServer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = "WHOscServer.mm"; sourceTree = "<group>"; };
 		E092543CD4E3164F37586311 /* WHSyphon.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "WHSyphon.h"; sourceTree = "<group>"; };
@@ -202,6 +206,8 @@
 				1157B0E37F859F40E90454FE /* ModRouting.swift */,
 				2A88952BBB15DFF280A2D8D3 /* ModulationTable.swift */,
 				5B41B83EB95AC4402B966D9F /* PropertyChips.swift */,
+				03AF78EF380D0E13E5567D92 /* InfoOverlay.swift */,
+				CB07CD46CF2A788CBF926408 /* AppModel+Cue.swift */,
 				F85FF2ED078A1C77D49A3452 /* WHOscServer.h */,
 				B79F32EE812D66FF9DAB8B80 /* WHOscServer.mm */,
 				E092543CD4E3164F37586311 /* WHSyphon.h */,
@@ -348,6 +354,8 @@
 				81A7C1E2EAA988A3BD457722 /* ModRouting.swift in Sources */,
 				8DD65BA976C762DFF8637B31 /* ModulationTable.swift in Sources */,
 				AD33BB6F8F6CE372AFDF7A53 /* PropertyChips.swift in Sources */,
+				E988495BED956FD2927E8F74 /* InfoOverlay.swift in Sources */,
+				882DF7F180586C559C704502 /* AppModel+Cue.swift in Sources */,
 				DDE83BE642A6C2E166A02FE8 /* WHOscServer.mm in Sources */,
 				96F024843412E664FD58F31C /* WHSyphon.mm in Sources */,
 				94DBBBAB7A0DADA1EE62337A /* WHAudioInput.mm in Sources */,

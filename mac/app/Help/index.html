@@ -94,7 +94,18 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <li><b>Click a patch</b> to play it at once, crossfading as the playlist does (unsaved changes to the patch showing are let go, as when a playlist patch plays). <kbd>↑</kbd> <kbd>↓</kbd> move through the list, playing each in turn; typing a name's first letters jumps to it. The green triangle marks the patch playing.</li>
 <li><b>Drag patches into the Playlist</b> to add them where you drop them, or right-click and choose Add to Playlist (after the selected entry). <kbd>⌘</kbd>- or <kbd>⇧</kbd>-click to select several.</li>
 <li>Right-click a patch to Play it, Open as Patch (as File &gt; Open does, so <kbd>⌘S</kbd> saves to it), or Show in Finder.</li>
+<li><b>Delete</b> (or right-click &gt; Remove from List) takes the selected patches off the list, without touching the files; Edit &gt; Undo (<kbd>⌘Z</kbd>) puts them back, as do Refresh in the folder menu, another folder and the next launch. In the Playlist, Delete removes the selected patches from the playlist. Every change to the playlist (adding, inserting, removing, reordering) is a step of its own in Edit &gt; Undo, which puts back the selection and the playing patch too.</li>
 <li><b>Search</b> narrows the list by name or folder. The folder menu at the top left chooses another folder to list (Choose Folder&hellip;), goes back to the Whorld Patches folder, shows it in the Finder, or refreshes the list (it also refreshes whenever you come back to Whorld).</li>
+</ul>
+
+<h3 id="cue">Cue, then go</h3>
+<p>For playing a long playlist by feel: a <b>cue</b> marks the patch to play next, apart from the one playing, and moving it changes nothing on screen. The Playlist shows it as an outlined blue arrow (filled while it waits for the beat); the readout and the info overlay say <i>Cued 47 · name</i>.</p>
+<ul>
+<li><kbd>⌥↓</kbd> <kbd>⌥↑</kbd> move the cue one patch (round the ends), <kbd>⌥⇧↓</kbd> <kbd>⌥⇧↑</kbd> ten, <kbd>⇧⌥⌘↑</kbd> <kbd>⇧⌥⌘↓</kbd> to the first and last, and <kbd>⌥/</kbd> to a random one. The keys follow the playlist's: <kbd>⌘</kbd> plays (<kbd>⌘↓</kbd> <kbd>⌘↑</kbd> the next and previous patch, <kbd>⌘/</kbd> a random one), <kbd>⌥</kbd> cues.</li>
+<li><kbd>⌥⌘G</kbd> then a number cues that patch as you type it (<kbd>Delete</kbd> takes a digit back, <kbd>Esc</kbd> puts the cue back); <kbd>Return</kbd> plays it.</li>
+<li><kbd>Return</kbd> is <b>Go</b>: it plays the cued patch (none cued: the next one), and the cue moves on to the patch after it. <kbd>⌘Return</kbd> is <b>Go Now</b>.</li>
+<li><b>Launch timing</b> (<i>Go:</i> in the Playlist's bottom bar, or Image &gt; Cue) decides when Go plays: <b>Now</b>, or on the next <b>Beat</b>, <b>Bar</b> or <b>4 Bars</b> of the beat (Ableton Link's while it drives the beat, else the one heard). With no beat to follow, Go plays at once. While it waits the overlay counts down; playing another patch meanwhile calls it off.</li>
+<li>The keys work over the picture, in full screen and in the panels, but not while you type in a box or a list has focus (where Return plays its selected row). Image &gt; Cue has them all.</li>
 </ul>
 
 <h3 id="advance">Auto-advance</h3>
@@ -169,7 +180,7 @@ A step too small for a number box to show moves it to the next value it shows. S
 <li><b>To span a whole area</b> (all along the bottom, say, which suits the wide Modulation panel), drop it in the thin strip along that area's outer side: the bottom of the window, just under a bottom panel's title bar for the area's top, or the strip along the picture's edge next to that area; the highlight then runs the area's whole length. Or drop it near the left, right or bottom edge of the picture to add it to that area.</li>
 <li><b>Float a panel:</b> drag its title bar anywhere that isn't a dock spot (out of the Whorld window, or onto the middle of the picture) and let go, or double-click its title bar, or use the ⋯ menu on its title bar. Its Dock button, or a double-click on its title bar, docks it again; dragging a floating panel over the Whorld window highlights where it would dock (the window turns see-through to show it).</li>
 <li>A panel docked again goes back exactly where it was, sizes too, if nothing has moved since; otherwise beside the panel it was next to, or into the same tabs. Floating panels stay above the Whorld windows while Whorld is active, and a panel hidden while floating floats again when shown.</li>
-<li><b>From the keyboard:</b> with the pointer over a panel, <kbd>⌥⌘</kbd> and an arrow moves it a step that way (beside the next panel, or into the next area); with <kbd>⇧⌥⌘</kbd> all the way along that side. Over a floating panel, <kbd>⌥⌘←</kbd> <kbd>⌥⌘→</kbd> <kbd>⌥⌘↓</kbd> dock it on the left, right or bottom. The title bar flashes, also when the panel can go no further. The ⋯ menu lists these moves too.</li>
+<li><b>Step by step:</b> the panel's ⋯ menu has Move Left, Right, Up and Down (beside the next panel, or into the next area) and Move All the Way. The title bar flashes, also when the panel can go no further.</li>
 <li><b>Modulation</b> opens floating; docked in a narrower pane it puts its settings above Hearing (and scrolls, in a short one).</li>
 <li><b>Window &gt; Show All Panels</b> shows every panel and fits the window to its screen.</li>
 </ul>
@@ -420,8 +431,6 @@ A step too small for a number box to show moves it to the next value it shows. S
 <tr><td>Globals panel</td><td>Shift+G</td><td>⌥⌘3</td></tr>
 <tr><td>Properties panel</td><td>—</td><td>⌥⌘4</td></tr>
 <tr><td>Show all panels</td><td>—</td><td>⌥⌘P</td></tr>
-<tr><td>Move the panel under the pointer a step (Mac)</td><td>&mdash;</td><td>⌥⌘← ⌥⌘→ ⌥⌘↑ ⌥⌘↓</td></tr>
-<tr><td>Move it all the way (Mac)</td><td>&mdash;</td><td>⇧⌥⌘ and an arrow</td></tr>
 <tr><td>Preferences</td><td>Shift+O</td><td>⌘,</td></tr>
 <tr><td>Playlist panel</td><td>Shift+A</td><td>⌥⌘5</td></tr>
 <tr><td>Take Snapshot</td><td>Ctrl+T</td><td>⌘T</td></tr>
@@ -442,6 +451,9 @@ A step too small for a number box to show moves it to the next value it shows. S
 <tr><td>Save Playlist</td><td>Ctrl+Shift+S</td><td>⌥⌘S (⇧⌘S is Save As)</td></tr>
 <tr><td>Save Playlist As</td><td>&mdash;</td><td>⌥⇧⌘S</td></tr>
 <tr><td>Next / previous playlist patch (Image menu)</td><td>none</td><td>⌘↓ / ⌘↑</td></tr>
+<tr><td>A random playlist patch, played (Image menu, Mac)</td><td>&mdash;</td><td>⌘/</td></tr>
+<tr><td>Cue: next / previous, ten, first / last, random, a number (Mac)</td><td>&mdash;</td><td>⌥↓ / ⌥↑, ⌥⇧↓ / ⌥⇧↑, ⇧⌥⌘↑ / ⇧⌥⌘↓, ⌥/, ⌥⌘G</td></tr>
+<tr><td>Go: play the cued patch, on Launch Timing / now (Mac)</td><td>&mdash;</td><td>Return / ⌘Return</td></tr>
 <tr><td>Auto Advance through the playlist, on or off (Mac)</td><td>&mdash;</td><td>⌥⌘L</td></tr>
 <tr><td>Blackout, fade to black or back (Mac)</td><td>&mdash;</td><td>⌘B</td></tr>
 <tr><td>Open patch</td><td>Ctrl+O</td><td>⌘O</td></tr>

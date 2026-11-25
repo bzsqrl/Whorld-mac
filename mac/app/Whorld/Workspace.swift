@@ -331,36 +331,3 @@ enum PanelMoves {
 	]
 }
 
-/// Option-Command and an arrow (with Shift, all the way) moves the panel
-/// under the pointer (LayoutModel.step; the user's request, 2026-11-19).
-/// Taken before anything else, wherever the pointer is: the ⋯ menus show
-/// these keys, and none of them should act on its own panel from afar.
-@MainActor
-enum PanelKeys {
-	private static var monitor: Any?
-
-	static func install() {
-		guard monitor == nil else { return }
-		monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
-			let mods = e.modifierFlags.intersection([.shift, .command, .option, .control])
-			guard mods == [.command, .option] || mods == [.command, .option, .shift] else { return e }
-			let edge: DockEdge
-			switch e.keyCode {
-			case 123: edge = .leading
-			case 124: edge = .trailing
-			case 126: edge = .top
-			case 125: edge = .bottom
-			default: return e
-			}
-			let far = mods.contains(.shift)
-			MainActor.assumeIsolated {
-				guard NSApp.modalWindow == nil else { return }
-				let layout = AppModel.shared.layout
-				if let id = layout.panelUnderPointer() {
-					layout.step(id, toward: edge, far: far)
-				}
-			}
-			return nil
-		}
-	}
-}

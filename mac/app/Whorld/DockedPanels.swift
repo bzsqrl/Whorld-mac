@@ -195,16 +195,14 @@ struct DockedPanel: View {
 					}
 				}
 				Menu {
-					// ⌥⌘ and the arrows over the panel do these (PanelKeys);
-					// shown here to be found (the user's request, 2026-11-19)
+					// no keys since 2026-11-25 (the user's choice: the arrow
+					// chords went to the cue; other keys may come later)
 					ForEach(PanelMoves.all, id: \.title) { m in
 						Button("Move " + m.title) { layout.step(id, toward: m.edge, far: false) }
-							.keyboardShortcut(m.key, modifiers: [.command, .option])
 					}
 					Menu("Move All the Way") {
 						ForEach(PanelMoves.all, id: \.title) { m in
 							Button(m.title) { layout.step(id, toward: m.edge, far: true) }
-								.keyboardShortcut(m.key, modifiers: [.command, .option, .shift])
 						}
 					}
 					Divider()
@@ -557,7 +555,7 @@ struct FloatingWindowHelper: NSViewRepresentable {
 			observers.forEach(NotificationCenter.default.removeObserver)
 			observers = []
 			guard let w = window else { stopTracking(); return }
-			layout?.floatingWindows[id] = LayoutModel.WeakWindow(w)	// for the move keys (PanelKeys)
+			layout?.floatingWindows[id] = LayoutModel.WeakWindow(w)	// (LayoutModel.reveal)
 			let nc = NotificationCenter.default
 			setLevel()
 			for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification,

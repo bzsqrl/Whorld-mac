@@ -66,6 +66,86 @@ final class OutputKeys {
 		}
 	}
 
+	/// The cue's keys (AppModel+Cue.swift; the user's design, 2026-11-25),
+	/// anywhere but while text is edited, a list has focus, or a dialog
+	/// is up; nil: not one of them
+	private func cueKeys(key: String, code: CGKeyCode, up: Bool, modifiers: UInt) -> Bool? {
+		let m = AppModel.shared
+		let opt = NSEvent.ModifierFlags.option.rawValue
+		let optShift = NSEvent.ModifierFlags([.option, .shift]).rawValue
+		let optCmd = NSEvent.ModifierFlags([.option, .command]).rawValue
+		let cmd = NSEvent.ModifierFlags.command.rawValue
+		let optShiftCmd = NSEvent.ModifierFlags([.option, .shift, .command]).rawValue
+		// typing a number after Option-Command-G: digits cue as they're
+		// typed, Delete takes one back, Return goes, Esc puts the cue back;
+		// any other key ends it and does its own job
+		if let typed = m.cueEntry {
+			if up { return digit(code) != nil || [36, 76, 51, 53].contains(code) ? true : nil }
+			if let d = digit(code), modifiers == 0 {
+				let t = String((typed + d).prefix(4))
+				m.cueEntry = t
+				if let n = Int(t), n >= 1 { m.cue(n - 1) }
+				m.showCue(typing: t)
+				return true
+			}
+			switch code {
+			case 51:
+				let t = String(typed.dropLast())
+				m.cueEntry = t
+				if let n = Int(t), n >= 1 { m.cue(n - 1) } else { m.cuedPatch = m.cueBeforeEntry }
+				m.showCue(typing: t)
+				return true
+			case 53:
+				m.cueEntry = nil
+				m.cuedPatch = m.cueBeforeEntry
+				m.showCue()
+				return true
+			case 36, 76:
+				m.cueEntry = nil
+				m.go(now: modifiers == cmd)
+				return true
+			default:
+				m.cueEntry = nil
+				m.showCue()
+			}
+		}
+		guard !up, !m.playlistPatches.isEmpty, held == nil, Self.takesCueKeys() else { return nil }
+		switch (code, modifiers) {
+		case (126, opt): m.cueStep(-1)	// Option-Up, Option-Down
+		case (125, opt): m.cueStep(1)
+		case (126, optShift): m.cueStep(-10)	// with Shift: ten
+		case (125, optShift): m.cueStep(10)
+		case (126, optShiftCmd): m.cue(0)	// Shift-Option-Command-Up, -Down: first and last (as a number box's
+		case (125, optShiftCmd): m.cue(m.playlistPatches.count - 1)	// Shift-Command: to an end; the user's choice, 2026-11-25)
+		case (_, optCmd) where key == "g":
+			m.cueEntry = ""
+			m.cueBeforeEntry = m.cuedPatch
+			m.showCue(typing: "")
+		case (_, opt) where key == "/": m.cueRandom()	// Option-/, as Command-/ plays one (taken before / as a Key Map hold)
+		case (36, 0), (76, 0): m.go()	// Return (or Enter): Go, on Launch Timing
+		case (36, cmd), (76, cmd): m.go(now: true)	// Command-Return: Go Now (Command plays now; the user's choice, 2026-11-25)
+		default: return nil
+		}
+		return true
+	}
+
+	private func digit(_ code: CGKeyCode) -> String? {
+		let top: [CGKeyCode: String] = [29: "0", 18: "1", 19: "2", 20: "3", 21: "4", 23: "5", 22: "6", 26: "7", 28: "8", 25: "9"]
+		let pad: [CGKeyCode: String] = [82: "0", 83: "1", 84: "2", 85: "3", 86: "4", 87: "5", 88: "6", 89: "7", 91: "8", 92: "9"]
+		return top[code] ?? pad[code]
+	}
+
+	/// not while text is edited, a list has focus (Return plays its row),
+	/// a dialog or sheet is up, or the Key Map waits for a key
+	private static func takesCueKeys() -> Bool {
+		guard NSApp.modalWindow == nil, KeyMap.shared.capturing == nil,
+			let w = NSApp.keyWindow, w.attachedSheet == nil, !w.isSheet else { return false }
+		switch w.firstResponder {
+		case is NSTextView, is NSTextField, is NSTableView, is NSOutlineView: return false
+		default: return true
+		}
+	}
+
 	/// true: the key event is this feature's (not passed on)
 	func takes(key: String?, code: CGKeyCode, up: Bool, modifiers: UInt, isRepeat: Bool = false) -> Bool {
 		guard let key else { return false }
@@ -106,6 +186,7 @@ final class OutputKeys {
 			if !isRepeat { AppModel.shared.clear() }
 			return true
 		}
+		if let taken = cueKeys(key: key, code: code, up: up, modifiers: modifiers) { return taken }
 		// Command-Left and Command-Right: the previous and next snapshot
 		// (File > Snapshots > Previous and Next, without keys of their own), in full
 		// screen or with the pointer over the picture

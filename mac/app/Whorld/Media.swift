@@ -490,6 +490,8 @@ extension AppModel {
 		}
 		engine.setPlaylistPatches(paths)
 		playlistModified = true
+		if cuedPatch >= paths.count { cuedPatch = -1 }
+		if pendingLaunch >= paths.count { cancelLaunch() }
 		changed()
 	}
 
@@ -1129,6 +1131,27 @@ struct MovieBar: View {
 
 /// The playlist window (CPlaylistBar): patch name, author (Mac addition)
 /// and folder, playing indicator; double-click or Return plays.
+/// When Go plays the cued patch (LaunchTiming; an app setting): a small
+/// menu in the Playlist's bottom bar
+struct LaunchTimingMenu: View {
+	@AppStorage(LaunchTiming.key) private var timing = 0
+
+	var body: some View {
+		Menu {
+			Picker("Go", selection: $timing) {
+				ForEach(LaunchTiming.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
+			}
+			.pickerStyle(.inline)
+		} label: {
+			Text("Go: " + (LaunchTiming(rawValue: timing) ?? .now).title)
+				.font(.caption)
+		}
+		.menuStyle(.borderlessButton)
+		.fixedSize()
+		.hoverTip("When Return plays the cued patch: now, or on the next beat, bar or 4 bars (at once without a beat). Option-Up and Option-Down move the cue; Command-Return plays it now.")
+	}
+}
+
 struct PlaylistPanel: View {
 	@EnvironmentObject private var model: AppModel
 
@@ -1160,9 +1183,18 @@ struct PlaylistPanel: View {
 			Table(of: Row.self, selection: $model.playlistSelection, columnCustomization: $columns) {
 				TableColumn("Patch") { row in
 					HStack(spacing: 4) {
-						Image(systemName: "play.fill")
-							.foregroundStyle(.green)
-							.opacity(row.id == model.playingPatch ? 1 : 0)
+						// playing, or else cued (AppModel+Cue.swift): an
+						// outlined arrow, filled in while a Go waits for the beat
+						ZStack {
+							Image(systemName: "play.fill")
+								.foregroundStyle(.green)
+								.opacity(row.id == model.playingPatch ? 1 : 0)
+							if row.id == model.cuedPatch && row.id != model.playingPatch {
+								Image(systemName: row.id == model.pendingLaunch ? "arrowtriangle.right.fill" : "arrowtriangle.right")
+									.foregroundStyle(Color.accentColor)
+									.hoverTip(row.id == model.pendingLaunch ? "Cued; plays on the beat" : "Cued: Return plays it")
+							}
+						}
 						let missing = model.resolvePatchPath(row.path) == nil
 						Text(row.name)
 							.foregroundStyle(missing ? .secondary : .primary)
@@ -1310,6 +1342,7 @@ struct PlaylistPanel: View {
 				.disabled(model.playlistSelection.isEmpty)
 			AutoAdvanceControls()
 				.padding(.leading, 6)
+			LaunchTimingMenu()
 			Spacer(minLength: 0)
 			if mode {
 				// the patch mode, named as it is now (the user's request,

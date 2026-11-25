@@ -17,6 +17,9 @@ struct WhorldCommands: Commands {
 	let model: AppModel	// not observed: MenuRefresh says when to refresh
 	@Environment(\.openWindow) private var openWindow
 	@AppStorage(AudioSettings.linkKey) private var linkEnabled = false	// Audio > Ableton Link
+	@AppStorage(LaunchTiming.key) private var launchTiming = 0	// Image > Cue > Launch Timing
+	@AppStorage(KeyBadge.defaultsKey) private var keyBadges = false	// View > Show Key Map in Panels
+	@AppStorage(HoverTips.key) private var hoverTips = true	// View > Show Tips on Hover
 
 	/// A recent file's name, with its folder if another recent file has the same name.
 	static func recentTitle(_ url: URL, in all: [URL]) -> String {
@@ -210,6 +213,10 @@ struct WhorldCommands: Commands {
 			Button("Previous Patch") { Self.arrowOrStep(down: false) { model.stepPatch(-1) } }
 				.keyboardShortcut(.upArrow, modifiers: .command)
 				.disabled(model.playlistPatches.isEmpty)
+			// Command plays, Option cues (the user's paradigm, 2026-11-25)
+			Button("Random Patch") { model.playRandomPatch() }
+				.keyboardShortcut("/")
+				.disabled(model.playlistPatches.count < 2)
 			// play through the playlist (the Playlist panel's Play button;
 			// the user's request, 2026-11-20)
 			Toggle("Auto Advance", isOn: Binding(get: { e.autoAdvancing }, set: { model.setAutoAdvance($0) }))
@@ -225,6 +232,26 @@ struct WhorldCommands: Commands {
 			// user's request, 2026-11-20)
 			toggle("Blackout", e.blackout) { model.setBlackout(!e.blackout) }
 				.keyboardShortcut("b")
+			// cue, then go (AppModel+Cue.swift; the user's design,
+			// 2026-11-25); their keys are OutputKeys', shown in the titles
+			// (a menu key would take Return and the arrows from text boxes)
+			Menu("Cue") {
+				Button("Go (Return)") { model.go() }
+				Button("Go Now (⌘Return)") { model.go(now: true) }
+				Divider()
+				Button("Cue Next (⌥↓)") { model.cueStep(1) }
+				Button("Cue Previous (⌥↑)") { model.cueStep(-1) }
+				Button("Cue 10 Down (⌥⇧↓)") { model.cueStep(10) }
+				Button("Cue 10 Up (⌥⇧↑)") { model.cueStep(-10) }
+				Button("Cue First (⇧⌥⌘↑)") { model.cue(0) }
+				Button("Cue Last (⇧⌥⌘↓)") { model.cue(model.playlistPatches.count - 1) }
+				Button("Cue Random (⌥/)") { model.cueRandom() }
+				Divider()
+				Picker("Launch Timing", selection: $launchTiming) {
+					ForEach(LaunchTiming.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
+				}
+			}
+			.disabled(model.playlistPatches.isEmpty)
 			Divider()
 			// Cmd-1 to Cmd-9, then Cmd-0, in the Properties' order (the
 			// user's request, 2026-11-24; before: Fill, Outline, Mirror,
@@ -384,6 +411,24 @@ struct WhorldCommands: Commands {
 			Toggle("Show Properties in Perform Bar", isOn: Binding(get: { model.showPropsBar }, set: { model.showPropsBar = $0 }))
 				.keyboardShortcut("b", modifiers: [.command, .option, .shift])	// beside the bar's Shift-Command-B (the user's shortcut review, 2026-11-24)
 				.disabled(!model.showStats)
+			// the Perform Bar's information over the picture (InfoOverlay; the
+			// user's request, 2026-11-25): ⌥⌘`, on the cheat sheet's key
+			// (⌘` is macOS's next-window key)
+			Toggle("Show Info Overlay", isOn: Binding(get: { model.showInfoOverlay }, set: { model.showInfoOverlay = $0 }))
+				.keyboardShortcut("`", modifiers: [.command, .option])
+			// the panels' key boxes (KeyBadge; the Key Map panel's Show in
+			// Panels too) and tips on hover, here only since 2026-11-25 (out of
+			// Settings > General and the Help menu; the user's request)
+			// ⌥⌘K "keys", ⌥⌘I "info" (the user's choice, 2026-11-25; tips
+			// were ⌥⌘/, now the playlist's random keys' family)
+			Toggle("Show Key Map in Panels", isOn: $keyBadges)
+				.keyboardShortcut("k", modifiers: [.command, .option])
+			Toggle("Show Tips on Hover", isOn: Binding(get: { hoverTips }, set: {
+				hoverTips = $0
+				if !$0 { InfoPopover.shared.close() }	// a title's ⓘ it came from may be gone
+				NotificationCenter.default.post(name: HoverTips.changed, object: nil)
+			}))
+				.keyboardShortcut("i", modifiers: [.command, .option])
 			// the strip's Auto; beside Audio Modulation's Command-' (the
 			// user's request, 2026-11-19; out of Settings > Display)
 			Toggle("Automatic Quality", isOn: Binding(get: { model.autoQuality }, set: { model.autoQuality = $0 }))

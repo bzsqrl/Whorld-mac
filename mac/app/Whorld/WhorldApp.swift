@@ -133,6 +133,11 @@ final class AppModel: ObservableObject {
 	/// View > Show Properties in Perform Bar (the user's choice, 2026-11-24):
 	/// the Properties' live chips as a row of the Perform Bar
 	/// (PropertiesStrip), with the bar; kept between runs and per layout
+	/// View > Show Info Overlay (InfoOverlay): off at launch, and turned off
+	/// on entering full screen (the user's request, 2026-11-25)
+	@Published var showInfoOverlay = false {
+		didSet { InfoOverlay.shared.refresh() }
+	}
 	@Published var showPropsBar: Bool = UserDefaults.standard.object(forKey: "View_bShowPropsBar") as? Bool ?? true {
 		didSet { UserDefaults.standard.set(showPropsBar, forKey: "View_bShowPropsBar") }
 	}
@@ -297,6 +302,15 @@ final class AppModel: ObservableObject {
 	@Published var currentSnapshot = 0
 	/// Index of the playing playlist patch (CPlaylistBar::m_iPlayingPatch).
 	@Published var playingPatch = -1
+	/// the cue (AppModel+Cue.swift): the entry Go plays, -1 for none
+	@Published var cuedPatch = -1
+	/// a Go waiting for the beat: the entry it plays, -1 for none
+	@Published var pendingLaunch = -1
+	/// the beat count when that Go was pressed (it plays on a later one)
+	var launchFrom = 0
+	/// the number being typed after Option-Command-G, and the cue before it
+	var cueEntry: String?
+	var cueBeforeEntry = -1
 	/// the patch file playing or open, for the Patches panel's marker
 	@Published var playingFile: URL?
 	/// Counts patches played from the playlist (the Playlist panel scrolls
@@ -1230,7 +1244,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 			WhorldFolders.installSamples()
 		}
 		NumberBoxSelect.install()
-		PanelKeys.install()
 		TitleBarClicks.install()
 		ClickAway.install()
 		// second shortcuts for menu commands (a menu item has only one)

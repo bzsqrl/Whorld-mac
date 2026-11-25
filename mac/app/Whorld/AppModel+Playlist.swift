@@ -21,6 +21,8 @@ extension AppModel {
 		engine.newPlaylist()
 		playlistURL = nil
 		playingPatch = -1
+		cuedPatch = -1	// a new playlist: no cue
+		cancelLaunch()
 		playlistTitle = "Untitled Playlist"
 		playlistModified = false
 		mappingSelection = []
@@ -46,6 +48,8 @@ extension AppModel {
 			}
 			playlistURL = url
 			playingPatch = -1
+		cuedPatch = -1	// a new playlist: no cue
+		cancelLaunch()
 			checkMissingPatches()
 			playlistTitle = url.deletingPathExtension().lastPathComponent
 			playlistModified = false
@@ -150,6 +154,8 @@ extension AppModel {
 	// 2026-11-09). File > New, Open and Quit still ask.
 	@discardableResult
 	func playPatch(_ index: Int, automatic: Bool = false) -> Bool {
+		// another patch played meanwhile calls off a Go waiting for the beat
+		if pendingLaunch >= 0, index != pendingLaunch { cancelLaunch() }
 		let paths = engine.playlistPatches
 		guard index >= 0, index < paths.count, let url = resolvePatchPath(paths[index]) else { return false }
 		guard engine.playPatch(atPath: url.path) else { return false }
