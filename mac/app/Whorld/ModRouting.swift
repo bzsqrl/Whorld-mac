@@ -428,7 +428,7 @@ final class ModMap {
 				model.engine.randomPhase()
 				ActionFlash.shared.fire(.randomPhase)
 			case "RandomOrigin": model.engine.randomOrigin()
-			case "RotateHue": model.rotateHue()
+			case "RotateHue": model.rotateHue(readout: false)	// no readout: not by hand
 			case "Clear":
 				model.engine.clear()
 				ActionFlash.shared.fire(.clear)

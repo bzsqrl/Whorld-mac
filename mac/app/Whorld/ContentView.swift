@@ -493,6 +493,11 @@ final class StripFeed {
 	private var statsPopover: NSPopover?
 	private var statsLabel: NSTextField?
 	private(set) var readout = ""
+	private(set) var readoutFull = ""	// the readout with the control's whole name (the info overlay's)
+	/// the Key Map key that made the readout, or nil: set with it, so the
+	/// info overlay shows it however briefly the key was held (it sampled
+	/// the held key four times a second and missed quick presses)
+	private(set) var readoutKey: String?
 	private(set) var readoutFresh = false	// just changed; dimmed after a few seconds
 	/// what Automatic quality has lowered, if anything: SwiftUI text at its
 	/// own width, so nothing is held for it; it changes only when Automatic
@@ -668,11 +673,13 @@ final class StripFeed {
 
 	/// `full`: the control's whole name, for the tooltip, where the readout
 	/// shortens it (Ring Growth Amp for Ring Growth Amplitude)
-	func setReadout(_ s: String, full: String? = nil) {
+	func setReadout(_ s: String, full: String? = nil, key: String? = nil) {
+		readoutKey = key
 		let name = (full ?? s).replacingOccurrences(of: "  ", with: " ")
 		let tip = "Last control changed: \(name). In a panel or menu, by MIDI or OSC, or by swiping over the picture; modulation doesn't show."
 		readoutTip = tip
 		for w in views where w.view?.part == .readout && w.view?.toolTip != tip { w.view?.toolTip = tip }
+		readoutFull = (full ?? s).replacingOccurrences(of: "  ", with: " ")
 		if s != readout || !readoutFresh {
 			readout = s
 			readoutFresh = true
@@ -1217,6 +1224,7 @@ struct RenderView: NSViewRepresentable {
 
 	func makeNSView(context: Context) -> WHRenderView {
 		let view = WHRenderView(frame: .zero)
+		InfoOverlay.shared.attach(to: view)	// View > Show Info Overlay
 		view.secondaryClickHandler = {	// a two-finger tap with a key held: that control's default
 			MainActor.assumeIsolated { AppModel.shared.resetHeldKeyControl() }
 		}

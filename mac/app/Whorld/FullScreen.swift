@@ -81,6 +81,7 @@ final class FullScreenController {
 		container.wantsLayer = true
 		container.layer?.backgroundColor = NSColor.black.cgColor
 		let view = WHRenderView(frame: Self.pictureFrame(screen))
+		InfoOverlay.shared.attach(to: view)	// View > Show Info Overlay (off on entering: AppModel.enterFullScreen)
 		view.autoresizingMask = [.width, .height]
 		view.renderScale = renderScale
 		view.smoothUpscaling = smoothUpscaling

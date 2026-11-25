@@ -667,14 +667,17 @@ final class AppModel: ObservableObject {
 	/// Image > Rotate Hue (V1's, F3): existing rings turn 90 degrees and
 	/// Hue goes up 90 so new rings follow. Undo restores Hue; colors already
 	/// given to existing rings stay, as in V1.
-	func rotateHue() {
+	/// `readout` false: modulation's, which never takes the readout (the
+	/// user's report, 2026-11-25: its Rotate Hue showed there, and on the
+	/// info overlay, as if changed by hand)
+	func rotateHue(readout: Bool = true) {
 		let old = engine.hue
 		recordUndo(key: "rotate hue", title: "Rotate Hue") { [weak self] in
 			self?.setHue(old)
 		}
 		engine.rotateHue()
 		mainChanged()
-		showMain(.hue)
+		if readout { showMain(.hue) }
 		ActionFlash.shared.fire(.rotateHue)	// its chips flash
 	}
 
@@ -878,7 +881,7 @@ final class AppModel: ObservableObject {
 			}
 		}
 		let short = t < nParams ? Self.shortParamTitle(t, WHParamProperty(rawValue: b.prop) ?? .val) : b.displayName
-		StripFeed.shared.setReadout(short + "  " + shown, full: b.displayName + "  " + shown)
+		StripFeed.shared.setReadout(short + "  " + shown, full: b.displayName + "  " + shown, key: b.keyLabel)
 	}
 
 	/// A two-finger tap (a secondary click) over the picture while a key in
