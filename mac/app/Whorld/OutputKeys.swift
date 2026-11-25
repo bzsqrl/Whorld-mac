@@ -48,7 +48,9 @@ final class OutputKeys {
 		guard monitor == nil else { return }
 		monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { e in
 			// plain values across to the main actor (we're on the main thread)
-			let key = e.charactersIgnoringModifiers?.lowercased()
+			// the key as typed with no modifier (Shift-[ is [), so a hold can
+			// start with Shift or Option already down
+			let key = (e.characters(byApplyingModifiers: []) ?? e.charactersIgnoringModifiers)?.lowercased()
 			let code = e.keyCode
 			let up = e.type == .keyUp
 			let mods = e.modifierFlags.intersection([.shift, .command, .control, .option]).rawValue
@@ -128,6 +130,16 @@ final class OutputKeys {
 			}
 			return false
 		}
+		// ↑ ↓ with a key held: its control steps, as a number box's arrows
+		// (the user's request, 2026-11-25), Command's finest step and
+		// Shift-Command's end included (taken before the menus' Command-Up
+		// and Command-Down, the patches)
+		if !up, held != nil, code == 126 || code == 125, let b = heldTarget {
+			if let k = KeyStep(NSEvent.ModifierFlags(rawValue: modifiers)) {
+				AppModel.shared.keyStep(b, up: code == 126, k)
+			}
+			return true
+		}
 		// the held key's repeats, whatever the modifiers: they now scale the
 		// swipe (ModifierLadder), and Command plus the repeat mustn't reach
 		// the menus (Command-W)
@@ -136,7 +148,13 @@ final class OutputKeys {
 		}
 		// not while the Key Map waits for a key (docked beside the picture,
 		// the pointer may be over it): the key is the new one, not a hold
-		guard modifiers == 0, KeyMap.shared.capturing == nil, KeyMap.shared.binding(for: key) != nil else { return false }
+		// a hold starts plain, or with Shift or Option already down (the
+		// ladder's coarse and fine steps; the user's report, 2026-11-24:
+		// Shift first, then the key, zoomed instead), never with Command or
+		// Control, which make the key a shortcut
+		let ok: Set<UInt> = [0, NSEvent.ModifierFlags.shift.rawValue, NSEvent.ModifierFlags.option.rawValue,
+			NSEvent.ModifierFlags([.shift, .option]).rawValue]
+		guard ok.contains(modifiers), KeyMap.shared.capturing == nil, KeyMap.shared.binding(for: key) != nil else { return false }
 		guard Self.pointerOverOutput() else { return false }
 		held = key
 		heldCode = code

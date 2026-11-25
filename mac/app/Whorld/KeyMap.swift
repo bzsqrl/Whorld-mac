@@ -230,6 +230,7 @@ final class KeyMap: ObservableObject {
 // MARK: The Key Map panel
 
 struct KeyMapView: View {
+	@AppStorage(KeyBadge.defaultsKey) private var keyBadges = false
 	@ObservedObject private var map = KeyMap.shared
 	@State private var selection = Set<KeyBinding.ID>()
 
@@ -274,6 +275,13 @@ struct KeyMapView: View {
 					} label: { Image(systemName: "minus") }
 						.hoverTip("Remove the selected keys")
 						.disabled(selection.isEmpty)
+					// View > Show Key Map in Panels, here too
+					// (the user's request, 2026-11-25)
+					Toggle("Show in Panels", isOn: $keyBadges)
+						.toggleStyle(.checkbox)
+						.padding(.leading, 8)
+						.fixedSize()
+						.hoverTip("Show each control's key in Parameters, Master and Globals, or an empty box to click and give it one (also View > Show Key Map in Panels)")
 					Spacer()
 				}
 			}
@@ -322,6 +330,68 @@ private struct ControlMenu: View {
 	}
 }
 
+/// Waiting for a key to assign: the next plain printable key is it; Delete
+/// (or Forward Delete) removes the key ("", the user's request, 2026-11-24);
+/// Esc, a click anywhere but on `anchor`, or switching to another app
+/// cancels (nil). Shared by the Key Map's Key cells and the panels' key badges.
+@MainActor
+final class KeyCaptureSession {
+	private var monitor: Any?
+	private var clickMonitor: Any?
+	private var resignObserver: Any?
+
+	func start(anchor: ViewAnchor, done: @escaping (String?) -> Void) {
+		stop()
+		// A click anywhere else in the app cancels, before the click goes on
+		// (so a click on another Key button starts that one instead); a
+		// click on the anchor is left to it, which toggles.
+		clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { e in
+			let w = e.window, p = e.locationInWindow
+			MainActor.assumeIsolated {
+				if !anchor.contains(window: w, point: p) {
+					done(nil)
+				}
+			}
+			return e
+		}
+		resignObserver = NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { _ in
+			MainActor.assumeIsolated { done(nil) }
+		}
+		monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
+			if e.keyCode == 53 {	// Esc
+				MainActor.assumeIsolated { done(nil) }
+				return nil
+			}
+			if e.keyCode == 51 || e.keyCode == 117,	// Delete, Forward Delete: no key
+				e.modifierFlags.intersection([.shift, .command, .control, .option]).isEmpty {
+				MainActor.assumeIsolated { done("") }
+				return nil
+			}
+			let mods = e.modifierFlags.intersection([.shift, .command, .control, .option])
+			guard mods.isEmpty, !KeyCheatSheet.keyCodes.contains(e.keyCode),	// the key left of 1 shows the cheat sheet
+				let c = e.charactersIgnoringModifiers?.lowercased(), c.count == 1,
+				let scalar = c.unicodeScalars.first,
+				!CharacterSet.whitespacesAndNewlines.contains(scalar), !CharacterSet.controlCharacters.contains(scalar),
+				scalar.value < 0xF700	// function and arrow keys
+			else {
+				NSSound.beep()
+				return nil
+			}
+			MainActor.assumeIsolated { done(c) }
+			return nil
+		}
+	}
+
+	func stop() {
+		if let monitor { NSEvent.removeMonitor(monitor) }
+		monitor = nil
+		if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
+		clickMonitor = nil
+		if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
+		resignObserver = nil
+	}
+}
+
 /// The Key cell: click, then press a key. Plain printable keys only; Esc,
 /// a click anywhere else (or on the button again), or switching to another
 /// app cancels.
@@ -329,9 +399,7 @@ private struct KeyCaptureButton: View {
 	let id: KeyBinding.ID
 	let label: String
 	@ObservedObject private var map = KeyMap.shared
-	@State private var monitor: Any?
-	@State private var clickMonitor: Any?
-	@State private var resignObserver: Any?
+	@State private var session = KeyCaptureSession()
 	@State private var anchor = ViewAnchor()	// the button's view, to tell clicks on it from clicks elsewhere
 
 	private var capturing: Bool { map.capturing == id }
@@ -339,7 +407,7 @@ private struct KeyCaptureButton: View {
 	private func onKey(_ key: String?) {
 		map.capturing = nil
 		if let key {
-			map.assign(key, to: id)
+			if key.isEmpty { map.clearKey(id) } else { map.assign(key, to: id) }
 		}
 	}
 
@@ -354,61 +422,9 @@ private struct KeyCaptureButton: View {
 		.buttonStyle(.bordered)	// looks clickable, and takes the click from the table row
 		.background(ViewAnchor.Probe(anchor: anchor))
 		.tint(capturing ? .accentColor : nil)
-		.help(capturing ? "Press the new key (a plain key, no Shift, Command, Control or Option), or Esc to cancel" : "Click, then press a key to assign it")
-		.onChange(of: capturing) { _, on in on ? start() : stop() }
-		.onDisappear { stop() }
-	}
-
-	private func start() {
-		stop()
-		// A click anywhere else in the app cancels, before the click goes on
-		// (so a click on another row's Key button starts that one instead);
-		// a click on this button is left to the button, which toggles.
-		clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { e in
-			let w = e.window, p = e.locationInWindow
-			MainActor.assumeIsolated {
-				if !anchor.contains(window: w, point: p) {
-					onKey(nil)
-				}
-			}
-			return e
-		}
-		resignObserver = NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { _ in
-			MainActor.assumeIsolated { onKey(nil) }
-		}
-		monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
-			if e.keyCode == 53 {	// Esc
-				MainActor.assumeIsolated { onKey(nil) }
-				return nil
-			}
-			let mods = e.modifierFlags.intersection([.shift, .command, .control, .option])
-			guard mods.isEmpty, !KeyCheatSheet.keyCodes.contains(e.keyCode),	// the key left of 1 shows the cheat sheet
-				let c = e.charactersIgnoringModifiers?.lowercased(), c.count == 1,
-				let scalar = c.unicodeScalars.first,
-				!CharacterSet.whitespacesAndNewlines.contains(scalar), !CharacterSet.controlCharacters.contains(scalar),
-				scalar.value < 0xF700	// function and arrow keys
-			else {
-				NSSound.beep()
-				return nil
-			}
-			MainActor.assumeIsolated { onKey(c) }
-			return nil
-		}
-	}
-
-	private func stop() {
-		if let monitor {
-			NSEvent.removeMonitor(monitor)
-		}
-		monitor = nil
-		if let clickMonitor {
-			NSEvent.removeMonitor(clickMonitor)
-		}
-		clickMonitor = nil
-		if let resignObserver {
-			NotificationCenter.default.removeObserver(resignObserver)
-		}
-		resignObserver = nil
+		.hoverTip(capturing ? "Press the new key (a plain key, no Shift, Command, Control or Option), Delete for none, or Esc to cancel" : "Click, then press a key to assign it, or Delete to remove it")
+		.onChange(of: capturing) { _, on in on ? session.start(anchor: anchor, done: onKey) : session.stop() }
+		.onDisappear { session.stop() }
 	}
 }
 

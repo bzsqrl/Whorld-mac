@@ -52,7 +52,7 @@ extension UTType {
 /// for a slider otherwise moved the panel (the user's request, 2026-11-22).
 struct FormScroller: View {
 	let id: PanelID
-	/// Key Map keys in panels (Settings > General) widen every row
+	/// Key Map keys in panels (View > Show Key Map in Panels) widen every row
 	@AppStorage(KeyBadge.defaultsKey) private var badges = false
 	/// System Settings' scroll bars, Always (or Automatic with a mouse): the
 	/// vertical scroll bar then takes its width from the pane, and a form as

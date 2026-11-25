@@ -779,9 +779,13 @@ final class AppModel: ObservableObject {
 	func toggleOriginDrag() { setOriginMotion(engine.originMotion == .drag ? .park : .drag) }
 	func toggleOriginRandom() { setOriginMotion(engine.originMotion == .random ? .park : .random) }
 
-	// CWhorldDoc::OnMouseWheel: zoom, or damping with Shift, in normalized
-	// slider space (CWhorldDoc::OffsetMasterProp). Mac addition: with a key
-	// held over the picture (OutputKeys), that key's control instead.
+	// CWhorldDoc::OnMouseWheel: zoom (Windows: damping with Shift), in
+	// normalized slider space (CWhorldDoc::OffsetMasterProp). Mac addition:
+	// with a key held over the picture (OutputKeys), that key's control
+	// instead. Shift no longer means Damping (the user's request, 2026-11-24:
+	// it's the coarse modifier, with a key held or not, as everywhere; D in
+	// the Key Map moves Damping). `shift` is the views' concern: a mouse
+	// wheel turned with Shift scrolls sideways.
 	func wheel(notches: Double, shift: Bool, momentum: Bool = false, inverted: Bool = false, trackpad: Bool = false) {
 		// a mouse wheel: Wheel sensitivity; a trackpad swipe: Trackpad
 		// sensitivity times the wheel's default (the user's request,
@@ -800,17 +804,14 @@ final class AppModel: ObservableObject {
 		if !momentum {
 			outputKeys.lastWheelWasKeyed = false
 		}
-		let iProp = (shift ? MasterProp.damping : MasterProp.zoom).rawValue
+		let iProp = MasterProp.zoom.rawValue
 		let old = engine.masterValue(iProp)
-		var norm = WHControls.masterNorm01(iProp, value: old) + delta
+		// finer or coarser with the modifiers, as a key's control (ModifierLadder)
+		var norm = WHControls.masterNorm01(iProp, value: old) + delta * ModifierLadder.factor(NSEvent.modifierFlags)
 		norm = min(max(norm, 0), 1)
 		let value = WHControls.masterDenorm01(iProp, value: norm)
 		guard value != old else { return }
-		if shift {
-			setMaster(iProp, value)
-		} else {
-			setZoom(value)
-		}
+		setZoom(value)
 	}
 
 	let outputKeys = OutputKeys()
@@ -827,9 +828,21 @@ final class AppModel: ObservableObject {
 	/// A key's control, moved by `delta` (in the units of a slider's travel,
 	/// 0 to 1) times the key's speed; with the readout on, shows the result.
 	/// `apply` false only shows the control and its value, changing nothing.
-	private func adjust(_ b: KeyBinding, by delta: Double, apply: Bool = true) {
+	/// ↑ or ↓ with a Key Map key held over the picture (the user's request,
+	/// 2026-11-25): its control steps as a focused number box's does, by
+	/// the normal step (1% of a slider's range, or an increment) scaled by
+	/// the modifiers (KeyStep, Settings > Input > Modifier steps), or to an
+	/// end with Shift-Command; times the key's speed, as a swipe
+	func keyStep(_ b: KeyBinding, up: Bool, _ k: KeyStep) {
+		switch k {
+		case .end: adjust(b, by: up ? 1 : -1, scaled: false)
+		case .by(let f): adjust(b, by: (up ? 1 : -1) * 0.01 * f)
+		}
+	}
+
+	private func adjust(_ b: KeyBinding, by delta: Double, apply: Bool = true, scaled: Bool = true) {
 		guard let t = b.targetIndex else { return }
-		let d = delta * b.speed
+		let d = delta * (scaled ? b.speed : 1)
 		let nParams = WHMappingInfo.paramTargetCount, nMaster = WHMappingInfo.masterTargetCount
 		var shown = ""
 		if t < nParams {
@@ -872,16 +885,13 @@ final class AppModel: ObservableObject {
 	/// the key map is held: that key's control goes back to its value in the
 	/// patch as loaded (opened, played from the playlist, or new) or last saved.
 	/// With no key held, what a swipe there moves (wheel) goes back the same
-	/// way: Zoom, or Damping with Shift (the user's requests, 2026-11-21).
+	/// way: Zoom (Damping with Shift until 2026-11-24; the user's requests, 2026-11-21).
 	/// Returns false with another modifier held, so the click goes on as usual.
 	func resetHeldKeyControl() -> Bool {
 		guard let b = outputKeys.heldTarget, let t = b.targetIndex else {
 			switch NSEvent.modifierFlags.intersection([.shift, .command, .control, .option]) {
-			case []:
+			case [], .shift:	// what a swipe there moves: Zoom (Shift was Damping until 2026-11-24)
 				setZoom(engine.loadedMasterValue(MasterProp.zoom.rawValue))
-			case .shift:
-				let i = MasterProp.damping.rawValue
-				setMaster(i, engine.loadedMasterValue(i))
 			default:
 				return false
 			}

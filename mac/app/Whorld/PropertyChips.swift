@@ -444,10 +444,11 @@ struct OriginSwitch: View {
 /// The Properties panel (study A, the user's choice, 2026-11-24): the
 /// chips grouped by job, in the shortcuts' order, each group named at every
 /// width (the user's request, 2026-11-24). As the panel narrows it steps
-/// down through six arrangements, taking the first that fits its width
-/// (width matters more than height, the user's call): the group names
-/// beside their chips; above them, with icons and names across; short names
-/// across; icons across; short names down; icons down. No shortcut badges
+/// down through five arrangements, taking the first that fits its width
+/// (width matters more than height, the user's call), each group's name
+/// above its chips: icons and names across; short names across; icons
+/// across; short names down; icons down. (Names beside the chips, a sixth,
+/// widest, was dropped at the user's request.) No shortcut badges
 /// (too cluttered); the tooltips name each chip. Zoom Center and
 /// Antialiasing, rarely played, are last and smaller.
 struct PropertiesPanel: View {

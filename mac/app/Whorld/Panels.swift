@@ -1225,7 +1225,7 @@ private struct KeyedControlTip: ViewModifier {
 }
 
 /// A control's Key Map key, as a small keycap before its name, while
-/// Settings > General > Show Key Map keys in panels is on (the user's
+/// View > Show Key Map in Panels is on (Settings > General's until 2026-11-25; the user's
 /// request, 2026-11-21: to learn the keys). It follows the Key Map; a control
 /// with no key keeps the room, so the names stay in line.
 struct KeyBadge: View {
@@ -1240,20 +1240,79 @@ struct KeyBadge: View {
 	var prop = 0
 	@AppStorage(KeyBadge.defaultsKey) private var on = false
 	@ObservedObject private var map = KeyMap.shared
+	@State private var session = KeyCaptureSession()
+	@State private var anchor = ViewAnchor()
+	@State private var capturingRow: KeyBinding.ID?	// this badge's capture, and the row it's into
+	@State private var madeRow = false	// the row was made for it (dropped again if no key comes)
 
 	var body: some View {
 		if on {
-			if let b = map.bindings.first(where: { $0.target == target && $0.prop == prop && !$0.key.isEmpty }) {
-				Text(b.keyLabel)
-					.font(.caption.monospaced().weight(.semibold))
-					.foregroundStyle(.secondary)
-					.frame(width: Self.width, height: 15)
-					.background(RoundedRectangle(cornerRadius: 3).strokeBorder(.secondary.opacity(0.6)))
-					.help("Hold \(b.keyLabel) over the picture and swipe to change \(b.displayName)")
-			} else {
+			if target.isEmpty {
 				Color.clear.frame(width: Self.width, height: 1)
+			} else {
+				badge
 			}
 		}
+	}
+
+	/// the key, or an empty box: click, then press a key to assign it (the
+	/// user's request, 2026-11-24); a key another control had leaves it
+	@ViewBuilder private var badge: some View {
+		let b = map.bindings.first { $0.target == target && $0.prop == prop && !$0.key.isEmpty }
+		let capturing = capturingRow != nil && map.capturing == capturingRow
+		Button {
+			if capturing { finish(nil) } else { begin() }
+		} label: {
+			Text(capturing ? "·" : b?.keyLabel ?? "")
+				.font(.caption.monospaced().weight(.semibold))
+				.foregroundStyle(capturing ? Color.accentColor : Color.secondary)
+				.frame(width: Self.width, height: 15)
+				.background(RoundedRectangle(cornerRadius: 3)
+					.strokeBorder(capturing ? Color.accentColor : Color.secondary.opacity(b == nil ? 0.3 : 0.6),
+						lineWidth: capturing ? 1.5 : 1))
+				.contentShape(Rectangle())
+		}
+		.buttonStyle(.plain)
+		.focusable(false)
+		.background(ViewAnchor.Probe(anchor: anchor))
+		.hoverTip(capturing ? "Press a key for \(name) (a plain key), Delete for none, or Esc to cancel"
+			: b.map { "Hold \($0.keyLabel) over the picture and swipe to change \($0.displayName). Click to give it another key (Delete for none), or right-click to remove it." }
+				?? "Click, then press a key: hold it over the picture and swipe to change \(name)")
+		.contextMenu {
+			if let b {
+				Button("Remove Key \(b.keyLabel)") { map.clearKey(b.id) }
+			}
+		}
+		.onChange(of: map.capturing) { _, now in	// another capture began, or this one ended elsewhere
+			if let row = capturingRow, now != row { end(row) }
+		}
+		.onDisappear { if capturing { finish(nil) } }
+	}
+
+	private var name: String { KeyMap.name(target: target, prop: prop) }
+
+	private func begin() {
+		let (row, made) = map.row(target: target, prop: prop)
+		capturingRow = row
+		madeRow = made
+		map.capturing = row
+		session.start(anchor: anchor) { key in finish(key) }
+	}
+
+	private func finish(_ key: String?) {
+		guard let row = capturingRow else { return }
+		if let key {
+			if key.isEmpty { map.clearKey(row) } else { map.assign(key, to: row) }	// a key elsewhere is blanked there
+		}
+		map.capturing = nil
+		end(row)
+	}
+
+	private func end(_ row: KeyBinding.ID) {
+		session.stop()
+		capturingRow = nil
+		if madeRow { map.dropIfEmpty(row) }	// cancelled: no keyless row left behind
+		madeRow = false
 	}
 }
 

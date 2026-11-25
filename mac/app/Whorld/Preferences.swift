@@ -661,7 +661,7 @@ struct PreferencesView: View {
 							.frame(width: 44, alignment: .trailing)
 					}
 				} label: {
-					InfoLabel("Trackpad sensitivity", info: "How far a two-finger swipe moves a value: over the picture (zoom, Damping, or a held key's control), on a slider, and in a number box. ×1 is the usual; ×2 goes twice as far for the same swipe, ×0.5 half as far. The modifiers (Modifier steps) scale it further on sliders, number boxes and a held key's control.")
+					InfoLabel("Trackpad sensitivity", info: "How far a two-finger swipe moves a value: over the picture (zoom, or a held key's control), on a slider, and in a number box. ×1 is the usual; ×2 goes twice as far for the same swipe, ×0.5 half as far. The modifiers (Modifier steps) scale it further on sliders, number boxes and a held key's control.")
 				}
 				LabeledContent {
 					HStack {
@@ -671,7 +671,7 @@ struct PreferencesView: View {
 							.frame(width: 36, alignment: .trailing)
 					}
 				} label: {
-					InfoLabel("Wheel sensitivity", info: "How far each click of a mouse wheel moves a value: over the picture (zoom, Damping with Shift, or a held key's control), on a slider, and in a number box. The modifiers (Modifier steps) scale it further on sliders, number boxes and a held key's control. Trackpad swipes have their own setting above.")
+					InfoLabel("Wheel sensitivity", info: "How far each click of a mouse wheel moves a value: over the picture (zoom, or a held key's control), on a slider, and in a number box. The modifiers (Modifier steps) scale it further on sliders, number boxes and a held key's control. Trackpad swipes have their own setting above.")
 				}
 				Toggle(isOn: $functionKeys) {
 					InfoLabel("Function keys", info: "Windows Whorld's keys, each a single press: F2 Loop Hue, F3 Rotate Hue, F4 Invert Color, F5 Mirror, F6 Fill, F7 Outline, F8 XOR, F9 Random Phase, F11 full screen. Off, they do nothing in Whorld (the menus' ⌘ keys still work). On a Mac laptop, hold fn with them.")
