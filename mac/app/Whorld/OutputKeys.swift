@@ -362,6 +362,11 @@ enum SecondKeys {
 		guard NSApp.modalWindow == nil else { return false }	// a dialog is up
 		let m = AppModel.shared
 		let e = m.engine
+		// the function keys, Windows Whorld's plain keys, only while
+		// Settings > Input > Function keys is on (the user's request,
+		// 2026-11-24: plain keys shouldn't change the picture unawares)
+		let fKeys: Set<UInt16> = [103, 97, 98, 96, 120, 99, 118, 101, 100]
+		if fKeys.contains(code), modifiers == none, !Preferences.functionKeys { return false }
 		switch (code, modifiers) {
 		case (103, none): m.toggleFullScreen()	// F11, Windows' full screen
 		case (3, ctrlCmd): m.toggleFullScreen()	// Ctrl-Cmd-F, macOS's (Cmd-F in the menu)

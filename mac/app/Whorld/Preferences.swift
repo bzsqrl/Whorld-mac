@@ -74,6 +74,11 @@ enum Preferences {
 		return defaults.double(forKey: "Input_fWheelSense")
 	}
 	static let defaultWheelSense = 6.25
+	/// Settings > Input > Function keys (on at first): F2 to F9 and F11 act
+	/// as on Windows (SecondKeys)
+	static let functionKeysKey = "Input_bFunctionKeys"
+	static var functionKeys: Bool { defaults.object(forKey: functionKeysKey) as? Bool ?? true }
+
 	/// a mouse wheel over a slider or number box, as Wheel sensitivity says
 	/// (1 at its default), with the modifiers as everywhere (ModifierLadder)
 	static var panelWheelScale: Double { wheelSense / defaultWheelSense }
@@ -366,6 +371,7 @@ struct PreferencesView: View {
 	@AppStorage(ModifierLadder.fineKey) private var ladderFine = ModifierLadder.defaults.fine
 	@AppStorage(ModifierLadder.coarseKey) private var ladderCoarse = ModifierLadder.defaults.coarse
 	@AppStorage(ModifierLadder.normalKey) private var ladderNormal = ModifierLadder.defaults.normal
+	@AppStorage(Preferences.functionKeysKey) private var functionKeys = true
 	@AppStorage("Export_sImageFolder") private var imageFolder = ""
 	@AppStorage(WhorldFolders.rootKey) private var whorldFolder = ""	// redraws when it changes
 	@AppStorage("Export_nImageWidth") private var imageWidth = 1920
@@ -675,10 +681,13 @@ struct PreferencesView: View {
 				} label: {
 					InfoLabel("Wheel sensitivity", info: "How far each click of a mouse wheel moves a value: over the picture (zoom, Damping with Shift, or a held key's control), on a slider, and in a number box. The modifiers (Modifier steps) scale it further on sliders, number boxes and a held key's control. Trackpad swipes have their own setting above.")
 				}
+				Toggle(isOn: $functionKeys) {
+					InfoLabel("Function keys", info: "Windows Whorld's keys, each a single press: F2 Loop Hue, F3 Rotate Hue, F4 Invert Color, F5 Mirror, F6 Fill, F7 Outline, F8 XOR, F9 Random Phase, F11 full screen. Off, they do nothing in Whorld (the menus' ⌘ keys still work). On a Mac laptop, hold fn with them.")
+				}
 			} header: {
-				Text("Trackpad and mouse")
+				Text("Trackpad, mouse and keys")
 			} footer: {
-				Text("Swiping over the picture, the swipe pad, sliders and number boxes.").font(.caption).foregroundStyle(.secondary)
+				Text("Swiping over the picture, the swipe pad, sliders and number boxes; and Windows Whorld's function keys.").font(.caption).foregroundStyle(.secondary)
 					.frame(maxWidth: .infinity, alignment: .leading)
 			}
 			modifierSteps
