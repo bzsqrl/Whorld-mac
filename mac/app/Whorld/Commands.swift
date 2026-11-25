@@ -194,12 +194,12 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut(.space, modifiers: [])
 			Button("Step") { e.singleStep() }
 				.keyboardShortcut(.space, modifiers: .shift)
-			// Delete, unmodified (the user's request, 2026-11-21; Cmd-K
-			// before): taken by OutputKeys first, except while text is being
-			// edited or a list has focus, where Delete keeps its usual job.
-			// Cmd-Forward Delete (Windows' Ctrl+Delete) works too.
+			// Shift-Delete (the user's choice, 2026-11-25; plain Delete
+			// from 11-21, Cmd-K before): OutputKeys takes it first, leaving
+			// it to text being edited. Cmd-Forward Delete (Windows'
+			// Ctrl+Delete) works too.
 			Button("Clear") { model.clear() }
-				.keyboardShortcut(.delete, modifiers: [])
+				.keyboardShortcut(.delete, modifiers: .shift)
 			Divider()
 			// the playlist's next and previous patch, wrapping at the ends
 			// (were Command-Down and Command-Up over the picture only);

@@ -505,7 +505,10 @@ extension AppModel {
 	func deletePatches() {
 		guard !playlistSelection.isEmpty else { return }
 		let paths = playlistPatches.enumerated().filter { !playlistSelection.contains($0.offset) }.map { $0.element }
-		setPlaylistPatches(paths, title: "Delete")
+		setPlaylistPatches(paths, title: playlistSelection.count == 1 ? "Remove Patch" : "Remove Patches")
+		// the playing patch keeps its marker, unless it was removed
+		let p = playingPatch
+		playingPatch = p < 0 || playlistSelection.contains(p) ? -1 : p - playlistSelection.filter { $0 < p }.count
 		playlistSelection = []
 		playingPatch = -1
 	}
@@ -627,15 +630,37 @@ extension AppModel {
 /// Patches panel that played the patch, from a stray key press; plain keys
 /// shouldn't change the picture). Finds the table near it with a Patch
 /// column (SwiftUI's Table is an NSTableView).
+///
+/// `onDelete`: what Delete (or Forward Delete) does while the table has
+/// focus, taken before Image > Clear (the user's request, 2026-11-25: in
+/// the Patches and Playlist panels it removes the selected patches from
+/// the list, never the files)
 struct NoTypeSelect: NSViewRepresentable {
+	var onDelete: (() -> Void)? = nil
+
+	/// the tables' Delete actions (OutputKeys asks)
+	@MainActor private static let deleteActions = NSMapTable<NSTableView, DeleteAction>.weakToStrongObjects()
+	private final class DeleteAction {
+		let run: () -> Void
+		init(_ run: @escaping () -> Void) { self.run = run }
+	}
+
+	/// the focused table's Delete action, if it has one
+	@MainActor static func deleteAction(for responder: NSResponder?) -> (() -> Void)? {
+		guard let t = responder as? NSTableView else { return nil }
+		return deleteActions.object(forKey: t)?.run
+	}
+
 	func makeNSView(context: Context) -> NSView { NSView() }
 
 	func updateNSView(_ view: NSView, context: Context) {
+		let onDelete = onDelete
 		DispatchQueue.main.async {	// once the table is in the window
 			var v: NSView? = view.superview
 			while let ancestor = v {
 				if let t = Self.table(in: ancestor) {
 					if t.allowsTypeSelect { t.allowsTypeSelect = false }
+					if let onDelete { Self.deleteActions.setObject(DeleteAction(onDelete), forKey: t) }
 					return
 				}
 				v = ancestor.superview
@@ -1124,6 +1149,8 @@ struct PlaylistPanel: View {
 		let _ = model.changes.playlist.n
 		let rows = model.playlistPatches.enumerated().map { Row(id: $0.offset, path: $0.element) }
 		VStack(spacing: 0) {
+			header(count: rows.count)
+			Divider()
 			Table(of: Row.self, selection: $model.playlistSelection, columnCustomization: $columns) {
 				TableColumn("Patch") { row in
 					HStack(spacing: 4) {
@@ -1169,7 +1196,7 @@ struct PlaylistPanel: View {
 			.onChange(of: columns) { _, c in StoredColumns.save(c, Self.columnsKey) }
 			.contextMenu(forSelectionType: Int.self) { sel in
 				Button("Play") { playSelected() }
-				Button("Delete") { model.deletePatches() }
+				Button("Remove from Playlist") { model.deletePatches() }	// the files stay
 				// missing patches (dimmed): locate one, or search a folder
 				// for all of them (the user's request, 2026-11-22)
 				let missing = model.missingPatchIndices
@@ -1189,7 +1216,9 @@ struct PlaylistPanel: View {
 				return .handled
 			}
 			.background(PlayingRowScroller(row: model.playingPatch, plays: model.patchPlays))
-			.background(NoTypeSelect())	// a letter doesn't jump to a patch
+			// a letter doesn't jump to a patch; Delete removes the selected
+			// ones from the playlist (not Image > Clear)
+			.background(NoTypeSelect(onDelete: { model.deletePatches() }))
 			// an empty table has no rows to drop between: while it's empty, the
 			// whole list takes patches dragged from the Patches panel
 			.overlay {
@@ -1212,16 +1241,61 @@ struct PlaylistPanel: View {
 			// wider than the pane (a wider bar pushed the panel's title bar
 			// out of place)
 			ViewThatFits(in: .horizontal) {
-				bottomBar(title: true, mode: true)
-				bottomBar(title: false, mode: true)
-				bottomBar(title: false, mode: false)
+				bottomBar(mode: true)
+				bottomBar(mode: false)
 			}
 			.frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
 			.clipped()
 		}
 	}
 
-	private func bottomBar(title: Bool, mode: Bool) -> some View {
+	/// the playlist's file bar, as the Patches panel's folder bar (the
+	/// user's request, 2026-11-25): File > Playlist's commands in a menu,
+	/// the playlist's name (it was in the bottom bar), and its patch count
+	private func header(count: Int) -> some View {
+		HStack(spacing: 6) {
+			Menu {
+				Button("New Playlist") { model.newPlaylist() }
+				Button("Open Playlist…") { model.openPlaylist() }
+				Divider()
+				Button("Save Playlist") { model.savePlaylist() }
+				Button("Save Playlist As…") { model.savePlaylistAs() }
+				Divider()
+				Button("Show in Finder") {
+					if let url = model.playlistURL { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+				}
+				.disabled(model.playlistURL == nil)
+				Button("Show Playlists Folder") {
+					NSWorkspace.shared.activateFileViewerSelecting([WhorldFolders.folder(.playlists)])
+				}
+			} label: {
+				Label("Playlist file", systemImage: "doc")
+					.labelStyle(.iconOnly)
+			}
+			.menuStyle(.borderlessButton)
+			.fixedSize()
+			.hoverTip("New, Open, Save and Save As for the playlist (as File > Playlist: ⇧⌘N, ⇧⌘O, ⌥⌘S, ⌥⇧⌘S)")
+			Text(model.playlistTitle)
+				.lineLimit(1)
+				.truncationMode(.middle)
+				.hoverTip(model.playlistURL?.path ?? "Not saved yet")
+			if model.playlistModified {
+				Text("Edited")
+					.font(.caption).foregroundStyle(.secondary)
+					.fixedSize()
+			}
+			Spacer(minLength: 0)
+			Text("\(count)")
+				.font(.caption).foregroundStyle(.secondary)
+				.monospacedDigit()
+				.hoverTip("Patches in the playlist")
+		}
+		.padding(.horizontal, 8)
+		.padding(.vertical, 5)
+		.frame(minHeight: 30)	// as tall as the Patches panel's bar, with its search box
+	}
+
+	private func bottomBar(mode: Bool) -> some View {
 		HStack {
 			Button { model.insertPatches() } label: { Image(systemName: "plus") }
 				.hoverTip("Insert patches")
@@ -1231,13 +1305,6 @@ struct PlaylistPanel: View {
 			AutoAdvanceControls()
 				.padding(.leading, 6)
 			Spacer(minLength: 0)
-			if title {
-				Text(model.playlistTitle + (model.playlistModified ? " — Edited" : ""))
-					.font(.caption)
-					.foregroundStyle(.secondary)
-					.lineLimit(1)
-					.fixedSize()
-			}
 			if mode {
 				// the patch mode, named as it is now (the user's request,
 				// 2026-11-18): Geom or Full; click for the other

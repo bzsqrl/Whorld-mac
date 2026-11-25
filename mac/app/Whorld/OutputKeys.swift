@@ -85,11 +85,24 @@ final class OutputKeys {
 			}
 			return true
 		}
-		// Delete: Image > Clear (the user's request, 2026-11-21), taken
-		// before the menu and the panels' buttons, except where Delete has a
-		// job of its own: editing text, or a list with focus (MIDI Mapping's
-		// Delete removes its selected rows). Held, it clears once.
-		if !up, code == 51, modifiers == 0, Self.takesDelete() {
+		// Delete in the Patches or Playlist list: removes the selected patches
+		// from it (NoTypeSelect's onDelete; the user's request, 2026-11-25)
+		if !up, code == 51 || code == 117, modifiers == 0, NSApp.modalWindow == nil,
+			let w = NSApp.keyWindow, w.attachedSheet == nil,
+			let remove = NoTypeSelect.deleteAction(for: w.firstResponder) {
+			if !isRepeat { remove() }
+			return true
+		}
+		// Shift-Delete: Image > Clear (the user's choice, 2026-11-25; plain
+		// Delete from 11-21 was too easily pressed working in the panels).
+		// Held, it clears once. While text is being edited it keeps its
+		// usual job, deleting backward, which the menu would otherwise take.
+		if !up, code == 51, modifiers == NSEvent.ModifierFlags.shift.rawValue {
+			if let text = NSApp.keyWindow?.firstResponder as? NSTextView {
+				text.doCommand(by: #selector(NSResponder.deleteBackward(_:)))
+				return true
+			}
+			guard NSApp.modalWindow == nil, KeyMap.shared.capturing == nil else { return false }
 			if !isRepeat { AppModel.shared.clear() }
 			return true
 		}
@@ -177,19 +190,6 @@ final class OutputKeys {
 		case is NSTableView, is NSSlider:
 			return true
 		case is NSButton, is NSSegmentedControl, is NSTextField:
-			return false
-		default:
-			return true
-		}
-	}
-
-	/// Delete clears the picture: not in a dialog, a sheet or the Key Map's
-	/// key capture, nor while text is edited or a list has focus
-	private static func takesDelete() -> Bool {
-		guard NSApp.modalWindow == nil, KeyMap.shared.capturing == nil,
-			let w = NSApp.keyWindow, w.attachedSheet == nil, !w.isSheet else { return false }
-		switch w.firstResponder {
-		case is NSTextView, is NSTextField, is NSTableView, is NSOutlineView:
 			return false
 		default:
 			return true
@@ -388,7 +388,7 @@ enum SecondKeys {
 		switch (code, modifiers) {
 		case (103, none): m.toggleFullScreen()	// F11, Windows' full screen
 		case (3, ctrlCmd): m.toggleFullScreen()	// Ctrl-Cmd-F, macOS's (Cmd-F in the menu)
-		case (117, cmd): m.clear()	// Cmd-Forward Delete, Windows' Ctrl+Delete (Delete in the menu)
+		case (117, cmd): m.clear()	// Cmd-Forward Delete, Windows' Ctrl+Delete (Shift-Delete in the menu)
 		case (97, none): m.toggleFill()	// F6 (Cmd-1)
 		case (98, none): m.toggleOutline()	// F7 (Cmd-2)
 		case (96, none): m.toggle(.mirror)	// F5 (Cmd-4)

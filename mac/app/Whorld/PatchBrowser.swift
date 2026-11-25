@@ -69,6 +69,7 @@ final class PatchBrowserStore: ObservableObject {
 	}
 
 		func setFolder(_ url: URL?) {
+		removed = []
 		if let url {
 			UserDefaults.standard.set(url.path, forKey: Self.folderKey)
 			folder = url
@@ -96,7 +97,7 @@ final class PatchBrowserStore: ObservableObject {
 				let dir = url.deletingLastPathComponent().standardizedFileURL.path
 				var group = dir.hasPrefix(base.path) ? String(dir.dropFirst(base.path.count)) : dir
 				if group.hasPrefix("/") { group.removeFirst() }
-				found.append(Item(url: url, group: group))
+				if !removed.contains(url.standardizedFileURL) { found.append(Item(url: url, group: group)) }
 			}
 		}
 		found.sort {
@@ -195,7 +196,9 @@ struct PatchBrowserPanel: View {
 						}
 					}
 				}
-				.background(NoTypeSelect())	// a letter doesn't jump to (and play) a patch
+				// a letter doesn't jump to (and play) a patch; Delete takes the
+				// selected ones off the list (not Image > Clear)
+				.background(NoTypeSelect(onDelete: { removeSelected() }))
 				.onAppear { columns = StoredColumns.load(Self.columnsKey) ?? columns }
 				.onChange(of: columns) { _, c in StoredColumns.save(c, Self.columnsKey) }
 				.contextMenu(forSelectionType: URL.self) { urls in
@@ -217,6 +220,13 @@ struct PatchBrowserPanel: View {
 		}
 	}
 
+	/// Delete, or Remove from List: off the list, the files untouched
+	private func removeSelected() {
+		guard !selection.isEmpty else { return }
+		store.remove(selection)
+		selection = []
+	}
+
 	/// the selected patches in the list's order
 	private func orderedSelection() -> [URL] {
 		store.items.map(\.url).filter { selection.contains($0) }
@@ -234,6 +244,12 @@ struct PatchBrowserPanel: View {
 			}
 			Divider()
 			Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting(ordered) }
+			Divider()
+			// off the list until Refresh; the files stay (the user's request, 2026-11-25)
+			Button(ordered.count == 1 ? "Remove from List" : "Remove \(ordered.count) from List") {
+				store.remove(Set(ordered))
+				selection.subtract(ordered)
+			}
 		}
 	}
 
@@ -245,7 +261,7 @@ struct PatchBrowserPanel: View {
 				Button("Choose Folder…") { chooseFolder() }
 				Divider()
 				Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([store.folder]) }
-				Button("Refresh") { store.reload() }
+				Button("Refresh") { store.refresh() }	// removed patches back too
 			} label: {
 				// the icon alone: the panel's title already says Patches (the
 				// user's choice, 2026-11-23); the folder's name stays for VoiceOver
