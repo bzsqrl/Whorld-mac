@@ -195,6 +195,7 @@ struct PatchBrowserPanel: View {
 						}
 					}
 				}
+				.background(NoTypeSelect())	// a letter doesn't jump to (and play) a patch
 				.onAppear { columns = StoredColumns.load(Self.columnsKey) ?? columns }
 				.onChange(of: columns) { _, c in StoredColumns.save(c, Self.columnsKey) }
 				.contextMenu(forSelectionType: URL.self) { urls in

@@ -622,6 +622,36 @@ extension AppModel {
 
 // MARK: Views
 
+/// Turns off a patch list's type-select, macOS's jump to the first row
+/// starting with a typed letter (the user's report, 2026-11-24: in the
+/// Patches panel that played the patch, from a stray key press; plain keys
+/// shouldn't change the picture). Finds the table near it with a Patch
+/// column (SwiftUI's Table is an NSTableView).
+struct NoTypeSelect: NSViewRepresentable {
+	func makeNSView(context: Context) -> NSView { NSView() }
+
+	func updateNSView(_ view: NSView, context: Context) {
+		DispatchQueue.main.async {	// once the table is in the window
+			var v: NSView? = view.superview
+			while let ancestor = v {
+				if let t = Self.table(in: ancestor) {
+					if t.allowsTypeSelect { t.allowsTypeSelect = false }
+					return
+				}
+				v = ancestor.superview
+			}
+		}
+	}
+
+	private static func table(in view: NSView) -> NSTableView? {
+		if let t = view as? NSTableView, t.tableColumns.contains(where: { $0.title == "Patch" }) { return t }
+		for sub in view.subviews {
+			if let t = table(in: sub) { return t }
+		}
+		return nil
+	}
+}
+
 /// A table's column choices (which show, their widths and order), kept in
 /// the settings under `key`: right-click a table's header to choose
 enum StoredColumns {
@@ -1159,6 +1189,7 @@ struct PlaylistPanel: View {
 				return .handled
 			}
 			.background(PlayingRowScroller(row: model.playingPatch, plays: model.patchPlays))
+			.background(NoTypeSelect())	// a letter doesn't jump to a patch
 			// an empty table has no rows to drop between: while it's empty, the
 			// whole list takes patches dragged from the Patches panel
 			.overlay {
