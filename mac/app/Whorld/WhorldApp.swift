@@ -195,6 +195,9 @@ final class AppModel: ObservableObject {
 	var didFitWorkspace = false
 	/// What changed (see Changes). changed() means anything may have.
 	let changes = Changes()
+	/// the draw mode as last known, to tell which switch a change flipped
+	/// (MIDI's change arrives done; showDrawMode)
+	private var knownDrawMode: UInt32?
 	private var shownModified = false
 	private var shownUndo = ""
 
@@ -388,7 +391,9 @@ final class AppModel: ObservableObject {
 		default:	// 0: main properties or draw mode; 1: pause
 			midiPending.main = true
 			scheduleMidiRefresh()
-			if kind == 0, value > 0, let prop = MainProp(rawValue: Int(value) - 1) { showMain(prop) }
+			if kind == 0, value > 0, let prop = MainProp(rawValue: Int(value) - 1) {
+				if prop == .drawMode { showDrawMode(from: knownDrawMode) } else { showMain(prop) }
+			}
 		}
 	}
 
@@ -443,6 +448,7 @@ final class AppModel: ObservableObject {
 		noteOriginMotion()
 		changes.all()
 		noteEdit()
+		knownDrawMode = engine.drawMode
 	}
 
 	/// An edit to parameter row iParam (any column, including Global).
@@ -461,6 +467,7 @@ final class AppModel: ObservableObject {
 		noteOriginMotion()
 		changes.main.bump()
 		noteEdit()
+		knownDrawMode = engine.drawMode
 	}
 
 	/// The origin has moved away from the patch's origin (Drag, Random or a
@@ -601,7 +608,7 @@ final class AppModel: ObservableObject {
 		case .drawMode:
 			let m = engine.drawMode
 			let parts = (m & Self.drawModeFill != 0 ? ["Fill"] : []) + (m & Self.drawModeOutline != 0 ? ["Outline"] : [])
-				+ (m & Self.drawModeXRay != 0 ? ["XOR"] : [])
+				+ (m & Self.drawModeXRay != 0 ? ["XRay"] : [])
 			shown = parts.isEmpty ? "Lines" : parts.joined(separator: " + ")
 		case .orgMotion:
 			switch engine.originMotion {
@@ -614,7 +621,9 @@ final class AppModel: ObservableObject {
 		default:
 			shown = isOn(prop) ? "On" : "Off"
 		}
-		StripFeed.shared.setReadout(WHControls.mainName(prop.rawValue) + "  " + shown)
+		// the draw mode by what's on, never "Draw Mode" (the user's request,
+		// 2026-11-25): "Fill + Outline", or "Lines"
+		StripFeed.shared.setReadout(prop == .drawMode ? shown : WHControls.mainName(prop.rawValue) + "  " + shown)
 	}
 
 	func setMaster(_ iProp: Int, _ value: Double) {

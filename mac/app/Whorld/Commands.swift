@@ -236,7 +236,7 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut("2")	// and F7
 			// Whorld V1's X-Ray, the draw mode's XOR bit, which V2 keeps but
 			// ignores (the user's request, 2026-11-23)
-			toggle("XOR", e.xray) { model.toggleXRay() }
+			toggle("XRay", e.xray) { model.toggleXRay() }
 				.keyboardShortcut("3")	// and F8, V1's X-Ray key
 			toggle("Mirror", e.mirror) { model.toggle(.mirror) }
 				.keyboardShortcut("4")	// and F5

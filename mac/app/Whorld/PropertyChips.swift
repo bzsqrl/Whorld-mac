@@ -28,7 +28,7 @@ enum PropItem: CaseIterable {
 		switch self {
 		case .fill: "Fill"
 		case .outline: "Outline"
-		case .xor: "XOR"
+		case .xor: "XRay"
 		case .mirror: "Mirror"
 		case .convex: "Convex"
 		case .reverse: "Reverse"
