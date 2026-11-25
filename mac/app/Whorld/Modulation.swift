@@ -158,7 +158,7 @@ private struct ModTopBar: View {
 	@ViewBuilder private var switchAndDepth: some View {
 			Toggle("Modulation", isOn: Binding(get: { !map.bypass }, set: { map.bypass = !$0 }))
 				.toggleStyle(.switch)
-				.help("All rows on or off; off, the patches play as they are. Audio > Audio Modulation (⌘'), or Mod in the Perform Bar, OSC /w/mod/on.")
+				.hoverTip("All rows on or off; off, the patches play as they are. Audio > Audio Modulation (⌘'), or Mod in the Perform Bar, OSC /w/mod/on.")
 			// its state in words, where you're looking (the design audit,
 			// 2026-11-24: off, the rows below looked as live as on)
 			(map.bypass

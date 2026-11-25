@@ -614,29 +614,32 @@ private struct PropertiesStripContent: View {
 
 	var body: some View {
 		let _ = model.changes.main.n
-		HStack(spacing: 4) {
-			ForEach([PropItem.fill, .outline, .xor], id: \.self) { chip($0) }
+		// narrowing, whole groups hide in this order (the user's choice,
+		// 2026-11-24): Quality, Origin, Shape, Color, Drawing; never Actions
+		PriorityBar(spacing: 4) {
+			ForEach([PropItem.fill, .outline, .xor], id: \.self) { chip($0).barRank(5) }
 			divider
-			ForEach([PropItem.mirror, .convex, .reverse], id: \.self) { chip($0) }
+			ForEach([PropItem.mirror, .convex, .reverse], id: \.self) { chip($0).barRank(3) }
 			divider
-			ForEach([PropItem.invertColor, .rotateHue, .loopHue], id: \.self) { chip($0) }
+			ForEach([PropItem.invertColor, .rotateHue, .loopHue], id: \.self) { chip($0).barRank(4) }
 			divider
 			chip(.randomPhase)
 			chip(.pause)
 			chip(.clear)
 			divider
-			OriginSwitch(labels: false, height: 22)
+			OriginSwitch(labels: false, height: 22).barRank(2)
 			divider
-			chip(.zoomCenter)	// the user's request, 2026-11-24
-			chip(.antialiasing)
-			Spacer(minLength: 0)
+			chip(.zoomCenter).barRank(1)	// the user's request, 2026-11-24
+			chip(.antialiasing).barRank(1)
+			Spacer(minLength: 0).barFiller()
 		}
 		.padding(.horizontal, 8)
 		.frame(maxWidth: .infinity, maxHeight: .infinity)
+		.clipped()	// hidden items sit out of sight (PriorityBar)
 	}
 
 	private var divider: some View {
-		Divider().frame(height: 14).padding(.horizontal, 3)
+		BarRule().padding(.horizontal, 3)
 	}
 
 	private func chip(_ item: PropItem) -> some View {

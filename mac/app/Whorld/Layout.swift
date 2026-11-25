@@ -927,6 +927,19 @@ final class LayoutModel: ObservableObject {
 	func isDocked(_ id: PanelID) -> Bool { layout.region(of: id) != nil }
 	func isFloating(_ id: PanelID) -> Bool { layout.floating.contains(id) }
 
+	/// Shows a panel, or brings it forward if it's shown: where it was
+	/// docked last, else floating (setShown); a floating one's window comes
+	/// to the front, a tab behind another is chosen
+	func reveal(_ id: PanelID) {
+		if !isShown(id) {
+			setShown(id, true)
+		} else if isFloating(id) {
+			floatingWindows[id]?.window?.makeKeyAndOrderFront(nil)
+		} else {
+			select(id)
+		}
+	}
+
 	func setShown(_ id: PanelID, _ show: Bool) {
 		// a tab that isn't showing is brought forward rather than hidden
 		// (View menu shortcuts reveal a panel stacked behind another)

@@ -251,15 +251,119 @@ struct FirstClickHost: NSViewRepresentable {
 	func updateNSView(_ v: Host, context: Context) {}
 }
 
+/// A Perform Bar row that, as it narrows, hides its items in order rather
+/// than cropping them (the user's request, 2026-11-24): an item's `barRank`
+/// says when it hides (1 first; none never), the readout first shrinks to
+/// its least (`barShrinks`), dividers (`barSeparator`) go when they'd be
+/// doubled or at an end, and a `barFiller` takes what's left. A hidden item
+/// stays alive, placed out of sight (the bar clips), so its live text and
+/// state carry on.
+struct PriorityBar: SwiftUI.Layout {
+	var spacing: CGFloat = 8
+
+	enum Role { case item, separator, filler }
+	struct RankKey: LayoutValueKey { static let defaultValue: Int? = nil }
+	struct RoleKey: LayoutValueKey { static let defaultValue = Role.item }
+	struct ShrinkKey: LayoutValueKey { static let defaultValue: CGFloat? = nil }
+
+	private struct Plan {
+		var shown: [Bool]
+		var widths: [CGFloat]
+		var used: CGFloat
+	}
+
+	private func plan(_ subviews: LayoutSubviews, width: CGFloat) -> Plan {
+		let ideal = subviews.map { $0.sizeThatFits(.unspecified) }
+		let roles = subviews.map { $0[RoleKey.self] }
+		let ranks = subviews.map { $0[RankKey.self] }
+		let steps = [0] + Array(Set(ranks.compactMap { $0 })).sorted()
+		var last = Plan(shown: [], widths: [], used: 0)
+		for step in steps {
+			var shown = ranks.map { r in r.map { $0 > step } ?? true }
+			// dividers: only between two shown items
+			var prevItem = false
+			for i in subviews.indices where roles[i] != .filler {
+				if roles[i] == .separator {
+					let nextItem = subviews.indices.contains { j in j > i && shown[j] && roles[j] == .item }
+					shown[i] = prevItem && nextItem
+					if shown[i] { prevItem = false }
+				} else if shown[i] {
+					prevItem = true
+				}
+			}
+			var widths = subviews.indices.map { roles[$0] == .filler ? 0 : ideal[$0].width }
+			func used() -> CGFloat {
+				let n = shown.filter { $0 }.count
+				return subviews.indices.filter { shown[$0] }.reduce(0) { $0 + widths[$1] } + spacing * CGFloat(max(n - 1, 0))
+			}
+			var u = used()
+			if u > width {	// the readout gives way first, down to its least
+				for i in subviews.indices where shown[i] {
+					if let least = subviews[i][ShrinkKey.self] {
+						widths[i] = max(least, widths[i] - (u - width))
+						u = used()
+					}
+				}
+			}
+			last = Plan(shown: shown, widths: widths, used: u)
+			if u <= width { break }
+		}
+		return last
+	}
+
+	func sizeThatFits(proposal: ProposedViewSize, subviews: LayoutSubviews, cache: inout ()) -> CGSize {
+		let h = subviews.map { $0.sizeThatFits(.unspecified).height }.max() ?? 0
+		let w = proposal.width ?? plan(subviews, width: .infinity).used
+		return CGSize(width: w, height: proposal.height ?? h)
+	}
+
+	func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: LayoutSubviews, cache: inout ()) {
+		let p = plan(subviews, width: bounds.width)
+		let spare = max(bounds.width - p.used, 0)
+		var x = bounds.minX
+		for i in subviews.indices {
+			let s = subviews[i]
+			guard p.shown[i] else {	// out of sight, alive
+				s.place(at: CGPoint(x: bounds.minX - 100_000, y: bounds.midY), anchor: .leading, proposal: .unspecified)
+				continue
+			}
+			let w = s[RoleKey.self] == .filler ? spare : p.widths[i]
+			s.place(at: CGPoint(x: x, y: bounds.midY), anchor: .leading, proposal: ProposedViewSize(width: w, height: nil))
+			x += w + spacing
+		}
+	}
+}
+
+/// A Perform Bar divider: a vertical rule, drawn explicitly (a Divider takes
+/// its direction from a stack, which PriorityBar isn't)
+struct BarRule: View {
+	var body: some View {
+		Rectangle().fill(Color(nsColor: .separatorColor)).frame(width: 1, height: 14).barSeparator()
+	}
+}
+
+extension View {
+	/// hidden when the Perform Bar is narrow, rank 1 first (PriorityBar)
+	func barRank(_ rank: Int) -> some View { layoutValue(key: PriorityBar.RankKey.self, value: rank) }
+	func barSeparator() -> some View { layoutValue(key: PriorityBar.RoleKey.self, value: .separator) }
+	func barFiller() -> some View { layoutValue(key: PriorityBar.RoleKey.self, value: .filler) }
+	/// shrinks to `least` before anything hides
+	func barShrinks(to least: CGFloat) -> some View { layoutValue(key: PriorityBar.ShrinkKey.self, value: least) }
+}
+
 private struct StatsStripContent: View {
 	@EnvironmentObject private var model: AppModel
 
 	var body: some View {
-		HStack(spacing: 8) {
+		// narrowing, items hide in this order (the user's choice, 2026-11-24):
+		// the readout (shrinking first), fps, Auto · Res, the tempo,
+		// Full / Geom, Syp, Detach, Mod, full screen; never Blackout, the
+		// patch's place or Play
+		PriorityBar(spacing: 8) {
 			// Image > Blackout, at the far left (the user's request, 2026-11-21)
 			BlackoutButton()
 				.layoutPriority(2)
-			Divider().frame(height: 14)
+			BarRule()
 			// the live text is AppKit, redrawn by StripFeed: a SwiftUI layout
 			// pass every second (or every swipe) would drop the panes' tooltips;
 			// each at a fixed width, so nothing moves as the numbers change
@@ -268,13 +372,15 @@ private struct StatsStripContent: View {
 			// Perform Bar)
 			StripText(part: .fps)
 				.frame(width: StripText.width(.fps) + 8, height: 18)
-				.layoutPriority(2)
-			Divider().frame(height: 14)
+				.barRank(2)
+			BarRule()
 			// the last control changed: narrower, and the first to give way
 			// (the user's request, 2026-11-20)
 			StripText(part: .readout)
 				.frame(minWidth: 0, idealWidth: StripText.width(.readout), maxWidth: StripText.width(.readout))
-			Divider().frame(height: 14)
+				.barShrinks(to: 60)
+				.barRank(1)
+			BarRule()
 			// the patch's place in the playlist (12 / 86), its name in the
 			// tooltip (shown elsewhere: the user's request, 2026-11-21); a
 			// click on the left number plays the previous, on the right the
@@ -284,18 +390,19 @@ private struct StatsStripContent: View {
 				.layoutPriority(2)
 			PlaylistTransport()	// Play / Stop (the user's request, 2026-11-20)
 				.layoutPriority(2)
-			Divider().frame(height: 14)
+			BarRule()
 			GeometryToggle()	// Image > Geometry Only (the user's request, 2026-11-20)
-				.layoutPriority(2)
-			Divider().frame(height: 14)
+				.barRank(5)
+			BarRule()
 			// Automatic quality and Render quality, apart (the user's
 			// request, 2026-11-20)
 			AutoQualityToggle(feed: StripFeed.shared.autoTag)
-				.layoutPriority(2)
+				.barRank(3)
 			Text("·").foregroundStyle(.tertiary).padding(.horizontal, -5)	// Auto is Res's: read as one (the design audit, 2026-11-24)
+				.barRank(3)
 			ResolutionMenu(feed: StripFeed.shared.autoTag)
-				.layoutPriority(2)
-			Divider().frame(height: 14)
+				.barRank(3)
+			BarRule()
 			// Audio > Audio Modulation, with the beat, beside Syphon (the
 			// user's request, 2026-11-21). Mod and Syphon
 			// are labels a click toggles, their dots saying on or off (no
@@ -310,13 +417,18 @@ private struct StatsStripContent: View {
 			.buttonStyle(StripToggleStyle())
 			.fixedSize()
 			.layoutPriority(2)
-			.help("Audio modulation on or off (Audio > Audio Modulation, ⌘'). The dot: faint off, hollow finding the beat, filled once it's locked, flashing on each beat.")
+			// a right-click (or a two-finger tap) opens the Modulation panel,
+			// docked where it was last, else floating (the user's request,
+			// 2026-11-24)
+			.overlay(SecondaryClickReset { model.layout.reveal(.modulation) })
+			.hoverTip("Audio modulation on or off (Audio > Audio Modulation, ⌘'); right-click for the Modulation panel. The dot: faint off, hollow finding the beat, filled once it's locked, flashing on each beat.")
+			.barRank(8)
 			// the locked tempo, BPM: a button of its own while it shows, for
 			// Reset to 1.1 (the user's request, 2026-11-20); AppKit, as it
 			// comes and goes without a SwiftUI layout
 			StripTempo(shown: StripFeed.shared.tempoShown)	// no room held while there's none
-				.layoutPriority(2)
-			Spacer(minLength: 0)
+				.barRank(4)
+			Spacer(minLength: 0).barFiller()
 			// "Syp" and the dot (the user's request, 2026-11-21), like Mod; at the
 			// right end with Detach and Full Screen, the picture's outputs
 			// together (the user's request, 2026-11-24)
@@ -330,12 +442,13 @@ private struct StatsStripContent: View {
 			.buttonStyle(StripToggleStyle())
 			.fixedSize()
 			.layoutPriority(2)
-			.help("Syphon output on or off (View > Syphon, which also sets its size). Faint off, hollow while no app is receiving, filled once one is.")
+			.hoverTip("Syphon output on or off (View > Syphon, which also sets its size). Faint off, hollow while no app is receiving, filled once one is.")
+			.barRank(6)
 			// View > Detach (the user's request, 2026-11-20): the picture in a
 			// window of its own, for a projector; lit while detached, when
 			// the bar is on the swipe pad, and a click docks it again
 			DetachButton()
-				.layoutPriority(2)
+				.barRank(7)
 			// View > Enter Full Screen (the user's request, 2026-11-20); the
 			// strip isn't shown in full screen, so it only enters. With
 			// Option, Enter Full Screen on Other Display (2026-11-21).
@@ -353,7 +466,8 @@ private struct StatsStripContent: View {
 			.buttonStyle(StripToggleStyle())
 			.fixedSize()
 			.layoutPriority(2)
-			.help("Full screen (View > Enter Full Screen, ⌘F; Esc returns). Option-click: full screen on another display (⇧⌘F).")
+			.hoverTip("Full screen (View > Enter Full Screen, ⌘F; Esc returns). Option-click: full screen on another display (⇧⌘F).")
+			.barRank(9)
 			// no ⓘ: each item has its own tooltip, and Help describes the
 			// bar (the user's request, 2026-11-21)
 		}
@@ -362,6 +476,7 @@ private struct StatsStripContent: View {
 		.padding(.horizontal, 8)
 		.frame(height: StatsStrip.height)
 		.frame(maxWidth: .infinity)
+		.clipped()	// hidden items sit out of sight (PriorityBar)
 		.background(Color(nsColor: .windowBackgroundColor))
 	}
 }
