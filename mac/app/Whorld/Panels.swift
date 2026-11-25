@@ -1841,7 +1841,7 @@ struct GlobalRow: View {
 // MARK: Info icons
 
 /// An explanation behind an ⓘ, everywhere (panel titles, Settings, the
-/// Modulation table's column headers; the user's request, 2026-11-19): a
+/// Modulation table, under it since 2026-11-24; the user's request, 2026-11-19): a
 /// click on the icon shows it, and it stays until the pointer is away from
 /// it and the icon; hovering shows nothing. Where the pointer is is checked
 /// a few times a second (a quick move away can miss a hover change).

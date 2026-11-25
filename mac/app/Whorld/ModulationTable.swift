@@ -61,6 +61,7 @@ struct ModTablesSection: View {
 				Button { remove() } label: { Image(systemName: "minus") }
 					.help("Remove the selected rows")
 					.disabled(selection.isEmpty)
+				InfoButton(text: ColumnTips.all)	// the columns, explained (each header's tip too)
 				if let notice = map.notice {
 					Text(notice).font(.caption).foregroundStyle(.orange)
 				}
@@ -105,13 +106,13 @@ struct ModTablesSection: View {
 
 	private var rowsTable: some View {
 			Table($map.rows, selection: $selection) {
-				TableColumn("On" + ColumnTips.mark) { $r in
+				TableColumn("On") { $r in
 					stable(r, dims: false) {
 						Toggle("", isOn: $r.on).labelsHidden()
 					}
 				}
 				.width(46)
-				TableColumn("Source" + ColumnTips.mark) { $r in
+				TableColumn("Source") { $r in
 					stable(r) {
 						HStack(spacing: 2) {
 							if r.isOscillator {	// the cycle's length, then its phase
@@ -138,18 +139,18 @@ struct ModTablesSection: View {
 					}
 				}
 				.width(min: 100, ideal: 250)	// a Beat LFO row: the source, length, unit, shape and phase
-				TableColumn("Live" + ColumnTips.mark) { $r in
+				TableColumn("Live") { $r in
 					RowLevel(index: map.rows.firstIndex(where: { $0.id == r.id }) ?? -1)
 						.opacity(Self.rowOpacity(r))
 				}
 				.width(60)
-				TableColumn("Target" + ColumnTips.mark) { $r in
+				TableColumn("Target") { $r in
 					stable(r) {
 						TargetMenu(row: $r)
 					}
 				}
 				.width(min: 140, ideal: 150)
-				TableColumn("Amount" + ColumnTips.mark) { $r in
+				TableColumn("Amount") { $r in
 					if r.isAction {
 						Text("fires").foregroundStyle(.secondary)
 							.opacity(Self.rowOpacity(r))
@@ -167,37 +168,27 @@ struct ModTablesSection: View {
 					}
 				}
 				.width(min: 140, ideal: 150)
-				TableColumn("Curve" + ColumnTips.mark) { $r in
+				TableColumn("Curve") { $r in
 					stable(r) {
 						if r.isOscillator {
 							Text("—").foregroundStyle(.secondary)
 						} else {
-							Picker("", selection: $r.curve) {
-								Text("Linear").tag(0)
-								Text("Soft").tag(1)
-								Text("Hard").tag(2)
-								Text("Gate").tag(3)
-							}
-							.labelsHidden()
+							TableChoice(selection: $r.curve, options: [(0, "Linear"), (1, "Soft"), (2, "Hard"), (3, "Gate")])
 						}
 					}
 				}
 				.width(min: 70, ideal: 80)
-				TableColumn("Polarity" + ColumnTips.mark) { $r in
+				TableColumn("Polarity") { $r in
 					stable(r) {
 						if r.isAction || r.isOscillator {
 							Text("—").foregroundStyle(.secondary)
 						} else {
-							Picker("", selection: $r.centered) {
-								Text("Up").tag(false)
-								Text("Centered").tag(true)
-							}
-							.labelsHidden()
+							TableChoice(selection: $r.centered, options: [(false, "Up"), (true, "Centered")])
 						}
 					}
 				}
 				.width(min: 80, ideal: 90)
-				TableColumn("Attack · Release" + ColumnTips.mark) { $r in
+				TableColumn("Attack · Release") { $r in
 					stable(r) {	// one column: a Table takes ten at most
 						HStack(spacing: 4) {
 							if r.isLFO || r.isOscillator {	// locked to the beat: not smoothed
@@ -218,7 +209,7 @@ struct ModTablesSection: View {
 					}
 				}
 				.width(124)
-				TableColumn("Offset" + ColumnTips.mark) { $r in
+				TableColumn("Offset") { $r in
 					stable(r) {
 						if r.isTrigger || r.isLFO || r.isOscillator {
 							OffsetField(value: $r.offsetMs, earlyAllowed: r.isBeatBased || r.isLFO)
@@ -228,7 +219,7 @@ struct ModTablesSection: View {
 					}
 				}
 				.width(64)
-				TableColumn("Threshold" + ColumnTips.mark) { $r in
+				TableColumn("Threshold") { $r in
 					stable(r) {
 						if !r.isOscillator && (r.curve == 3 || (r.isAction && !r.isTrigger)) {
 							RowNumber(value: $r.threshold, lo: 0, hi: 1, fine: 0.01,
@@ -278,98 +269,66 @@ private struct RowLevel: View {
 /// takes only a text title): the table underneath is an NSTableView, whose
 /// columns have header tooltips; each title ends with an info mark.
 private struct ColumnTips: NSViewRepresentable {
-	static let mark = "  ⓘ"
-	static let tips: [String: String] = [
-		"On": "Turn the row on or off.",
-		"Source": "What moves the target: a level, a band, a hit, the beat, or the Beat LFO (a wave locked to the beat: length, shape and phase in the menu beside it).",
-		"Live": "The source now, after smoothing and the curve.",
-		"Target": "The control the row moves, from the patch's own value (the patch never changes; rows on one control add up); an action, fired on a hit; or a parameter's Frequency, which locks its oscillator to the beat (length and phase beside the source).",
-		"Amount": "How far the target moves at full level, as a share of its slider; negative moves it down.",
-		"Curve": "Linear; Soft (quiet passages count more); Hard (only loud ones); Gate (all or nothing at the threshold).",
-		"Polarity": "Up: from the value upward. Centered: either side of it.",
-		"Attack · Release": "How quickly the movement rises and falls, in ms. A hit's pulse fades over its release.",
-		"Offset": "Moves beat rows this many ms early (−) or late. Hits can only be late.",
-		"Threshold": "For the Gate curve, and actions on a sound: the level, 0 to 1, that sets them off.",
+	static let tips: [(title: String, tip: String)] = [
+		("On", "Turn the row on or off."),
+		("Source", "What moves the target: a level, a band, a hit, the beat, or the Beat LFO (a wave locked to the beat: length, shape and phase in the menu beside it)."),
+		("Live", "The source now, after smoothing and the curve."),
+		("Target", "The control the row moves, from the patch's own value (the patch never changes; rows on one control add up); an action, fired on a hit; or a parameter's Frequency, which locks its oscillator to the beat (length and phase beside the source)."),
+		("Amount", "How far the target moves at full level, as a share of its slider; negative moves it down."),
+		("Curve", "Linear; Soft (quiet passages count more); Hard (only loud ones); Gate (all or nothing at the threshold)."),
+		("Polarity", "Up: from the value upward. Centered: either side of it."),
+		("Attack · Release", "How quickly the movement rises and falls, in ms. A hit's pulse fades over its release."),
+		("Offset", "Moves beat rows this many ms early (−) or late. Hits can only be late."),
+		("Threshold", "For the Gate curve, and actions on a sound: the level, 0 to 1, that sets them off."),
 	]
+
+	/// every column's tip, for the ⓘ under the table
+	static var all: String { tips.map { "\($0.title): \($0.tip)" }.joined(separator: "\n\n") }
 
 	func makeNSView(context: Context) -> NSView { NSView() }
 
-	func makeCoordinator() -> Coordinator { Coordinator() }
-
-	/// A click on a header's ⓘ shows its column's tip (InfoPopover, as every
-	/// ⓘ; the user's request, 2026-11-19: the headers showed it on hover).
-	/// Caught before the header, which tracks the mouse itself (a gesture
-	/// recognizer there never sees the click end).
-	final class Coordinator: NSObject {
-		weak var header: NSTableHeaderView?
-		private var monitor: Any?
-
-		@MainActor func install(on header: NSTableHeaderView) {
-			self.header = header
-			guard monitor == nil else { return }
-			monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] e in
-				MainActor.assumeIsolated { self?.clicked(e) ?? false } ? nil : e
-			}
-		}
-
-		/// true: it was on an ⓘ, and the tip is showing (or closed again)
-		@MainActor private func clicked(_ e: NSEvent) -> Bool {
-			guard let header, let table = header.tableView, e.window === header.window else { return false }
-			let p = header.convert(e.locationInWindow, from: nil)
-			guard header.bounds.contains(p) else { return false }
-			let i = header.column(at: p)
-			guard i >= 0, i < table.tableColumns.count else { return false }
-			let cell = table.tableColumns[i].headerCell
-			let title = cell.stringValue
-			guard title.hasSuffix(ColumnTips.mark),
-				let tip = ColumnTips.tips[String(title.dropLast(ColumnTips.mark.count))],
-				let mark = ColumnTips.markRect(cell, in: header.headerRect(ofColumn: i)), mark.contains(p) else { return false }
-			InfoPopover.shared.toggle(tip, from: header, rect: mark)
-			return true
-		}
-
-		deinit {
-			if let monitor { NSEvent.removeMonitor(monitor) }
-		}
-	}
-
-	/// where a header cell draws its title's ⓘ (the title's last glyph), a
-	/// little grown to be easy to hit
-	static func markRect(_ cell: NSTableHeaderCell, in r: NSRect) -> NSRect? {
-		let title = cell.attributedStringValue
-		guard title.length > 0 else { return nil }
-		let text = cell.titleRect(forBounds: r)
-		let font: [NSAttributedString.Key: Any] = [.font: cell.font ?? NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)]
-		let full = (title.string as NSString).size(withAttributes: font).width
-		let icon = ("ⓘ" as NSString).size(withAttributes: font).width
-		let x: CGFloat
-		switch cell.alignment {
-		case .right: x = text.maxX - icon
-		case .center: x = text.midX + full / 2 - icon
-		default: x = text.minX + full - icon
-		}
-		return NSRect(x: x - 4, y: r.minY, width: icon + 14, height: r.height)	// more room after: the cell draws a little in from its title rect
-	}
-
+	/// Each header's tip on hover (the design audit, 2026-11-24: an ⓘ on
+	/// every header was clutter; one ⓘ under the table lists them all)
 	func updateNSView(_ view: NSView, context: Context) {
-		let c = context.coordinator
 		DispatchQueue.main.async {	// once the table is in the window
 			guard let root = view.window?.contentView, let table = Self.table(in: root) else { return }
-			for column in table.tableColumns where column.headerToolTip != nil {
-				column.headerToolTip = nil	// no hover tip: the ⓘ is clicked
-			}
-			if let header = table.headerView, c.header !== header {
-				c.install(on: header)
+			for column in table.tableColumns {
+				let tip = Self.tips.first { $0.title == column.title }?.tip
+				if column.headerToolTip != tip { column.headerToolTip = tip }
 			}
 		}
 	}
 
+	/// the routing table: the one with these columns (docked, the window
+	/// holds the Playlist's and the Patches' tables too)
 	private static func table(in view: NSView) -> NSTableView? {
-		if let t = view as? NSTableView { return t }
+		if let t = view as? NSTableView, t.tableColumns.contains(where: { $0.title == "Attack · Release" }) { return t }
 		for sub in view.subviews {
 			if let t = table(in: sub) { return t }
 		}
 		return nil
+	}
+}
+
+/// A choice in the table as a borderless menu with a small grey chevron, as
+/// its Source and Target menus (the design audit, 2026-11-24: the boxed
+/// pop-ups beside them looked heavier and more important than they are)
+private struct TableChoice<Value: Hashable>: View {
+	let selection: Binding<Value>
+	let options: [(value: Value, title: String)]
+
+	var body: some View {
+		Menu {
+			Picker("", selection: selection) {
+				ForEach(options.indices, id: \.self) { i in Text(options[i].title).tag(options[i].value) }
+			}
+			.pickerStyle(.inline)
+			.labelsHidden()
+		} label: {
+			Text(options.first { $0.value == selection.wrappedValue }?.title ?? "")
+		}
+		.menuStyle(.borderlessButton)
+		.fixedSize()
 	}
 }
 
@@ -505,16 +464,11 @@ private struct UnitPicker: View {
 
 	var body: some View {
 		let n = row.lfoInBars ? row.lfoBeats / 4 : row.lfoBeats
-		Picker("", selection: Binding(get: { row.lfoInBars }, set: { bars in
+		TableChoice(selection: Binding(get: { row.lfoInBars }, set: { bars in
 			guard bars != row.lfoInBars else { return }
 			row.lfoInBars = bars
 			row.lfoBeats = min(max(n * (bars ? 4 : 1), ModRowSetting.minBeats), ModRowSetting.maxBeats)
-		})) {
-			Text(n == 1 ? "Beat" : "Beats").tag(false)
-			Text(n == 1 ? "Bar" : "Bars").tag(true)
-		}
-		.labelsHidden()
-		.fixedSize()
+		}), options: [(false, n == 1 ? "Beat" : "Beats"), (true, n == 1 ? "Bar" : "Bars")])
 	}
 }
 
