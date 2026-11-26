@@ -166,6 +166,9 @@ extension AppModel {
 		}
 		playedName = url.deletingPathExtension().lastPathComponent
 		playingPatch = index
+		// the cued patch played, however (Auto Advance, ⌘↓, a click, Go):
+		// the cue moves on to the next, so Return doesn't play it again
+		if cuedPatch == index { cuedPatch = (index + 1) % paths.count }
 		playingFile = url
 		patchPlays += 1
 		originFromPatch()

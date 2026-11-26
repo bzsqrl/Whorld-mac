@@ -1,0 +1,16 @@
+WHORLD1
+RingGrowth	1	0	0	0
+RingSpacing	1	0	0	0
+PolySides	5	0	0	0
+RotateSpeed	0	0	0.0174533	0.01
+AspectRatio	-0.5	0	0.5	0.005
+SkewRadius	2	0	0	0
+SkewAngle	0	4	1.5708	10
+StarFactor	0	0	0.66	0.015
+ColorSpeed	1.3	0	0	0
+Lightness	0.5	0	0	0
+Saturation	1	0	0	0
+BkHue	0	0	180	0.01
+BkLightness	0.1	0	0	0
+BkSaturation	1	0	0	0
+Author	Chris Korda

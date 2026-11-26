@@ -1,0 +1,21 @@
+WHORLD1
+RingGrowth	2	0	0	0	0.5
+RingSpacing	24.3295	3	6.48396	0.0130981	0.5
+PolySides	7	6	3.8804	0.0050777	0.5
+RotateSpeed	0	0	0.00174533	0.0218956	0.5
+AspectRatio	0.0389111	0	0.0313578	0.00393139	0.5
+SkewRadius	0.0633442	0	0.209571	0.0010889	0.5
+SkewAngle	0.366632	1	1.48944	0.0003184	0.5
+StarFactor	0	1	1.36106	0.0608844	0.5
+ColorSpeed	0.286447	0	0	0	0.726362
+Lightness	0.5	1	0.320467	0.12593	0.5
+Saturation	0.75	1	0.25	0.283486	0.5
+BkHue	0	2	180	0.005	0.5
+BkLightness	0	0	0	0	0.5
+BkSaturation	0.644414	0	0	0	0.5
+Pinwheel	0.261452	1	1.95218	0.324096	0.5
+LineWidth	13.7335	1	14.6867	0.00738014	0.5
+Origin	.5	.5
+DrawMode	0
+Mirror	0
+Author	Chris Korda
