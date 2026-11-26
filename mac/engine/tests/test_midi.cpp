@@ -293,8 +293,9 @@ TEST(MappingDefaultsAndNames) {
 	CHECK_EQ(m.m_fEnd, 100.0);
 	// 17 miscellaneous targets on Windows, plus the Mac's Hue, Rotate Hue, Invert Color,
 	// Mark Downbeat, Modulation On, Modulation Depth, Geometry Mode, Reset Bar Count, the
-	// beat and bar steps, Half Beat, Auto Advance and Blackout
-	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 32);
+	// beat and bar steps, Half Beat, Auto Advance, Blackout, and cue then go's Go, Go Now,
+	// Cue Next and Previous, Bank Up and Down and Pad 1 to 16
+	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 54);
 	CHECK_EQ(MB::GetTargetName(MB::TARGET_ResetBars), std::string("Reset Bar Count"));
 	CHECK_EQ(MB::GetTargetType(MB::TARGET_ResetBars), int(MB::TT_ACTION));
 	CHECK(MB::IsMacOnlyTarget(MB::TARGET_ResetBars));
@@ -544,6 +545,32 @@ TEST(BlackoutTarget) {
 	sink.Clear();
 	mgr.DispatchTarget(MB::TARGET_Blackout, -1, 0);
 	CHECK_EQ(sink.posts[0].iVal, 0);
+}
+
+TEST(CueTargets) {
+	// Mac addition: cue, then go, for pads; presses only, the app's
+	CHECK(MB::IsMacOnlyTarget(MB::TARGET_Go));
+	CHECK(MB::IsMacOnlyTarget(MB::TARGET_Pad16));
+	CHECK_EQ(MB::GetTargetName(MB::TARGET_GoNow), std::string("Go Now"));
+	CHECK_EQ(MB::GetTargetName(MB::TARGET_Pad16), std::string("Pad 16"));
+	CHECK_EQ(MB::GetTargetType(MB::TARGET_Pad1), int(MB::TT_ACTION));
+	RecordingSink	sink;
+	MidiManager	mgr(sink);
+	using Post = MidiManager::Post;
+	mgr.DispatchTarget(MB::TARGET_Go, -1, 1);
+	CHECK(sink.cmds.empty());
+	CHECK_EQ(sink.posts.size(), size_t(1));
+	CHECK_EQ(sink.posts[0].type, Post::CUE);
+	CHECK_EQ(sink.posts[0].iVal, 0);
+	sink.Clear();
+	mgr.DispatchTarget(MB::TARGET_BankDown, -1, 1);
+	CHECK_EQ(sink.posts[0].iVal, 5);
+	sink.Clear();
+	mgr.DispatchTarget(MB::TARGET_Pad3, -1, 1);
+	CHECK_EQ(sink.posts[0].iVal, 16 + 2);
+	sink.Clear();
+	mgr.DispatchTarget(MB::TARGET_Pad3, -1, 0);	// its release
+	CHECK(sink.posts.empty());
 }
 
 TEST(MacOnlyMappingsHaveTheirOwnSection) {

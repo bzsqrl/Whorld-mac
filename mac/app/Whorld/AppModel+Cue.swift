@@ -49,6 +49,19 @@ enum LaunchTiming: Int, CaseIterable {
 	}
 }
 
+/// The pads (MIDI's Pad 1 to 16; part 2, the user's design, 2026-11-25):
+/// a bank of 8, 16, 32 or 64 entries, and whether a pad plays its patch
+/// (on Launch Timing) or only cues it; app settings
+enum PadSettings {
+	static let sizeKey = "Playlist_nBankSize", cuesKey = "Playlist_bPadsCue"
+	static let sizes = [8, 16, 32, 64]
+	static var size: Int {
+		let n = UserDefaults.standard.integer(forKey: sizeKey)
+		return sizes.contains(n) ? n : 16
+	}
+	static var padsCue: Bool { UserDefaults.standard.bool(forKey: cuesKey) }
+}
+
 /// The beat as Go waits on it: a count that rises each beat, and the
 /// place within 4 bars (0 to 15)
 enum CueBeat {
@@ -125,14 +138,71 @@ extension AppModel {
 		return (last as NSString).deletingPathExtension
 	}
 
-	/// the cue for the overlay: "Cued 47 · name", and when Go waits, on what
+	/// the cue for the overlay: "Cued 47 · name", and when Go waits, on
+	/// what; the pads' bank too, once one's been used
 	var cueLine: String? {
-		guard cuedPatch >= 0, cuedPatch < playlistPatches.count else { return nil }
-		var s = "Cued \(cuedPatch + 1) · " + Self.patchName(playlistPatches[cuedPatch])
-		if pendingLaunch >= 0, let wait = launchWait {
-			s += " · on the \(LaunchTiming.current == .fourBars ? "4 bars" : LaunchTiming.current.title.lowercased()) in \(wait)"
+		var parts: [String] = []
+		if cuedPatch >= 0, cuedPatch < playlistPatches.count {
+			var s = "Cued \(cuedPatch + 1) · " + Self.patchName(playlistPatches[cuedPatch])
+			if pendingLaunch >= 0, let wait = launchWait {
+				s += " · on the \(LaunchTiming.current == .fourBars ? "4 bars" : LaunchTiming.current.title.lowercased()) in \(wait)"
+			}
+			parts.append(s)
 		}
-		return s
+		if bankShown, let b = bankText { parts.append(b) }
+		return parts.isEmpty ? nil : parts.joined(separator: " · ")
+	}
+
+	// MARK: Pads and banks (MIDI)
+
+	/// "Bank 3 (33–48)": the pads' bank, its entries numbered from 1
+	var bankText: String? {
+		let n = playlistPatches.count, size = PadSettings.size
+		guard n > 0 else { return nil }
+		let first = cueBank * size + 1, last = min((cueBank + 1) * size, n)
+		return "Bank \(cueBank + 1) (\(first)–\(last))"
+	}
+
+	/// whether an entry is in the pads' bank (the Playlist shades it)
+	func inBank(_ index: Int) -> Bool {
+		bankShown && index / PadSettings.size == cueBank
+	}
+
+	/// cue, then go's MIDI and OSC targets (MidiManager Post::CUE): 0 Go,
+	/// 1 Go Now, 2 Cue Next, 3 Cue Previous, 4 Bank Up, 5 Bank Down,
+	/// 16 + n Pad n + 1
+	func cueCommand(_ k: Int) {
+		switch k {
+		case 0: go()
+		case 1: go(now: true)
+		case 2: cueStep(1)
+		case 3: cueStep(-1)
+		case 4: bankStep(1)
+		case 5: bankStep(-1)
+		case 16..<32: pad(k - 16)
+		default: break
+		}
+	}
+
+	/// the next or previous bank, stopping at the ends
+	func bankStep(_ step: Int) {
+		let n = playlistPatches.count, size = PadSettings.size
+		guard n > 0 else { return }
+		cueBank = min(max(cueBank + step, 0), (n - 1) / size)
+		bankShown = true
+		if let b = bankText { StripFeed.shared.setReadout(b) }
+	}
+
+	/// pad n (0 to 15): the bank's nth entry, played on Launch Timing, or
+	/// only cued (PadSettings)
+	func pad(_ n: Int) {
+		let size = PadSettings.size
+		guard n < size else { return }
+		let i = cueBank * size + n
+		guard i < playlistPatches.count else { return }
+		bankShown = true
+		cue(i)
+		if !PadSettings.padsCue { go() }
 	}
 
 	/// beats until a waiting Go plays, if there's a beat

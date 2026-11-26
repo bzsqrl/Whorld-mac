@@ -306,6 +306,10 @@ final class AppModel: ObservableObject {
 	@Published var cuedPatch = -1
 	/// a Go waiting for the beat: the entry it plays, -1 for none
 	@Published var pendingLaunch = -1
+	/// the pads' bank (MIDI's Pad 1 to 16 play bank × size + n), and
+	/// whether one has been used (the Playlist and the overlay show it then)
+	@Published var cueBank = 0
+	@Published var bankShown = false
 	/// the beat count when that Go was pressed (it plays on a later one)
 	var launchFrom = 0
 	/// the number being typed after Option-Command-G, and the cue before it
@@ -391,6 +395,8 @@ final class AppModel: ObservableObject {
 			ActionFlash.shared.fire(.rotateHue)
 		case 12:	// the Clear target, done: its chips flash
 			ActionFlash.shared.fire(.clear)
+		case 13:	// cue, then go's targets (Go, Cue Next, Bank Up, Pad n, ...)
+			cueCommand(Int(value))
 		case 9:	// the Blackout target: 0 back, 1 to black, 2 the other way
 			setBlackout(value == 2 ? !engine.blackout : value != 0)
 		case 5:	// a parameter, from a mapping

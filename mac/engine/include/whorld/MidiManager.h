@@ -47,6 +47,7 @@ public:
 			BLACKOUT,			// Mac addition: iVal 1 fade to black, 0 back
 			RANDOM_PHASE,		// Mac addition: a notice; the render thread has the command
 			CLEAR,				// Mac addition: a notice, as RANDOM_PHASE
+			CUE,				// Mac addition, cue then go: iVal 0 Go, 1 Go Now, 2 Cue Next, 3 Cue Previous, 4 Bank Up, 5 Bank Down, 16 + n pad n (0 to 15)
 		};
 		Type	type;
 		int		iParam = 0;

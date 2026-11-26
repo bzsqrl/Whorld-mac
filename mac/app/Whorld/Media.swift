@@ -1135,11 +1135,23 @@ struct MovieBar: View {
 /// menu in the Playlist's bottom bar
 struct LaunchTimingMenu: View {
 	@AppStorage(LaunchTiming.key) private var timing = 0
+	@AppStorage(PadSettings.sizeKey) private var bankSize = 16
+	@AppStorage(PadSettings.cuesKey) private var padsCue = false
 
 	var body: some View {
 		Menu {
 			Picker("Go", selection: $timing) {
 				ForEach(LaunchTiming.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
+			}
+			.pickerStyle(.inline)
+			// MIDI pads (part 2 of cue, then go; 2026-11-25)
+			Picker("MIDI Pads: Bank Size", selection: $bankSize) {
+				ForEach(PadSettings.sizes, id: \.self) { Text("\($0) Pads").tag($0) }
+			}
+			.pickerStyle(.inline)
+			Picker("A Pad Press", selection: $padsCue) {
+				Text("Plays Its Patch").tag(false)
+				Text("Only Cues It").tag(true)
 			}
 			.pickerStyle(.inline)
 		} label: {
@@ -1196,10 +1208,12 @@ struct PlaylistPanel: View {
 							}
 						}
 						let missing = model.resolvePatchPath(row.path) == nil
+						let _ = model.cueBank	// the pads' bank, shaded (inBank)
 						Text(row.name)
 							.foregroundStyle(missing ? .secondary : .primary)
 							.hoverTip(missing ? "Can't be found: \(row.path). Right-click to locate it." : row.path)
 					}
+					.background(model.inBank(row.id) ? Color.accentColor.opacity(0.1) : Color.clear)	// the pads' bank
 				}
 				.width(min: 120, ideal: 180)
 				.customizationID("patch")

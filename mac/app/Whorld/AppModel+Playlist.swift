@@ -21,7 +21,8 @@ extension AppModel {
 		engine.newPlaylist()
 		playlistURL = nil
 		playingPatch = -1
-		cuedPatch = -1	// a new playlist: no cue
+		cuedPatch = -1	// a new playlist: no cue, the first bank
+		cueBank = 0
 		cancelLaunch()
 		playlistTitle = "Untitled Playlist"
 		playlistModified = false
@@ -48,7 +49,8 @@ extension AppModel {
 			}
 			playlistURL = url
 			playingPatch = -1
-		cuedPatch = -1	// a new playlist: no cue
+		cuedPatch = -1	// a new playlist: no cue, the first bank
+		cueBank = 0
 		cancelLaunch()
 			checkMissingPatches()
 			playlistTitle = url.deletingPathExtension().lastPathComponent

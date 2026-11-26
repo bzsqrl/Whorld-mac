@@ -1779,6 +1779,10 @@ static NSString *SourceName(MIDIEndpointRef src)
 		if (_midiHandler)	// the Properties' Rotate Hue flashes
 			_midiHandler(11, 0);
 		break;
+	case Post::CUE:	// Mac addition, cue then go: the app's (AppModel.cueCommand)
+		if (_midiHandler)
+			_midiHandler(13, (uint32_t)post.iVal);
+		return;
 	case Post::CLEAR:	// Mac addition: done on the render thread; the Properties' Clear flashes
 		if (_midiHandler)
 			_midiHandler(12, 0);

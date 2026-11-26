@@ -247,6 +247,9 @@ struct WhorldCommands: Commands {
 				Button("Cue Last (⇧⌥⌘↓)") { model.cue(model.playlistPatches.count - 1) }
 				Button("Cue Random (⌥/)") { model.cueRandom() }
 				Divider()
+				Button("Pads: Next Bank") { model.bankStep(1) }
+				Button("Pads: Previous Bank") { model.bankStep(-1) }
+				Divider()
 				Picker("Launch Timing", selection: $launchTiming) {
 					ForEach(LaunchTiming.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
 				}

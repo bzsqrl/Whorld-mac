@@ -148,8 +148,16 @@ private struct TargetMenuItems: View {
 		Section("Master") {
 			ForEach(nParam..<(nParam + nMaster), id: \.self) { t in Text(WHMappingInfo.targetName(t)).tag(Int32(t)) }
 		}
+		// cue, then go's (Go to Pad 16) a section of their own (2026-11-25)
+		let cue = WHMappingInfo.target(forTag: "Go")
+		let otherEnd = cue >= 0 ? cue : all
 		Section("Other") {
-			ForEach((nParam + nMaster)..<all, id: \.self) { t in Text(WHMappingInfo.targetName(t)).tag(Int32(t)) }
+			ForEach((nParam + nMaster)..<otherEnd, id: \.self) { t in Text(WHMappingInfo.targetName(t)).tag(Int32(t)) }
+		}
+		if cue >= 0 {
+			Section("Cue, Then Go") {
+				ForEach(cue..<all, id: \.self) { t in Text(WHMappingInfo.targetName(t)).tag(Int32(t)) }
+			}
 		}
 	}
 }

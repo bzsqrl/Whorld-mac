@@ -100,6 +100,28 @@ const char* const	kMiscName[] = {
 	"mod/halfbeat",	// HalfBeat
 	"advance",	// AutoAdvance
 	"blackout",	// Blackout
+	"cue/go",	// Go (cue, then go; 2026-11-25)
+	"cue/gonow",	// GoNow
+	"cue/next",	// CueNext
+	"cue/prev",	// CuePrevious
+	"cue/bankup",	// BankUp
+	"cue/bankdown",	// BankDown
+	"cue/pad1",
+	"cue/pad2",
+	"cue/pad3",
+	"cue/pad4",
+	"cue/pad5",
+	"cue/pad6",
+	"cue/pad7",
+	"cue/pad8",
+	"cue/pad9",
+	"cue/pad10",
+	"cue/pad11",
+	"cue/pad12",
+	"cue/pad13",
+	"cue/pad14",
+	"cue/pad15",
+	"cue/pad16",	// Pad1 to Pad16
 };
 static_assert(sizeof(kMiscName) / sizeof(kMiscName[0]) == MappingBase::MISC_TARGETS, "a name per miscellaneous target");
 

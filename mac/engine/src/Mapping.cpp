@@ -49,6 +49,8 @@ const char* const kMiscTargetName[MappingBase::MISC_TARGETS] = {
 	"Hue", "Rotate Hue", "Invert Color", "Reset to 1.1", "Modulation On", "Modulation Depth",	// Mac additions
 	"Geometry Mode", "Reset Bar Count", "Beat Back", "Beat Forward", "Bar Back", "Bar Forward", "Half Beat", "Auto Advance",
 	"Blackout",
+	"Go", "Go Now", "Cue Next", "Cue Previous", "Bank Up", "Bank Down",	// cue, then go (2026-11-25)
+	"Pad 1", "Pad 2", "Pad 3", "Pad 4", "Pad 5", "Pad 6", "Pad 7", "Pad 8", "Pad 9", "Pad 10", "Pad 11", "Pad 12", "Pad 13", "Pad 14", "Pad 15", "Pad 16",
 };
 
 const int kMiscTargetType[MappingBase::MISC_TARGETS] = {

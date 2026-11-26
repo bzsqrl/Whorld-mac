@@ -254,6 +254,42 @@ void MidiManager::PushMiscTarget(int iMiscTarget, double fNormVal)
 			m_sink.PostToMain(post);
 		}
 		break;
+	case MT_Go:	// cue, then go: the app's (a press, not its release)
+	case MT_GoNow:
+	case MT_CueNext:
+	case MT_CuePrevious:
+	case MT_BankUp:
+	case MT_BankDown:
+		if (fNormVal > 0) {
+			Post	post;
+			post.type = Post::CUE;
+			post.iVal = iMiscTarget - MT_Go;
+			m_sink.PostToMain(post);
+		}
+		break;
+	case MT_Pad1:
+	case MT_Pad2:
+	case MT_Pad3:
+	case MT_Pad4:
+	case MT_Pad5:
+	case MT_Pad6:
+	case MT_Pad7:
+	case MT_Pad8:
+	case MT_Pad9:
+	case MT_Pad10:
+	case MT_Pad11:
+	case MT_Pad12:
+	case MT_Pad13:
+	case MT_Pad14:
+	case MT_Pad15:
+	case MT_Pad16:
+		if (fNormVal > 0) {	// pad n: 16 + n
+			Post	post;
+			post.type = Post::CUE;
+			post.iVal = 16 + (iMiscTarget - MT_Pad1);
+			m_sink.PostToMain(post);
+		}
+		break;
 	case MT_Blackout:	// the app fades the picture
 		{
 			Post	post;
