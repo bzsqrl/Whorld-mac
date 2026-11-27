@@ -1361,6 +1361,9 @@ struct PlaylistPanel: View {
 				bottomBar(mode: true)
 				bottomBar(mode: false)
 				bottomBar(mode: false, go: false)
+				// and last, its controls small and closer together (the unit
+				// menu still clipped at 1280 points wide, 2026-11-27)
+				bottomBar(mode: false, go: false, compact: true)
 			}
 			.frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
 			.clipped()
@@ -1413,8 +1416,8 @@ struct PlaylistPanel: View {
 		.frame(minHeight: 30)	// as tall as the Patches panel's bar, with its search box
 	}
 
-	private func bottomBar(mode: Bool, go: Bool = true) -> some View {
-		HStack {
+	private func bottomBar(mode: Bool, go: Bool = true, compact: Bool = false) -> some View {
+		HStack(spacing: compact ? 4 : nil) {
 			Button { model.insertPatches() } label: { Image(systemName: "plus") }
 				.hoverTip("Insert patches")
 			Button { model.deletePatches() } label: { Image(systemName: "minus") }
@@ -1437,7 +1440,9 @@ struct PlaylistPanel: View {
 					.midiLearnable("GeometryMode")	// MIDI Learn mode
 			}
 		}
-		.padding(8)
+		.controlSize(compact ? .small : .regular)
+		.padding(.horizontal, compact ? 6 : 8)
+		.padding(.vertical, 8)
 	}
 
 	/// rows dragged within the list: moved to `offset` (their text says which)
