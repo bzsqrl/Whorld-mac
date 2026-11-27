@@ -220,7 +220,7 @@ struct WhorldCommands: Commands {
 			// play through the playlist (the Playlist panel's Play button;
 			// the user's request, 2026-11-20)
 			Toggle("Auto Advance", isOn: Binding(get: { e.autoAdvancing }, set: { model.setAutoAdvance($0) }))
-				.keyboardShortcut("l", modifiers: [.command, .option])
+				.keyboardShortcut("p", modifiers: [.command, .shift])	// "play through"; ⌥⌘ is for showing and hiding (the user's pattern, 2026-11-27)
 				.disabled(model.playlistPatches.isEmpty && !e.autoAdvancing)
 			// V1's Edit > Patch Mode (Mac addition), one toggle: on, playing a
 			// patch changes only its geometry; off, everything (Full). Was a
@@ -303,12 +303,12 @@ struct WhorldCommands: Commands {
 				// Windows' Shift+W until the user's menu audit (2026-11-18):
 				// W is a key-map letter, so Shift then W over the picture
 				// toggled this instead
-				.keyboardShortcut("z", modifiers: [.command, .option])
+				.keyboardShortcut("c", modifiers: [.command, .shift])	// "Center"; ⌥⌘ is for showing and hiding (the user's pattern, 2026-11-27)
 			// Windows' Ctrl+Alt+A, Option-Command-A; in the Properties grid on
 			// Windows. Out of the menu in the 2026-11-18 audit, back at the
 			// user's request (2026-11-21) so its shortcut can be found.
 			toggle("Antialiasing", e.antialiasing) { model.toggle(.antialiasing) }
-				.keyboardShortcut("a", modifiers: [.command, .option])
+				.keyboardShortcut("a", modifiers: [.command, .shift])	// ⌥⌘ is for showing and hiding (the user's pattern, 2026-11-27)
 		}
 
 		// Audio response in a menu of its own, apart from the picture (the
@@ -402,16 +402,22 @@ struct WhorldCommands: Commands {
 					// Option-Command 1 to 9, in this order (PanelID.shortcut)
 					.optionalShortcut(id.shortcut, modifiers: id.shortcutModifiers)
 			}
+			// MIDI Learn mode (MidiLearn.swift), from anywhere; it shows the
+			// MIDI Mapping panel while on if it was hidden (the user's request,
+			// 2026-11-26). ⌥⌘L, "Learn": ⌥⌘ shows and hides (⌥⌘M is macOS's
+			// Minimize All)
+			Toggle("MIDI Learn", isOn: Binding(get: { model.midiLearn }, set: { model.setMidiLearn($0) }))
+				.keyboardShortcut("l", modifiers: [.command, .option])
 			Divider()
 			// Render Scale's submenu is gone: the stats strip has it, with
 			// Automatic Quality (the user's request, 2026-11-19)
 			// the stats strip became the Perform Bar (the user's request, 2026-11-20)
 			Toggle("Show Perform Bar", isOn: Binding(get: { model.showStats }, set: { model.showStats = $0 }))
-				.keyboardShortcut("b", modifiers: [.command, .shift])	// "Bar", beside Blackout's Command-B (2026-11-22: Option-Command-9 went to the panels, Patches joining them)
+				.keyboardShortcut("b", modifiers: [.command, .option])	// "Bar", beside Blackout's ⌘B; ⌥⌘ shows and hides (the user's pattern, 2026-11-27)
 			// the Properties' chips as a row of the bar (the user's choice,
 			// 2026-11-24)
 			Toggle("Show Properties in Perform Bar", isOn: Binding(get: { model.showPropsBar }, set: { model.showPropsBar = $0 }))
-				.keyboardShortcut("b", modifiers: [.command, .option, .shift])	// beside the bar's Shift-Command-B (the user's shortcut review, 2026-11-24)
+				.keyboardShortcut("b", modifiers: [.command, .option, .shift])	// the bar's ⌥⌘B, with ⇧ for a part of it
 				.disabled(!model.showStats)
 			// the Perform Bar's information over the picture (InfoOverlay; the
 			// user's request, 2026-11-25): ⌥⌘`, on the cheat sheet's key
@@ -421,8 +427,7 @@ struct WhorldCommands: Commands {
 			// the panels' key boxes (KeyBadge; the Key Map panel's Show in
 			// Panels too) and tips on hover, here only since 2026-11-25 (out of
 			// Settings > General and the Help menu; the user's request)
-			// ⌥⌘K "keys", ⌥⌘I "info" (the user's choice, 2026-11-25; tips
-			// were ⌥⌘/, now the playlist's random keys' family)
+			// ⌥⌘K "keys" and ⌥⌘I "info": ⌥⌘ shows and hides (the user's pattern)
 			Toggle("Show Key Map in Panels", isOn: $keyBadges)
 				.keyboardShortcut("k", modifiers: [.command, .option])
 			Toggle("Show Tips on Hover", isOn: Binding(get: { hoverTips }, set: {

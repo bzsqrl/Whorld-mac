@@ -56,19 +56,19 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <li><b>Hold a key and swipe.</b> Each letter moves one control: hold <kbd>Q</kbd> over the picture and swipe to change Ring Spacing, <kbd>W</kbd> for Line Width. Press <kbd>`</kbd> (left of 1) to see them all on a keyboard, and again to hide it. The Perform Bar names the control as soon as you press the key. View &gt; Key Map (<kbd>⌥⌘9</kbd>) lists them all.</li>
 <li><b>Go full screen.</b> <kbd>⌘F</kbd> fills the display the picture is on; <kbd>⇧⌘F</kbd> fills another display, such as a projector. <kbd>Esc</kbd> leaves.</li>
 </ol>
-<p>Also handy from the start: <kbd>Space</kbd> pauses, <kbd>⌘B</kbd> fades to black and back, and View &gt; Show Perform Bar (<kbd>⇧⌘B</kbd>) puts the frame rate and the live controls under the picture.</p>
+<p>Also handy from the start: <kbd>Space</kbd> pauses, <kbd>⌘B</kbd> fades to black and back, and View &gt; Show Perform Bar (<kbd>⌥⌘B</kbd>) puts the frame rate and the live controls under the picture.</p>
 
 <!-- ============================================================ -->
 <h2 id="live">Playing live</h2>
 
 <h3 id="performbar">The Perform Bar</h3>
-<p>View &gt; Show Perform Bar (<kbd>⇧⌘B</kbd>) adds a thin bar along the bottom of the picture, never over it (on the swipe pad while the picture is detached). Its buttons act on the first click, even while another Whorld window is in front. From the left:</p>
+<p>View &gt; Show Perform Bar (<kbd>⌥⌘B</kbd>) adds a thin bar along the bottom of the picture, never over it (on the swipe pad while the picture is detached). Its buttons act on the first click, even while another Whorld window is in front. From the left:</p>
 <ul>
 <li><b>The eye:</b> Blackout (<kbd>⌘B</kbd>), red while the picture is faded out.</li>
 <li><b>Frames a second:</b> orange when display refreshes were missed in the last second. Click it for the rest: refreshes missed, the time to draw a frame on the CPU and GPU, the rings drawn, the display's rate, the renderer, and what Automatic quality has lowered. A click elsewhere closes it.</li>
 <li><b>The patch playing</b>, dimmed, and for 5 seconds after you change a control, <b>that control</b> with its value, bright: in a panel or a menu, by MIDI or OSC, or by swiping over the picture (not by modulation). Column names are shortened, such as Ring Growth Amp; the full name is in its tooltip. A Key Map key shows its control here as soon as you press it, and Random Phase shows when it's triggered.</li>
 <li><b>The playlist place</b> (12 / 86; the patch's name is in its tooltip). Click the left number for the previous patch, the right number for the next; or, with the pointer on it, press <kbd>←</kbd> or <kbd>→</kbd>.</li>
-<li><b>Play / Stop:</b> Auto Advance (<kbd>⌥⌘L</kbd>). The line under Stop fills toward the next patch. Right-click Play for a length.</li>
+<li><b>Play / Stop:</b> Auto Advance (<kbd>⇧⌘P</kbd>). The line under Stop fills toward the next patch. Right-click Play for a length.</li>
 <li><b>Full or Geom:</b> the <a href="#patchmode">patch mode</a> (Image &gt; Geometry Only).</li>
 <li><b>Auto · Res:</b> Auto is Automatic quality, the automatic part of Res beside it: on (bright) or off (dim) (<kbd>⌘;</kbd>). Orange as Auto ↓ while it has lowered something; its tooltip says what.</li>
 <li><b>Res:</b> the Render quality menu, titled with the resolution drawn (Res 100%), orange while Automatic quality draws lower than your setting.</li>
@@ -113,7 +113,7 @@ code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 <h3 id="advance">Auto-advance</h3>
 <p>Auto-advance plays through the playlist on its own.</p>
 <ul>
-<li>In the Playlist panel's bottom bar, set how long each patch plays, a number and a unit: <b>sec</b>, <b>beats</b> or <b>bars</b> (4 beats). Then click <b>&#9654;</b> (or Image &gt; Auto Advance, <kbd>⌥⌘L</kbd>). Click &#9632; to stop.</li>
+<li>In the Playlist panel's bottom bar, set how long each patch plays, a number and a unit: <b>sec</b>, <b>beats</b> or <b>bars</b> (4 beats). Then click <b>&#9654;</b> (or Image &gt; Auto Advance, <kbd>⇧⌘P</kbd>). Click &#9632; to stop.</li>
 <li>The patch playing goes on (or the selected one starts, else the first); when its time is up the next one plays, and after the last, the first again. Playing a patch yourself starts its count afresh.</li>
 <li>Seconds count only while the picture runs, not while paused.</li>
 <li>Beats and bars follow the music's beat, from an audio input or Ableton Link (the Modulation panel's), whether or not Modulation is on. The switch comes on a beat, or for whole bars on the first beat of a bar.</li>
@@ -461,7 +461,7 @@ A step too small for a number box to show moves it to the next value it shows. S
 <tr><td>A random playlist patch, played (Image menu, Mac)</td><td>&mdash;</td><td>⌘/</td></tr>
 <tr><td>Cue: next / previous, ten, first / last, random, a number (Mac)</td><td>&mdash;</td><td>⌥↓ / ⌥↑, ⌥⇧↓ / ⌥⇧↑, ⇧⌥⌘↑ / ⇧⌥⌘↓, ⌥/, ⌥⌘G</td></tr>
 <tr><td>Go: play the cued patch, on Launch Timing / now (Mac)</td><td>&mdash;</td><td>Return / ⌘Return</td></tr>
-<tr><td>Auto Advance through the playlist, on or off (Mac)</td><td>&mdash;</td><td>⌥⌘L</td></tr>
+<tr><td>Auto Advance through the playlist, on or off (Mac)</td><td>&mdash;</td><td>⇧⌘P</td></tr>
 <tr><td>Blackout, fade to black or back (Mac)</td><td>&mdash;</td><td>⌘B</td></tr>
 <tr><td>Open patch</td><td>Ctrl+O</td><td>⌘O</td></tr>
 <tr><td>Fill</td><td>F6</td><td>⌘1, or F6</td></tr>
@@ -474,9 +474,9 @@ A step too small for a number box to show moves it to the next value it shows. S
 <tr><td>Rotate Hue (Mac, as in Whorld 1)</td><td>&mdash;</td><td>⌘8, or F3</td></tr>
 <tr><td>Loop Hue</td><td>F2</td><td>⌘9, or F2</td></tr>
 <tr><td>Random Phase</td><td>F9</td><td>⌘0, or F9</td></tr>
-<tr><td>Zoom Center</td><td>Shift+W</td><td>⌥⌘Z</td></tr>
+<tr><td>Zoom Center</td><td>Shift+W</td><td>⇧⌘C</td></tr>
 <tr><td>Geometry Only, on or off (Mac, Whorld 1's patch mode)</td><td>&mdash;</td><td>⌘G</td></tr>
-<tr><td>Antialiasing (Image &gt; Antialiasing, or the Properties panel)</td><td>Ctrl+Alt+A</td><td>⌥⌘A</td></tr>
+<tr><td>Antialiasing (Image &gt; Antialiasing, or the Properties panel)</td><td>Ctrl+Alt+A</td><td>⇧⌘A</td></tr>
 <tr><td>Origin Center</td><td>Ctrl+0</td><td>⌘− (minus)</td></tr>
 <tr><td>Origin Park (Mac)</td><td>&mdash;</td><td>⇧⌘−</td></tr>
 <tr><td>Origin Drag, on or off (off parks the origin)</td><td>Ctrl+D</td><td>⌘=</td></tr>
@@ -494,7 +494,7 @@ A step too small for a number box to show moves it to the next value it shows. S
 <tr><td>Full screen on another display</td><td>&mdash;</td><td>⇧⌘F (View &gt; Enter Full Screen on Other Display), with more than one display; while full screen, the next display</td></tr>
 <tr><td>Detach</td><td>Ctrl+F12</td><td>⌘D</td></tr>
 <tr><td>Detach to another display</td><td>&mdash;</td><td>⇧⌘D (View &gt; Detach to Other Display), with more than one display; while detached, the next display</td></tr>
-<tr><td>Show Perform Bar</td><td>—</td><td>⇧⌘B</td></tr>
+<tr><td>Show Perform Bar</td><td>—</td><td>⌥⌘B</td></tr>
 <tr><td>Show Properties in Perform Bar (Mac)</td><td>—</td><td>⌥⇧⌘B</td></tr>
 <tr><td>Syphon output on or off (Mac)</td><td>—</td><td>⇧⌘Y</td></tr>
 <tr><td>Show tips on hover, on or off (Mac)</td><td>—</td><td>⌥⌘I</td></tr>

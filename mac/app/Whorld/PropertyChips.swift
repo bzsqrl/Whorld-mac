@@ -79,8 +79,8 @@ enum PropItem: CaseIterable {
 		case .randomPhase: "⌘0"
 		case .pause: "Space"
 		case .clear: "⇧⌫"	// Shift-Delete (the user's choice, 2026-11-25)
-		case .zoomCenter: "⌥⌘Z"
-		case .antialiasing: "⌥⌘A"
+		case .zoomCenter: "⇧⌘C"
+		case .antialiasing: "⇧⌘A"
 		}
 	}
 
