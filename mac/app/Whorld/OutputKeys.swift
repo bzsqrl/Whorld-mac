@@ -165,6 +165,21 @@ final class OutputKeys {
 			}
 			return true
 		}
+		// MIDI Learn mode: Esc ends it (not while text is edited or a key
+		// is captured, which keep their Esc)
+		if !up, code == 53, modifiers == 0, AppModel.shared.midiLearn, KeyMap.shared.capturing == nil,
+			NSApp.modalWindow == nil, !(NSApp.keyWindow?.firstResponder is NSTextView) {
+			AppModel.shared.setMidiLearn(false)
+			return true
+		}
+		// MIDI Learn mode: Delete removes the selected mappings (not in a
+		// text box or a list, which keep their Delete)
+		if !up, code == 51 || code == 117, modifiers == 0, AppModel.shared.midiLearn, !AppModel.shared.mappingSelection.isEmpty,
+			NSApp.modalWindow == nil, let w = NSApp.keyWindow,
+			!(w.firstResponder is NSTextView || w.firstResponder is NSTableView || w.firstResponder is NSOutlineView) {
+			if !isRepeat { AppModel.shared.deleteMappings() }
+			return true
+		}
 		// Delete in the Patches or Playlist list: removes the selected patches
 		// from it (NoTypeSelect's onDelete; the user's request, 2026-11-25)
 		if !up, code == 51 || code == 117, modifiers == 0, NSApp.modalWindow == nil,

@@ -399,8 +399,7 @@ struct WhorldCommands: Commands {
 				Toggle(id.title, isOn: Binding(
 					get: { model.layout.isShown(id) },
 					set: { model.layout.setShown(id, $0) }))
-					// Option-Command 1 to 9, in this order (PanelID.shortcut);
-					// MIDI Learn isn't here: it's the MIDI Mapping panel's Learn
+					// Option-Command 1 to 9, in this order (PanelID.shortcut)
 					.optionalShortcut(id.shortcut, modifiers: id.shortcutModifiers)
 			}
 			Divider()

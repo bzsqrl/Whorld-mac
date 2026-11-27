@@ -363,6 +363,7 @@ private struct StatsStripContent: View {
 			// Image > Blackout, at the far left (the user's request, 2026-11-21)
 			BlackoutButton()
 				.layoutPriority(2)
+				.midiLearnable("Blackout")	// MIDI Learn mode
 			BarRule()
 			// the live text is AppKit, redrawn by StripFeed: a SwiftUI layout
 			// pass every second (or every swipe) would drop the panes' tooltips;
@@ -422,6 +423,7 @@ private struct StatsStripContent: View {
 			// 2026-11-24)
 			.overlay(SecondaryClickReset { model.layout.reveal(.modulation) })
 			.hoverTip("Audio modulation on or off (Audio > Audio Modulation, ⌘'); right-click for the Modulation panel. The dot: faint off, hollow finding the beat, filled once it's locked, flashing on each beat.")
+			.midiLearnable("ModOn")	// MIDI Learn mode
 			.barRank(8)
 			// the locked tempo, BPM: a button of its own while it shows, for
 			// Reset to 1.1 (the user's request, 2026-11-20); AppKit, as it
@@ -856,6 +858,7 @@ private struct GeometryToggle: View {
 		.hoverTip(geometry
 			? "Geometry mode: playing a patch changes only its shape and motion, keeping colors, Hue, Master, Properties and Global values. Click for Full mode (Image > Geometry Only, ⌘G)."
 			: "Full mode: playing a patch changes everything. Click for Geometry mode, where only its shape and motion change (Image > Geometry Only, ⌘G).")
+		.midiLearnable("GeometryMode")	// MIDI Learn mode
 	}
 }
 
@@ -875,6 +878,7 @@ private struct PlaylistTransport: View {
 			unit: unit, length: e.autoAdvanceLength, engine: e,
 			setLength: { model.setAutoAdvanceLength($0, unit: $1) }) { model.setAutoAdvance(!e.autoAdvancing) }
 			.frame(width: 24, height: 18)
+			.midiLearnable("AutoAdvance")	// MIDI Learn mode
 			.padding(.leading, -6)	// close to the patch's name
 			.disabled(empty && !e.autoAdvancing)
 		.fixedSize()

@@ -393,6 +393,7 @@ struct PropChip: View {
 		.hoverTip("\(item.name) (\(item.key))\(item.isAction ? "" : on ? ": on" : ": off"). \(item.tip)")
 		.accessibilityLabel(item.name)
 		.accessibilityValue(item.isAction ? "" : on ? "on" : "off")
+		.midiLearnable(item.mappingTag)	// MIDI Learn mode
 	}
 }
 
@@ -425,6 +426,7 @@ struct OriginSwitch: View {
 			.hoverTip(c.help)
 			.accessibilityLabel("Origin " + c.name)
 			.accessibilityAddTraits(c == now ? .isSelected : [])
+			.midiLearnable(c == .drag ? "OriginDrag" : c == .random ? "OriginRandom" : nil)	// MIDI Learn mode
 		}
 		Group {
 			if vertical {

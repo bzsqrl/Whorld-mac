@@ -127,6 +127,7 @@ extension AppModel {
 	func enterFullScreen(from: NSWindow?, on screen: NSScreen?) {
 		// never full screen by accident: turned on again there, it stays
 		if showInfoOverlay { showInfoOverlay = false }
+		if midiLearn { setMidiLearn(false) }	// nothing to click there (MIDI Learn mode)
 		fullScreen.enter(from: from, on: screen, engine: engine, renderScale: renderScale,
 			smoothUpscaling: smoothUpscaling) { [weak self] in
 			self?.exitFullScreen()	// Esc, or the display disconnected

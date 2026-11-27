@@ -1524,6 +1524,7 @@ struct ParamRow: View {
 			defaultValue: model.engine.loadedParamValue(iParam, property: prop),	// the patch as loaded or last saved
 			width: width,
 			dimmed: dimmed)
+			.midiLearnable(WHMappingInfo.targetTag(iParam), prop: prop.rawValue)	// MIDI Learn mode
 	}
 
 	var body: some View {
@@ -1544,11 +1545,13 @@ struct ParamRow: View {
 				defaultValue: model.engine.loadedParamValue(iParam, property: .val),
 				width: FormFit.sliderMin,
 				marker: .param(iParam))
+				.midiLearnable(WHMappingInfo.targetTag(iParam), prop: WHParamProperty.val.rawValue)	// MIDI Learn mode
 			if let w = fit.width(0) {
 				field(.val, column: 0, width: w)
 			}
 			if let w = fit.width(1) {
 				WaveformMenu(iParam: iParam, width: w)
+					.midiLearnable(WHMappingInfo.targetTag(iParam), prop: WHParamProperty.wave.rawValue)
 			}
 			if let w = fit.width(2) {
 				field(.amp, column: 1, width: w)
@@ -1818,6 +1821,7 @@ struct MasterRow: View {
 				step: { masterStep(i, ci, $0, $1, $2) },
 				width: FormFit.sliderMin,
 				marker: .master(i))
+				.midiLearnable(WHMappingInfo.targetTag(WHMappingInfo.paramTargetCount + i))	// MIDI Learn mode
 			if let box {
 				NumberField(
 					value: value,
@@ -1829,6 +1833,7 @@ struct MasterRow: View {
 					hi: WHControls.masterValue(i, position: Double(ci.rangeMax)),
 					defaultValue: model.engine.loadedMasterValue(i),
 					width: box)
+					.midiLearnable(WHMappingInfo.targetTag(WHMappingInfo.paramTargetCount + i))
 			}
 		}
 	}
@@ -1859,6 +1864,7 @@ struct HueRow: View {
 				step: { d, k in model.setHue(step(value, d, k)) },
 				marker: .hue)
 				.frame(minWidth: FormFit.sliderMin, maxWidth: .infinity, minHeight: 18, maxHeight: 18)
+				.midiLearnable("Hue")	// MIDI Learn mode
 			if let box {
 				NumberField(
 					value: value,
@@ -1870,6 +1876,7 @@ struct HueRow: View {
 					hi: 360,
 					defaultValue: model.engine.loadedHue,
 					width: box)
+					.midiLearnable("Hue")
 			}
 		}
 	}
@@ -1920,6 +1927,7 @@ struct GlobalRow: View {
 				defaultValue: model.engine.loadedParamValue(i, property: .global),
 				width: FormFit.sliderMin,
 				marker: .global(i))
+				.midiLearnable(WHMappingInfo.targetTag(i), prop: WHParamProperty.global.rawValue)	// MIDI Learn mode
 			if let box {
 				NumberField(
 					value: value,
@@ -1932,6 +1940,7 @@ struct GlobalRow: View {
 					hi: ci.editMax,
 					defaultValue: model.engine.loadedParamValue(i, property: .global),
 					width: box)
+					.midiLearnable(WHMappingInfo.targetTag(i), prop: WHParamProperty.global.rawValue)
 			}
 		}
 	}

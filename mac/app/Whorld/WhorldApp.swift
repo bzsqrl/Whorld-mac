@@ -326,17 +326,50 @@ final class AppModel: ObservableObject {
 	@Published var movieExportProgress: (done: Int64, total: Int64)? = nil
 
 	/// Mapping rows selected in the MIDI Mapping window, for learn.
-	@Published var mappingSelection = Set<Int>()
+	@Published var mappingSelection = Set<Int>() {
+		didSet {	// a mapping picked to learn: no control waits any more (LearnMode)
+			if !mappingSelection.isEmpty, LearnMode.shared.pending != nil { LearnMode.shared.pending = nil }
+		}
+	}
 	/// True while the MIDI Mapping window is the key window (learn needs it).
 	var mappingWindowIsKey = false
 	@Published var playlistTitle = "Untitled Playlist"
 	@Published var playlistModified = false
 	var playlistURL: URL?
 	private var learnSelection = Set<Int>()
+	/// MIDI Learn showed the MIDI Mapping panel: it hides it again (setMidiLearn)
+	private var learnShowedMapping = false
 
+	/// View > MIDI Learn (⌥⌘L) and the panel's Learn: the mode on or off,
+	/// showing the MIDI Mapping panel if it was hidden, and hiding it again
+	/// after (the user's request, 2026-11-26)
+	func setMidiLearn(_ on: Bool) {
+		guard on != midiLearn else { return }
+		if on {
+			learnShowedMapping = !layout.isShown(.mapping)
+			layout.reveal(.mapping)
+		}
+		midiLearn = on
+		if !on, learnShowedMapping {
+			learnShowedMapping = false
+			layout.setShown(.mapping, false)
+		}
+	}
+
+	/// MIDI Learn mode (MidiLearn.swift): the whole window, while on
 	var midiLearn: Bool {
 		get { engine.midiLearn }
-		set { engine.midiLearn = newValue; changes.menus.bump(); changes.mapping.bump() }
+		set {
+			engine.midiLearn = newValue
+			let mode = LearnMode.shared
+			mode.on = newValue
+			mode.pending = nil
+			mode.pendingSlot = nil
+			mode.heard = ""
+			mode.note = ""
+			changes.menus.bump()
+			changes.mapping.bump()
+		}
 	}
 
 	var mappings: [WHMappingData] {
@@ -442,8 +475,38 @@ final class AppModel: ObservableObject {
 		}
 	}
 
+	/// MIDI Learn mode (MidiLearn.swift; the user's design, 2026-11-26): a
+	/// control picked and waiting gets a new mapping, selected; else the
+	/// selected mappings take the input. Releases (note off, a note on of
+	/// velocity 0) are never learned: a pad's release would replace its press.
 	private func learn(_ message: UInt32) {
-		guard engine.midiLearn, mappingWindowIsKey, !mappingSelection.isEmpty else { return }
+		guard engine.midiLearn else { return }
+		let status = message & 0xF0, velocity = (message >> 16) & 0x7F
+		guard status != 0x80, !(status == 0x90 && velocity == 0) else { return }
+		let mode = LearnMode.shared
+		var heard = WHMappingInfo.defaultMapping()
+		if WHMappingInfo.learn(message, into: &heard) { mode.heard = LearnMode.long(heard) }
+		if let p = mode.pending {
+			var m = WHMappingInfo.defaultMapping()
+			m.target = Int32(p.target)
+			m.prop = Int32(p.prop)
+			if let slot = mode.pendingSlot {	// a Playlist row: its position, the Patch target's one value
+				m.start = LearnMode.percent(slot)
+				m.end = m.start
+			}
+			guard WHMappingInfo.learn(message, into: &m) else { return }
+			var arr = mappings
+			arr.append(m)
+			coalesceKey = nil
+			setMappings(arr, key: "learn new \(arr.count)", title: "Learn")
+			mode.pending = nil
+			mode.pendingSlot = nil
+			mappingSelection = [arr.count - 1]
+			learnSelection = mappingSelection
+			noteShared(m, in: arr)
+			return
+		}
+		guard !mappingSelection.isEmpty else { return }
 		var arr = mappings
 		var changedAny = false
 		for i in mappingSelection where i < arr.count {
@@ -462,6 +525,13 @@ final class AppModel: ObservableObject {
 		}
 		let sel = mappingSelection.sorted().map(String.init).joined(separator: ",")
 		setMappings(arr, key: "learn " + sel, title: mappingSelection.count > 1 ? "Learn Multiple" : "Learn")
+		if let i = mappingSelection.min(), i < arr.count { noteShared(arr[i], in: arr) }
+	}
+
+	/// the banner says when one input now moves several controls
+	private func noteShared(_ m: WHMappingData, in arr: [WHMappingData]) {
+		let n = arr.filter { $0.event == m.event && $0.channel == m.channel && $0.control == m.control }.count
+		LearnMode.shared.note = n > 1 ? "\(LearnMode.short(m)) now moves \(n) controls" : ""
 	}
 
 	// The playlist and auto-advance: in AppModel+Playlist.swift

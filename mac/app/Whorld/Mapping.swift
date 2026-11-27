@@ -103,21 +103,27 @@ struct MappingPanel: View {
 					.disabled(model.mappingSelection.isEmpty)
 					.keyboardShortcut(.delete, modifiers: [])
 				Divider().frame(height: 16)
-				Toggle("Learn", isOn: Binding(get: { model.midiLearn }, set: { model.midiLearn = $0 }))
+				Toggle("Learn", isOn: Binding(get: { model.midiLearn }, set: { model.setMidiLearn($0) }))
 					.toggleStyle(.button)
-					.hoverTip("Select mappings, then move a control on your MIDI device")
+					.hoverTip("MIDI Learn mode (View > MIDI Learn, ⌥⌘L): click a control anywhere in Whorld, a Playlist row (its position), or a mapping here, then move a knob, fader or pad on your MIDI device. Esc ends it.")
 				if model.midiLearn {
-					Text(model.mappingSelection.isEmpty ? "Select the mappings to learn" : "Move a MIDI control…")
-						.font(.caption)
-						.foregroundStyle(.secondary)
+					let mode = LearnMode.shared
+					VStack(alignment: .leading, spacing: 0) {
+						Text(mode.pickedText ?? "Click a control, a Playlist row or a mapping")
+						if !mode.note.isEmpty || !mode.heard.isEmpty {
+							Text(mode.note.isEmpty ? "Heard: " + mode.heard : mode.note)
+								.foregroundStyle(.secondary)
+						}
+					}
+					.font(.caption)
+					.lineLimit(1)
+					.truncationMode(.tail)
 				}
 				Spacer()
 				Text(model.playlistTitle + (model.playlistModified ? " — Edited" : ""))
 					.font(.caption)
 					.foregroundStyle(.secondary)
-				Text(model.engine.midiInputName ?? "No MIDI input")
-					.font(.caption)
-					.foregroundStyle(model.engine.midiInputName == nil ? .orange : .secondary)
+				MidiInputMenu()	// the MIDI input, here too (as Settings > Input; the user's request, 2026-11-26)
 			}
 			.padding(8)
 		}
@@ -224,6 +230,38 @@ struct KeyWindowObserver: NSViewRepresentable {
 				self?.onChange?(false)
 			})
 			onChange?(window.isKeyWindow)
+		}
+	}
+}
+
+/// The MIDI input, chosen at the foot of the MIDI Mapping panel: the same
+/// setting as Settings' (Midi_sInputDevice)
+private struct MidiInputMenu: View {
+	@EnvironmentObject private var model: AppModel
+	@AppStorage("Midi_sInputDevice") private var midiInput = ""
+
+	var body: some View {
+		let _ = model.changes.midi.n	// devices come and go
+		let names = model.engine.midiInputNames
+		Menu {
+			Picker("MIDI Input", selection: $midiInput) {
+				Text("None").tag("")
+				ForEach(names, id: \.self) { Text($0).tag($0) }
+				if !midiInput.isEmpty && !names.contains(midiInput) {
+					Text(midiInput + " (not connected)").tag(midiInput)
+				}
+			}
+			.pickerStyle(.inline)
+		} label: {
+			Label(midiInput.isEmpty ? "No MIDI input" : midiInput, systemImage: "pianokeys")
+				.font(.caption)
+				.foregroundStyle(midiInput.isEmpty || !names.contains(midiInput) ? .orange : .secondary)
+		}
+		.menuStyle(.borderlessButton)
+		.fixedSize()
+		.hoverTip("The MIDI device Whorld listens to (also in Settings > Input)")
+		.onChange(of: midiInput) { _, name in
+			model.engine.midiInputName = name.isEmpty ? nil : name
 		}
 	}
 }

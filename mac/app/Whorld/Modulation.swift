@@ -169,6 +169,7 @@ private struct ModTopBar: View {
 			Text("Depth")
 				.padding(.leading, 8)
 			StepSlider(value: map.depth, range: 0...1, step: 0.01, defaultValue: 1) { map.depth = $0 }
+				.midiLearnable("ModDepth")	// MIDI Learn mode
 				.frame(width: 160)
 				.hoverTip("Scales every row at once. OSC /w/mod/depth.")
 			Text(String(format: "%.0f%%", map.depth * 100))

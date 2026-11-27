@@ -1188,7 +1188,9 @@ struct PlaylistPanel: View {
 
 	var body: some View {
 		let _ = model.changes.playlist.n
-		let rows = model.playlistPatches.enumerated().map { Row(id: $0.offset, path: $0.element) }
+		let _ = model.cue.version	// the cue's marker and the pads' bank (CueState)
+		let learning = LearnMode.shared.on
+		let rows = model.playlistPatches.enumerated().map { Row(id: $0.offset, path: $0.element, learning: learning) }
 		VStack(spacing: 0) {
 			header(count: rows.count)
 			Divider()
@@ -1367,6 +1369,7 @@ struct PlaylistPanel: View {
 					.hoverTip(geometry
 						? "Geometry mode: playing a patch changes only its shape and motion, keeping colors, Hue, Master, Properties and Global values. Click for Full mode, where everything changes. Saved with the playlist (Image > Geometry Only, ⌘G)."
 						: "Full mode: playing a patch changes everything. Click for Geometry mode, where only its shape and motion change, keeping colors, Hue, Master, Properties and Global values. Saved with the playlist (Image > Geometry Only, ⌘G).")
+					.midiLearnable("GeometryMode")	// MIDI Learn mode
 			}
 		}
 		.padding(8)
@@ -1495,6 +1498,7 @@ struct AutoAdvanceControls: View {
 				unit: unit, length: length, engine: e,
 				setLength: { model.setAutoAdvanceLength($0, unit: $1) }) { model.setAutoAdvance(!e.autoAdvancing) }
 				.frame(width: 32, height: 22)
+				.midiLearnable("AutoAdvance")	// MIDI Learn mode
 			NumberField(
 				value: length,
 				format: { String(format: "%g", $0) },

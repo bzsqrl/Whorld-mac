@@ -17,7 +17,7 @@ root = os.path.dirname(os.path.abspath(__file__))  # mac/app
 def gid(name):
     return hashlib.md5(name.encode()).hexdigest()[:24].upper()
 
-app_files = ["WhorldApp.swift", "AppModel+Playlist.swift", "AppModel+Files.swift", "AppModel+Display.swift", "AppModel+Workspace.swift", "OutputKeys.swift", "ContentView.swift", "Commands.swift", "Panels.swift", "Preferences.swift", "Mapping.swift", "Media.swift", "FullScreen.swift", "Workspace.swift", "Layout.swift", "SplitView.swift", "DockedPanels.swift", "Updates.swift", "KeyMap.swift", "PatchBrowser.swift", "KeyCheatSheet.swift", "NamedLayouts.swift", "Modulation.swift", "ModRouting.swift", "ModulationTable.swift", "PropertyChips.swift", "InfoOverlay.swift", "AppModel+Cue.swift",
+app_files = ["WhorldApp.swift", "AppModel+Playlist.swift", "AppModel+Files.swift", "AppModel+Display.swift", "AppModel+Workspace.swift", "OutputKeys.swift", "ContentView.swift", "Commands.swift", "Panels.swift", "Preferences.swift", "Mapping.swift", "Media.swift", "FullScreen.swift", "Workspace.swift", "Layout.swift", "SplitView.swift", "DockedPanels.swift", "Updates.swift", "KeyMap.swift", "PatchBrowser.swift", "KeyCheatSheet.swift", "NamedLayouts.swift", "Modulation.swift", "ModRouting.swift", "ModulationTable.swift", "PropertyChips.swift", "InfoOverlay.swift", "AppModel+Cue.swift", "MidiLearn.swift",
              "WHOscServer.h", "WHOscServer.mm", "WHSyphon.h", "WHSyphon.mm", "WHAudioInput.h", "WHAudioInput.mm", "WHLink.h", "WHLink.mm",
              "WHEngine.h", "WHEngine.mm",
              "Whorld-Bridging-Header.h", "Info.plist", "AppIcon.icns"]
