@@ -32,21 +32,13 @@ struct MappingPanel: View {
 				}
 				.width(28)
 				TableColumn("Event") { row in
-					Picker("", selection: binding(row, \.event, "Event")) {
-						ForEach(0..<WHMappingInfo.eventCount, id: \.self) { e in
-							Text(WHMappingInfo.eventName(e)).tag(Int32(e))
-						}
-					}
-					.labelsHidden()
+					TableChoice(selection: binding(row, \.event, "Event"),
+						options: (0..<WHMappingInfo.eventCount).map { (Int32($0), WHMappingInfo.eventName($0)) })
 				}
 				.width(min: 90, ideal: 120)
 				TableColumn("Channel") { row in
-					Picker("", selection: binding(row, \.channel, "Channel")) {
-						ForEach(0..<16, id: \.self) { c in
-							Text("\(c + 1)").tag(Int32(c))	// one-based
-						}
-					}
-					.labelsHidden()
+					TableChoice(selection: binding(row, \.channel, "Channel"),
+						options: (0..<16).map { (Int32($0), "\($0 + 1)") })	// one-based
 				}
 				.width(64)
 				TableColumn("Control") { row in
@@ -58,20 +50,23 @@ struct MappingPanel: View {
 				}
 				.width(56)
 				TableColumn("Target") { row in
-					Picker("", selection: binding(row, \.target, "Target")) {
-						TargetMenuItems()
+					Menu {
+						Picker("", selection: binding(row, \.target, "Target")) {
+							TargetMenuItems()
+						}
+						.pickerStyle(.inline)
+						.labelsHidden()
+					} label: {
+						Text(WHMappingInfo.targetName(Int(row.data.target)))
 					}
-					.labelsHidden()
+					.menuStyle(.borderlessButton)
+					.fixedSize()
 				}
 				.width(min: 120, ideal: 150)
 				TableColumn("Property") { row in
 					if WHMappingInfo.targetHasProperty(Int(row.data.target)) {
-						Picker("", selection: binding(row, \.prop, "Property")) {
-							ForEach(0..<6, id: \.self) { p in
-								Text(WHControls.paramPropertyName(p)).tag(Int32(p))
-							}
-						}
-						.labelsHidden()
+						TableChoice(selection: binding(row, \.prop, "Property"),
+							options: (0..<6).map { (Int32($0), WHControls.paramPropertyName($0)) })
 					} else {
 						Text("n/a").foregroundStyle(.secondary)	// m_sNotApplicable
 					}

@@ -318,7 +318,9 @@ private struct ColumnTips: NSViewRepresentable {
 /// A choice in the table as a borderless menu with a small grey chevron, as
 /// its Source and Target menus (the design audit, 2026-11-24: the boxed
 /// pop-ups beside them looked heavier and more important than they are)
-private struct TableChoice<Value: Hashable>: View {
+/// A table cell's choice: a borderless pull-down showing the choice's
+/// name (the Modulation table's, and MIDI Mapping's since 2026-11-27)
+struct TableChoice<Value: Hashable>: View {
 	let selection: Binding<Value>
 	let options: [(value: Value, title: String)]
 
