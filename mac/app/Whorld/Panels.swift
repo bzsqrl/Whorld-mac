@@ -439,8 +439,14 @@ struct KeyTextField: NSViewRepresentable {
 
 		override func becomeFirstResponder() -> Bool {
 			onBeginEditing?()	// before the field editor copies the text
+			// focused by a press: that press selects the number (mouseDown)
+			let e = NSApp.currentEvent
+			focusPress = e?.type == .leftMouseDown ? e?.timestamp : nil
 			return super.becomeFirstResponder()
 		}
+		/// the press that focused the box (the window focuses it before
+		/// handing it the press)
+		private var focusPress: TimeInterval?
 		var onSwipeStep: ((Int, KeyStep) -> Void)?	// steps up (+) or down (-)
 		private var swipeTravel = 0.0
 		private var wheelClicks = 0.0
@@ -481,6 +487,19 @@ struct KeyTextField: NSViewRepresentable {
 
 		override func mouseDown(with event: NSEvent) {
 			if event.modifierFlags.contains(.control), onReset?() == true { return }
+			// the plain click that focuses the box: its number selected on
+			// the press (the user's report, 2026-11-27: AppKit tracked the
+			// click until the button came up, and NumberBoxSelect selected
+			// only after that); clicks once editing, or with Shift, Option or
+			// Command, go to AppKit to place the caret
+			let focusing = focusPress == event.timestamp
+			focusPress = nil
+			if focusing, event.clickCount == 1,
+				event.modifierFlags.intersection([.shift, .option, .command]).isEmpty,
+				let editor = currentEditor() {
+				editor.selectAll(nil)
+				return
+			}
 			super.mouseDown(with: event)
 		}
 

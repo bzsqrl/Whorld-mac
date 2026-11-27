@@ -318,6 +318,8 @@ final class OutputKeys {
 /// Settings' number fields alike. Only the click that starts editing: a
 /// click in a box already being edited places the caret, to change part
 /// of it. A field holding text that isn't a number (a name) is left alone.
+/// The panels' boxes (KeyTextField.Field) select on the press themselves,
+/// since 2026-11-27; this, after the click, is for the other fields.
 @MainActor
 enum NumberBoxSelect {
 	private static var monitor: Any?
