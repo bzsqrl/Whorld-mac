@@ -30,6 +30,11 @@ MAPPINGDEF(	PROPERTY,	LEFT,	85,		int,	i,		Prop,			0,		0,		PARAM_PROP_COUNT)	// p
 #if !defined(MAPPINGDEF_OPTIONAL) || MAPPINGDEF_OPTIONAL	// optional members
 MAPPINGDEF(	START,		LEFT,	60,		double,	f,		Start,			0,		0,		0)	// range start, as a percentage
 MAPPINGDEF(	END,		LEFT,	60,		double,	f,		End,			100,	0,		0)	// range end, as a percentage
+// Mac addition (2026-11-26): a switch target flips on each press (a value
+// above 0) and ignores the release, instead of following the input (on
+// while held); written only when set, so playlists without it are as
+// before, and Windows ignores the key
+MAPPINGDEF(	TOGGLE,		LEFT,	50,		int,	i,		Toggle,			0,		0,		1)
 #endif
 
 #undef MAPPINGDEF

@@ -1170,6 +1170,9 @@ struct PlaylistPanel: View {
 	private struct Row: Identifiable {
 		let id: Int
 		let path: String
+		/// MIDI Learn mode: part of the row, so the list redraws its rows as
+		/// the mode starts and ends (their tint stayed until clicked)
+		var learning = false
 		var name: String {
 			let last = path.split(whereSeparator: { $0 == "\\" || $0 == "/" }).last.map(String.init) ?? path
 			return (last as NSString).deletingPathExtension
@@ -1215,6 +1218,7 @@ struct PlaylistPanel: View {
 							.hoverTip(missing ? "Can't be found: \(row.path). Right-click to locate it." : row.path)
 					}
 					.background(model.inBank(row.id) ? Color.accentColor.opacity(0.1) : Color.clear)	// the pads' bank
+					.midiLearnSlot(row.id, learning: row.learning)	// MIDI Learn mode: the row's position
 				}
 				.width(min: 120, ideal: 180)
 				.customizationID("patch")

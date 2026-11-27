@@ -111,6 +111,10 @@ typedef struct {
 	int		control;	// note or controller number, 0..127
 	int		target;		// MappingBase TARGET_*
 	int		prop;		// parameter property, for parameter targets
+	int		toggle;		// Mac addition: a switch flips on each press (else follows the input).
+						// Here, not last (after the doubles, it left the struct 4 bytes of
+						// tail padding, and SwiftUI crashed comparing the MIDI Mapping
+						// panel's rows; reproduced and fixed by this order, 2026-11-26)
 	double	start;		// range start, percent
 	double	end;		// range end, percent
 } WHMappingData;
@@ -127,7 +131,8 @@ typedef struct {
 // a target's tag, as playlists store it (e.g. "RingSpacing", "Speed", "OriginX")
 + (NSString *)targetTag:(NSInteger)iTarget;
 + (NSInteger)targetForTag:(NSString *)tag;	// -1 if none
-+ (BOOL)targetIsRange:(NSInteger)iTarget;	// a continuous or multiple-choice value (not a switch or action)
++ (BOOL)targetIsRange:(NSInteger)iTarget;
++ (BOOL)targetIsSwitch:(NSInteger)iTarget;	// on or off (a Toggle mapping can flip it)	// a continuous or multiple-choice value (not a switch or action)
 + (WHMappingData)defaultMapping;
 // MIDI learn: strip the data from an incoming message and set the mapping's
 // event, channel and control from it (CMappingBar::OnMidiEvent). Returns NO

@@ -393,6 +393,25 @@ void MidiManager::OnMidiEvent(uint32_t dwEvent)
 	for (int iMap = 0; iMap < nMaps; iMap++) {	// for each mapping
 		const Mapping&	map = m_midiMaps.GetAt(iMap);
 		int	nMidiVal = map.IsInputMatch(dwEvent);	// try to map MIDI message
+		// Mac addition: a playlist slot (the Patch target with one value,
+		// as MIDI Learn maps a Playlist row; 2026-11-26) ignores a note's
+		// release sent as a note on of velocity 0, which would play it again
+		if (nMidiVal == 0 && map.m_iTarget == TARGET_Patch && map.m_fStart == map.m_fEnd
+			&& map.m_iEvent == EVENT_NOTE_ON)
+			continue;
+		// Mac addition: a Toggle mapping to a switch flips it on each press
+		// and ignores the release (2026-11-26, the user's request: pads send
+		// presses only, or presses and releases; without Toggle a switch
+		// follows the input, on while held, as on Windows)
+		if (nMidiVal >= 0 && map.m_iToggle && GetTargetType(map.m_iTarget) == TT_BOOL) {
+			if (nMidiVal > 0) {
+				Post	post;
+				post.type = Post::TOGGLE;
+				post.iVal = map.m_iTarget;
+				m_sink.PostToMain(post);
+			}
+			continue;
+		}
 		if (nMidiVal >= 0) {	// if message was mapped
 			// mapping result is a MIDI data value; account for range and then normalize it
 			double	fNormVal = NormalizeMidiValue(map.m_iEvent, nMidiVal);

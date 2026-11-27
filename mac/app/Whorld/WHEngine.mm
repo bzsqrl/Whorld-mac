@@ -137,7 +137,13 @@ static NSString *ToNS(const std::string& s)
 + (WHMappingData)defaultMapping
 {
 	whorld::Mapping	m;
-	return WHMappingData{m.m_iEvent, m.m_iChannel, m.m_iControl, m.m_iTarget, m.m_iProp, m.m_fStart, m.m_fEnd};
+	return WHMappingData{m.m_iEvent, m.m_iChannel, m.m_iControl, m.m_iTarget, m.m_iProp, m.m_iToggle, m.m_fStart, m.m_fEnd};
+}
+
++ (BOOL)targetIsSwitch:(NSInteger)iTarget
+{
+	return iTarget >= 0 && iTarget < whorld::MappingBase::TARGETS
+		&& whorld::MappingBase::GetTargetType((int)iTarget) == whorld::MappingBase::TT_BOOL;
 }
 // ported from MappingBar.cpp CMappingBar::OnMidiEvent and LearnMapping
 + (BOOL)learn:(uint32_t)nInMidiMsg into:(WHMappingData *)pMap
@@ -171,12 +177,13 @@ static whorld::Mapping FromWHMapping(const WHMappingData& d)
 	m.m_iProp = d.prop;
 	m.m_fStart = d.start;
 	m.m_fEnd = d.end;
+	m.m_iToggle = d.toggle;
 	return m;
 }
 
 static WHMappingData ToWHMapping(const whorld::Mapping& m)
 {
-	return WHMappingData{m.m_iEvent, m.m_iChannel, m.m_iControl, m.m_iTarget, m.m_iProp, m.m_fStart, m.m_fEnd};
+	return WHMappingData{m.m_iEvent, m.m_iChannel, m.m_iControl, m.m_iTarget, m.m_iProp, m.m_iToggle, m.m_fStart, m.m_fEnd};
 }
 
 @class WHEngine;
@@ -1779,6 +1786,9 @@ static NSString *SourceName(MIDIEndpointRef src)
 		if (_midiHandler)	// the Properties' Rotate Hue flashes
 			_midiHandler(11, 0);
 		break;
+	case Post::TOGGLE:	// Mac addition: a Toggle mapping pressed for a switch
+		[self toggleTarget:post.iVal];
+		return;
 	case Post::CUE:	// Mac addition, cue then go: the app's (AppModel.cueCommand)
 		if (_midiHandler)
 			_midiHandler(13, (uint32_t)post.iVal);
@@ -1978,27 +1988,50 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	return a;
 }
 
+// Main thread: a switch target the other way from now, for OSC's toggle
+// (an address with no argument) and a Toggle mapping's press (Post::TOGGLE)
+- (void)toggleTarget:(int)iTarget
+{
+	using MB = whorld::MappingBase;
+	if (iTarget == MB::TARGET_Blackout) {	// the app's
+		if (_midiHandler)
+			_midiHandler(9, 2);
+		return;
+	}
+	if (iTarget == MB::TARGET_AutoAdvance) {	// the app's
+		if (_midiHandler)
+			_midiHandler(8, 2);
+		return;
+	}
+	if (iTarget == MB::TARGET_Pause) {	// the engine's pause is canonical here
+		[self togglePause];
+		if (_midiHandler)
+			_midiHandler(1, 0);
+		return;
+	}
+	if (iTarget == MB::TARGET_ModOn) {	// the app's (ModMap.osc: a negative value flips it)
+		if (_modulationOscHandler)
+			_modulationOscHandler(0, -1);
+		return;
+	}
+	if (iTarget == MB::TARGET_GeometryMode) {	// the playlist's patch mode
+		_geometryMode = !_geometryMode;
+		if (_midiHandler)
+			_midiHandler(7, _geometryMode ? 1 : 0);
+		return;
+	}
+	whorld::OscArg	cur;
+	if (whorld::OscRemote::StateValue(_doc, iTarget, -1, cur))
+		_midiMgr->DispatchTarget(iTarget, -1, cur.Number() != 0 ? 0 : 1);
+}
+
 // Main thread: what OscRemote leaves to the app.
 - (void)oscRequest:(int)type target:(int)iTarget value:(int)iVal
 {
 	using R = whorld::OscRemote::Request;
 	switch (type) {
 	case R::TOGGLE:	// a switch with no argument: the other way from now
-		if (iTarget == whorld::MappingBase::TARGET_Blackout) {	// the app's
-			if (_midiHandler)
-				_midiHandler(9, 2);
-			break;
-		}
-		if (iTarget == whorld::MappingBase::TARGET_AutoAdvance) {	// the app's
-			if (_midiHandler)
-				_midiHandler(8, 2);
-			break;
-		}
-		{
-			whorld::OscArg	cur;
-			if (whorld::OscRemote::StateValue(_doc, iTarget, -1, cur))
-				_midiMgr->DispatchTarget(iTarget, -1, cur.Number() != 0 ? 0 : 1);
-		}
+		[self toggleTarget:iTarget];
 		break;
 	case R::PAUSE:
 		if (iVal < 0 || (iVal != 0) != (_paused != NO)) {

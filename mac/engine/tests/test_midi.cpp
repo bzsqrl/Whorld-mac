@@ -547,6 +547,82 @@ TEST(BlackoutTarget) {
 	CHECK_EQ(sink.posts[0].iVal, 0);
 }
 
+TEST(ToggleMapping) {
+	// Mac addition: a Toggle mapping to a switch asks the main thread to
+	// flip it on each press and ignores the release; without Toggle a
+	// switch follows the input (on while held), as on Windows
+	RecordingSink	sink;
+	MidiManager	mgr(sink);
+	MappingArray	maps;
+	Mapping	pad = MakeMapping(MIDI_CVM_NOTE_ON, 0, 36, MB::TARGET_Convex);
+	pad.m_iToggle = 1;
+	maps.push_back(pad);
+	maps.push_back(MakeMapping(MIDI_CVM_NOTE_ON, 0, 37, MB::TARGET_Reverse));	// momentary
+	mgr.m_midiMaps.SetArray(maps);
+	using Post = MidiManager::Post;
+	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 36, 100));
+	CHECK(sink.cmds.empty());
+	CHECK_EQ(sink.posts.size(), size_t(1));
+	CHECK_EQ(sink.posts[0].type, Post::TOGGLE);
+	CHECK_EQ(sink.posts[0].iVal, int(MB::TARGET_Convex));
+	sink.Clear();
+	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 36, 0));	// its release: nothing
+	CHECK(sink.posts.empty());
+	CHECK(sink.cmds.empty());
+	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 37, 0));	// momentary: off on release
+	CHECK_EQ(sink.cmds.size(), size_t(1));
+	CHECK_EQ(sink.cmds[0].m_prop.boolVal, false);
+	// written only when set, and read back
+	IniFile	f;
+	MappingArray	out;
+	out.push_back(pad);
+	out.push_back(MakeMapping(MIDI_CVM_NOTE_ON, 0, 37, MB::TARGET_Reverse));
+	out.Write(f);
+	std::string	text = WriteIni(f);
+	CHECK(text.find("Toggle=1") != std::string::npos);
+	CHECK(text.find("Toggle=0") == std::string::npos);
+	MappingArray	in;
+	in.Read(f);
+	CHECK_EQ(in.size(), size_t(2));
+	CHECK_EQ(in[0].m_iToggle, 1);
+	CHECK_EQ(in[1].m_iToggle, 0);
+}
+
+TEST(XRayTarget) {
+	// Mac addition: XRay maps as Fill and Outline do, a draw mode bit
+	CHECK(MB::IsMacOnlyTarget(MB::TARGET_XRay));
+	CHECK_EQ(MB::GetTargetName(MB::TARGET_XRay), std::string("XRay"));
+	CHECK_EQ(MB::GetTargetType(MB::TARGET_XRay), int(MB::TT_BOOL));
+	RecordingSink	sink;
+	MidiManager	mgr(sink);
+	using Post = MidiManager::Post;
+	mgr.DispatchTarget(MB::TARGET_XRay, -1, 1);
+	CHECK_EQ(sink.posts.size(), size_t(1));
+	CHECK_EQ(sink.posts[0].type, Post::SET_DRAW_MODE);
+	CHECK_EQ(sink.posts[0].nMask, uint32_t(WhorldBase::DM_XRAY));
+	CHECK_EQ(sink.posts[0].nValue, uint32_t(WhorldBase::DM_XRAY));
+}
+
+TEST(PlaylistSlotMapping) {
+	// Mac addition: MIDI Learn maps a Playlist row as the Patch target with
+	// one value (start = end), its position; a release as a note on of
+	// velocity 0 doesn't play it again
+	RecordingSink	sink;
+	MidiManager	mgr(sink);
+	MappingArray	maps;
+	const double	slot5 = 5 * 100.0 / 127;
+	maps.push_back(MakeMapping(MIDI_CVM_NOTE_ON, 0, 40, MB::TARGET_Patch, 0, slot5, slot5));
+	mgr.m_midiMaps.SetArray(maps);
+	using Post = MidiManager::Post;
+	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 40, 100));
+	CHECK_EQ(sink.posts.size(), size_t(1));
+	CHECK_EQ(sink.posts[0].type, Post::PLAY_PATCH);
+	CHECK_EQ(sink.posts[0].iVal, 5);
+	sink.Clear();
+	mgr.OnMidiEvent(MakeMidiMsg(NOTE_ON, 0, 40, 0));	// its release
+	CHECK(sink.posts.empty());
+}
+
 TEST(CueTargets) {
 	// Mac addition: cue, then go, for pads; presses only, the app's
 	CHECK(MB::IsMacOnlyTarget(MB::TARGET_Go));
