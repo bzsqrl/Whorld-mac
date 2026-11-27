@@ -91,6 +91,8 @@ struct WhorldCommands: Commands {
 				.keyboardShortcut("s")
 			Button("Save As…") { model.saveAs() }
 				.keyboardShortcut("s", modifiers: [.command, .shift])
+			Button("Revert to Saved") { model.revertToSaved() }
+				.disabled(!model.canRevert)
 			// Patch Author… is gone: the Save As dialog has the Author field
 			// (the user's request, 2026-11-19)
 			Divider()

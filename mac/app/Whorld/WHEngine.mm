@@ -791,6 +791,12 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 	_patchPath = state->path;
 }
 
+- (void)revertPatch
+{
+	[self sendDocument:_loaded];
+	_modified = NO;
+}
+
 // CWhorldDoc::OnNewDocument: default patch
 - (void)newPatch
 {

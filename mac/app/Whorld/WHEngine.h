@@ -245,6 +245,10 @@ typedef struct {
 // the render thread as playing one does.
 - (WHDocumentState *)documentState;
 - (void)restoreDocumentState:(WHDocumentState *)state;
+// File > Revert to Saved (Mac addition): the document goes back to the
+// patch as it was loaded or last saved (what loadedParamValue reads), whole,
+// and is no longer edited. The file isn't read again.
+- (void)revertPatch;
 
 // Parameters, master and main properties of the document. Setters update
 // the document and send the change to the render thread.

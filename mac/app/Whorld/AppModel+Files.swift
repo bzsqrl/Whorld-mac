@@ -166,6 +166,35 @@ extension AppModel {
 		}
 	}
 
+	/// File > Revert to Saved (Mac addition, the user's request, 2026-11-27):
+	/// the patch goes back to how it was opened, played or last saved. An
+	/// edit itself, so Undo brings the changes back (instead of asking
+	/// first), and the edits before it stay undoable.
+	var canRevert: Bool {
+		_ = changes.document.n
+		return engine.modified && (engine.patchPath != nil || playedName != nil)
+	}
+
+	func revertToSaved() {
+		guard canRevert else { return }
+		let before = engine.documentState()
+		engine.revertPatch()
+		originFromPatch()
+		recordUndo(key: "revert \(UUID())", title: "Revert to Saved") { [weak self] in
+			self?.unrevert(before)
+		}
+		changed()
+	}
+
+	/// Undo Revert to Saved: the edits back (and Redo reverts again)
+	private func unrevert(_ edited: WHDocumentState) {
+		engine.restoreDocumentState(edited)
+		recordUndo(key: "revert \(UUID())", title: "Revert to Saved") { [weak self] in
+			self?.revertToSaved()
+		}
+		changed()
+	}
+
 	/// Asks to save unsaved changes. Returns false if the user cancels.
 	func confirmDiscard() -> Bool {
 		guard engine.modified else { return true }
