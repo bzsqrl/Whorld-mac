@@ -1353,12 +1353,14 @@ struct PlaylistPanel: View {
 			}
 			Divider()
 			// the bottom bar, as much of it as fits: everything, then without
-			// the playlist's name, then without the patch mode button; never
-			// wider than the pane (a wider bar pushed the panel's title bar
-			// out of place)
+			// the patch mode button, then without the Go menu too (also in
+			// Image > Cue; a narrow pane clipped it, the default layout's
+			// check, 2026-11-27); never wider than the pane (a wider bar
+			// pushed the panel's title bar out of place)
 			ViewThatFits(in: .horizontal) {
 				bottomBar(mode: true)
 				bottomBar(mode: false)
+				bottomBar(mode: false, go: false)
 			}
 			.frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
 			.clipped()
@@ -1411,7 +1413,7 @@ struct PlaylistPanel: View {
 		.frame(minHeight: 30)	// as tall as the Patches panel's bar, with its search box
 	}
 
-	private func bottomBar(mode: Bool) -> some View {
+	private func bottomBar(mode: Bool, go: Bool = true) -> some View {
 		HStack {
 			Button { model.insertPatches() } label: { Image(systemName: "plus") }
 				.hoverTip("Insert patches")
@@ -1420,7 +1422,7 @@ struct PlaylistPanel: View {
 				.disabled(model.playlistSelection.isEmpty)
 			AutoAdvanceControls()
 				.padding(.leading, 6)
-			LaunchTimingMenu()
+			if go { LaunchTimingMenu() }
 			Spacer(minLength: 0)
 			if mode {
 				// the patch mode, named as it is now (the user's request,

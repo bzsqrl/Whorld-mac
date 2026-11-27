@@ -469,7 +469,11 @@ struct Layout: Codable, Equatable {
 		"Whorld.H.left|center": [0.40, 0.60],
 		"Whorld.O.left|middle": [0.40, 0.60],	// Left full height (since 2026-11-25), as wide
 		"Whorld.V.top|bottom": [0.5836, 0.4164],
-		"Whorld.bottom.row(column(patches,playlist),properties,master,globals)": [0.2502, 0.1352, 0.3360, 0.2786],
+		// beside the full-height Parameters, 60% of the width: Properties wide
+		// enough for its title and chips, the lists for their bars; Master and
+		// Globals, which had room to spare, narrower (the default layout's
+		// check, 2026-11-27)
+		"Whorld.bottom.row(column(patches,playlist),properties,master,globals)": [0.29, 0.20, 0.27, 0.24],
 		"Whorld.bottom.column(patches,playlist)": [0.5, 0.5],
 	]
 
