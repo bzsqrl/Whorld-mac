@@ -228,6 +228,7 @@ struct PatchBrowserPanel: View {
 				// a letter doesn't jump to (and play) a patch; Delete takes the
 				// selected ones off the list (not Image > Clear)
 				.background(NoTypeSelect(onDelete: { removeSelected() }))
+				.background(FitColumns())	// columns to the pane's width
 				.onAppear { columns = StoredColumns.load(Self.columnsKey) ?? columns }
 				.onChange(of: columns) { _, c in StoredColumns.save(c, Self.columnsKey) }
 				.contextMenu(forSelectionType: URL.self) { urls in

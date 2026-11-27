@@ -110,7 +110,7 @@ struct ModTablesSection: View {
 						Toggle("", isOn: $r.on).labelsHidden()
 					}
 				}
-				.width(46)
+				.width(min: 36, ideal: 46, max: 46)
 				TableColumn("Source") { $r in
 					stable(r) {
 						HStack(spacing: 2) {
@@ -142,13 +142,13 @@ struct ModTablesSection: View {
 					RowLevel(index: map.rows.firstIndex(where: { $0.id == r.id }) ?? -1)
 						.opacity(Self.rowOpacity(r))
 				}
-				.width(60)
+				.width(min: 44, ideal: 60, max: 60)
 				TableColumn("Target") { $r in
 					stable(r) {
 						TargetMenu(row: $r)
 					}
 				}
-				.width(min: 140, ideal: 150)
+				.width(min: 110, ideal: 150)
 				TableColumn("Amount") { $r in
 					if r.isAction {
 						Text("fires").foregroundStyle(.secondary)
@@ -166,7 +166,7 @@ struct ModTablesSection: View {
 						.opacity(Self.rowOpacity(r))
 					}
 				}
-				.width(min: 140, ideal: 150)
+				.width(min: 110, ideal: 150)
 				TableColumn("Curve") { $r in
 					stable(r) {
 						if r.isOscillator {
@@ -207,7 +207,7 @@ struct ModTablesSection: View {
 						}
 					}
 				}
-				.width(124)
+				.width(min: 96, ideal: 124, max: 124)
 				TableColumn("Offset") { $r in
 					stable(r) {
 						if r.isTrigger || r.isLFO || r.isOscillator {
@@ -217,7 +217,7 @@ struct ModTablesSection: View {
 						}
 					}
 				}
-				.width(64)
+				.width(min: 50, ideal: 64, max: 64)
 				TableColumn("Threshold") { $r in
 					stable(r) {
 						if !r.isOscillator && (r.curve == 3 || (r.isAction && !r.isTrigger)) {
@@ -228,9 +228,10 @@ struct ModTablesSection: View {
 						}
 					}
 				}
-				.width(92)
+				.width(min: 70, ideal: 92, max: 92)
 			}
 			.background(ColumnTips())
+			.background(FitColumns())	// columns to the pane's width, scrolling sideways only when they can't fit (2026-11-27)
 			// Modulation off: the rows act on nothing, so they're dimmed (still
 			// editable; the design audit, 2026-11-24)
 			.opacity(map.bypass ? 0.5 : 1)

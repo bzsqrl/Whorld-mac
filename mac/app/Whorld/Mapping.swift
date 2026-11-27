@@ -30,7 +30,9 @@ struct MappingPanel: View {
 				TableColumn("#") { row in
 					Text("\(row.id + 1)").monospacedDigit().foregroundStyle(.secondary)
 				}
-				.width(28)
+				.width(min: 22, ideal: 28, max: 32)
+				// the menus as the Modulation table's: borderless (TableChoice;
+				// the user's request, 2026-11-27)
 				TableColumn("Event") { row in
 					TableChoice(selection: binding(row, \.event, "Event"),
 						options: (0..<WHMappingInfo.eventCount).map { (Int32($0), WHMappingInfo.eventName($0)) })
@@ -40,7 +42,7 @@ struct MappingPanel: View {
 					TableChoice(selection: binding(row, \.channel, "Channel"),
 						options: (0..<16).map { (Int32($0), "\($0 + 1)") })	// one-based
 				}
-				.width(64)
+				.width(min: 40, ideal: 64, max: 64)
 				TableColumn("Control") { row in
 					IntField(value: Int(row.data.control), range: 0...127) { v in
 						var m = row.data
@@ -48,7 +50,7 @@ struct MappingPanel: View {
 						model.setMapping(row.id, m, column: "Control")
 					}
 				}
-				.width(56)
+				.width(min: 40, ideal: 56, max: 72)
 				TableColumn("Target") { row in
 					Menu {
 						Picker("", selection: binding(row, \.target, "Target")) {
@@ -79,7 +81,7 @@ struct MappingPanel: View {
 						model.setMapping(row.id, m, column: "Start")
 					}
 				}
-				.width(56)
+				.width(min: 40, ideal: 56, max: 72)
 				TableColumn("End") { row in
 					PercentField(value: row.data.end) { v in
 						var m = row.data
@@ -87,8 +89,26 @@ struct MappingPanel: View {
 						model.setMapping(row.id, m, column: "End")
 					}
 				}
-				.width(56)
+				.width(min: 40, ideal: 56, max: 72)
+				// Mac addition (the user's request, 2026-11-26): a switch
+				// flips on each press, for pads that send presses only;
+				// off, it follows the input (on while held), as on Windows
+				TableColumn("Toggle") { row in
+					if WHMappingInfo.targetIsSwitch(Int(row.data.target)) {
+						Toggle("", isOn: Binding(get: { row.data.toggle != 0 }, set: { on in
+							var m = row.data
+							m.toggle = on ? 1 : 0
+							model.setMapping(row.id, m, column: "Toggle")
+						}))
+						.labelsHidden()
+						.hoverTip("On: each press flips the switch, and the release does nothing (for pads that latch). Off: the switch follows the input, on while held, as on Windows.")
+					} else {
+						Text("n/a").foregroundStyle(.secondary)
+					}
+				}
+				.width(min: 40, ideal: 50, max: 50)
 			}
+			.background(FitColumns())	// columns to the pane's width, scrolling sideways only when they can't fit
 			Divider()
 			HStack {
 				Button { model.insertMapping() } label: { Image(systemName: "plus") }

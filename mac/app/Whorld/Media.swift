@@ -685,6 +685,64 @@ struct NoTypeSelect: NSViewRepresentable {
 	}
 }
 
+/// Fits a table's columns to its pane's width (the user's request,
+/// 2026-11-27: as little sideways scrolling as can be): columns share the
+/// width between their minimum and maximum (macOS's sizeToFit, refitted
+/// whenever the pane's width changes), and the table scrolls sideways only
+/// when even the minimums don't fit. Put it as the table's background.
+struct FitColumns: NSViewRepresentable {
+	final class Probe: NSView {
+		private weak var table: NSTableView?
+		private var observer: Any?
+		private var lastWidth: CGFloat = -1
+
+		override func viewDidMoveToWindow() {
+			super.viewDidMoveToWindow()
+			DispatchQueue.main.async { [weak self] in self?.attach() }	// once the table is in the window
+		}
+
+		private func attach() {
+			guard table == nil, window != nil else { return }
+			var v: NSView? = superview
+			while let ancestor = v, table == nil {
+				table = Self.table(in: ancestor)
+				v = ancestor.superview
+			}
+			guard let t = table, let clip = t.enclosingScrollView?.contentView else { return }
+			t.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
+			clip.postsFrameChangedNotifications = true
+			observer = NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification,
+				object: clip, queue: .main) { [weak self] _ in
+				MainActor.assumeIsolated { self?.fit() }
+			}
+			fit()
+		}
+
+		private func fit() {
+			guard let t = table, let clip = t.enclosingScrollView?.contentView else { return }
+			let w = clip.bounds.width
+			guard abs(w - lastWidth) >= 1 else { return }	// only as the width changes
+			lastWidth = w
+			t.sizeToFit()
+		}
+
+		private static func table(in view: NSView) -> NSTableView? {
+			if let t = view as? NSTableView { return t }
+			for sub in view.subviews {
+				if let t = table(in: sub) { return t }
+			}
+			return nil
+		}
+
+		deinit {
+			if let observer { NotificationCenter.default.removeObserver(observer) }
+		}
+	}
+
+	func makeNSView(context: Context) -> Probe { Probe() }
+	func updateNSView(_ view: Probe, context: Context) {}
+}
+
 /// A table's column choices (which show, their widths and order), kept in
 /// the settings under `key`: right-click a table's header to choose
 enum StoredColumns {
@@ -1276,6 +1334,7 @@ struct PlaylistPanel: View {
 			// a letter doesn't jump to a patch; Delete removes the selected
 			// ones from the playlist (not Image > Clear)
 			.background(NoTypeSelect(onDelete: { model.deletePatches() }))
+			.background(FitColumns())	// columns to the pane's width, scrolling sideways only when they can't fit
 			// an empty table has no rows to drop between: while it's empty, the
 			// whole list takes patches dragged from the Patches panel
 			.overlay {

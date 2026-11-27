@@ -301,6 +301,7 @@ struct KeyMapView: View {
 				}
 				.width(min: 70, ideal: 80, max: 100)
 			}
+			.background(FitColumns())	// columns to the pane's width (2026-11-27)
 			Divider()
 			VStack(alignment: .leading, spacing: 6) {
 				if let notice = map.notice {
