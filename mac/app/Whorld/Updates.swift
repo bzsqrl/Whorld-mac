@@ -41,11 +41,12 @@ struct ReleaseVersion: Comparable, CustomStringConvertible {
 		core.map(String.init).joined(separator: ".") + (pre.isEmpty ? "" : "-" + pre.joined(separator: "."))
 	}
 
-	/// "0.1 beta 2", as the release titles and the About box put it
+	/// "0.1 beta 2" or "1.0 RC 1", as the release titles and the About box put it
 	var displayName: String {
 		var c = core
 		if c.count == 3 && c[2] == 0 { c.removeLast() }
-		return ([c.map(String.init).joined(separator: ".")] + pre).joined(separator: " ")
+		let words = pre.map { $0 == "rc" ? "RC" : $0 }	// a release candidate
+		return ([c.map(String.init).joined(separator: ".")] + words).joined(separator: " ")
 	}
 
 	static func < (a: ReleaseVersion, b: ReleaseVersion) -> Bool {
