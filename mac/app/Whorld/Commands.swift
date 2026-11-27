@@ -574,7 +574,11 @@ struct HelpCommands: Commands {
 		let credits = NSMutableAttributedString(html: Data(html.utf8), documentAttributes: nil) ?? NSMutableAttributedString()
 		credits.addAttribute(.foregroundColor, value: NSColor.labelColor,
 			range: NSRange(location: 0, length: credits.length))
-		NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
+		// the release's name ("1.0 RC 1", "0.1 beta 10"), not Info.plist's short
+		// version alone (it said "1.0" for a release candidate); the build in brackets
+		var options: [NSApplication.AboutPanelOptionKey: Any] = [.credits: credits]
+		if let v = UpdateChecker.current { options[.applicationVersion] = v.displayName }
+		NSApp.orderFrontStandardAboutPanel(options: options)
 		NSApp.activate(ignoringOtherApps: true)
 	}
 }
