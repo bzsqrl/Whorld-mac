@@ -318,8 +318,12 @@ final class OutputKeys {
 /// Settings' number fields alike. Only the click that starts editing: a
 /// click in a box already being edited places the caret, to change part
 /// of it. A field holding text that isn't a number (a name) is left alone.
-/// The panels' boxes (KeyTextField.Field) select on the press themselves,
-/// since 2026-11-27; this, after the click, is for the other fields.
+/// On the press (the user's request, 2026-11-27: it came after the button
+/// came up): the panels' boxes (KeyTextField.Field) select themselves; a
+/// plain click on another number field in the key window is taken here,
+/// the field focused and its number selected, and not passed on (AppKit
+/// would put the caret where the button comes up). Other clicks that start
+/// editing a number are selected after the click, as before.
 @MainActor
 enum NumberBoxSelect {
 	private static var monitor: Any?
@@ -327,6 +331,7 @@ enum NumberBoxSelect {
 	static func install() {
 		guard monitor == nil else { return }
 		monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { e in
+			if MainActor.assumeIsolated({ selectOnPress(e) }) { return nil }
 			let before = MainActor.assumeIsolated { editedField(in: e.window) }
 			let window = e.window
 			// after the click's own handling: the text field tracks the mouse
@@ -341,6 +346,29 @@ enum NumberBoxSelect {
 			}
 			return e
 		}
+	}
+
+	/// a plain click on a number field not being edited, in the key window:
+	/// focused and selected now; true if it was
+	private static func selectOnPress(_ e: NSEvent) -> Bool {
+		guard e.clickCount == 1, e.modifierFlags.intersection([.shift, .option, .command, .control]).isEmpty,
+			let w = e.window, w.isKeyWindow, let content = w.contentView?.superview,
+			let field = textField(at: content.hitTest(content.convert(e.locationInWindow, from: nil))),
+			!(field is KeyTextField.Field),	// they do it themselves
+			field.isEditable, field.isEnabled, field.currentEditor() == nil, isNumber(field.stringValue),
+			w.makeFirstResponder(field), let editor = field.currentEditor() else { return false }
+		editor.selectAll(nil)
+		return true
+	}
+
+	/// the text field at a click: the hit view or one just around it
+	private static func textField(at hit: NSView?) -> NSTextField? {
+		var v = hit
+		for _ in 0..<3 {
+			if let f = v as? NSTextField { return f }
+			v = v?.superview
+		}
+		return nil
 	}
 
 	/// the text field the window is editing now, if any
