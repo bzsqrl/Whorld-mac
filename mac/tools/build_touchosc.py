@@ -44,7 +44,7 @@ GLOBALS = ["lw", "sd", "rt", "ar", "kr", "ka", "sf", "pn", "ec", "oc", "es", "os
 MASTER = [("sp", "Speed"), ("zm", "Zoom"), ("dp", "Damping"), ("tr", "Trail"), ("rn", "Rings"),
 	("tp", "Tempo"), ("hs", "Hue Span"), ("cv", "Canvas"), ("cp", "Copies"), ("sr", "Spread"),
 	("fd", "Fade")]
-SWITCHES = [("fill", "FILL"), ("outline", "OUTLINE"), ("mirror", "MIRROR"), ("reverse", "REVERSE"),
+SWITCHES = [("fill", "FILL"), ("outline", "OUTLINE"), ("xray", "XRAY"), ("mirror", "MIRROR"), ("reverse", "REVERSE"),
 	("convex", "CONVEX"), ("loophue", "LOOP HUE"), ("zoomctr", "ZOOM CTR"), ("aa", "ANTIALIAS"),
 	("drag", "ORG DRAG"), ("random", "ORG RANDOM"), ("pause", "PAUSE"), ("invert", "INVERT")]
 ACTIONS = [("rndphase", "RANDOM PHASE"), ("rndorg", "RANDOM ORIGIN"), ("clear", "CLEAR"),
@@ -303,7 +303,7 @@ def build():
 	for (cid, name, addr), frame in zip(faders, grid(M, 82, 620, H - TAB - M, 1, len(faders), 6)):
 		c.append(lay.fader(cid, frame, name, addr))
 	c.append(lay.caption("cap_image", (640, 58, 300, 20), "IMAGE"))
-	for (addr, text), frame in zip(SWITCHES, grid(640, 82, W - M, 312, 4, 3, GAP)):
+	for (addr, text), frame in zip(SWITCHES, grid(640, 82, W - M, 312, 5, 3, GAP)):	# 5 columns since XRay (2026-11-26)
 		if addr:
 			c.append(lay.switch("s_" + addr, frame, text, "/w/" + addr))
 	for (addr, text), frame in zip(ACTIONS, grid(640, 322, W - M, 382, len(ACTIONS), 1, GAP)):

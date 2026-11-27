@@ -22,6 +22,26 @@ import SwiftUI
 
 /// A Properties item: a switch or an action of the Image menu
 enum PropItem: CaseIterable {
+	/// its MIDI mapping target, if it has one (MIDI Learn mode)
+	var mappingTag: String? {
+		switch self {
+		case .fill: "Fill"
+		case .outline: "Outline"
+		case .xor: "XRay"
+		case .mirror: "Mirror"
+		case .convex: "Convex"
+		case .reverse: "Reverse"
+		case .invertColor: "InvertColor"
+		case .loopHue: "LoopHue"
+		case .rotateHue: "RotateHue"
+		case .randomPhase: "RandomPhase"
+		case .pause: "Pause"
+		case .clear: "Clear"
+		case .zoomCenter: "ZoomCenter"
+		case .antialiasing: "Antialiasing"
+		}
+	}
+
 	case fill, outline, xor, mirror, convex, reverse, invertColor, loopHue, rotateHue, randomPhase, pause, clear, zoomCenter, antialiasing
 
 	var name: String {

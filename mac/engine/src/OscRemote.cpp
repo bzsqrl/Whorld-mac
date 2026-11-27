@@ -122,6 +122,7 @@ const char* const	kMiscName[] = {
 	"cue/pad14",
 	"cue/pad15",
 	"cue/pad16",	// Pad1 to Pad16
+	"xray",		// XRay
 };
 static_assert(sizeof(kMiscName) / sizeof(kMiscName[0]) == MappingBase::MISC_TARGETS, "a name per miscellaneous target");
 
@@ -300,6 +301,7 @@ bool OscRemote::StateValue(const Patch& doc, int iTarget, int iProp, OscArg& arg
 	case MT_OriginY: arg = OscArg::Float(m.dptOrigin.y); return true;
 	case MT_Fill: arg = OscArg::Float((m.nDrawMode & DM_FILL) ? 1 : 0); return true;
 	case MT_Outline: arg = OscArg::Float((m.nDrawMode & DM_OUTLINE) ? 1 : 0); return true;
+	case MT_XRay: arg = OscArg::Float((m.nDrawMode & DM_XRAY) ? 1 : 0); return true;
 	case MT_Mirror: arg = OscArg::Float(m.bMirror); return true;
 	case MT_OriginDrag: arg = OscArg::Float(m.nOrgMotion == OM_DRAG); return true;
 	case MT_OriginRandom: arg = OscArg::Float(m.nOrgMotion == OM_RANDOM); return true;

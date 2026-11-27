@@ -294,8 +294,8 @@ TEST(MappingDefaultsAndNames) {
 	// 17 miscellaneous targets on Windows, plus the Mac's Hue, Rotate Hue, Invert Color,
 	// Mark Downbeat, Modulation On, Modulation Depth, Geometry Mode, Reset Bar Count, the
 	// beat and bar steps, Half Beat, Auto Advance, Blackout, and cue then go's Go, Go Now,
-	// Cue Next and Previous, Bank Up and Down and Pad 1 to 16
-	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 54);
+	// Cue Next and Previous, Bank Up and Down and Pad 1 to 16, and XRay
+	CHECK_EQ(int(MB::TARGETS), WhorldBase::PARAM_COUNT + WhorldBase::MASTER_COUNT + 55);
 	CHECK_EQ(MB::GetTargetName(MB::TARGET_ResetBars), std::string("Reset Bar Count"));
 	CHECK_EQ(MB::GetTargetType(MB::TARGET_ResetBars), int(MB::TT_ACTION));
 	CHECK(MB::IsMacOnlyTarget(MB::TARGET_ResetBars));

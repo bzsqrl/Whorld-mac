@@ -128,6 +128,9 @@ void MidiManager::PushMiscTarget(int iMiscTarget, double fNormVal)
 	case MT_Outline:
 		PushDrawMode(DM_OUTLINE, fNormVal != 0);
 		break;
+	case MT_XRay:	// Mac addition (Whorld 1's X-Ray), a draw mode bit as Fill and Outline
+		PushDrawMode(DM_XRAY, fNormVal != 0);
+		break;
 	case MT_Mirror:
 		PushMainBool(MAIN_Mirror, fNormVal != 0);
 		break;
