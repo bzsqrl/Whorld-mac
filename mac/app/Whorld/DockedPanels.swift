@@ -239,6 +239,18 @@ struct DockedPanel: View {
 				.menuIndicator(.hidden)
 				.fixedSize()
 				.hoverTip("\(id.title): move, float or hide")
+				// float it in a window of its own (the user's request,
+				// 2026-11-27); a floating panel's title bar has the dock icon
+				Button { layout.float(id) } label: {
+					// a window lifted off another (arrow.up.right.square, the
+					// first choice, isn't drawn in the app's panels: some
+					// symbols aren't, though they are in a test app; found
+					// 2026-11-27)
+					Image(systemName: "macwindow.on.rectangle")
+				}
+				.buttonStyle(.borderless)
+				.hoverTip("Float \(id.title) in a window of its own (or double-click the title bar)")
+				.accessibilityLabel("Float \(id.title)")
 				Button { layout.hide(id) } label: {
 					Image(systemName: "xmark").font(.caption2)
 				}
@@ -249,8 +261,8 @@ struct DockedPanel: View {
 			.frame(height: Self.headerHeight)
 			.hoverTip(id.title)	// the whole name, where it's shortened
 			// a tone of its own, so each panel reads as a block where panels
-			// meet, and a faint accent while the pointer is over the panel:
-			// the one the ⌥⌘ arrows move (the design audit, 2026-11-24)
+			// meet, and a faint accent while the pointer is over the panel
+			// (the design audit, 2026-11-24)
 			.background(Color.accentColor.opacity(hovered ? 0.1 : 0))
 			.background(Color.primary.opacity(0.055))
 			.background(.bar)
@@ -396,9 +408,14 @@ struct FloatingPanel: View {
 		}
 			.frame(minWidth: id.floatingMinSize.width, minHeight: id.floatingMinSize.height)
 			.toolbar {
+				// an icon, as the docked panel's float icon (the user's
+				// request, 2026-11-27; was a Dock button)
 				ToolbarItem {
-					Button("Dock") { model.layout.dock(id) }
-						.hoverTip("Dock \(id.title) in the Whorld window")
+					Button { model.layout.dock(id) } label: {
+						Image(systemName: "rectangle.on.rectangle")	// the float icon's partner (the user's choice, 2026-11-27)
+					}
+					.hoverTip("Dock \(id.title) in the Whorld window, where it was (or double-click the title bar)")
+					.accessibilityLabel("Dock \(id.title)")
 				}
 			}
 			.background(FloatingWindowHelper(id: id, layout: model.layout))
