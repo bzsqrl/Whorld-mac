@@ -158,6 +158,7 @@ private struct ModTopBar: View {
 	@ViewBuilder private var switchAndDepth: some View {
 			Toggle("Modulation", isOn: Binding(get: { !map.bypass }, set: { map.bypass = !$0 }))
 				.toggleStyle(.switch)
+				.accessibilityLabel("Modulation")
 				.hoverTip("All rows on or off; off, the patches play as they are. Audio > Audio Modulation (⌘'), or Mod in the Perform Bar, OSC /w/mod/on.")
 			// its state in words, where you're looking (the design audit,
 			// 2026-11-24: off, the rows below looked as live as on)
@@ -169,6 +170,8 @@ private struct ModTopBar: View {
 			Text("Depth")
 				.padding(.leading, 8)
 			StepSlider(value: map.depth, range: 0...1, step: 0.01, defaultValue: 1) { map.depth = $0 }
+				.accessibilityLabel("Depth")
+				.accessibilityValue(String(format: "%.0f%%", map.depth * 100))
 				.midiLearnable("ModDepth")	// MIDI Learn mode
 				.frame(width: 160)
 				.hoverTip("Scales every row at once. OSC /w/mod/depth.")
@@ -274,6 +277,7 @@ private struct AudioInputSection: View {
 						}
 					}
 					.labelsHidden()
+					.accessibilityLabel("Input")
 					.frame(width: 220)
 					Picker("", selection: channelBinding) {
 						Text("All channels, mixed").tag(ChannelChoice(first: 0, count: 0))
@@ -290,6 +294,7 @@ private struct AudioInputSection: View {
 						}
 					}
 					.labelsHidden()
+					.accessibilityLabel("Channels")
 					.frame(width: 170)
 					.disabled((selected?.channels ?? 0) < 2)
 				}
@@ -298,6 +303,8 @@ private struct AudioInputSection: View {
 				Text("Gain")
 				HStack {
 					StepSlider(value: gainDb, range: -24...24, step: 0.5, defaultValue: 0) { gainDb = $0 }	// half-dB steps, no tick marks
+						.accessibilityLabel("Gain")
+						.accessibilityValue(String(format: "%+.1f dB", gainDb + 0))
 						.frame(width: 220)
 					Text(String(format: "%+.1f dB", gainDb + 0))	// + 0: never "-0.0"
 						.monospacedDigit()
@@ -310,6 +317,8 @@ private struct AudioInputSection: View {
 				Text("Range")
 				HStack {
 					StepSlider(value: rangeDb, range: 12...60, step: 1, defaultValue: 36) { rangeDb = $0 }
+						.accessibilityLabel("Range")
+						.accessibilityValue(String(format: "%.0f dB", rangeDb))
 						.frame(width: 220)
 					Text(String(format: "%.0f dB", rangeDb))
 						.monospacedDigit()
@@ -325,6 +334,8 @@ private struct AudioInputSection: View {
 				HStack {
 					// the analyzer's threshold, in deviations: lower is more sensitive
 					StepSlider(value: 10 - hitThreshold, range: 2...8, step: 0.1, defaultValue: 6) { hitThreshold = 10 - $0 }
+						.accessibilityLabel("Hit sensitivity")
+						.accessibilityValue(String(format: "%.1f", 10 - hitThreshold))
 						.frame(width: 220)
 					Text("fewer ← → more")
 						.font(.caption)
@@ -337,6 +348,7 @@ private struct AudioInputSection: View {
 					Toggle(linkEnabled ? "Enabled" : "Disabled", isOn: $linkEnabled)
 						.toggleStyle(.switch)
 						.controlSize(.small)
+						.accessibilityLabel("Ableton Link")
 					Toggle("Start/Stop sync", isOn: $linkSync)
 						.disabled(!linkEnabled)
 						.hoverTip("Beats only while the Link session plays (Ableton Live's transport, for one).")
@@ -445,10 +457,12 @@ extension AudioInputSection {
 				.hoverTip("Press on the \"one\" (a drop, the start of a phrase): the beat nearest the press becomes beat 1 of bar 1, a little early or late alike. Audio > Reset to 1.1 (⌘\\), OSC /w/mod/downbeat.")
 			Button { Self.step(-1, mods(), link) } label: { Text("\u{2212}").frame(minWidth: 10) }	// text, not a symbol: docked, the symbols sometimes didn't draw
 				.controlSize(.small)
+				.accessibilityLabel(link ? "Bar Back" : "Beat Back")
 				.hoverTip(link ? "The count a bar back (Ableton Link sets the beat within the bar). Audio > Bar Back (⇧⌘[), OSC /w/mod/barback."
 					: "The count a beat back, so the music's \"one\" comes a beat later in it; with ⇧, a bar back; with ⌥, half a beat back (for a beat Whorld found on the off-beats). Nothing fires, and waves ease to their new place. Audio > Beat Back (⌘[), Bar Back (⇧⌘[), Half Beat Back (⌥⌘[).")
 			Button { Self.step(1, mods(), link) } label: { Text("+").frame(minWidth: 10) }
 				.controlSize(.small)
+				.accessibilityLabel(link ? "Bar Forward" : "Beat Forward")
 				.hoverTip(link ? "The count a bar on (Ableton Link sets the beat within the bar). Audio > Bar Forward (⇧⌘]), OSC /w/mod/barfwd."
 					: "The count a beat on; with ⇧, a bar on; with ⌥, half a beat on. Nothing fires, and waves ease to their new place. Audio > Beat Forward (⌘]), Bar Forward (⇧⌘]), Half Beat Forward (⌥⌘]).")
 		}

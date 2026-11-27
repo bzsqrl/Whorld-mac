@@ -107,7 +107,7 @@ struct ModTablesSection: View {
 			Table($map.rows, selection: $selection) {
 				TableColumn("On") { $r in
 					stable(r, dims: false) {
-						Toggle("", isOn: $r.on).labelsHidden()
+						Toggle("", isOn: $r.on).labelsHidden().accessibilityLabel("Row on")
 					}
 				}
 				.width(min: 36, ideal: 46, max: 46)
@@ -159,6 +159,8 @@ struct ModTablesSection: View {
 					} else {
 						HStack(spacing: 4) {
 							StepSlider(value: r.amount, range: -1...1, step: 0.01, defaultValue: ModRowSetting().amount) { r.amount = $0 }
+								.accessibilityLabel("Amount")
+								.accessibilityValue(String(format: "%+.0f%%", r.amount * 100 + 0))
 							Text(String(format: "%+.0f%%", r.amount * 100 + 0))	// + 0: an older -0 shows as 0%
 								.monospacedDigit()
 								.frame(width: 44, alignment: .trailing)
@@ -172,7 +174,7 @@ struct ModTablesSection: View {
 						if r.isOscillator {
 							Text("—").foregroundStyle(.secondary)
 						} else {
-							TableChoice(selection: $r.curve, options: [(0, "Linear"), (1, "Soft"), (2, "Hard"), (3, "Gate")])
+							TableChoice(selection: $r.curve, options: [(0, "Linear"), (1, "Soft"), (2, "Hard"), (3, "Gate")], name: "Curve")
 						}
 					}
 				}
@@ -182,7 +184,7 @@ struct ModTablesSection: View {
 						if r.isAction || r.isOscillator {
 							Text("—").foregroundStyle(.secondary)
 						} else {
-							TableChoice(selection: $r.centered, options: [(false, "Up"), (true, "Centered")])
+							TableChoice(selection: $r.centered, options: [(false, "Up"), (true, "Centered")], name: "Polarity")
 						}
 					}
 				}
@@ -201,8 +203,10 @@ struct ModTablesSection: View {
 										.frame(width: 52)
 								} else {
 									MsField(value: $r.attackMs, defaultValue: ModRowSetting().attackMs)
+										.accessibilityLabel("Attack, milliseconds")
 								}
 								MsField(value: $r.releaseMs, defaultValue: ModRowSetting().releaseMs)
+									.accessibilityLabel("Release, milliseconds")
 							}
 						}
 					}
@@ -212,6 +216,7 @@ struct ModTablesSection: View {
 					stable(r) {
 						if r.isTrigger || r.isLFO || r.isOscillator {
 							OffsetField(value: $r.offsetMs, earlyAllowed: r.isBeatBased || r.isLFO)
+								.accessibilityLabel("Offset, milliseconds")
 						} else {
 							Text("—").foregroundStyle(.secondary)
 						}
@@ -223,6 +228,7 @@ struct ModTablesSection: View {
 						if !r.isOscillator && (r.curve == 3 || (r.isAction && !r.isTrigger)) {
 							RowNumber(value: $r.threshold, lo: 0, hi: 1, fine: 0.01,
 								defaultValue: ModRowSetting().threshold, decimals: 2, width: 52)
+								.accessibilityLabel("Threshold")
 						} else {
 							Text("—").foregroundStyle(.secondary)
 						}
@@ -324,8 +330,20 @@ private struct ColumnTips: NSViewRepresentable {
 struct TableChoice<Value: Hashable>: View {
 	let selection: Binding<Value>
 	let options: [(value: Value, title: String)]
+	/// what VoiceOver calls it ("Curve"), saying the choice as its value;
+	/// nil: the choice is its name, as it shows
+	var name: String? = nil
 
 	var body: some View {
+		let current = options.first { $0.value == selection.wrappedValue }?.title ?? ""
+		if let name {
+			menu.accessibilityLabel(name).accessibilityValue(current)
+		} else {
+			menu
+		}
+	}
+
+	private var menu: some View {
 		Menu {
 			Picker("", selection: selection) {
 				ForEach(options.indices, id: \.self) { i in Text(options[i].title).tag(options[i].value) }
@@ -456,6 +474,7 @@ private struct LengthField: View {
 				return min(max(x, lo), hi)
 			},
 			lo: lo, hi: hi, defaultValue: 1, width: 46, fractions: true)
+			.accessibilityLabel(row.lfoInBars ? "Length in bars" : "Length in beats")
 			.hoverTip("The cycle's length, in \(row.lfoInBars ? "bars" : "beats"): any number, or a fraction such as 1/3 (triplets). ↑ ↓ or a swipe step it.")
 	}
 
@@ -476,7 +495,7 @@ private struct UnitPicker: View {
 			guard bars != row.lfoInBars else { return }
 			row.lfoInBars = bars
 			row.lfoBeats = min(max(n * (bars ? 4 : 1), ModRowSetting.minBeats), ModRowSetting.maxBeats)
-		}), options: [(false, n == 1 ? "Beat" : "Beats"), (true, n == 1 ? "Bar" : "Bars")])
+		}), options: [(false, n == 1 ? "Beat" : "Beats"), (true, n == 1 ? "Bar" : "Bars")], name: "Unit")
 	}
 }
 
@@ -502,6 +521,8 @@ private struct PhaseMenu: View {
 		}
 		.menuStyle(.borderlessButton)
 		.fixedSize()
+		.accessibilityLabel("Phase")
+		.accessibilityValue(String(format: "%.0f degrees", row.lfoPhaseDeg))
 		.hoverTip(row.isPulse
 			? "The phase: how far into each cycle the pulse comes, from the one (Reset to 1.1). 0° on the one; with 4 bars, 90° is bar 2, 180° bar 3, 270° bar 4."
 			: "The phase: where in the oscillator's cycle the one (Reset to 1.1) falls. With a triangle or sine, 0° puts the one halfway up, 90° at the top, 180° halfway down, 270° at the bottom.")

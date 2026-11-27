@@ -777,6 +777,7 @@ private struct DetachButton: View {
 		}
 		.buttonStyle(StripToggleStyle())
 		.fixedSize()
+		.accessibilityLabel(on ? "Attach Picture" : "Detach Picture")	// not the symbol's name
 		.hoverTip(on ? "The picture is detached, in its own window. Click to put it back in the Whorld window (View > Detach, ⌘D); Option-click to move it to the next display (⇧⌘D)."
 			: "Detach the picture into a window of its own, to move to a projector or second display (View > Detach, ⌘D); Option-click to detach it onto another display (⇧⌘D)")
 	}

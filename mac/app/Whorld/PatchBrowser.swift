@@ -308,6 +308,7 @@ struct PatchBrowserPanel: View {
 			TextField("Search", text: $search)
 				.textFieldStyle(.roundedBorder)
 				.controlSize(.small)
+				.accessibilityLabel("Search patches")
 			Text("\(store.items.count)")
 				.font(.caption).foregroundStyle(.secondary)
 				.monospacedDigit()

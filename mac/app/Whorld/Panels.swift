@@ -1225,7 +1225,10 @@ private struct ControlTip: ViewModifier {
 	@AppStorage(HoverTips.key) private var on = true
 
 	func body(content: Content) -> some View {
-		content.help(on ? text : "")	// "" shows nothing; the view stays the same view
+		// "" shows nothing; the view stays the same view. VoiceOver reads the
+		// tip as the control's hint whether tips show or not (the
+		// accessibility pass, 2026-11-27: off, it heard nothing)
+		content.help(on ? text : "").accessibilityHint(text)
 	}
 }
 
@@ -1525,6 +1528,19 @@ struct ParamRow: View {
 		WHControls.paramControl(iParam, column: col)
 	}
 
+	/// a column's name for VoiceOver: "Ring Growth amplitude"
+	private func spoken(_ prop: WHParamProperty) -> String {
+		let name = WHControls.paramName(iParam)
+		switch prop {
+		case .val: return name
+		case .wave: return name + " waveform"
+		case .amp: return name + " amplitude"
+		case .freq: return name + " frequency"
+		case .PW: return name + " pulse width"
+		default: return name
+		}
+	}
+
 	private func field(_ prop: WHParamProperty, column: Int, width: CGFloat, dimmed: Bool = false) -> some View {
 		let ci = control(column)
 		let bounded = ci.editClamp.boolValue
@@ -1543,6 +1559,7 @@ struct ParamRow: View {
 			defaultValue: model.engine.loadedParamValue(iParam, property: prop),	// the patch as loaded or last saved
 			width: width,
 			dimmed: dimmed)
+			.accessibilityLabel(spoken(prop))
 			.midiLearnable(WHMappingInfo.targetTag(iParam), prop: prop.rawValue)	// MIDI Learn mode
 	}
 
@@ -1564,12 +1581,16 @@ struct ParamRow: View {
 				defaultValue: model.engine.loadedParamValue(iParam, property: .val),
 				width: FormFit.sliderMin,
 				marker: .param(iParam))
+				// for VoiceOver: its name, and its value as the box shows it (not the position)
+				.accessibilityLabel(spoken(.val))
+				.accessibilityValue(paramText(e.paramValue(iParam, property: .val), control(0)))
 				.midiLearnable(WHMappingInfo.targetTag(iParam), prop: WHParamProperty.val.rawValue)	// MIDI Learn mode
 			if let w = fit.width(0) {
 				field(.val, column: 0, width: w)
 			}
 			if let w = fit.width(1) {
 				WaveformMenu(iParam: iParam, width: w)
+					.accessibilityLabel(spoken(.wave))
 					.midiLearnable(WHMappingInfo.targetTag(iParam), prop: WHParamProperty.wave.rawValue)
 			}
 			if let w = fit.width(2) {
@@ -1840,6 +1861,8 @@ struct MasterRow: View {
 				step: { masterStep(i, ci, $0, $1, $2) },
 				width: FormFit.sliderMin,
 				marker: .master(i))
+				.accessibilityLabel(WHControls.masterName(i))	// VoiceOver: as the box shows it
+				.accessibilityValue(masterText(i, value))
 				.midiLearnable(WHMappingInfo.targetTag(WHMappingInfo.paramTargetCount + i))	// MIDI Learn mode
 			if let box {
 				NumberField(
@@ -1852,6 +1875,7 @@ struct MasterRow: View {
 					hi: WHControls.masterValue(i, position: Double(ci.rangeMax)),
 					defaultValue: model.engine.loadedMasterValue(i),
 					width: box)
+					.accessibilityLabel(WHControls.masterName(i))
 					.midiLearnable(WHMappingInfo.targetTag(WHMappingInfo.paramTargetCount + i))
 			}
 		}
@@ -1883,6 +1907,8 @@ struct HueRow: View {
 				step: { d, k in model.setHue(step(value, d, k)) },
 				marker: .hue)
 				.frame(minWidth: FormFit.sliderMin, maxWidth: .infinity, minHeight: 18, maxHeight: 18)
+				.accessibilityLabel("Hue")
+				.accessibilityValue(hueText(value))
 				.midiLearnable("Hue")	// MIDI Learn mode
 			if let box {
 				NumberField(
@@ -1895,6 +1921,7 @@ struct HueRow: View {
 					hi: 360,
 					defaultValue: model.engine.loadedHue,
 					width: box)
+					.accessibilityLabel("Hue")
 					.midiLearnable("Hue")
 			}
 		}
@@ -1946,6 +1973,8 @@ struct GlobalRow: View {
 				defaultValue: model.engine.loadedParamValue(i, property: .global),
 				width: FormFit.sliderMin,
 				marker: .global(i))
+				.accessibilityLabel(WHControls.paramName(i) + " global")	// VoiceOver: as the box shows it
+				.accessibilityValue(paramText(value, ci))
 				.midiLearnable(WHMappingInfo.targetTag(i), prop: WHParamProperty.global.rawValue)	// MIDI Learn mode
 			if let box {
 				NumberField(
@@ -1959,6 +1988,7 @@ struct GlobalRow: View {
 					hi: ci.editMax,
 					defaultValue: model.engine.loadedParamValue(i, property: .global),
 					width: box)
+					.accessibilityLabel(WHControls.paramName(i) + " global")
 					.midiLearnable(WHMappingInfo.targetTag(i), prop: WHParamProperty.global.rawValue)
 			}
 		}

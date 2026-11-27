@@ -298,6 +298,7 @@ struct KeyMapView: View {
 						}
 					}
 					.labelsHidden()
+					.accessibilityLabel("Speed")
 				}
 				.width(min: 70, ideal: 80, max: 100)
 			}
@@ -470,6 +471,7 @@ private struct KeyCaptureButton: View {
 		.buttonStyle(.bordered)	// looks clickable, and takes the click from the table row
 		.background(ViewAnchor.Probe(anchor: anchor))
 		.tint(capturing ? .accentColor : nil)
+		.accessibilityLabel(capturing ? "Press a key" : label.isEmpty ? "No key" : "Key " + label)
 		.hoverTip(capturing ? "Press the new key (a plain key, no Shift, Command, Control or Option), Delete for none, or Esc to cancel" : "Click, then press a key to assign it, or Delete to remove it")
 		.onChange(of: capturing) { _, on in on ? session.start(anchor: anchor, done: onKey) : session.stop() }
 		.onDisappear { session.stop() }

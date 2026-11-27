@@ -847,9 +847,11 @@ struct FrameSizePicker: View {
 				HStack(spacing: 4) {
 					sizeField(Binding(get: { shownSize.0 }, set: { typed($0, isWidth: true) }), .trailing)
 						.focused($focused, equals: 0)
+						.accessibilityLabel(title + " width")
 					Text("×")
 					sizeField(Binding(get: { shownSize.1 }, set: { typed($0, isWidth: false) }), .leading)
 						.focused($focused, equals: 1)
+						.accessibilityLabel(title + " height")
 				}
 				.foregroundStyle(dim ? .secondary : .primary)
 			}
@@ -1579,6 +1581,7 @@ struct AutoAdvanceControls: View {
 				hi: Self.range(unit).upperBound,
 				width: NumberField.width(characters: 4),
 				fractions: true)
+				.accessibilityLabel("Auto Advance length")
 				.hoverTip("How long each patch plays before the next, in \(unit == .seconds ? "seconds" : unit == .beats ? "beats" : "bars (4 beats)").")
 			Picker("", selection: Binding(
 				get: { unit },
@@ -1587,6 +1590,7 @@ struct AutoAdvanceControls: View {
 			}
 			.labelsHidden()
 			.fixedSize()
+			.accessibilityLabel("Auto Advance unit")
 			.hoverTip("Count in seconds, or in beats or bars of the music's beat (with an audio input, or Ableton Link). Without a beat it counts at the last tempo heard, or 120 BPM.")
 		}
 	}

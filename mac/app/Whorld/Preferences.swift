@@ -575,6 +575,7 @@ struct PreferencesView: View {
 						Text("Low").font(.caption).foregroundStyle(.secondary)
 						Slider(value: $model.curveQuality, in: 0...1)
 							.frame(width: 140)
+							.accessibilityValue(String(format: "%.0f%%", model.curveQuality * 100))
 						Text("High").font(.caption).foregroundStyle(.secondary)
 					}
 				} label: {
@@ -658,6 +659,7 @@ struct PreferencesView: View {
 						// halves and doubles evenly: the slider is the power of two
 						Slider(value: Binding(get: { log2(swipeSense) }, set: { swipeSense = pow(2, ($0 * 4).rounded() / 4) }),
 							in: -2...2)
+							.accessibilityValue(String(format: "times %.2f", swipeSense))	// what's shown, not the slider's log scale
 						Text(String(format: "×%.2f", swipeSense))
 							.monospacedDigit()
 							.frame(width: 44, alignment: .trailing)
@@ -668,6 +670,7 @@ struct PreferencesView: View {
 				LabeledContent {
 					HStack {
 						Slider(value: $wheelSense, in: 0.1...10)
+							.accessibilityValue(String(format: "%.2f", wheelSense))
 						Text(String(format: "%.2f", wheelSense))
 							.monospacedDigit()
 							.frame(width: 36, alignment: .trailing)
@@ -715,9 +718,11 @@ struct PreferencesView: View {
 						HStack(spacing: 6) {
 							Text("receive").foregroundStyle(.secondary)
 							IntField(value: $oscReceivePort, width: 56)
+								.accessibilityLabel("OSC receive port")
 							Text("send").foregroundStyle(.secondary)
 								.padding(.leading, 4)
 							IntField(value: $oscSendPort, width: 56)
+								.accessibilityLabel("OSC send port")
 						}
 					}
 					LabeledContent("Also send to") {
