@@ -59,14 +59,26 @@ struct MappingPanel: View {
 						.pickerStyle(.inline)
 						.labelsHidden()
 					} label: {
-						Text(WHMappingInfo.targetName(Int(row.data.target)))
+						// a Playlist slot (MIDI Learn's: the Patch target with one
+						// value) says so (2026-11-27; it read "Patch", 3.937 to 3.937)
+						Text(LearnMode.slot(of: row.data).map { "Playlist Slot \($0 + 1)" }
+							?? WHMappingInfo.targetName(Int(row.data.target)))
 					}
 					.menuStyle(.borderlessButton)
 					.fixedSize()
 				}
 				.width(min: 120, ideal: 150)
 				TableColumn("Property") { row in
-					if WHMappingInfo.targetHasProperty(Int(row.data.target)) {
+					if let slot = LearnMode.slot(of: row.data) {
+						// the slot's place, to change without learning again
+						IntField(value: slot + 1, range: 1...(LearnMode.slotMax + 1)) { v in
+							var m = row.data
+							m.start = LearnMode.percent(v - 1)
+							m.end = m.start
+							model.setMapping(row.id, m, column: "Slot")
+						}
+						.hoverTip("The playlist place this plays (1 to 128), whatever patch is there")
+					} else if WHMappingInfo.targetHasProperty(Int(row.data.target)) {
 						TableChoice(selection: binding(row, \.prop, "Property"),
 							options: (0..<6).map { (Int32($0), WHControls.paramPropertyName($0)) })
 					} else {
@@ -75,18 +87,26 @@ struct MappingPanel: View {
 				}
 				.width(min: 90, ideal: 110)
 				TableColumn("Start") { row in
-					PercentField(value: row.data.start) { v in
-						var m = row.data
-						m.start = v
-						model.setMapping(row.id, m, column: "Start")
+					if LearnMode.slot(of: row.data) != nil {
+						Text("—").foregroundStyle(.secondary)	// a slot's range is its place (Property)
+					} else {
+						PercentField(value: row.data.start) { v in
+							var m = row.data
+							m.start = v
+							model.setMapping(row.id, m, column: "Start")
+						}
 					}
 				}
 				.width(min: 40, ideal: 56, max: 72)
 				TableColumn("End") { row in
-					PercentField(value: row.data.end) { v in
-						var m = row.data
-						m.end = v
-						model.setMapping(row.id, m, column: "End")
+					if LearnMode.slot(of: row.data) != nil {
+						Text("—").foregroundStyle(.secondary)
+					} else {
+						PercentField(value: row.data.end) { v in
+							var m = row.data
+							m.end = v
+							model.setMapping(row.id, m, column: "End")
+						}
 					}
 				}
 				.width(min: 40, ideal: 56, max: 72)
