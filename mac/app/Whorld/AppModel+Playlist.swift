@@ -177,6 +177,7 @@ extension AppModel {
 		if pendingLaunch >= 0, index != pendingLaunch { cancelLaunch() }
 		let paths = engine.playlistPatches
 		guard index >= 0, index < paths.count, let url = resolvePatchPath(paths[index]) else { return false }
+		let before = automatic ? nil : playState()
 		guard engine.playPatch(atPath: url.path) else { return false }
 		if !automatic {	// played by hand: auto-advance counts from now
 			engine.restartAutoAdvance()
@@ -190,6 +191,7 @@ extension AppModel {
 		patchPlays += 1
 		originFromPatch()
 		resetUndo()
+		if let before { recordPlayUndo(before) }
 		updateTitle()
 		changed()
 		return true
@@ -200,6 +202,7 @@ extension AppModel {
 	/// playlist has it, that entry is the one playing.
 	@discardableResult
 	func playPatchFile(_ url: URL) -> Bool {
+		let before = playState()
 		guard engine.playPatch(atPath: url.path) else { return false }
 		engine.restartAutoAdvance()
 		let target = url.standardizedFileURL
@@ -209,9 +212,54 @@ extension AppModel {
 		patchPlays += 1
 		originFromPatch()
 		resetUndo()
+		recordPlayUndo(before)
 		updateTitle()
 		changed()
 		return true
+	}
+
+	// MARK: Undo Play Patch (Mac addition, the user's request, 2026-11-27)
+
+	/// What playing a patch replaces: the document (with any unsaved edits)
+	/// and which patch the window says is playing
+	struct PlayState {
+		let document: WHDocumentState
+		let playedName: String?
+		let playingFile: URL?
+		let playingPatch: Int
+	}
+
+	func playState() -> PlayState {
+		PlayState(document: engine.documentState(), playedName: playedName,
+			playingFile: playingFile, playingPatch: playingPatch)
+	}
+
+	/// Edit > Undo Play Patch puts the patch that was playing back, as it
+	/// was, edits and all (only those edits' own undo steps are gone, as
+	/// after any play); Redo plays the patch again. Registered with the
+	/// lists' undo, which a play keeps. Auto Advance's plays aren't steps;
+	/// the cue stays where it is.
+	func recordPlayUndo(_ before: PlayState) {
+		recordUndo(key: "play \(UUID())", title: "Play Patch", list: true) { [weak self] in
+			guard let self else { return }
+			let undone = self.playState()
+			self.restorePlayState(before)
+			self.recordPlayUndo(undone)	// the redo
+		}
+	}
+
+	private func restorePlayState(_ s: PlayState) {
+		if pendingLaunch >= 0 { cancelLaunch() }
+		engine.restoreDocumentState(s.document)
+		playedName = s.playedName
+		playingFile = s.playingFile
+		playingPatch = s.playingPatch < engine.playlistPatches.count ? s.playingPatch : -1
+		engine.restartAutoAdvance()
+		patchPlays += 1
+		originFromPatch()
+		resetUndo()
+		updateTitle()
+		changes.document.bump()
 	}
 
 	/// The Patches panel's Add to Playlist and drags: the files go in after

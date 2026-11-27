@@ -218,6 +218,11 @@ typedef struct {
 @property (nonatomic) NSInteger playlistIndex;	// where Next and Previous Patch start; -1: none
 @end
 
+// The document as it stood (Mac addition, for Undo Play Patch): the patch,
+// its reset point, its file and whether it was edited. Opaque.
+@interface WHDocumentState : NSObject
+@end
+
 @interface WHEngine : NSObject
 
 // Document
@@ -235,6 +240,11 @@ typedef struct {
 - (BOOL)savePatchToPath:(NSString *)path error:(NSError **)error;
 // YES after any change since the last new, open or save.
 @property (nonatomic) BOOL modified;
+// The document as it stands, with the live origin (as a save takes it),
+// and back (Mac additions: Undo Play Patch). Restoring sends the patch to
+// the render thread as playing one does.
+- (WHDocumentState *)documentState;
+- (void)restoreDocumentState:(WHDocumentState *)state;
 
 // Parameters, master and main properties of the document. Setters update
 // the document and send the change to the render thread.

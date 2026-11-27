@@ -347,6 +347,15 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 	return a;
 }
 
+@implementation WHDocumentState {
+@public
+	whorld::Patch	doc;
+	whorld::Patch	loaded;
+	BOOL	modified;
+	NSString	*path;
+}
+@end
+
 @implementation WHModState
 @end
 
@@ -737,17 +746,49 @@ static std::vector<whorld::ModSync> ModSyncsFrom(NSArray<WHModSync *> *syncs)
 		whorld::Patch	merged = _doc;
 		merged.MergeGeometry(patch);
 		merged.m_sAuthor = patch.m_sAuthor;	// whose patch is playing
-		_doc = merged;
-		whorld::WhorldEngine	*pEngine = _engine.get();
-		[self pushJob:[pEngine, merged] {
-			pEngine->OnSetPatch(merged, true);	// keeping the running hue
-		}];
+		[self sendDocument:merged];
 	} else {
-		_doc = patch;
-		[self pushPatch];
+		[self sendDocument:patch];
 	}
 	_loaded = _doc;
 	_modified = NO;
+}
+
+// Makes doc the document, whole, and sends it: in Geometry mode keeping the
+// running hue, as playing a patch there does
+- (void)sendDocument:(const whorld::Patch&)doc
+{
+	_doc = doc;
+	if (_geometryMode) {
+		whorld::WhorldEngine	*pEngine = _engine.get();
+		[self pushJob:[pEngine, doc] {
+			pEngine->OnSetPatch(doc, true);	// keeping the running hue
+		}];
+	} else {
+		[self pushPatch];
+	}
+}
+
+- (WHDocumentState *)documentState
+{
+	WHDocumentState	*s = [WHDocumentState new];
+	s->doc = _doc;
+	{	// the origin where it's drawn, as a save takes it
+		std::lock_guard<std::mutex>	lock(_mutex);
+		s->doc.m_main.dptOrigin = _liveOrigin;
+	}
+	s->loaded = _loaded;
+	s->modified = _modified;
+	s->path = _patchPath;
+	return s;
+}
+
+- (void)restoreDocumentState:(WHDocumentState *)state
+{
+	[self sendDocument:state->doc];
+	_loaded = state->loaded;
+	_modified = state->modified;
+	_patchPath = state->path;
 }
 
 // CWhorldDoc::OnNewDocument: default patch
