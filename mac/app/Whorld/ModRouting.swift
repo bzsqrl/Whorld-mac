@@ -396,12 +396,38 @@ final class ModMap {
 		apply()
 	}
 
+	/// applied at once; saved half a second after the last change (a
+	/// slider's drag saved every tick; the performance review, 2026-11-27),
+	/// and when Whorld quits, if one's still waiting
 	private func changed() {
 		undo.note()
+		apply()
+		saveWork?.cancel()
+		let work = DispatchWorkItem { MainActor.assumeIsolated { ModMap.shared.save() } }
+		saveWork = work
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+		if quitObserver == nil {
+			quitObserver = NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification,
+				object: nil, queue: .main) { _ in
+				MainActor.assumeIsolated { ModMap.shared.saveNow() }
+			}
+		}
+	}
+	@ObservationIgnored private var saveWork: DispatchWorkItem?
+	@ObservationIgnored private var quitObserver: Any?
+
+	private func save() {
+		saveWork = nil
 		if let data = try? JSONEncoder().encode(file) {
 			UserDefaults.standard.set(data, forKey: Self.defaultsKey)
 		}
-		apply()
+	}
+
+	/// a waiting save, now (Whorld quitting)
+	func saveNow() {
+		guard let work = saveWork else { return }
+		work.cancel()
+		save()
 	}
 
 	private func apply() {
