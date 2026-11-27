@@ -75,7 +75,11 @@ final class PatchBrowserStore: ObservableObject {
 		folder = Self.savedFolder() ?? WhorldFolders.folder(.patches)
 		activeObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification,
 			object: nil, queue: .main) { _ in
-			MainActor.assumeIsolated { PatchBrowserStore.shared.reload() }	// files added in the Finder meanwhile
+			MainActor.assumeIsolated {
+				PatchBrowserStore.shared.reload()	// files added in the Finder meanwhile
+				AppModel.shared.forgetPatchPaths()	// and the Playlist's moved or found (its rows look again)
+				AppModel.shared.changes.playlist.bump()
+			}
 		}
 		reload()
 	}

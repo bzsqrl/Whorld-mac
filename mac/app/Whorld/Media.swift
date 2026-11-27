@@ -540,7 +540,7 @@ extension AppModel {
 	/// the playlist entries whose patch can't be found
 	var missingPatchIndices: [Int] {
 		let paths = playlistPatches
-		return paths.indices.filter { !paths[$0].isEmpty && resolvePatchPath(paths[$0]) == nil }
+		return paths.indices.filter { !paths[$0].isEmpty && resolvedPatchPath(paths[$0]) == nil }
 	}
 
 	/// After a playlist opens (CPlaylist::CheckPatchPaths): if patches are
@@ -1270,7 +1270,7 @@ struct PlaylistPanel: View {
 									.hoverTip(row.id == model.pendingLaunch ? "Cued; plays on the beat" : "Cued: Return plays it")
 							}
 						}
-						let missing = model.resolvePatchPath(row.path) == nil
+						let missing = model.resolvedPatchPath(row.path) == nil
 						Text(row.name)
 							.foregroundStyle(missing ? .secondary : .primary)
 							.hoverTip(missing ? "Can't be found: \(row.path). Right-click to locate it." : row.path)

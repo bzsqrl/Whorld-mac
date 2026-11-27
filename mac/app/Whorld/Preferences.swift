@@ -268,6 +268,8 @@ enum WhorldFolders {
 			}
 		}
 		PatchBrowserStore.shared.whorldFolderMoved()
+		AppModel.shared.forgetPatchPaths()	// entries are looked for in its Patches folder
+		AppModel.shared.changes.playlist.bump()
 	}
 
 	/// the kind's folder, if it's there (deleted: nil)

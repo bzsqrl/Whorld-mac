@@ -335,7 +335,9 @@ final class AppModel: ObservableObject {
 	var mappingWindowIsKey = false
 	@Published var playlistTitle = "Untitled Playlist"
 	@Published var playlistModified = false
-	var playlistURL: URL?
+	var playlistURL: URL? {
+		didSet { if playlistURL != oldValue { forgetPatchPaths() } }	// entries are looked for beside it
+	}
 	private var learnSelection = Set<Int>()
 	/// MIDI Learn showed the MIDI Mapping panel: it hides it again (setMidiLearn)
 	private var learnShowedMapping = false
@@ -537,6 +539,7 @@ final class AppModel: ObservableObject {
 	// The playlist and auto-advance: in AppModel+Playlist.swift
 	/// Anything may have changed (a patch opened, undo, ...): refresh everything.
 	func changed() {
+		forgetPatchPaths()	// a playlist opened, a patch saved, undo...: the lookups again
 		noteOriginMotion()
 		changes.all()
 		noteEdit()
@@ -1184,6 +1187,12 @@ final class AppModel: ObservableObject {
 	/// where; the title shows the patch's name, not "Untitled" (Mac port).
 	var playedName: String?
 	var authorCache: [String: (date: Date?, author: String)] = [:]
+	/// where each playlist entry was found (nil: missing), and the authors
+	/// already checked against their files' dates, for the Playlist's rows,
+	/// which looked on disk at every redraw (the performance review,
+	/// 2026-11-27); forgotten by forgetPatchPaths
+	var pathCache: [String: URL?] = [:]
+	var authorChecked = Set<String>()
 	// Full screen, other displays, and presses on the picture: in AppModel+Display.swift (its state stays here)
 	let fullScreen = FullScreenController()
 	var screensWatch: NSObjectProtocol?

@@ -41,7 +41,10 @@ extension AppModel {
 	/// A playlist patch's author, for the Playlist's Author column: read from
 	/// the file, and read again only when the file changes
 	func patchAuthor(_ stored: String) -> String {
-		guard let url = resolvePatchPath(stored) else { return "" }
+		guard let url = resolvedPatchPath(stored) else { return "" }
+		// its file's date checked once until the lookups are forgotten
+		if authorChecked.contains(url.path), let cached = authorCache[url.path] { return cached.author }
+		authorChecked.insert(url.path)
 		let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
 		if let cached = authorCache[url.path], cached.date == date {
 			return cached.author

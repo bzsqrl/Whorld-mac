@@ -130,6 +130,23 @@ extension AppModel {
 	/// paths; if the path doesn't exist here, look for the same file name
 	/// next to the playlist, then in Documents/Whorld/Patches (where the
 	/// sample playlists' patches are, named without a folder; 2026-11-22).
+	/// resolvePatchPath, remembered (pathCache): for the Playlist's rows and
+	/// authors, drawn often. Playing a patch looks again, uncached.
+	func resolvedPatchPath(_ stored: String) -> URL? {
+		if let hit = pathCache[stored] { return hit }
+		let url = resolvePatchPath(stored)
+		pathCache[stored] = url
+		return url
+	}
+
+	/// the remembered lookups let go: the playlist or its file changed, the
+	/// Whorld folder moved, or Whorld came back to the front (files may have
+	/// moved in the Finder meanwhile)
+	func forgetPatchPaths() {
+		pathCache.removeAll(keepingCapacity: true)
+		authorChecked.removeAll(keepingCapacity: true)
+	}
+
 	func resolvePatchPath(_ stored: String) -> URL? {
 		let fm = FileManager.default
 		if fm.fileExists(atPath: stored) {
