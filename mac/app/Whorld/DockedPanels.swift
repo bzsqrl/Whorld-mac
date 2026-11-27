@@ -196,10 +196,12 @@ struct DockedPanel: View {
 					}
 				}
 				Menu {
-					// no keys since 2026-11-25 (the user's choice: the arrow
-					// chords went to the cue; other keys may come later)
+					// ⌥⌘ and the arrows over the panel do these (PanelKeys; back
+					// 2026-11-27, the user's choice); All the Way has no keys
+					// (⇧⌥⌘↑ ↓ are the cue's first and last)
 					ForEach(PanelMoves.all, id: \.title) { m in
 						Button("Move " + m.title) { layout.step(id, toward: m.edge, far: false) }
+							.keyboardShortcut(m.key, modifiers: [.command, .option])
 					}
 					Menu("Move All the Way") {
 						ForEach(PanelMoves.all, id: \.title) { m in

@@ -354,3 +354,38 @@ enum PanelMoves {
 	]
 }
 
+/// Option-Command and an arrow moves the panel under the pointer a step
+/// (LayoutModel.step; the user's request, 2026-11-19; gone 2026-11-25 when
+/// the arrow chords went to the cue, back 2026-11-27 on ⌥⌘ alone, the
+/// interface's modifiers). Taken before anything else, wherever the
+/// pointer is: the ⋯ menus show these keys, and none of them should act on
+/// its own panel from afar. Nothing else in Whorld uses them (the cue is
+/// ⌥ alone, and ⇧⌥⌘ for its first and last; text and number boxes don't).
+@MainActor
+enum PanelKeys {
+	private static var monitor: Any?
+
+	static func install() {
+		guard monitor == nil else { return }
+		monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
+			guard e.modifierFlags.intersection([.shift, .command, .option, .control]) == [.command, .option] else { return e }
+			let edge: DockEdge
+			switch e.keyCode {
+			case 123: edge = .leading
+			case 124: edge = .trailing
+			case 126: edge = .top
+			case 125: edge = .bottom
+			default: return e
+			}
+			MainActor.assumeIsolated {
+				guard NSApp.modalWindow == nil else { return }
+				let layout = AppModel.shared.layout
+				if let id = layout.panelUnderPointer() {
+					layout.step(id, toward: edge, far: false)
+				}
+			}
+			return nil
+		}
+	}
+}
+
