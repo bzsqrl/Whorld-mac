@@ -1,21 +1,45 @@
-WHORLD1
-RingGrowth	1	0	0	0	0.5
-RingSpacing	10	0	0	0	0.5
-PolySides	6	0	0	0	0.5
-RotateSpeed	0	0	0.00436332	0.0075	0.5
-AspectRatio	0	0	0	0	0.5
-SkewRadius	0	0	0	0	0.5
-SkewAngle	0	0	0	0	0.5
-StarFactor	0	0	2	0.025	0.5
-ColorSpeed	0.5	1	0.2	0.021	0.5
-Lightness	0.5	1	0.2	0.031	0.5
-Saturation	0.8	1	0.2	0.041	0.5
-BkHue	0	0	0	0	0.5
-BkLightness	0	0	0	0	0.5
-BkSaturation	1	0	0	0	0.5
-Pinwheel	5	0	0	0	0.5
-LineWidth	1	0	0	0	0.5
-Origin	0.529297 0.47526
+WHORLD4
+RingGrowth	1	0	0	0	0.5	0
+RingSpacing	10	0	0	0	0.5	0
+LineWidth	1	0	0	0	0.5	0
+PolySides	6	0	0	0	0.5	0
+RotateSpeed	0	0	0.00436332	0.0075	0.5	0
+AspectRatio	0	0	0	0	0.5	0
+SkewRadius	0	0	0	0	0.5	0
+SkewAngle	0	0	0	0	0.5	0
+StarFactor	0	0	2	0.025	0.5	0
+Pinwheel	5	0	0	0	0.5	0
+ColorSpeed	0.5	1	0.2	0.021	0.5	0
+Lightness	0.5	1	0.2	0.031	0.5	0
+Saturation	0.8	1	0.2	0.041	0.5	0
+Alpha	1	0	0	0	0.5	0
+BkHue	0	0	0	0	0.5	0
+BkLightness	0	0	0	0	0.5	0
+BkSaturation	1	0	0	0	0.5	0
+BkAlpha	1	0	0	0	0.5	0
+EvenCurve	0	0	0	0	0.5	0
+OddCurve	0	0	0	0	0.5	0
+EvenShear	0	0	0	0	0.5	0
+OddShear	0	0	0	0	0.5	0
+Speed	1
+Zoom	1
+Damping	0.186261
+Trail	0
+Rings	1000
+Tempo	100
+HueSpan	30
+CanvasScale	1.4
+Copies	1
+Spread	100
+Origin	0.5 0.5
 DrawMode	2
+OrgMotion	0
+Hue	0
 Mirror	0
+Reverse	0
+Convex	0
+InvertColor	0
+LoopHue	0
+ZoomCenter	0
+Antialiasing	1
 Author	Chris Korda
