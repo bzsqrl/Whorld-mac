@@ -28,6 +28,7 @@
 #include <IOSurface/IOSurfaceRef.h>
 
 #include <cstdint>
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -102,7 +103,10 @@ public:
 			size_t	nBoxTris = 0;	// thin triangles drawn as their bounding box
 		} prof;
 	};
-	const Stats&	GetStats() const { return m_stats; }
+	const Stats&	GetStats() const {	// fGpuMs from the completion handlers' atomic
+		m_stats.fGpuMs = m_fGpuMs.load(std::memory_order_relaxed);
+		return m_stats;
+	}
 	// coverage mode with WHORLD_MTL_PROFILE: the last frame's mask-draw
 	// fragments by path through TriangleMask (see the shader), then [7] the
 	// hybrid fills' fan-flip fragments
@@ -129,7 +133,7 @@ private:
 	double	m_fScale;
 	int		m_nSamples;
 	float	m_fTolerance = 0.1f;
-	Stats	m_stats;
+	mutable Stats	m_stats;
 
 	struct Figure {
 		size_t	iPt;		// first point in m_aPt
@@ -166,6 +170,10 @@ private:
 	bool	m_bXor = false;		// SetXorMode, for the ops that follow
 	int		m_nAblate = 0;		// WHORLD_MTL_ABLATE (profiling)
 	std::function<void(bool, double)>	m_fnDone;	// this frame's completion callback
+	// the last finished frame's GPU time, written by Metal's completion
+	// handlers, which can run at once on different threads (Thread
+	// Sanitizer, 2026-11-27: they wrote m_stats.fGpuMs together)
+	std::atomic<double>	m_fGpuMs{0};
 	void	Commit(void *cmd, size_t nDraws);	// id<MTLCommandBuffer>
 	bool	m_bProfile = false;	// WHORLD_MTL_PROFILE
 	void	ProfileOp(const Op& op);

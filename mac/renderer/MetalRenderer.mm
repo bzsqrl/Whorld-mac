@@ -1530,12 +1530,12 @@ void MetalRenderer::Commit(void *pCmd, size_t nDraws)
 {
 	Impl&	im = *m_pImpl;
 	id<MTLCommandBuffer>	cmd = (__bridge id<MTLCommandBuffer>)pCmd;
-	Stats	*pStats = &m_stats;
+	std::atomic<double>	*pGpuMs = &m_fGpuMs;
 	std::function<void(bool, double)>	fnDone = std::move(m_fnDone);
 	m_fnDone = nullptr;
 	[cmd addCompletedHandler:^(id<MTLCommandBuffer> cb) {
 		double	fMs = (cb.GPUEndTime - cb.GPUStartTime) * 1000;
-		pStats->fGpuMs = fMs;
+		pGpuMs->store(fMs, std::memory_order_relaxed);
 		if (fnDone) {
 			bool	bOk = cb.status == MTLCommandBufferStatusCompleted;
 			if (!bOk)
