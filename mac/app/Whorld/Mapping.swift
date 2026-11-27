@@ -155,9 +155,16 @@ struct MappingPanel: View {
 					.truncationMode(.tail)
 				}
 				Spacer()
-				Text(model.playlistTitle + (model.playlistModified ? " — Edited" : ""))
+				// where the mappings are kept, said (a bare playlist name read as
+				// unexplained; the design audit, 2026-11-27); the first to go
+				// when the bar is short of room
+				Text("Saved with " + model.playlistTitle + (model.playlistModified ? " — Edited" : ""))
 					.font(.caption)
 					.foregroundStyle(.secondary)
+					.lineLimit(1)
+					.truncationMode(.middle)
+					.layoutPriority(-1)
+					.hoverTip("Mappings are saved with the playlist (File > Playlist > Save Playlist, ⌥⌘S)")
 				MidiInputMenu()	// the MIDI input, here too (as Settings > Input; the user's request, 2026-11-26)
 			}
 			.padding(8)
