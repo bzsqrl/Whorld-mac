@@ -1,6 +1,6 @@
 # Whorld macOS Port Plan
 
-Status: **Phases 0–9 done (Phase 7: unnotarized ad-hoc build; Developer ID signing still to do, low priority). Open: the starter rows for the Modulation window's Restore Defaults (AUDIO_PLAN, to tune by ear)** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
+Status: **Phases 0–9 done (Phase 7: Developer ID signed and notarized since 2026-11-27). Open: the starter rows for the Modulation window's Restore Defaults (AUDIO_PLAN, to tune by ear)** · Upstream baseline: `victimofleisure/Whorld` commit `5b5de69` (2026-10-26, V2 2.0.20)
 
 ## Goal
 
@@ -156,7 +156,7 @@ Two notes on accuracy:
 - [x] Universal binary (Apple Silicon + Intel), code signing, DMG packaging. Notarization skipped: it needs an Apple Developer ID, which we don't have yet.
   - `sh mac/packaging/make_dmg.sh` builds Release for arm64 and x86_64, signs ad hoc, checks the signature and `lipo -archs`, and writes `build/dist/Whorld-<version>.dmg` (app, Applications link, license, read-me with the Gatekeeper steps). CI builds it and uploads it as an artifact.
   - Verified: the DMG mounts with the expected contents; `codesign` reports an ad-hoc universal bundle; `spctl` rejects it, as expected without notarization. The packaged app runs natively (about 106 fps windowed) and as x86_64 under Rosetta (about 90 fps). All 14 tests also pass when built as x86_64 and run under Rosetta.
-  - To do with a Developer ID (low priority, the user's choice, 2026-11-14): sign with it, enable the hardened runtime, notarize with `notarytool`, and staple the DMG.
+  - Developer ID signing and notarization, done 2026-11-27 (the user's Developer ID, for the public release): with a Developer ID Application certificate in the keychain, `make_dmg.sh` signs Syphon.framework and the app with it, the hardened runtime and secure timestamps (`mac/packaging/Whorld.entitlements`: audio input only; the app isn't sandboxed, Metal compiles its shaders in its own service), then signs the disk image, notarizes it (`notarytool submit --wait`, keychain profile `whorld-notary`), staples it and checks it with `spctl`. Without one, or with `WHORLD_SIGN=adhoc`, it signs ad hoc as before. The identity is found in the keychain, so no name or team identifier is in the repository. It builds in `build/package`, not `build/release` (a Developer ID signature there would reset the running app's permissions). The file is `build/dist/Whorld.dmg` and the volume "Whorld", without the version (the user's choice). First run: accepted (the first submission took about 75 minutes); Gatekeeper reports "Notarized Developer ID" for the image and the app, the app has the runtime flag and only the audio-input entitlement, and the read-me drops the Control-click steps. Not yet run signed: the app with its permissions prompts (the user's to try, since it's their bundle identifier).
 - [x] README section for the Mac build.
 - [x] Before a public release: measure performance on a base-model Mac (decision from Phase 3). *Done 2026-11-14: the user has been testing on an M4 MacBook Air and is happy with the results.*
 
