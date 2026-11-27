@@ -2777,26 +2777,42 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 
 - (WHModState *)sliderState
 {
-	NSMutableArray<NSNumber *>	*param = [NSMutableArray array], *global = [NSMutableArray array];
-	NSMutableArray<NSNumber *>	*master = [NSMutableArray array], *amp = [NSMutableArray array];
-	NSMutableArray<NSNumber *>	*oscOut = [NSMutableArray array], *oscFreq = [NSMutableArray array];
+	// the values copied under the lock, the objects made after it: the
+	// render thread takes the lock each frame, and this runs 30 times a
+	// second (the performance review, 2026-11-27)
+	constexpr int	nParams = whorld::WhorldBase::PARAM_COUNT, nMaster = whorld::WhorldBase::MASTER_COUNT;
+	double	aParam[nParams], aGlobal[nParams], aAmp[nParams], aOscOut[nParams], aOscFreq[nParams], aMaster[nMaster];
 	double	fHue = 0;
 	bool	bMod;
 	{
 		std::lock_guard<std::mutex>	lock(_mutex);
 		bMod = _modShown;
-		for (int i = 0; i < whorld::WhorldBase::PARAM_COUNT; i++) {
-			[param addObject:@(bMod ? _modParam[i] : 0)];
-			[global addObject:@(bMod ? _modGlobal[i] : 0)];
-			[amp addObject:@(bMod ? _modAmp[i] : 0)];
-			[oscOut addObject:@(_oscOut[i])];
-			[oscFreq addObject:@(_oscFreq[i])];
+		for (int i = 0; i < nParams; i++) {
+			aParam[i] = bMod ? _modParam[i] : 0;
+			aGlobal[i] = bMod ? _modGlobal[i] : 0;
+			aAmp[i] = bMod ? _modAmp[i] : 0;
+			aOscOut[i] = _oscOut[i];
+			aOscFreq[i] = _oscFreq[i];
 		}
 		if (bMod) {
-			for (int i = 0; i < whorld::WhorldBase::MASTER_COUNT; i++)
-				[master addObject:@(_modMaster[i])];
+			for (int i = 0; i < nMaster; i++)
+				aMaster[i] = _modMaster[i];
 			fHue = _modHue;
 		}
+	}
+	NSMutableArray<NSNumber *>	*param = [NSMutableArray arrayWithCapacity:nParams], *global = [NSMutableArray arrayWithCapacity:nParams];
+	NSMutableArray<NSNumber *>	*master = [NSMutableArray arrayWithCapacity:nMaster], *amp = [NSMutableArray arrayWithCapacity:nParams];
+	NSMutableArray<NSNumber *>	*oscOut = [NSMutableArray arrayWithCapacity:nParams], *oscFreq = [NSMutableArray arrayWithCapacity:nParams];
+	for (int i = 0; i < nParams; i++) {
+		[param addObject:@(aParam[i])];
+		[global addObject:@(aGlobal[i])];
+		[amp addObject:@(aAmp[i])];
+		[oscOut addObject:@(aOscOut[i])];
+		[oscFreq addObject:@(aOscFreq[i])];
+	}
+	if (bMod) {
+		for (int i = 0; i < nMaster; i++)
+			[master addObject:@(aMaster[i])];
 	}
 	WHModState	*state = [[WHModState alloc] init];
 	state.modulating = bMod;
