@@ -895,15 +895,33 @@ final class LayoutModel: ObservableObject {
 			layout.setRoot(root.swapping(leaf, nextLeaf), r)
 			return
 		}
-		// at the area's side: into the next area, or nowhere
+		// at the area's side: into the next area, or nowhere. A full-height
+		// side (since 2026-11-25) is beside the bottom row, not above it:
+		// the row's ends lead into it, at its foot, and a pane of it beside
+		// the row leads into the row's end (the user's choice, 2026-11-27)
+		let main = AppModel.shared.mainWindow
+		let full = { (side: Region) in self.layout.fullHeight.contains(side) }
+		/// the panel is beside the bottom row (a full-height side's lower
+		/// part, or all of it): any of it is, so a step out of the row and
+		/// back is a round trip
+		let besideBottom: Bool = {
+			guard layout.bottom != nil, let main, let f = frame(paneViews[id], in: main),
+				let b = frame(regionViews[.bottom], in: main) else { return false }
+			return f.minY < b.maxY - 4	// window coordinates: y up
+		}()
 		switch (r, d) {
-		case (.bottom, .top):	// up into the side column on its half of the window
-			let main = AppModel.shared.mainWindow
+		case (.bottom, .leading) where full(.left): span(id, along: .bottom, of: .left)
+		case (.bottom, .trailing) where full(.right): span(id, along: .bottom, of: .right)
+		case (.bottom, .top):	// up into the side column on its half of the window, if it's above
 			let mid = main?.contentView?.bounds.midX ?? 0
 			let x = main.flatMap { frame(paneViews[id], in: $0)?.midX } ?? 0
-			move(id, to: x < mid ? .left : .right)
+			let side: Region = x < mid ? .left : .right
+			if !full(side) { move(id, to: side) }	// a full-height side isn't above: the picture is
+		case (.left, .trailing) where full(.left) && besideBottom: span(id, along: .leading, of: .bottom)
+		case (.right, .leading) where full(.right) && besideBottom: span(id, along: .trailing, of: .bottom)
 		case (.left, .trailing): move(id, to: .right)
 		case (.right, .leading): move(id, to: .left)
+		case (.left, .bottom) where full(.left), (.right, .bottom) where full(.right): break	// nothing below
 		case (.left, .bottom):	// down into the bottom row, at its left end
 			if layout.bottom != nil { span(id, along: .leading, of: .bottom) } else { move(id, to: .bottom) }
 		case (.right, .bottom): move(id, to: .bottom)	// at its right end
