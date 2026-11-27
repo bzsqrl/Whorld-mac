@@ -550,6 +550,7 @@ final class StripFeed {
 	}
 
 	private func tickBeat() {
+		guard views.contains(where: { $0.view?.part == .beat && $0.view?.isShowing == true }) else { return }	// behind full screen, say
 		let now = Date()
 		var state = 0, tempo = "", count: Int?
 		if !ModMap.shared.bypass {

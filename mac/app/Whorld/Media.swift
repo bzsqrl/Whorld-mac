@@ -1208,7 +1208,6 @@ struct PlaylistPanel: View {
 							}
 						}
 						let missing = model.resolvePatchPath(row.path) == nil
-						let _ = model.cueBank	// the pads' bank, shaded (inBank)
 						Text(row.name)
 							.foregroundStyle(missing ? .secondary : .primary)
 							.hoverTip(missing ? "Can't be found: \(row.path). Right-click to locate it." : row.path)
@@ -1658,6 +1657,7 @@ struct AutoAdvanceButton: NSViewRepresentable {
 		}
 
 		private func poll() {
+			guard isShowing || !running else { return }	// behind full screen, say: the ring waits
 			var f: ObjCBool = true
 			var tempo = 0.0
 			let p = running ? engine?.autoAdvanceProgress(followingBeat: &f, tempo: &tempo) ?? 0 : 0

@@ -17,6 +17,26 @@
 
 import AppKit
 
+/// The cue's state: the entry Go plays (-1 none), a Go waiting for the beat
+/// (the entry it plays, -1 none), the pads' bank (MIDI's Pad 1 to 16 play
+/// bank × size + n) and whether one has been used (the Playlist and the
+/// overlay show it then). Observed, apart from AppModel's published state,
+/// so moving the cue redraws only what shows it. The Playlist's selection
+/// too, for the same reason.
+@MainActor
+@Observable
+final class CueState {
+	var cuedPatch = -1 { didSet { if cuedPatch != oldValue { changed() } } }
+	var pendingLaunch = -1 { didSet { if pendingLaunch != oldValue { changed() } } }
+	var cueBank = 0 { didSet { if cueBank != oldValue { changed() } } }
+	var bankShown = false { didSet { if bankShown != oldValue { changed() } } }
+	/// the Playlist's selected rows (AppModel.playlistSelection)
+	var selection = Set<Int>() { didSet { if selection != oldValue { changed() } } }
+	/// bumped by each change: the Playlist reads it to redraw its rows
+	private(set) var version = 0
+	private func changed() { version &+= 1 }
+}
+
 /// When Go plays the cued patch: at once, or on the beat's next beat, bar
 /// or 4 bars (Ableton Link's while it drives the beat, else the beat
 /// tracker's); at once whenever there's no beat to wait for

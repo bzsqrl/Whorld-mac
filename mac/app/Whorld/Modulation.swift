@@ -634,6 +634,7 @@ private final class MeterFeed {
 	}
 
 	private func tick() {
+		guard views.allObjects.contains(where: { $0.isShowing }) else { return }	// behind full screen, say
 		let r = WHAudioInput.shared.reading()
 		let now = Date()
 		let link = Self.linkBeat()

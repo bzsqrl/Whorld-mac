@@ -302,14 +302,14 @@ final class AppModel: ObservableObject {
 	@Published var currentSnapshot = 0
 	/// Index of the playing playlist patch (CPlaylistBar::m_iPlayingPatch).
 	@Published var playingPatch = -1
-	/// the cue (AppModel+Cue.swift): the entry Go plays, -1 for none
-	@Published var cuedPatch = -1
-	/// a Go waiting for the beat: the entry it plays, -1 for none
-	@Published var pendingLaunch = -1
-	/// the pads' bank (MIDI's Pad 1 to 16 play bank × size + n), and
-	/// whether one has been used (the Playlist and the overlay show it then)
-	@Published var cueBank = 0
-	@Published var bankShown = false
+	/// the cue's state (AppModel+Cue.swift), observed by the views that
+	/// show it, not published: a change to AppModel rebuilds every open
+	/// panel, and ⌥↓ held moved the cue 30 times a second (2026-11-25)
+	let cue = CueState()
+	var cuedPatch: Int { get { cue.cuedPatch } set { cue.cuedPatch = newValue } }
+	var pendingLaunch: Int { get { cue.pendingLaunch } set { cue.pendingLaunch = newValue } }
+	var cueBank: Int { get { cue.cueBank } set { cue.cueBank = newValue } }
+	var bankShown: Bool { get { cue.bankShown } set { cue.bankShown = newValue } }
 	/// the beat count when that Go was pressed (it plays on a later one)
 	var launchFrom = 0
 	/// the number being typed after Option-Command-G, and the cue before it
@@ -320,7 +320,9 @@ final class AppModel: ObservableObject {
 	/// Counts patches played from the playlist (the Playlist panel scrolls
 	/// to the playing one on each, even the same one again)
 	@Published var patchPlays = 0
-	@Published var playlistSelection = Set<Int>()
+	/// the Playlist's selected rows, in CueState: not published, so a click
+	/// or an arrow in the list redraws the Playlist alone (2026-11-25)
+	var playlistSelection: Set<Int> { get { cue.selection } set { cue.selection = newValue } }
 	@Published var movieExportProgress: (done: Int64, total: Int64)? = nil
 
 	/// Mapping rows selected in the MIDI Mapping window, for learn.

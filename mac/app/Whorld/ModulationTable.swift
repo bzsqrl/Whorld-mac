@@ -28,7 +28,7 @@ private final class ModLevels: ObservableObject {
 		guard timer == nil else { return }
 		timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 20, repeats: true) { [weak self] _ in
 			MainActor.assumeIsolated {
-				guard let self else { return }
+				guard let self, PanelsShowing.any else { return }	// not behind full screen
 				let l = AppModel.shared.engine.modulationLevels.map { $0.doubleValue }
 				if l != self.levels {
 					self.levels = l

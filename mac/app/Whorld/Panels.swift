@@ -1033,6 +1033,7 @@ final class ModMarkers {
 	static let fastOscillator = 2.0
 
 	private func tick() {
+		guard sliders.allObjects.contains(where: { $0.isShowing }) else { return }	// none on screen: nothing to do
 		let e = AppModel.shared.engine
 		let state = e.sliderState()
 		let showOsc = UserDefaults.standard.object(forKey: Self.oscDefaultsKey) as? Bool ?? true
@@ -1049,7 +1050,7 @@ final class ModMarkers {
 		shown = true
 		let targeted = state.modulating ? Self.targetedControls() : []
 		for s in sliders.allObjects {
-			guard let target = s.markerTarget, s.window != nil else { continue }
+			guard let target = s.markerTarget, s.isShowing else { continue }
 			let modulated = targeted.contains(target)
 			if case .param(let i) = target, showOsc, let osc = oscillator(i, state, e) {
 				s.band = osc.band
@@ -1937,6 +1938,28 @@ struct GlobalRow: View {
 }
 
 // MARK: Properties (main properties): PropertyChips.swift
+
+// MARK: Showing
+
+extension NSView {
+	/// In a window that's at least partly on screen: not behind the full-
+	/// screen picture, minimized, or on another Space. The panels' timers
+	/// skip their work otherwise (2026-11-25: they ran on in full screen,
+	/// where smoothness matters most).
+	var isShowing: Bool {
+		guard let w = window, w.isVisible, w.occlusionState.contains(.visible) else { return false }
+		return !isHiddenOrHasHiddenAncestor
+	}
+}
+
+@MainActor
+enum PanelsShowing {
+	/// the Whorld window or a floating panel's window is at least partly on screen
+	static var any: Bool {
+		let showing = { (w: NSWindow?) -> Bool in w.map { $0.isVisible && $0.occlusionState.contains(.visible) } ?? false }
+		return showing(AppModel.shared.mainWindow) || AppModel.shared.layout.floatingWindows.values.contains { showing($0.window) }
+	}
+}
 
 // MARK: Info icons
 
