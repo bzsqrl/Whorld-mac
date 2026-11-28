@@ -599,27 +599,38 @@ struct LayoutFile: Codable {
 	/// A layout's JSON (a LayoutFile, or a Layout) without the panels this
 	/// Whorld doesn't have (from a newer one), so the rest of it still
 	/// opens: they're taken out of the regions, tabs and lists, as if hidden.
+	/// A panel in more than one place (a damaged or hand-edited file) stays
+	/// in the first: left, right, bottom, then floating (2026-11-27).
 	static func sanitized(_ data: Data) -> Data {
 		guard let root = try? JSONSerialization.jsonObject(with: data) else { return data }
 		func known(_ v: Any) -> Bool { (v as? String).flatMap(PanelID.init(rawValue:)) != nil }
+		// the panels already placed, while the regions and floating are read
+		var placed = Set<String>()
+		func first(_ v: Any) -> Bool {
+			guard known(v), let id = v as? String else { return false }
+			return placed.insert(id).inserted
+		}
 		// a DockNode as Codable writes it: {"panel":{"_0":id}},
 		// {"tabs":{"_0":[ids],"selected":id}}, {"split":{"_0":axis,"_1":[nodes]}}
-		func node(_ v: Any) -> Any? {
+		// once: a region's, each panel kept only where it's first placed
+		// (not the remembered places' neighbours, which name panels placed elsewhere)
+		func node(_ v: Any, once: Bool = false) -> Any? {
+			let keep: (Any) -> Bool = once ? first : known
 			guard let d = v as? [String: Any] else { return v }
 			if let p = d["panel"] as? [String: Any] {
-				return known(p["_0"] ?? "") ? d : nil
+				return keep(p["_0"] ?? "") ? d : nil
 			}
 			if let t = d["tabs"] as? [String: Any], let ids = t["_0"] as? [Any] {
-				let kept = ids.filter(known)
+				let kept = ids.filter(keep)
 				if kept.isEmpty { return nil }
 				if kept.count == 1 { return ["panel": ["_0": kept[0]]] }
 				var t2 = t
 				t2["_0"] = kept
-				if !known(t["selected"] ?? "") { t2["selected"] = kept[0] }
+				if !kept.contains(where: { ($0 as? String) == (t["selected"] as? String) }) { t2["selected"] = kept[0] }
 				return ["tabs": t2]
 			}
 			if let sp = d["split"] as? [String: Any], let kids = sp["_1"] as? [Any] {
-				let kept = kids.compactMap(node)
+				let kept = kids.compactMap { node($0, once: once) }
 				if kept.isEmpty { return nil }
 				if kept.count == 1 { return kept[0] }
 				var sp2 = sp
@@ -631,11 +642,10 @@ struct LayoutFile: Codable {
 		func layout(_ l: [String: Any]) -> [String: Any] {
 			var l = l
 			for k in ["left", "right", "bottom"] {
-				if let v = l[k] { l[k] = node(v) }	// (nil removes it)
+				if let v = l[k] { l[k] = node(v, once: true) }	// (nil removes it)
 			}
-			for k in ["floating", "lastFloating"] {
-				if let a = l[k] as? [Any] { l[k] = a.filter(known) }
-			}
+			if let a = l["floating"] as? [Any] { l["floating"] = a.filter(first) }
+			if let a = l["lastFloating"] as? [Any] { l["lastFloating"] = a.filter(known) }
 			if let a = l["lastRegion"] as? [Any] {	// [PanelID: Region]: key, value, key, value
 				var kept: [Any] = []
 				var i = 0
@@ -649,7 +659,7 @@ struct LayoutFile: Codable {
 				var kept: [Any] = []
 				var i = 0
 				while i + 1 < a.count {
-					if known(a[i]), var place = a[i + 1] as? [String: Any], let before = place["before"].flatMap(node) {
+					if known(a[i]), var place = a[i + 1] as? [String: Any], let before = place["before"].flatMap({ node($0) }) {
 						place["before"] = before
 						if let after = place["after"] { place["after"] = node(after) }
 						kept += [a[i], place]
@@ -867,7 +877,7 @@ final class LayoutModel: ObservableObject {
 	}
 
 	/// ⌥⌘ and an arrow over a panel: a step that way (beside the next pane,
-	/// or into the next area); with ⇧, all the way, along the whole area's
+	/// or into the next area); far (the ⋯ menu's Move All the Way), along the whole area's
 	/// side. A floating panel docks: ← left, → right, ↓ along the bottom.
 	/// The title bar flashes, moved or not (no beep).
 	func step(_ id: PanelID, toward d: DockEdge, far: Bool) {
