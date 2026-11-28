@@ -1,5 +1,7 @@
 ## Whorld for macOS
 
+**Website: [whorld.sqrl.biz](https://whorld.sqrl.biz)**
+
 A native macOS port of [Whorld](https://github.com/victimofleisure/Whorld) V2, the free sacred-geometry visualizer by Chris Korda. This is an unofficial port; the official Whorld, for Windows, is at [victimofleisure/Whorld](https://github.com/victimofleisure/Whorld). This repository keeps Whorld's full history, and the original Windows source in `trunk/Whorld` is unchanged.
 
 Whorld for macOS runs on macOS 14 (Sonoma) or later, on Apple silicon and Intel Macs, and draws patches the same way the Windows version does. On Apple silicon it draws on the GPU with Metal (on an M1 Max, all but the heaviest sample patch hold 120 fps full screen); Intel Macs draw with Core Graphics on the CPU. Patches, playlists, snapshots and movies are the same files on both, so you can share them across platforms. The Mac version adds video export (H.264, HEVC and ProRes) and takes MIDI input through Core MIDI. It can respond to music, from an audio input or from other apps, keep time with other apps through Ableton Link, and export videos that move to a music file. It can also be controlled and monitored over the network with OSC, and a TouchOSC layout is included (Help > Whorld Help lists the addresses). Syphon output sends its picture, with transparency, to VJ apps such as Resolume, MadMapper and OBS.

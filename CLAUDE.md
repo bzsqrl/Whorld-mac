@@ -36,6 +36,15 @@ On macOS, CMake also builds the Core Graphics and Metal renderers, the tools and
 
 Run the engine tests after every engine change. Build the app after every change to the bridge, renderer or app.
 
+## Website
+
+https://whorld.sqrl.biz is the hand-written page in `site/` (one `index.html`, no build step), published to GitHub Pages by `.github/workflows/pages.yml` on every push to `main` that touches `site/`. It's in `site/`, not `docs/`, because `docs/` is the original Whorld's website from upstream: leave it alone. The custom domain is set in the repository's Pages settings (with a workflow, a `CNAME` file isn't used); its DNS is a `CNAME whorld → bzsqrl.github.io` record, DNS only, in the sqrl.biz Cloudflare zone. The page matches the user's other project sites (glim, oopl and oscvlc.sqrl.biz): Inter, dark by default with a light theme, and the Made with AI badge.
+
+- The Download button finds the newest full release's `.dmg` (or, while there is none, the newest pre-release's) through GitHub's API, so it needs no edit per release. Edit the page when features change.
+- Images: `site/img/*.webp` are the centre 640×640 of the golden exports in `mac/testdata/golden` (plus 320px copies); `img/icon-128.png`, `favicon.png` and `apple-touch-icon.png` come from `AppIcon.icns`. Prefer real Mac screenshots if the user supplies some.
+- `site/social-preview.png` (1200×630) is a screenshot of `site/social-preview.html`; re-render it if the title or art changes.
+- Never claim a feature the app doesn't have: take wording from the README and release notes.
+
 ## Rules for porting
 
 - **Preserve behavior.** The point is that a patch looks the same on the Mac as on Windows. Port the math line by line; don't "improve" or simplify formulas, timing, or the order of operations while porting. If something looks like a bug in the original, keep the original behavior and note it in `PORT_PLAN.md` under "Upstream notes".
