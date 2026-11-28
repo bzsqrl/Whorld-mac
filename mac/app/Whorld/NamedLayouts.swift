@@ -108,7 +108,7 @@ final class NamedLayouts: ObservableObject {
 		var l = Layout(left: .split(.column, [.panel(.patches), .panel(.playlist)]),
 			right: .split(.column, [.panel(.params), .panel(.master)]))
 		l.lastRegion = [.properties: .bottom, .globals: .bottom, .mapping: .bottom]
-		l.fullHeight = [.left, .right]	// as Edit's (it has no bottom, so the same until panels go there)
+		l.fullHeight = [.left, .right]	// the sides the whole height (it has no bottom, so the same until panels go there)
 		var f = LayoutFile(layout: l)
 		f.splits = [
 			"Whorld.H.left|center|right": [0.17, 0.59, 0.24],

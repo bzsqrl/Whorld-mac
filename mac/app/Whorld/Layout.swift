@@ -447,34 +447,27 @@ struct Layout: Codable, Equatable {
 	}
 
 	/// What a new install shows, and Window > Reset Layout: Parameters on the
-	/// left beside the picture, Patches above the Playlist, then Properties,
-	/// Master and Globals along the bottom, MIDI Mapping hidden (the user's
-	/// arrangement, 2026-11-11; Patches added 2026-11-23, so the empty
-	/// Playlist's hint names a panel that shows). The divider positions are
-	/// in `standardSplits`.
+	/// left beside the picture, then the Playlist, Properties, Master and
+	/// Globals along the bottom, under both; Patches and MIDI Mapping hidden
+	/// (the View menu shows them; Patches goes above the Playlist). The user's
+	/// arrangement, 2026-11-28, from their own copy (was, since 2026-11-25,
+	/// Parameters full height at 40% and Patches above the Playlist). The
+	/// divider positions are in `standardSplits`.
 	static let standard: Layout = {
 		var l = Layout(left: .panel(.params),
-			bottom: .split(.row, [.split(.column, [.panel(.patches), .panel(.playlist)]),
-				.panel(.properties), .panel(.master), .panel(.globals)]))
+			bottom: .split(.row, [.panel(.playlist), .panel(.properties), .panel(.master), .panel(.globals)]))
 		l.lastRegion = [.mapping: .left]
-		l.fullHeight = [.left, .right]	// the sides the whole height, the bottom beside them (the user's choice, 2026-11-25)
 		return l
 	}()
 
 	/// The standard layout's split views (by autosave name): each pane's
-	/// share of the space, in order
+	/// share of the space, in order (the user's copy, 2026-11-28, its window
+	/// 1512 x 944)
 	static let standardSplits: [String: [Double]] = [
-		// Parameters 40%: every column still fits, narrowed (FormFit), and the
-		// picture gets 60% (was half; the user's request, 2026-11-23)
-		"Whorld.H.left|center": [0.40, 0.60],
-		"Whorld.O.left|middle": [0.40, 0.60],	// Left full height (since 2026-11-25), as wide
+		"Whorld.H.left|center": [0.505, 0.495],	// Parameters about half: every column fits
+		"Whorld.O.left|middle": [0.505, 0.495],	// as wide, if Left is made full height
 		"Whorld.V.top|bottom": [0.5836, 0.4164],
-		// beside the full-height Parameters, 60% of the width: Properties wide
-		// enough for its title and chips, the lists for their bars; Master and
-		// Globals, which had room to spare, narrower (the default layout's
-		// check, 2026-11-27)
-		"Whorld.bottom.row(column(patches,playlist),properties,master,globals)": [0.29, 0.20, 0.27, 0.24],
-		"Whorld.bottom.column(patches,playlist)": [0.5, 0.5],
+		"Whorld.bottom.row(playlist,properties,master,globals)": [0.213, 0.231, 0.282, 0.274],
 	]
 
 	func root(_ r: Region) -> DockNode? {
