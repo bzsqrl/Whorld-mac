@@ -1341,7 +1341,7 @@ struct PlaylistPanel: View {
 			// whole list takes patches dragged from the Patches panel
 			.overlay {
 				if rows.isEmpty {
-					Text("Drag patches here from the Patches panel, or click +")
+					Text("Drag patches here from View > Patches, or click +")
 						.font(.callout).foregroundStyle(.secondary)
 						.multilineTextAlignment(.center)
 						.padding()
