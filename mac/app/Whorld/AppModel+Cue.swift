@@ -183,6 +183,26 @@ extension AppModel {
 		return "Bank \(cueBank + 1) (\(first)–\(last))"
 	}
 
+	/// For OSC (the TouchOSC layout's PERFORM page; Mac addition, 2026-11-27):
+	/// the cue, the bank, and each of the 16 pads' patch and state (0 no
+	/// patch, 1 a patch, 2 cued, 3 playing), by address after /w
+	var oscCueValues: [String: Any] {
+		let list = playlistPatches, size = PadSettings.size
+		var v: [String: Any] = [
+			"cue": cuedPatch,
+			"cue/name": cuedPatch >= 0 && cuedPatch < list.count ? Self.patchName(list[cuedPatch]) : "",
+			"cue/bank": bankText ?? "",
+			"cue/wait": pendingLaunch >= 0 ? 1 : 0,
+		]
+		for n in 0..<16 {
+			let i = cueBank * size + n
+			let has = n < size && i < list.count
+			v["cue/pad\(n + 1)/name"] = has ? Self.patchName(list[i]) : ""
+			v["cue/pad\(n + 1)/state"] = !has ? 0 : i == playingPatch ? 3 : i == cuedPatch ? 2 : 1
+		}
+		return v
+	}
+
 	/// whether an entry is in the pads' bank (the Playlist shades it)
 	func inBank(_ index: Int) -> Bool {
 		bankShown && index / PadSettings.size == cueBank

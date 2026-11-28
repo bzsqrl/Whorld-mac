@@ -383,6 +383,12 @@ typedef struct {
 // patch's controls, pause, the playing patch, names, full screen).
 - (void)oscSendStateWithPatch:(NSInteger)playingPatch patchName:(NSString *)patchName
 	playlistName:(NSString *)playlistName fullScreen:(BOOL)fullScreen;
+// With it (Mac addition, the TouchOSC layout's PERFORM page, 2026-11-27):
+// more values the app knows, by address after /w ("cue/name"): an NSNumber
+// is sent as a float (an integer one as an int), an NSString as a string;
+// only what changed, and only while some device is listening.
+- (void)oscSendValues:(NSDictionary<NSString *, id> *)values;
+@property (nonatomic, readonly) BOOL oscListening;	// some device is (state is worth working out)
 // Main thread, once a second: the frame statistics (View > Show Stats'), as
 // numbers and as that line of text.
 - (void)oscSendStats:(NSString *)text;

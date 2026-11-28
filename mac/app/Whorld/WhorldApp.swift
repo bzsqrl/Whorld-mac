@@ -1241,6 +1241,7 @@ final class AppModel: ObservableObject {
 	private func oscTick() {
 		engine.oscSendState(withPatch: playingPatch, patchName: title, playlistName: playlistTitle,
 			fullScreen: isFullScreen)
+		if engine.oscListening { engine.oscSendValues(oscCueValues) }
 	}
 
 	// MARK: Syphon

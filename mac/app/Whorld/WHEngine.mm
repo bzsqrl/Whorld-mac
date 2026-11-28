@@ -2149,6 +2149,33 @@ static bool OscSame(const whorld::OscArg& a, const whorld::OscArg& b)
 	[self oscSend:p + "/mod/depth" arg:OscArg::Float(fDepth)];
 }
 
+- (BOOL)oscListening
+{
+	return _osc && _osc->ClientCount() > 0;
+}
+
+- (void)oscSendValues:(NSDictionary<NSString *, id> *)values
+{
+	if (!_osc || _osc->ClientCount() == 0)
+		return;
+	using whorld::OscArg;
+	std::string	p = std::string(whorld::OscRemote::PREFIX) + "/";
+	for (NSString *key in values) {
+		id	v = values[key];
+		std::string	path = p + (key.UTF8String ?: "");
+		if ([v isKindOfClass:NSString.class]) {
+			[self oscSend:path arg:OscArg::String(((NSString *)v).UTF8String ?: "")];
+		} else if ([v isKindOfClass:NSNumber.class]) {
+			NSNumber	*n = v;
+			double	d = n.doubleValue;
+			if (strcmp(n.objCType, @encode(double)) != 0 && strcmp(n.objCType, @encode(float)) != 0 && d == std::floor(d))
+				[self oscSend:path arg:OscArg::Int((int)n.integerValue)];
+			else
+				[self oscSend:path arg:OscArg::Float(d)];
+		}
+	}
+}
+
 - (void)oscSendStats:(NSString *)text
 {
 	if (!_osc || _osc->ClientCount() == 0)
