@@ -2,7 +2,7 @@
 <!-- This file is part of Whorld for macOS, a port of Whorld by Chris Korda.
      Copyright 2026 Jeff Matson. GNU GPL version 3 or later; see LICENSE.
      Written with Claude (Anthropic).
-     Keep the shortcut table in step with the one in mac/app/README.md. -->
+     The shortcut table is the only list of them (mac/app/README.md points here). -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -22,6 +22,7 @@ nav.toc ol { margin: .3em 0; columns: 2; column-gap: 2em; } nav.toc li { break-i
 @media (max-width: 34em) { nav.toc ol { columns: 1; } }
 .note { color: var(--muted); }
 table { border-collapse: collapse; width: 100%; font-size: .93em; }
+tr.group th { padding-top: 1em; color: var(--muted); font-size: .85em; text-transform: uppercase; letter-spacing: .04em; }
 th, td { text-align: left; padding: .3em .6em; border-bottom: 1px solid var(--rule); vertical-align: top; }
 code, kbd { font: .92em ui-monospace, Menlo, monospace; }
 </style>
@@ -367,7 +368,7 @@ A step too small for a number box to show moves it to the next value it shows. S
 <li><b>Hue</b>, <b>Rotate Hue</b> and <b>Invert Color</b>.</li>
 <li>For audio modulation: <b>Modulation On</b>, <b>Modulation Depth</b>, <b>Reset to 1.1</b> (on a press), <b>Beat Back</b>, <b>Beat Forward</b>, <b>Bar Back</b>, <b>Bar Forward</b> and <b>Half Beat</b> (on a press), and <b>Reset Bar Count</b> (on a press: the nearest bar becomes bar 1, the beat kept).</li>
 <li><b>Geometry Mode</b> (on is Geometry), <b>Auto Advance</b> (on plays, off stops) and <b>Blackout</b> (on fades to black, off brings it back).</li>
-<li><b>MIDI Learn mode:</b> View &gt; MIDI Learn (<kbd>⌥⌘L</kbd>, or <b>Learn</b> in MIDI Mapping) puts the whole window in the mode: every control MIDI can move is tinted, with the MIDI input of each mapped one in a small box (<i>CC21</i>, <i>N36</i>). If the MIDI Mapping panel was hidden it shows while the mode is on, and hides again after; its foot says what's picked and what was heard. Click a control (it doesn't change; for a parameter, the column you click), then move a knob, fader or pad: a mapping is added for it and selected, so moving another knob instead replaces that input. Click a mapped control to learn its mapping again, or <kbd>⌥</kbd>-click to add another. One input can move several controls. Releases (a pad's note off) are never learned. <kbd>Delete</kbd> removes the selected mapping, each change can be undone, and <kbd>Esc</kbd>, <kbd>⇧⌘M</kbd> or entering full screen ends the mode. Targets with no control on screen (Go, the pads, the beat's nudges) are added with <b>+</b> in MIDI Mapping, as before. Swipes and keys keep working.</li>
+<li><b>MIDI Learn mode:</b> View &gt; MIDI Learn (<kbd>⌥⌘L</kbd>, or <b>Learn</b> in MIDI Mapping) puts the whole window in the mode: every control MIDI can move is tinted, with the MIDI input of each mapped one in a small box (<i>CC21</i>, <i>N36</i>). If the MIDI Mapping panel was hidden it shows while the mode is on, and hides again after; its foot says what's picked and what was heard. Click a control (it doesn't change; for a parameter, the column you click), then move a knob, fader or pad: a mapping is added for it and selected, so moving another knob instead replaces that input. Click a mapped control to learn its mapping again, or <kbd>⌥</kbd>-click to add another. One input can move several controls. Releases (a pad's note off) are never learned. <kbd>Delete</kbd> removes the selected mapping, each change can be undone, and <kbd>Esc</kbd>, <kbd>⌥⌘L</kbd> again or entering full screen ends the mode. Targets with no control on screen (Go, the pads, the beat's nudges) are added with <b>+</b> in MIDI Mapping, as before. Swipes and keys keep working.</li>
 <li><b>Toggle or momentary:</b> a mapping to a switch (Fill, Convex, Pause, Blackout, Modulation On and the rest) follows its input as on Windows: on while a pad or button is held, off when it's let go. Tick <b>Toggle</b> in its row of MIDI Mapping and each press flips the switch instead, and the release does nothing: for pads that send only presses, or to latch a momentary pad.</li>
 <li><b>Playlist positions:</b> in the mode, click a Playlist row to map its <i>position</i>, not its patch: the pad then plays whatever patch is at that place, in any playlist (the first 128 places). In MIDI Mapping it reads <i>Playlist Slot 3</i>, with the place in the Property column to change it without learning again (it's Windows' Patch target with Start and End both at that place, so Windows plays it too).</li>
 <li><b>The MIDI input</b> can be chosen at the foot of the MIDI Mapping panel as well as in Settings &gt; Input.</li>
@@ -429,42 +430,38 @@ A step too small for a number box to show moves it to the next value it shows. S
 <p>The Windows shortcuts, with Ctrl mapped to Command except where macOS reserves the key. Where a Windows key is awkward on a Mac keyboard, the menu shows a Mac shortcut and the Windows key works too. Settings &gt; Input &gt; Function keys turns the function keys (F2–F9, F11) on or off; they're on at first, and off they do nothing, so a stray press can't change the picture. They need <kbd>fn</kbd> held on most Mac keyboards, unless System Settings &gt; Keyboard &gt; Keyboard Shortcuts &gt; Function Keys has <i>Use F1, F2, etc. keys as standard function keys</i> turned on. F11 is also macOS's Show Desktop shortcut by default; <kbd>⌘F</kbd> always works.</p>
 <table>
 <tr><th>Command</th><th>Windows</th><th>Mac</th></tr>
+<tr class="group"><th colspan="3">Whorld menu</th></tr>
+<tr><td>Settings</td><td>Shift+O</td><td>⌘,</td></tr>
+<tr class="group"><th colspan="3">File</th></tr>
 <tr><td>New patch</td><td>Ctrl+N</td><td>⌘N</td></tr>
+<tr><td>Open patch</td><td>Ctrl+O</td><td>⌘O</td></tr>
 <tr><td>Save</td><td>Ctrl+S</td><td>⌘S</td></tr>
-<tr><td>Save As</td><td>—</td><td>⇧⌘S</td></tr>
-<tr><td>Undo</td><td>Ctrl+Z</td><td>⌘Z</td></tr>
-<tr><td>Redo</td><td>Ctrl+Y</td><td>⇧⌘Z</td></tr>
-<tr><td>Parameters panel</td><td>Shift+P</td><td>⌥⌘1</td></tr>
-<tr><td>Master panel</td><td>Shift+M</td><td>⌥⌘2</td></tr>
-<tr><td>Globals panel</td><td>Shift+G</td><td>⌥⌘3</td></tr>
-<tr><td>Properties panel</td><td>—</td><td>⌥⌘4</td></tr>
-<tr><td>Show all panels</td><td>—</td><td>⌥⌘P</td></tr>
-<tr><td>Preferences</td><td>Shift+O</td><td>⌘,</td></tr>
-<tr><td>Playlist panel</td><td>Shift+A</td><td>⌥⌘5</td></tr>
-<tr><td>Take Snapshot</td><td>Ctrl+T</td><td>⌘T</td></tr>
-<tr><td>Load Snapshot</td><td>Ctrl+L</td><td>⌘L</td></tr>
-<tr><td>Export image</td><td>Ctrl+E</td><td>⌘E</td></tr>
-<tr><td>Previous / next snapshot (over the picture)</td><td>Page Up / Page Down</td><td>⌘← / ⌘→ (File &gt; Snapshots lists First, Previous, Next and Last, without keys, so the lists keep their scrolling keys)</td></tr>
-<tr><td>Record movie (and stop)</td><td>Ctrl+M</td><td>⌘R</td></tr>
-<tr><td>Play movie</td><td>Ctrl+Shift+M</td><td>none (File &gt; Movie)</td></tr>
-<tr><td>Patches panel (Mac)</td><td>&mdash;</td><td>⌥⌘6</td></tr>
-<tr><td>Modulation panel (Mac)</td><td>&mdash;</td><td>⌥⌘7</td></tr>
-<tr><td>Key Map panel (Mac)</td><td>&mdash;</td><td>⌥⌘9</td></tr>
-<tr><td>Play Movie (Mac; Record Movie is ⌘R)</td><td>&mdash;</td><td>⇧⌘R</td></tr>
-<tr><td>Rewind movie</td><td>Ctrl+Home</td><td>⌘Home (fn‑⌘‑← on laptops)</td></tr>
-<tr><td>MIDI Mapping panel (with macOS Accessibility Zoom's keyboard shortcuts turned on, ⌥⌘8 zooms the screen instead: use View &gt; MIDI Mapping)</td><td>Shift+I</td><td>⌥⌘8</td></tr>
-<tr><td>MIDI Learn</td><td>Shift+L</td><td>none (the MIDI Mapping panel's Learn switch)</td></tr>
+<tr><td>Save As</td><td>&mdash;</td><td>⇧⌘S</td></tr>
 <tr><td>New Playlist</td><td>Ctrl+Shift+N</td><td>⇧⌘N</td></tr>
 <tr><td>Open Playlist</td><td>Ctrl+Shift+O</td><td>⇧⌘O</td></tr>
 <tr><td>Save Playlist</td><td>Ctrl+Shift+S</td><td>⌥⌘S (⇧⌘S is Save As)</td></tr>
 <tr><td>Save Playlist As</td><td>&mdash;</td><td>⌥⇧⌘S</td></tr>
-<tr><td>Next / previous playlist patch (Image menu)</td><td>none</td><td>⌘↓ / ⌘↑</td></tr>
-<tr><td>A random playlist patch, played (Image menu, Mac)</td><td>&mdash;</td><td>⌘/</td></tr>
-<tr><td>Cue: next / previous, ten, first / last, random, a number (Mac)</td><td>&mdash;</td><td>⌥↓ / ⌥↑, ⌥⇧↓ / ⌥⇧↑, ⇧⌥⌘↑ / ⇧⌥⌘↓, ⌥/, ⌥⌘G</td></tr>
-<tr><td>Go: play the cued patch, on Launch Timing / now (Mac)</td><td>&mdash;</td><td>Return / ⌘Return</td></tr>
+<tr><td>Take Snapshot</td><td>Ctrl+T</td><td>⌘T</td></tr>
+<tr><td>Load Snapshot</td><td>Ctrl+L</td><td>⌘L</td></tr>
+<tr><td>Previous / next snapshot (over the picture or full screen)</td><td>Page Up / Page Down</td><td>⌘← / ⌘→ (File &gt; Snapshots lists First, Previous, Next and Last, without keys, so the lists keep their scrolling keys)</td></tr>
+<tr><td>Record movie (and stop)</td><td>Ctrl+M</td><td>⌘R</td></tr>
+<tr><td>Play movie (and stop)</td><td>Ctrl+Shift+M</td><td>⇧⌘R</td></tr>
+<tr><td>Rewind movie</td><td>Ctrl+Home</td><td>⌘Home (fn‑⌘‑← on laptops)</td></tr>
+<tr><td>Export image</td><td>Ctrl+E</td><td>⌘E</td></tr>
+<tr class="group"><th colspan="3">Edit</th></tr>
+<tr><td>Undo</td><td>Ctrl+Z</td><td>⌘Z</td></tr>
+<tr><td>Redo</td><td>Ctrl+Y</td><td>⇧⌘Z</td></tr>
+<tr class="group"><th colspan="3">Image</th></tr>
+<tr><td>Pause</td><td>Ctrl+Space</td><td>Space (⌃Space switches input sources)</td></tr>
+<tr><td>Step</td><td>Shift+Space</td><td>⇧Space</td></tr>
+<tr><td>Clear</td><td>Ctrl+Delete</td><td>⇧⌫ (Shift-Delete), except while you type in a box, where it deletes as Delete does; or ⌘⌦ (forward delete: fn‑⌘‑Delete on laptops). Plain Delete in the Patches and Playlist panels removes the selected patches from the list, never the files</td></tr>
+<tr><td>Next / previous playlist patch</td><td>none</td><td>⌘↓ / ⌘↑</td></tr>
+<tr><td>A random playlist patch, played (Mac)</td><td>&mdash;</td><td>⌘/</td></tr>
 <tr><td>Auto Advance through the playlist, on or off (Mac)</td><td>&mdash;</td><td>⇧⌘P</td></tr>
+<tr><td>Geometry Only, on or off (Mac, Whorld 1's patch mode)</td><td>&mdash;</td><td>⌘G</td></tr>
 <tr><td>Blackout, fade to black or back (Mac)</td><td>&mdash;</td><td>⌘B</td></tr>
-<tr><td>Open patch</td><td>Ctrl+O</td><td>⌘O</td></tr>
+<tr><td>Cue: next / previous, ten, first / last, random, a number (Mac; Image &gt; Cue)</td><td>&mdash;</td><td>⌥↓ / ⌥↑, ⌥⇧↓ / ⌥⇧↑, ⇧⌥⌘↑ / ⇧⌥⌘↓, ⌥/, ⌥⌘G</td></tr>
+<tr><td>Go: play the cued patch, on Launch Timing / now (Mac)</td><td>&mdash;</td><td>Return / ⌘Return</td></tr>
 <tr><td>Fill</td><td>F6</td><td>⌘1, or F6</td></tr>
 <tr><td>Outline</td><td>F7</td><td>⌘2, or F7</td></tr>
 <tr><td>XRay (Mac, Whorld 1's X-Ray)</td><td>&mdash;</td><td>⌘3, or F8</td></tr>
@@ -475,34 +472,49 @@ A step too small for a number box to show moves it to the next value it shows. S
 <tr><td>Rotate Hue (Mac, as in Whorld 1)</td><td>&mdash;</td><td>⌘8, or F3</td></tr>
 <tr><td>Loop Hue</td><td>F2</td><td>⌘9, or F2</td></tr>
 <tr><td>Random Phase</td><td>F9</td><td>⌘0, or F9</td></tr>
-<tr><td>Zoom Center</td><td>Shift+W</td><td>⇧⌘C</td></tr>
-<tr><td>Geometry Only, on or off (Mac, Whorld 1's patch mode)</td><td>&mdash;</td><td>⌘G</td></tr>
-<tr><td>Antialiasing (Image &gt; Antialiasing, or the Properties panel)</td><td>Ctrl+Alt+A</td><td>⇧⌘A</td></tr>
 <tr><td>Origin Center</td><td>Ctrl+0</td><td>⌘− (minus)</td></tr>
 <tr><td>Origin Park (Mac)</td><td>&mdash;</td><td>⇧⌘−</td></tr>
 <tr><td>Origin Drag, on or off (off parks the origin)</td><td>Ctrl+D</td><td>⌘=</td></tr>
 <tr><td>Origin Random, on or off (off parks the origin)</td><td>Ctrl+R</td><td>⇧⌘=</td></tr>
-<tr><td>Audio Modulation on or off (Mac)</td><td>&mdash;</td><td>⌘'</td></tr>
-<tr><td>Automatic Quality on or off (Mac)</td><td>&mdash;</td><td>⌘;</td></tr>
-<tr><td>Reset to 1.1 (Mac)</td><td>&mdash;</td><td>⌘\</td></tr>
-<tr><td>Beat Back, Beat Forward (Mac)</td><td>&mdash;</td><td>⌘[, ⌘]</td></tr>
-<tr><td>Bar Back, Bar Forward (Mac)</td><td>&mdash;</td><td>⇧⌘[, ⇧⌘]</td></tr>
-<tr><td>Half Beat Back, Half Beat Forward (Mac)</td><td>&mdash;</td><td>⌥⌘[, ⌥⌘]</td></tr>
-<tr><td>Pause</td><td>Ctrl+Space</td><td>Space (⌃Space switches input sources)</td></tr>
-<tr><td>Step</td><td>Shift+Space</td><td>⇧Space</td></tr>
-<tr><td>Clear</td><td>Ctrl+Delete</td><td>⇧⌫ (Shift-Delete), except while you type in a box, where it deletes as Delete does; or ⌘⌦ (forward delete: fn‑⌘‑Delete on laptops). Plain Delete in the Patches and Playlist panels removes the selected patches from the list, never the files</td></tr>
+<tr><td>Zoom Center</td><td>Shift+W</td><td>⇧⌘C</td></tr>
+<tr><td>Antialiasing (or the Properties panel)</td><td>Ctrl+Alt+A</td><td>⇧⌘A</td></tr>
+<tr class="group"><th colspan="3">Audio (Mac)</th></tr>
+<tr><td>Audio Modulation on or off</td><td>&mdash;</td><td>⌘'</td></tr>
+<tr><td>Reset to 1.1</td><td>&mdash;</td><td>⌘\</td></tr>
+<tr><td>Beat Back, Beat Forward</td><td>&mdash;</td><td>⌘[, ⌘]</td></tr>
+<tr><td>Bar Back, Bar Forward</td><td>&mdash;</td><td>⇧⌘[, ⇧⌘]</td></tr>
+<tr><td>Half Beat Back, Half Beat Forward</td><td>&mdash;</td><td>⌥⌘[, ⌥⌘]</td></tr>
+<tr class="group"><th colspan="3">View</th></tr>
 <tr><td>Full screen</td><td>F11</td><td>⌘F (View &gt; Enter Full Screen), or ⌃⌘F as in other Mac apps, or F11 if your keyboard sends it; Esc also leaves</td></tr>
 <tr><td>Full screen on another display</td><td>&mdash;</td><td>⇧⌘F (View &gt; Enter Full Screen on Other Display), with more than one display; while full screen, the next display</td></tr>
 <tr><td>Detach</td><td>Ctrl+F12</td><td>⌘D</td></tr>
 <tr><td>Detach to another display</td><td>&mdash;</td><td>⇧⌘D (View &gt; Detach to Other Display), with more than one display; while detached, the next display</td></tr>
-<tr><td>Show Perform Bar</td><td>—</td><td>⌥⌘B</td></tr>
-<tr><td>Show Properties in Perform Bar (Mac)</td><td>—</td><td>⌥⇧⌘B</td></tr>
-<tr><td>Syphon output on or off (Mac)</td><td>—</td><td>⇧⌘Y</td></tr>
-<tr><td>Show tips on hover, on or off (Mac)</td><td>—</td><td>⌥⌘I</td></tr>
-<tr><td>Show Key Map keys in the panels, on or off (Mac)</td><td>—</td><td>⌥⌘K</td></tr>
-<tr><td>MIDI Learn mode, on or off (Mac)</td><td>—</td><td>⌥⌘L</td></tr>
-<tr><td>Info overlay on the picture, on or off (Mac)</td><td>—</td><td>⌥⌘`</td></tr>
-<tr><td>Layouts: Edit, Perform, your own</td><td>—</td><td>⌃⌘1, ⌃⌘2, ⌃⌘3&hellip; (Window menu)</td></tr>
+<tr><td>Parameters panel</td><td>Shift+P</td><td>⌥⌘1</td></tr>
+<tr><td>Master panel</td><td>Shift+M</td><td>⌥⌘2</td></tr>
+<tr><td>Globals panel</td><td>Shift+G</td><td>⌥⌘3</td></tr>
+<tr><td>Properties panel</td><td>&mdash;</td><td>⌥⌘4</td></tr>
+<tr><td>Playlist panel</td><td>Shift+A</td><td>⌥⌘5</td></tr>
+<tr><td>Patches panel (Mac)</td><td>&mdash;</td><td>⌥⌘6</td></tr>
+<tr><td>Modulation panel (Mac)</td><td>&mdash;</td><td>⌥⌘7</td></tr>
+<tr><td>MIDI Mapping panel (with macOS Accessibility Zoom's keyboard shortcuts turned on, ⌥⌘8 zooms the screen instead: use View &gt; MIDI Mapping)</td><td>Shift+I</td><td>⌥⌘8</td></tr>
+<tr><td>Key Map panel (Mac)</td><td>&mdash;</td><td>⌥⌘9</td></tr>
+<tr><td>MIDI Learn mode, on or off (or the MIDI Mapping panel's Learn switch; Esc ends it)</td><td>Shift+L</td><td>⌥⌘L</td></tr>
+<tr><td>Show Perform Bar</td><td>&mdash;</td><td>⌥⌘B</td></tr>
+<tr><td>Show Properties in Perform Bar (Mac)</td><td>&mdash;</td><td>⌥⇧⌘B</td></tr>
+<tr><td>Info overlay on the picture, on or off (Mac)</td><td>&mdash;</td><td>⌥⌘`</td></tr>
+<tr><td>Show Key Map keys in the panels, on or off (Mac)</td><td>&mdash;</td><td>⌥⌘K</td></tr>
+<tr><td>Show tips on hover, on or off (Mac)</td><td>&mdash;</td><td>⌥⌘I</td></tr>
+<tr><td>Automatic Quality on or off (Mac)</td><td>&mdash;</td><td>⌘;</td></tr>
+<tr><td>Syphon output on or off (Mac)</td><td>&mdash;</td><td>⇧⌘Y</td></tr>
+<tr class="group"><th colspan="3">Window</th></tr>
+<tr><td>Layouts: Edit, Perform, your own</td><td>&mdash;</td><td>⌃⌘1, ⌃⌘2, ⌃⌘3&hellip;</td></tr>
+<tr><td>Show all panels</td><td>&mdash;</td><td>⌥⌘P</td></tr>
+<tr><td>Move the panel under the pointer a step (Mac; its ⋯ menu also has Move All the Way)</td><td>&mdash;</td><td>⌥⌘← ⌥⌘→ ⌥⌘↑ ⌥⌘↓</td></tr>
+<tr class="group"><th colspan="3">Help</th></tr>
+<tr><td>Whorld Help</td><td>&mdash;</td><td>⌘?</td></tr>
+<tr class="group"><th colspan="3">Over the picture (Mac)</th></tr>
+<tr><td>Show or hide the Key Map on a keyboard</td><td>&mdash;</td><td>` (the key left of 1)</td></tr>
+<tr><td>A Key Map key held: swipe or turn the wheel to move its control, or ↑ ↓ to step it</td><td>&mdash;</td><td>the key, then a swipe or ↑ ↓ (see <a href="#overpicture">Over the picture</a> and Help &gt; Tips and Gestures)</td></tr>
 </table>
 <p class="note">Panels use <kbd>⌥⌘</kbd> and a digit, not Windows' Shift+letter, which would fire while typing a capital letter in a text field.</p>
 

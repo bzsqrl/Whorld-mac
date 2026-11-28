@@ -12,7 +12,7 @@ Help > Whorld Help explains what differs from Windows and lists the keyboard sho
 
 ### Build from source
 
-You need Xcode 16.2 or later and CMake 3.20 or later. Clone with `git clone --recursive` (or run `git submodule update --init` in an existing clone): the app builds [Syphon-Framework](https://github.com/Syphon/Syphon-Framework) (BSD license), a submodule in `mac/third_party`, and embeds it.
+You need Xcode 16.2 or later and CMake 3.20 or later. Clone with `git clone --recursive` (or run `git submodule update --init --recursive` in an existing clone). Two submodules in `mac/third_party` are needed: [Syphon-Framework](https://github.com/Syphon/Syphon-Framework) (BSD license), which the app builds and embeds, and [Ableton Link](https://github.com/Ableton/link) (GPL version 2 or later), compiled into the app with its own `asio-standalone` submodule.
 
 ```sh
 # engine, renderers (Core Graphics and Metal), tools and tests
