@@ -1,0 +1,430 @@
+<!doctype html>
+<!--
+  This file is part of Whorld for macOS, a port of Whorld by Chris Korda.
+  Copyright 2026 Jeff Matson.
+  Written with Claude (Anthropic).
+
+  This program is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as published by the Free
+  Software Foundation, either version 3 of the License, or (at your option)
+  any later version. See the LICENSE file at the repository root.
+
+  The website at https://whorld.sqrl.biz, published from site/ by
+  .github/workflows/pages.yml.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whorld for Mac</title>
+<meta name="description" content="A free, native macOS port of Chris Korda's Whorld, the sacred-geometry visualizer. Metal on Apple silicon, video export, audio reactivity, Ableton Link, MIDI, OSC and Syphon.">
+<meta property="og:title" content="Whorld for Mac">
+<meta property="og:description" content="Chris Korda's sacred-geometry visualizer, native on macOS. VJ with it, make videos with it, or just watch it.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://whorld.sqrl.biz/social-preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg-2: #111118;
+    --surface: #17171f;
+    --border: #272733;
+    --text: #ececf2;
+    --muted: #9c9cae;
+    --accent: #ffd23f;
+    --accent-ink: #1a1400;
+    --code-bg: #0e0e14;
+    --shadow: 0 10px 30px rgba(0,0,0,.35);
+    --rainbow: linear-gradient(90deg, #ff3d6e, #ff9f1c, #ffd23f, #3ddc84, #29b6f6, #a66cff);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #fbfaf7;
+      --bg-2: #f3f1ec;
+      --surface: #ffffff;
+      --border: #e4e1da;
+      --text: #1b1b22;
+      --muted: #5c5c6b;
+      --accent: #9a6700;
+      --accent-ink: #ffffff;
+      --code-bg: #f5f3ee;
+      --shadow: 0 10px 30px rgba(30,20,10,.08);
+      --rainbow: linear-gradient(90deg, #d81b60, #e65100, #b58100, #2e7d32, #0277bd, #6a1b9a);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  img { max-width: 100%; height: auto; display: block; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre, kbd { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-size: .9em; }
+  :not(pre) > code, kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    padding: .1em .4em;
+    border-radius: 5px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+
+  /* Nav */
+  nav {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--bg) 85%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  nav .wrap { display: flex; align-items: center; gap: 24px; height: 56px; }
+  nav .brand { font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+  nav .brand:hover { text-decoration: none; }
+  nav .brand img { width: 28px; height: 28px; }
+  nav .links { display: flex; align-items: center; gap: 20px; margin-left: auto; font-size: .92rem; }
+  nav .links a { color: var(--muted); }
+  nav .links a:hover { color: var(--text); text-decoration: none; }
+  @media (max-width: 760px) { nav .links a:not(.gh):not(.ai-badge) { display: none; } }
+  nav a.ai-badge { display: block; flex-shrink: 0; transition: transform 0.2s ease; }
+  nav a.ai-badge:hover { transform: scale(1.08); }
+  nav a.ai-badge img { display: block; width: 39px; height: 44px; max-width: none; }
+  @media (max-width: 420px) { nav a.ai-badge img { width: 32px; height: 36px; } }
+
+  /* Hero */
+  .hero { padding: 72px 0 64px; position: relative; overflow: hidden; }
+  .hero::before {
+    content: ""; position: absolute; inset: -40% -10% auto auto; width: 70%; height: 140%;
+    background: radial-gradient(closest-side, color-mix(in srgb, #a66cff 20%, transparent), transparent);
+    pointer-events: none;
+  }
+  .hero .wrap { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; position: relative; }
+  @media (max-width: 880px) { .hero .wrap { grid-template-columns: 1fr; } .hero { padding-top: 48px; } }
+  .eyebrow { color: var(--accent); font-weight: 600; font-size: .85rem; letter-spacing: .08em; text-transform: uppercase; }
+  h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 1.08; margin: 12px 0 18px; letter-spacing: -.02em; font-weight: 800; }
+  h1 span { background: var(--rainbow); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lede { font-size: 1.15rem; color: var(--muted); max-width: 34em; margin: 0 0 28px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 11px 18px; border-radius: 10px; font-weight: 600; font-size: .95rem;
+    border: 1px solid var(--border); color: var(--text); background: var(--surface);
+  }
+  .btn:hover { text-decoration: none; border-color: var(--muted); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn svg { width: 18px; height: 18px; flex: none; }
+  .fine { color: var(--muted); font-size: .88rem; margin: 14px 0 0; }
+
+  .hero-art { position: relative; aspect-ratio: 1; max-width: 480px; width: 100%; justify-self: center; }
+  .hero-art img {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+    border-radius: 50%; box-shadow: 0 20px 60px rgba(0,0,0,.45);
+    opacity: 0; animation: cycle 24s infinite;
+  }
+  /* Negative delays: the first image is already showing when the page opens. */
+  .hero-art img:nth-child(1) { animation-delay: -1s; }
+  .hero-art img:nth-child(2) { animation-delay: 5s; }
+  .hero-art img:nth-child(3) { animation-delay: 11s; }
+  .hero-art img:nth-child(4) { animation-delay: 17s; }
+  @media (max-width: 880px) { .hero-art { max-width: 340px; } }
+  @keyframes cycle { 0% { opacity: 0; } 4%, 25% { opacity: 1; } 29%, 100% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .hero-art img { animation: none; }
+    .hero-art img:first-child { opacity: 1; }
+  }
+
+  /* Sections */
+  section { padding: 72px 0; border-top: 1px solid var(--border); }
+  section.alt { background: var(--bg-2); }
+  h2 { font-size: clamp(1.6rem, 3vw, 2.1rem); margin: 0 0 10px; letter-spacing: -.01em; }
+  .sub { color: var(--muted); margin: 0 0 36px; max-width: 46em; }
+  h3 { margin: 0 0 6px; font-size: 1.05rem; }
+
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 22px; box-shadow: var(--shadow);
+  }
+  .card p { margin: 0; color: var(--muted); font-size: .95rem; }
+  .card .ico {
+    width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; margin-bottom: 14px;
+    background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent);
+  }
+  .card .ico svg { width: 20px; height: 20px; }
+
+  /* Gallery */
+  .gallery { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; }
+  @media (max-width: 760px) { .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .gallery figure { margin: 0; }
+  .gallery img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; background: #000; }
+  .gallery figcaption { margin-top: 6px; color: var(--muted); font-size: .85rem; }
+
+  /* Steps */
+  .steps { counter-reset: step; display: grid; gap: 20px; }
+  .step { display: grid; grid-template-columns: 44px 1fr; gap: 16px; }
+  .step::before {
+    counter-increment: step; content: counter(step);
+    width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--accent); color: var(--accent-ink); font-weight: 700;
+  }
+  .step > div { min-width: 0; }
+  .step p { margin: 4px 0 10px; color: var(--muted); }
+
+  pre {
+    position: relative; margin: 0; background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px; overflow-x: auto; line-height: 1.55;
+  }
+  pre .c { color: var(--muted); }
+  .copy {
+    position: absolute; top: 8px; right: 8px; font: 500 .75rem Inter, sans-serif;
+    background: var(--surface); color: var(--muted); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 9px; cursor: pointer;
+  }
+  .copy:hover { color: var(--text); }
+
+  /* Split */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+  @media (max-width: 880px) { .split { grid-template-columns: 1fr; } }
+  ul.ticks { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+  ul.ticks li { padding-left: 28px; position: relative; color: var(--muted); }
+  ul.ticks li strong { color: var(--text); }
+  ul.ticks li::before {
+    content: ""; position: absolute; left: 0; top: .45em; width: 14px; height: 14px; border-radius: 50%;
+    background: color-mix(in srgb, var(--accent) 20%, transparent); border: 2px solid var(--accent);
+  }
+
+  footer { border-top: 1px solid var(--border); padding: 32px 0; color: var(--muted); font-size: .9rem; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; }
+  footer p { margin: 0; }
+  footer .ai-note { flex-basis: 100%; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <img src="img/icon-128.png" alt="" width="28" height="28">
+      Whorld for Mac
+    </a>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#gallery">Gallery</a>
+      <a href="#install">Install</a>
+      <a href="#source">Source</a>
+      <a class="gh" href="https://github.com/bzsqrl/Whorld-mac">GitHub</a>
+      <a class="ai-badge" href="https://aibadge.org/" target="_blank" rel="noopener" title="Made with AI (aibadge.org)"><img src="made-with-ai.png" alt="Made with AI" width="39" height="44"></a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">macOS &middot; Free &amp; open source</div>
+      <h1>Sacred geometry, <span>native on your Mac.</span></h1>
+      <p class="lede">
+        Whorld uses math to make a seamless animation of mesmerizing psychedelic images.
+        VJ with it, make videos with it, or sit back and watch it.
+        This is a native macOS port of Chris Korda's free visualizer, and it draws every patch the way the Windows version does.
+      </p>
+      <div class="cta">
+        <a class="btn primary" id="download" href="https://github.com/bzsqrl/Whorld-mac/releases">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          <span id="download-label">Download for Mac</span>
+        </a>
+        <a class="btn" href="https://github.com/bzsqrl/Whorld-mac">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2.1c-3.3.7-4-1.4-4-1.4-.6-1.4-1.4-1.8-1.4-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.9 1.2 1.9 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.7 18.3 5 18.3 5c.7 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .5Z"/></svg>
+          View on GitHub
+        </a>
+      </div>
+      <p class="fine" id="download-note">macOS 14 Sonoma or later &middot; Apple silicon and Intel &middot; Signed and notarized</p>
+    </div>
+
+    <div class="hero-art" role="img" aria-label="Four Whorld patches fading into one another: an orange spiral, a rainbow star, purple interlaced rings and blue rays.">
+      <img src="img/bloom.webp" alt="" width="640" height="640" fetchpriority="high">
+      <img src="img/digi-smoke.webp" alt="" width="640" height="640" loading="lazy">
+      <img src="img/pinwheel.webp" alt="" width="640" height="640" loading="lazy">
+      <img src="img/fish-eye.webp" alt="" width="640" height="640" loading="lazy">
+    </div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="wrap">
+    <h2>Made for performing</h2>
+    <p class="sub">Everything the Windows version does, on the Mac, plus the things a Mac VJ setup needs: Syphon, Ableton Link, Core MIDI and video export.</p>
+    <div class="grid">
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg></div>
+        <h3>Fast on Apple silicon</h3>
+        <p>Draws on the GPU with Metal. On an M1 Max, all but the heaviest sample patch hold 120 fps full screen. Intel Macs draw on the CPU with Core Graphics.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+        <h3>Moves to music</h3>
+        <p>Audio modulation drives any control from an audio input, another app, or everything the Mac plays: level, bands, kicks and hats, beats and bars.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+        <h3>Ableton Link</h3>
+        <p>Keeps Whorld's beat in time with other apps on the network. Oscillators can lock to the beat, and patches can change on the next beat, bar or four bars.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10v4M10 10v4M14 10v4M18 10v4"/></svg></div>
+        <h3>MIDI and OSC</h3>
+        <p>MIDI Learn maps any knob or pad through Core MIDI. Everything can also be controlled and monitored over OSC, and a TouchOSC layout is included.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="13" height="10" rx="2"/><rect x="9" y="10" width="13" height="10" rx="2"/></svg></div>
+        <h3>Syphon output</h3>
+        <p>Sends the picture, with transparency, to VJ apps such as Resolume, MadMapper and OBS.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="15" height="14" rx="2"/><path d="m17 10 5-3v10l-5-3z"/></svg></div>
+        <h3>Video export</h3>
+        <p>Renders patches and movies to H.264, HEVC or ProRes, or a video that moves to a music file, with the music as its sound.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg></div>
+        <h3>Playlists and a Perform Bar</h3>
+        <p>Cue the next patch while one plays, then go. Blackout, Auto Advance and the tempo sit in a bar under the picture, and panels arrange into layouts you switch with a key.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10H7z"/><path d="M3 12h4M17 12h4M12 3v4M12 17v4"/></svg></div>
+        <h3>Same files as Windows</h3>
+        <p>Patches, playlists, snapshots and movies are the same files on both platforms, so you can share them with Windows users. 25 sample patches come with the app.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="gallery" class="alt">
+  <div class="wrap">
+    <h2>A few patches</h2>
+    <p class="sub">Stills from Whorld's demo patches. In the app they never stop moving: every parameter can be driven by oscillators, MIDI, OSC or the music.</p>
+    <ul class="gallery">
+      <li><figure><img src="img/bloom-320.webp" srcset="img/bloom-320.webp 320w, img/bloom.webp 640w" sizes="(max-width: 760px) 50vw, 260px" alt="Orange and red rings twisted into a five-armed spiral" width="320" height="320" loading="lazy"><figcaption>Bloom</figcaption></figure></li>
+      <li><figure><img src="img/digi-smoke-320.webp" srcset="img/digi-smoke-320.webp 320w, img/digi-smoke.webp 640w" sizes="(max-width: 760px) 50vw, 260px" alt="Rainbow rings spiralling around a red five-pointed star" width="320" height="320" loading="lazy"><figcaption>Digi Smoke</figcaption></figure></li>
+      <li><figure><img src="img/pinwheel-320.webp" srcset="img/pinwheel-320.webp 320w, img/pinwheel.webp 640w" sizes="(max-width: 760px) 50vw, 260px" alt="Pink and blue rings interlaced into a mirrored lattice" width="320" height="320" loading="lazy"><figcaption>Pinwheel, mirrored</figcaption></figure></li>
+      <li><figure><img src="img/fish-eye-320.webp" srcset="img/fish-eye-320.webp 320w, img/fish-eye.webp 640w" sizes="(max-width: 760px) 50vw, 260px" alt="Blue rays bending out from a bright point" width="320" height="320" loading="lazy"><figcaption>Fish Eye</figcaption></figure></li>
+      <li><figure><img src="img/default-320.webp" srcset="img/default-320.webp 320w, img/default.webp 640w" sizes="(max-width: 760px) 50vw, 260px" alt="Rainbow hexagons nested into a bow-tie shape" width="320" height="320" loading="lazy"><figcaption>Default</figcaption></figure></li>
+      <li><figure><img src="img/saturn-320.webp" srcset="img/saturn-320.webp 320w, img/saturn.webp 640w" sizes="(max-width: 760px) 50vw, 260px" alt="Hundreds of fine green rings around a bright centre" width="320" height="320" loading="lazy"><figcaption>Saturn</figcaption></figure></li>
+      <li><figure><img src="img/raindrops-320.webp" srcset="img/raindrops-320.webp 320w, img/raindrops.webp 640w" sizes="(max-width: 760px) 50vw, 260px" alt="Fine gold rings rippling out from a point near the top" width="320" height="320" loading="lazy"><figcaption>Raindrops</figcaption></figure></li>
+      <li><figure><img src="img/yin-yang-320.webp" srcset="img/yin-yang-320.webp 320w, img/yin-yang.webp 640w" sizes="(max-width: 760px) 50vw, 260px" alt="Purple and teal circles curling into a spiral" width="320" height="320" loading="lazy"><figcaption>Yin Yang</figcaption></figure></li>
+    </ul>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <h2>Install</h2>
+    <p class="sub">Needs macOS 14 (Sonoma) or later, on an Apple silicon or Intel Mac.</p>
+    <div class="steps">
+      <div class="step"><div>
+        <h3>Download the disk image</h3>
+        <p>Get <code>Whorld-&lt;version&gt;.dmg</code> from <a href="https://github.com/bzsqrl/Whorld-mac/releases">Releases</a>. Releases marked <em>pre-release</em> are betas and release candidates.</p>
+      </div></div>
+      <div class="step"><div>
+        <h3>Drag Whorld to Applications</h3>
+        <p>Open the disk image and drag Whorld onto the Applications folder.</p>
+      </div></div>
+      <div class="step"><div>
+        <h3>Open it</h3>
+        <p>Whorld is signed with an Apple Developer ID and notarized by Apple, so it opens like any other downloaded app. It makes a Whorld folder in Documents for your patches, playlists, snapshots, movies and exports.</p>
+      </div></div>
+    </div>
+
+    <div class="split" style="margin-top:48px">
+      <div>
+        <h3>Help and feedback</h3>
+        <ul class="ticks" style="margin-top:12px">
+          <li><strong>Help &gt; Whorld Help</strong> explains what differs from Windows, lists the keyboard shortcuts and the OSC addresses.</li>
+          <li><strong>Found a bug or want a feature?</strong> Choose Help &gt; Report a Bug or Help &gt; Request a Feature, or open a <a href="https://github.com/bzsqrl/Whorld-mac/issues/new/choose">new issue</a>.</li>
+          <li>Please report Mac problems here, not on the original Whorld's repository.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Using it with other apps</h3>
+        <ul class="ticks" style="margin-top:12px">
+          <li><strong>TouchOSC:</strong> the layout is <a href="https://github.com/bzsqrl/Whorld-mac/blob/main/mac/touchosc/Whorld.tosc"><code>mac/touchosc/Whorld.tosc</code></a>, with a PERFORM page of 16 pads, GO, Blackout and Auto Advance.</li>
+          <li><strong>Resolume, MadMapper, OBS:</strong> pick Whorld as a Syphon source.</li>
+          <li><strong>Windows Whorld:</strong> open its patches and playlists as they are.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="source" class="alt">
+  <div class="wrap">
+    <h2>Build from source</h2>
+    <p class="sub">You need Xcode 16.2 or later and CMake 3.20 or later. Clone with the submodules: <a href="https://github.com/Syphon/Syphon-Framework">Syphon</a> and <a href="https://github.com/Ableton/link">Ableton Link</a>.</p>
+<pre><code>git clone --recursive https://github.com/bzsqrl/Whorld-mac.git
+cd Whorld-mac
+
+<span class="c"># engine, renderers, tools and tests</span>
+cmake -S mac -B build && cmake --build build && ctest --test-dir build --output-on-failure
+
+<span class="c"># the app</span>
+xcodebuild -project mac/app/Whorld.xcodeproj -scheme Whorld build</code></pre>
+    <p style="color:var(--muted);margin-top:16px">The source layout, porting rules and plan are in the <a href="https://github.com/bzsqrl/Whorld-mac#readme">README</a>. The original Windows source in <code>trunk/Whorld</code> is unchanged.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>Whorld for Mac &middot; Free software under the <a href="https://github.com/bzsqrl/Whorld-mac/blob/main/LICENSE">GNU GPL v3</a></p>
+    <p>An unofficial port of <a href="https://victimofleisure.github.io/Whorld/">Whorld</a> by Chris Korda. The official Whorld, for Windows, is at <a href="https://github.com/victimofleisure/Whorld">victimofleisure/Whorld</a>.</p>
+    <p class="ai-note">Made with AI: the macOS port's code and documentation were largely written with an AI coding tool (Claude Code), directed and tested by a person.</p>
+  </div>
+</footer>
+
+<script>
+  // Copy buttons on code blocks
+  document.querySelectorAll('pre').forEach(function (pre) {
+    var b = document.createElement('button');
+    b.className = 'copy';
+    b.type = 'button';
+    b.textContent = 'Copy';
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.querySelector('code').innerText).then(function () {
+        b.textContent = 'Copied';
+        setTimeout(function () { b.textContent = 'Copy'; }, 1500);
+      });
+    });
+    pre.appendChild(b);
+  });
+
+  // Point the Download button straight at a .dmg: the newest full release, or
+  // while there is none, the newest pre-release. If GitHub's API can't be
+  // reached, the button stays a link to the Releases page.
+  fetch('https://api.github.com/repos/bzsqrl/Whorld-mac/releases?per_page=30')
+    .then(function (r) { return r.ok ? r.json() : []; })
+    .then(function (releases) {
+      var withDmg = releases.filter(function (rel) {
+        return !rel.draft && (rel.assets || []).some(function (a) { return /\.dmg$/i.test(a.name); });
+      });
+      var rel = withDmg.find(function (r) { return !r.prerelease; }) || withDmg[0];
+      if (!rel) return;
+      var dmg = rel.assets.find(function (a) { return /\.dmg$/i.test(a.name); });
+      document.getElementById('download').href = dmg.browser_download_url;
+      document.getElementById('download-label').textContent = 'Download ' + rel.tag_name.replace(/^v/, '');
+      if (rel.prerelease) {
+        var note = document.getElementById('download-note');
+        note.innerHTML = 'Pre-release &middot; ' + note.innerHTML;
+      }
+    })
+    .catch(function () {});
+</script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!doctype html>
+<!--
+  This file is part of Whorld for macOS, a port of Whorld by Chris Korda.
+  Copyright 2026 Jeff Matson.
+  Written with Claude (Anthropic).
+
+  This program is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as published by the Free
+  Software Foundation, either version 3 of the License, or (at your option)
+  any later version. See the LICENSE file at the repository root.
+
+  Source of social-preview.png (1200x630). To re-render, open it in headless
+  Chrome: --headless=new --window-size=1200,630 --screenshot=social-preview.png
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;800&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    background: #0a0a0f; color: #ececf2; font-family: Inter, system-ui, sans-serif;
+    display: grid; grid-template-columns: 1fr 630px; align-items: center;
+  }
+  .text { padding: 0 40px 0 80px; }
+  .brand { display: flex; align-items: center; gap: 16px; font-weight: 800; font-size: 30px; }
+  .brand img { width: 56px; height: 56px; }
+  h1 { font-size: 64px; line-height: 1.05; letter-spacing: -.02em; margin: 36px 0 24px; font-weight: 800; }
+  h1 span { background: linear-gradient(90deg, #ff3d6e, #ff9f1c, #ffd23f, #3ddc84, #29b6f6, #a66cff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  p { margin: 0; color: #9c9cae; font-size: 26px; font-weight: 500; }
+  .art { width: 630px; height: 630px; position: relative; }
+  .art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .art::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, #0a0a0f, transparent 35%); }
+</style>
+</head>
+<body>
+  <div class="text">
+    <div class="brand"><img src="img/icon-128.png" alt="">Whorld for Mac</div>
+    <h1>Sacred geometry, <span>native on your Mac.</span></h1>
+    <p>Free and open source for macOS</p>
+  </div>
+  <div class="art"><img src="img/bloom.webp" alt=""></div>
+</body>
+</html>
