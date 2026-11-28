@@ -161,6 +161,12 @@
   }
   .card .ico svg { width: 20px; height: 20px; }
 
+  /* The app */
+  .shot {
+    width: 100%; border-radius: 12px; border: 1px solid var(--border);
+    box-shadow: 0 20px 60px rgba(0,0,0,.35); background: #1e1e1e;
+  }
+
   /* Gallery */
   .gallery { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; }
   @media (max-width: 760px) { .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -217,6 +223,7 @@
       Whorld for Mac
     </a>
     <div class="links">
+      <a href="#app">The app</a>
       <a href="#features">Features</a>
       <a href="#gallery">Gallery</a>
       <a href="#install">Install</a>
@@ -258,6 +265,19 @@
     </div>
   </div>
 </header>
+
+<section id="app" class="alt">
+  <div class="wrap">
+    <h2>The app</h2>
+    <p class="sub">The picture sits among panels for patches, parameters, the playlist and properties. Drag them to dock, float or tab them, and switch between layouts with a key.</p>
+    <img class="shot"
+      src="img/app-1400.webp"
+      srcset="img/app-800.webp 800w, img/app-1400.webp 1400w, img/app-2100.webp 2100w"
+      sizes="(max-width: 1080px) calc(100vw - 32px), 1048px"
+      width="1400" height="875" loading="lazy"
+      alt="Whorld's window on a Mac: the Patches list, Parameters sliders, Playlist, Properties, Master and Globals panels around the picture, which shows nested pentagons shading from red to green.">
+  </div>
+</section>
 
 <section id="features">
   <div class="wrap">

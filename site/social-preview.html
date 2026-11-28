@@ -18,19 +18,22 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;800&display=swap" rel="stylesheet">
 <style>
   html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
-  body {
-    background: #0a0a0f; color: #ececf2; font-family: Inter, system-ui, sans-serif;
-    display: grid; grid-template-columns: 1fr 630px; align-items: center;
+  body { background: #0a0a0f; color: #ececf2; font-family: Inter, system-ui, sans-serif; position: relative; }
+  body::before {
+    content: ""; position: absolute; left: 380px; top: -200px; width: 1000px; height: 1000px;
+    background: radial-gradient(closest-side, rgba(166,108,255,.28), transparent);
   }
-  .text { padding: 0 40px 0 80px; }
-  .brand { display: flex; align-items: center; gap: 16px; font-weight: 800; font-size: 30px; }
-  .brand img { width: 56px; height: 56px; }
-  h1 { font-size: 64px; line-height: 1.05; letter-spacing: -.02em; margin: 36px 0 24px; font-weight: 800; }
+  .text { position: absolute; left: 64px; top: 0; bottom: 0; width: 400px; display: flex; flex-direction: column; justify-content: center; }
+  .brand { display: flex; align-items: center; gap: 14px; font-weight: 800; font-size: 28px; }
+  .brand img { width: 52px; height: 52px; }
+  h1 { font-size: 54px; line-height: 1.06; letter-spacing: -.02em; margin: 30px 0 22px; font-weight: 800; }
   h1 span { background: linear-gradient(90deg, #ff3d6e, #ff9f1c, #ffd23f, #3ddc84, #29b6f6, #a66cff); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  p { margin: 0; color: #9c9cae; font-size: 26px; font-weight: 500; }
-  .art { width: 630px; height: 630px; position: relative; }
-  .art img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .art::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, #0a0a0f, transparent 35%); }
+  p { margin: 0; color: #9c9cae; font-size: 23px; font-weight: 500; }
+  .shot {
+    position: absolute; left: 500px; top: 80px; width: 840px;
+    border-radius: 14px; border: 1px solid #272733;
+    box-shadow: 0 30px 80px rgba(0,0,0,.6);
+  }
 </style>
 </head>
 <body>
@@ -39,6 +42,6 @@
     <h1>Sacred geometry, <span>native on your Mac.</span></h1>
     <p>Free and open source for macOS</p>
   </div>
-  <div class="art"><img src="img/bloom.webp" alt=""></div>
+  <img class="shot" src="img/app-1400.webp" alt="">
 </body>
 </html>
