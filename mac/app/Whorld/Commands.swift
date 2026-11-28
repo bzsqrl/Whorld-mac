@@ -501,6 +501,7 @@ struct HelpCommands: Commands {
 		CommandGroup(replacing: .help) {
 			Button("Whorld Help") { Self.openHelp("index.html") }
 				.keyboardShortcut("?")
+			Button("A First Tour of Whorld") { Self.openHelp("tour.html") }	// for someone new to Whorld (2026-11-28)
 			Button("Tips and Gestures") { Self.openHelp("tips.html") }
 			Button("Whorld Manual") { Self.openHelp("frames.html") }
 			Divider()
