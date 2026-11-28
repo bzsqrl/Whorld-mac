@@ -12,9 +12,11 @@
     python3 mac/tools/build_touchosc.py
 
 writes mac/touchosc/Whorld.tosc: a landscape layout (1280 x 800, for a
-tablet or a computer; TouchOSC scales it) with four pages: MAIN (Master,
-the Image switches and actions, the origin), PARAMS (every parameter's
-value), GLOBALS and MONITOR (names and frame statistics).
+tablet or a computer; TouchOSC scales it) with five pages: MAIN (Master,
+the Image switches and actions, the origin), PERFORM (the playlist's pads
+and banks, cue and Go, Blackout, Auto Advance, modulation and the beat;
+2026-11-27), PARAMS (every parameter's value), GLOBALS and MONITOR (names
+and frame statistics).
 
 In TouchOSC set any connection to UDP, host = the Whorld Mac's address
 (Settings > OSC shows it), send port 8000, receive port 8001. Controls take
@@ -57,6 +59,10 @@ def rgb(hex_, a=1.0):
 
 BG, PANEL, GREY = rgb("#101014"), rgb("#1b1b22"), rgb("#3a3a48")
 ACCENT, TEXT, DIM = rgb("#c0408a"), rgb("#ececf2"), rgb("#8c8c9c")
+# PERFORM's lights: a pad with no patch, cued, and Go waiting for the beat's
+# resting color (playing is ACCENT, as Whorld's own accent marks it)
+EMPTY, CUED, GO = rgb("#1f1f27"), rgb("#2f7fc8"), rgb("#2c7a4b")
+PAD_COLORS = [EMPTY, GREY, CUED, ACCENT]	# /w/cue/padN/state: 0 none, 1 a patch, 2 cued, 3 playing
 
 
 # ── XML ──────────────────────────────────────────────────────────────────────
@@ -119,6 +125,7 @@ class Layout:
 	def __init__(self):
 		self.names = set()
 		self.labels = {}	# address -> label names showing its value as text
+		self.lights = {}	# address -> (control name, colors by the value: 0, 1, ...)
 		self.status = []	# labels showing the connection
 
 	def _name(self, name):
@@ -163,6 +170,29 @@ class Layout:
 		], [value("x", 0)], [osc(address, [], trigger="RISE")])
 		return btn + self.label(name + "_lbl", frame, text, size=15)
 
+	def pad(self, name, frame, address, feed, light, colors):
+		"""A momentary button whose text and color Whorld sets: its label
+		shows `feed`, and `light`'s value picks its color from `colors`."""
+		btn = node("BUTTON", [
+			prop("s", "name", self._name(name)),
+			prop("r", "frame", frame),
+			prop("c", "color", colors[0]),
+			prop("i", "buttonType", 0),
+		], [value("x", 0)], [osc(address, [], trigger="RISE")])
+		self.lights[light] = (name, colors)
+		return btn + self.label(name + "_lbl", frame, "", size=15, feed=feed)
+
+	def lit_push(self, name, frame, text, address, light, colors):
+		"""A momentary button with a fixed name, colored by `light`'s value."""
+		btn = node("BUTTON", [
+			prop("s", "name", self._name(name)),
+			prop("r", "frame", frame),
+			prop("c", "color", colors[0]),
+			prop("i", "buttonType", 0),
+		], [value("x", 0)], [osc(address, [], trigger="RISE")])
+		self.lights[light] = (name, colors)
+		return btn + self.label(name + "_lbl", frame, text, size=24)
+
 	def fader(self, name, frame, text, address):
 		"""A horizontal fader under its name; follows Whorld's value."""
 		x, y, w, h = frame
@@ -190,10 +220,14 @@ class Layout:
 	def script(self):
 		def lua_list(items):
 			return "{ " + ", ".join(f"'{s}'" for s in items) + " }"
+		def lua_color(c):
+			return "{ " + ", ".join(str(x) for x in c) + " }"
 		labels = "{\n" + "".join(f"  ['{k}'] = {lua_list(v)},\n" for k, v in sorted(self.labels.items())) + "}"
+		lights = "{\n" + "".join(f"  ['{k}'] = {{ '{n}', {{ " + ", ".join(lua_color(c) for c in cs) + " } },\n"
+			for k, (n, cs) in sorted(self.lights.items())) + "}"
 		conn = "{ " + ", ".join("true" if i in CONNECTIONS else "false" for i in range(1, 11)) + " }"
 		return ROOT_SCRIPT % {"conn": conn, "port": PORT, "feedback": FEEDBACK, "labels": labels,
-			"status": lua_list(self.status)}
+			"lights": lights, "status": lua_list(self.status)}
 
 
 def grid(x0, y0, x1, y1, cols, rows, gap):
@@ -209,6 +243,7 @@ ROOT_SCRIPT = r"""
 local CONN = %(conn)s
 local PING_MS, LOST_MS = 1000, 3500
 local LABELS = %(labels)s
+local LIGHTS = %(lights)s
 local STATUS = %(status)s
 local NOT_CONNECTED = 'not connected: set a connection to the Whorld Mac, send port %(port)d, receive port %(feedback)d'
 local lastPing, lastPong, host, shown = -PING_MS, -1, '', nil
@@ -256,6 +291,12 @@ function onReceiveOSC(message, connections)
     end
     lastPong, host = now, arg and tostring(arg.value) or ''
     return
+  end
+  local light = LIGHTS[path]
+  if light and arg and type(arg.value) == 'number' then
+    local c = ctl(light[1])
+    local col = light[2][math.floor(arg.value) + 1]
+    if c and col then c.color = Color(col[1], col[2], col[3], col[4]) end
   end
   local names = LABELS[path]
   if names and arg then
@@ -311,6 +352,44 @@ def build():
 	c.append(lay.caption("cap_origin", (640, 394, 300, 20), "ORIGIN"))
 	c.append(lay.xy("origin", (640, 418, W - M - 640, H - TAB - M - 418), "/w/org"))
 	pages = [page("MAIN", c)]
+
+	# PERFORM: the pads of the playlist's current bank (Whorld sends each
+	# one's patch name and state), cue and Go, and the switches and beat
+	# controls a set needs (2026-11-27)
+	c = header("per_")
+	PX = 800	# the pads' right edge; the controls are right of it
+	c.append(lay.caption("cap_pads", (M, 58, 200, 20), "PADS"))
+	c.append(lay.push("bank_down", (M, 82, 140, 48), "BANK −", "/w/cue/bankdown"))
+	c.append(lay.label("bank", (M + 150, 82, PX - M - 300, 48), "", size=18, background=True, feed="/w/cue/bank"))
+	c.append(lay.push("bank_up", (PX - 140, 82, 140, 48), "BANK +", "/w/cue/bankup"))
+	for n, frame in enumerate(grid(M, 140, PX, H - TAB - M, 4, 4, GAP)):
+		# grid() fills column by column; the pads count across, as on a controller
+		col, row = divmod(n, 4)
+		k = row * 4 + col + 1
+		c.append(lay.pad(f"pad_{k}", frame, f"/w/cue/pad{k}", f"/w/cue/pad{k}/name",
+			f"/w/cue/pad{k}/state", PAD_COLORS))
+	X0 = PX + 20
+	c.append(lay.caption("cap_cue", (X0, 58, 200, 20), "CUE"))
+	c.append(lay.label("cue_name", (X0, 82, W - M - X0, 48), "", size=18, background=True, feed="/w/cue/name"))
+	for (cid, text, addr), frame in zip([("cue_prev", "◀ CUE", "/w/cue/prev"), ("cue_next", "CUE ▶", "/w/cue/next")],
+			grid(X0, 140, W - M, 196, 2, 1, GAP)):
+		c.append(lay.push(cid, frame, text, addr))
+	c.append(lay.lit_push("go", (X0, 206, W - M - X0, 110), "GO", "/w/cue/go", "/w/cue/wait", [GO, ACCENT]))
+	c.append(lay.push("go_now", (X0, 326, W - M - X0, 48), "GO NOW", "/w/cue/gonow"))
+	for (cid, text, addr), frame in zip([("blackout", "BLACKOUT", "/w/blackout"), ("advance", "AUTO ADV", "/w/advance"),
+			("geometry", "GEOM", "/w/geometry")], grid(X0, 390, W - M, 446, 3, 1, GAP)):
+		c.append(lay.switch(cid, frame, text, addr))
+	c.append(lay.caption("cap_mod", (X0, 458, 300, 20), "MODULATION"))
+	c.append(lay.switch("mod_on", (X0, 482, 110, 56), "MOD", "/w/mod/on"))
+	c.append(lay.fader("mod_depth", (X0 + 120, 482, W - M - X0 - 120, 56), "Depth", "/w/mod/depth"))
+	c.append(lay.caption("cap_beat", (X0, 550, 300, 20), "BEAT"))
+	# column by column (grid's order): 1.1 over ½ beat, then back, then on
+	beat = [("downbeat", "1.1", "/w/mod/downbeat"), ("halfbeat", "½ BEAT", "/w/mod/halfbeat"),
+		("beatback", "BEAT −", "/w/mod/beatback"), ("barback", "BAR −", "/w/mod/barback"),
+		("beatfwd", "BEAT +", "/w/mod/beatfwd"), ("barfwd", "BAR +", "/w/mod/barfwd")]
+	for (cid, text, addr), frame in zip(beat, grid(X0, 574, W - M, H - TAB - M, 3, 2, GAP)):
+		c.append(lay.push("b_" + cid, frame, text, addr))
+	pages.append(page("PERFORM", c))
 
 	# PARAMS: every parameter's value, in two columns
 	c = header("par_")
