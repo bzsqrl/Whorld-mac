@@ -9,9 +9,10 @@
 # any later version. See the LICENSE file at the repository root.
 #
 # Builds a universal (Apple silicon + Intel) Release Whorld.app, signs it,
-# and packages it with the licenses as build/dist/Whorld.dmg (no version in
-# the file or volume name, the user's choice for public releases, 2026-11-27;
-# the version is in the read-me and the app).
+# and packages it with the licenses as build/dist/Whorld-<version>.dmg, the
+# version being WhorldReleaseVersion (Whorld-1.0.0-rc.1.dmg), so downloads
+# of different releases are told apart; the volume is "Whorld", without it
+# (the user's choice, 2026-11-28; plain Whorld.dmg briefly before).
 #   sh mac/packaging/make_dmg.sh
 # With a Developer ID Application certificate in the keychain, the app and
 # its Syphon.framework are signed with it (the hardened runtime and
@@ -34,6 +35,7 @@ xcodebuild -project "$repo/mac/app/Whorld.xcodeproj" -scheme Whorld -configurati
 	-derivedDataPath "$derived" ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO build -quiet
 app="$derived/Build/Products/Release/Whorld.app"
 version=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$app/Contents/Info.plist")
+release=$(/usr/libexec/PlistBuddy -c "Print WhorldReleaseVersion" "$app/Contents/Info.plist")
 archs=$(lipo -archs "$app/Contents/MacOS/Whorld")
 case "$archs" in *arm64*x86_64*|*x86_64*arm64*) ;; *) echo "not universal: $archs" >&2; exit 1;; esac
 
@@ -92,7 +94,7 @@ version 2 or later (Ableton Link License.txt).
 Source code: https://github.com/bzsqrl/Whorld-mac
 TXT
 
-dmg="$out/Whorld.dmg"
+dmg="$out/Whorld-$release.dmg"
 rm -f "$dmg"
 hdiutil create -quiet -volname "Whorld" -srcfolder "$stage" -fs HFS+ -format UDZO "$dmg"
 rm -rf "$stage"

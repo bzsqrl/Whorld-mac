@@ -6,7 +6,7 @@ Whorld for macOS runs on macOS 14 (Sonoma) or later, on Apple silicon and Intel 
 
 ### Install
 
-Download `Whorld.dmg` from [Releases](https://github.com/bzsqrl/Whorld-mac/releases), open it and drag Whorld to Applications. Releases marked *pre-release* are betas and release candidates. Whorld is signed with an Apple Developer ID and notarized by Apple, so it opens like any other downloaded app. (Betas up to 0.1 beta 10 weren't: macOS asked to Control-click and choose Open the first time.)
+Download `Whorld-<version>.dmg` (for example `Whorld-1.0.0.dmg`) from [Releases](https://github.com/bzsqrl/Whorld-mac/releases), open it and drag Whorld to Applications. Releases marked *pre-release* are betas and release candidates. Whorld is signed with an Apple Developer ID and notarized by Apple, so it opens like any other downloaded app. (Betas up to 0.1 beta 10 weren't: macOS asked to Control-click and choose Open the first time.)
 
 Help > Whorld Help explains what differs from Windows and lists the keyboard shortcuts. To report a bug or request a feature, choose Help > Report a Bug or Help > Request a Feature in the app, or open a [new issue](https://github.com/bzsqrl/Whorld-mac/issues/new/choose) here; please not on the original Whorld's repository. Before requesting a feature, check the [existing requests](https://github.com/bzsqrl/Whorld-mac/issues?q=label%3Aenhancement) and add a 👍 to one you'd like too.
 
@@ -21,7 +21,7 @@ cmake -S mac -B build && cmake --build build && ctest --test-dir build --output-
 # the app (Debug)
 xcodebuild -project mac/app/Whorld.xcodeproj -scheme Whorld build
 
-# a universal Release app in build/dist/Whorld.dmg: signed and notarized with a
+# a universal Release app in build/dist/Whorld-<version>.dmg: signed and notarized with a
 # Developer ID certificate in your keychain, otherwise signed ad hoc
 sh mac/packaging/make_dmg.sh
 ```
