@@ -30,6 +30,8 @@ public:
 	enum {
 		FILE_VERSION = 1,
 	};
+	// Mac addition: more patches than this is a damaged file (Read fails)
+	static constexpr int	kMaxPatches = 1000000;
 
 // Public data
 	std::vector<std::string>	m_arrPatch;	// patch paths, as stored (Windows paths from Windows)

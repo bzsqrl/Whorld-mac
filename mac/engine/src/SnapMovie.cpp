@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
+#include <sys/stat.h>
 
 namespace whorld {
 
@@ -166,6 +167,18 @@ bool SnapMovie::WriteHeader()
 	return WriteSync(b, HEADER_SIZE, 0);	// rewrite header in place
 }
 
+// the bytes from the read position to the end of the file (Mac addition:
+// a damaged count is checked against it before anything is allocated,
+// as Snapshot::Read does; MFC's CMemoryException made it an error message)
+static uint64_t BytesLeft(FILE* pFile)
+{
+	struct stat	st;
+	off_t	nPos = ftello(pFile);
+	if (fstat(fileno(pFile), &st) != 0 || nPos < 0 || st.st_size < nPos)
+		return 0;
+	return static_cast<uint64_t>(st.st_size - nPos);
+}
+
 // ported from SnapMovie.cpp CSnapMovie::ReadFrameIndex
 bool SnapMovie::ReadFrameIndex()
 {
@@ -176,6 +189,8 @@ bool SnapMovie::ReadFrameIndex()
 		return Fail(std::string("Can't seek: ") + std::strerror(errno));
 	}
 	// read frame index
+	if (static_cast<uint64_t>(m_hdr.nFrameCount) > BytesLeft(m_pFile) / 8)	// Mac addition
+		return Fail("Unexpected end of file.");
 	std::vector<uint8_t>	b(static_cast<size_t>(m_hdr.nFrameCount) * 8);
 	if (!ReadBuf(b.data(), b.size())) {	// if we can't read
 		return false;	// failed to read frame index
@@ -220,6 +235,10 @@ std::unique_ptr<Snapshot> SnapMovie::Read()
 	Snapshot::DecodeDrawState(buf.data(), nStateSize, drawState);
 	if (drawState.nRings < 0) {
 		Fail("Invalid ring count.");
+		return nullptr;
+	}
+	if (static_cast<uint64_t>(drawState.nRings) * m_hdr.nRingSize > BytesLeft(m_pFile)) {	// Mac addition
+		Fail("Unexpected end of file.");
 		return nullptr;
 	}
 	std::unique_ptr<Snapshot>	pSnapshot(Snapshot::Alloc(drawState.nRings));

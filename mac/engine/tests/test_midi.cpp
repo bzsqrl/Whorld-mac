@@ -168,6 +168,27 @@ TEST(PlaylistLayoutSection) {
 	CHECK(WriteIni(bad).find("Layout") == std::string::npos);
 }
 
+TEST(PlaylistDamagedCounts) {
+	// Mac addition: an absurd patch count fails rather than reading billions
+	// of empty entries; an absurd mapping count reads no mappings
+	auto	read = [](const std::string& text, Playlist& pl, std::string& sError) {
+		std::istringstream	in(text);
+		IniFile	f;
+		f.Read(in);
+		return pl.Read(f, &sError);
+	};
+	const std::string	head = "[Settings]\nFileID=WhorldPlay\nFileVersion=1\n";
+	Playlist	pl;
+	std::string	sError;
+	CHECK(!read(head + "[Patch]\nCount=2000000000\n", pl, sError));
+	CHECK_EQ(sError, std::string("Invalid patch count."));
+	CHECK(read(head + "[Patch]\nCount=3\n[Patch\\1]\nPath=b.whp\n", pl, sError));
+	CHECK_EQ(pl.m_arrPatch.size(), size_t(3));	// missing sections are empty, as on Windows
+	CHECK_EQ(pl.m_arrPatch[1], std::string("b.whp"));
+	CHECK(read(head + "[Mapping]\nCount=2000000000\n", pl, sError));
+	CHECK(pl.m_arrMapping.empty());
+}
+
 TEST(PlaylistRelativePaths) {
 	// Mac addition: RelPath beside Path, for Mac paths only, so a playlist
 	// and its patches moved together still find each other

@@ -104,6 +104,8 @@ public:
 
 class MappingArray : public std::vector<Mapping> {
 public:
+	// Mac addition: a count above this is a damaged file, and reads no mappings
+	static constexpr int	kMaxMappings = 100000;
 	void	Read(const IniFile& fIn);
 	void	Write(IniFile& fOut) const;
 };

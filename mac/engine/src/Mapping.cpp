@@ -265,11 +265,15 @@ void Mapping::Write(IniFile& fOut, const std::string& sSection) const
 void MappingArray::Read(const IniFile& fIn)
 {
 	int	nItems = fIn.GetInt(RK_MAPPING_SECTION, RK_MAPPING_COUNT, 0);
+	if (nItems > kMaxMappings)	// Mac addition: a damaged count reads none
+		nItems = 0;
 	resize(std::max(nItems, 0));
 	for (int iItem = 0; iItem < nItems; iItem++) {	// for each mapping
 		at(iItem).Read(fIn, RK_MAPPING_SECTION "\\" + std::to_string(iItem));
 	}
 	int	nMac = fIn.GetInt(RK_MAC_MAPPING_SECTION, RK_MAPPING_COUNT, 0);
+	if (nMac > kMaxMappings)	// a damaged count reads none
+		nMac = 0;
 	for (int iItem = 0; iItem < nMac; iItem++) {
 		std::string	sSection = RK_MAC_MAPPING_SECTION "\\" + std::to_string(iItem);
 		if (MappingBase::FindTargetTag(fIn.GetString(sSection, RK_MAPPING_TARGET)) < 0)

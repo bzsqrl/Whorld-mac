@@ -51,6 +51,13 @@ bool Playlist::Read(const IniFile& fIn, std::string* pError, bool* pbNewer)
 	if (pbNewer)	// IDS_DOC_NEWER_VERSION: a warning only
 		*pbNewer = m_nFileVersion > FILE_VERSION;
 	int	nPatches = fIn.GetInt(RK_PATCH_SECTION, RK_PATCH_COUNT, 0);
+	// Mac addition: a damaged count (Windows' CArray::SetSize would run out
+	// of memory) is an error, not billions of empty entries
+	if (nPatches > kMaxPatches) {
+		if (pError)
+			*pError = "Invalid patch count.";
+		return false;
+	}
 	m_arrPatch.assign(nPatches > 0 ? nPatches : 0, std::string());
 	m_arrRelPath.assign(m_arrPatch.size(), std::string());
 	for (int iPatch = 0; iPatch < nPatches; iPatch++) {	// for each patch

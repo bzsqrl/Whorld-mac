@@ -113,6 +113,31 @@ TEST(OpenErrors) {
 	fs::remove(junk);
 }
 
+TEST(DamagedCountsAreErrors) {
+	// Mac addition: a frame count or ring count too big for the file is an
+	// error before anything is allocated (it was std::bad_alloc, a crash)
+	std::string	bytes = ReadBytes(SampleMovie());
+	CHECK(bytes.size() > 100000);
+	fs::path	damaged = fs::temp_directory_path() / "whorld_damaged.whm";
+	auto	write = [&](const std::string& b) { std::ofstream f(damaged, std::ios::binary); f << b; };
+	std::string	b = bytes;
+	for (int i = 0; i < 8; i++)
+		b[24 + i] = i < 7 ? '\xff' : '\x0f';	// nFrameCount: about 10^18
+	write(b);
+	SnapMovie	movie;
+	CHECK(!movie.Open(damaged.string(), false));
+	CHECK_EQ(movie.GetLastError(), std::string("Unexpected end of file."));
+	b = bytes;
+	for (int i = 0; i < 4; i++)
+		b[SnapMovie::HEADER_SIZE + 32 + i] = i < 3 ? '\xff' : '\x7f';	// the first frame's nRings
+	write(b);
+	CHECK(movie.Open(damaged.string(), false));
+	CHECK(movie.Read() == nullptr);
+	CHECK_EQ(movie.GetLastError(), std::string("Unexpected end of file."));
+	movie.Close();
+	fs::remove(damaged);
+}
+
 TEST(EngineRecordsAndPlaysBack) {
 	fs::path	path = fs::temp_directory_path() / "whorld_engine_movie.whm";
 	whorld::srand(1);
